@@ -1,0 +1,51 @@
+services:
+  app:
+    container_name: dashbrr
+    image: ghcr.io/autobrr/dashbrr:latest
+    #build:
+    #  context: .
+    #  dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DASHBRR__DB_PATH=/data/dashbrr.db
+      - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
+      #- OIDC_ISSUER=optional
+      #- OIDC_CLIENT_ID=optional
+      #- OIDC_CLIENT_SECRET=optional
+      #- OIDC_REDIRECT_URL=optional
+    volumes:
+      - ./data:/data
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - dashbrr-network
+
+  redis:
+    container_name: dashbrr-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --save 60 1 --loglevel warning
+    restart: unless-stopped
+    networks:
+      - dashbrr-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_data:
+    name: dashbrr_redis_data
+
+networks:
+  dashbrr-network:
+    name: dashbrr-network
+    driver: bridge
