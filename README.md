@@ -14,7 +14,7 @@ A sleek, modern dashboard for monitoring and managing your media stack services.
   - [Manual Installation](#manual-installation)
 - [Configuration](#configuration)
   - [Environment Variables](#environment-variables)
-  - [Authentication](#authentication)
+  - [Authentication](#built-in-authentication)
 - [Screenshots](#screenshots)
 
 ## Features
