@@ -33,8 +33,6 @@ func NewMaintainerrHandler(db *database.DB, cache *cache.Cache) *MaintainerrHand
 }
 
 func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
-	//log.Debug().Msg("Starting to fetch Maintainerr collections")
-
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
 		log.Error().Msg("No instance ID provided")
@@ -63,6 +61,12 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	// If not in cache, fetch from service
 	collections, err = h.fetchAndCacheCollections(instanceId, cacheKey)
 	if err != nil {
+		if err.Error() == "service not configured" {
+			// Return empty response for unconfigured service
+			c.JSON(http.StatusOK, []maintainerr.Collection{})
+			return
+		}
+
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			status = http.StatusGatewayTimeout
@@ -88,8 +92,8 @@ func (h *MaintainerrHandler) fetchAndCacheCollections(instanceId, cacheKey strin
 		return nil, err
 	}
 
-	if maintainerrConfig == nil {
-		return nil, fmt.Errorf("maintainerr is not configured")
+	if maintainerrConfig == nil || maintainerrConfig.URL == "" {
+		return nil, fmt.Errorf("service not configured")
 	}
 
 	service := &maintainerr.MaintainerrService{}
@@ -115,7 +119,7 @@ func (h *MaintainerrHandler) refreshCollectionsCache(instanceId, cacheKey string
 	time.Sleep(100 * time.Millisecond)
 
 	collections, err := h.fetchAndCacheCollections(instanceId, cacheKey)
-	if err != nil {
+	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).

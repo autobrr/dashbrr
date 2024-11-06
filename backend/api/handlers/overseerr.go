@@ -62,6 +62,14 @@ func (h *OverseerrHandler) GetPendingRequests(c *gin.Context) {
 	// If not in cache, fetch from service
 	count, err := h.fetchAndCacheRequests(instanceId, cacheKey)
 	if err != nil {
+		if err.Error() == "service not configured" {
+			// Return empty response for unconfigured service
+			c.JSON(http.StatusOK, gin.H{
+				"pendingRequests": 0,
+			})
+			return
+		}
+
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			status = http.StatusGatewayTimeout
@@ -89,8 +97,8 @@ func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (i
 		return 0, err
 	}
 
-	if overseerrConfig == nil {
-		return 0, fmt.Errorf("overseerr is not configured")
+	if overseerrConfig == nil || overseerrConfig.URL == "" {
+		return 0, fmt.Errorf("service not configured")
 	}
 
 	service := &overseerr.OverseerrService{}
@@ -121,7 +129,7 @@ func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
 	time.Sleep(100 * time.Millisecond)
 
 	count, err := h.fetchAndCacheRequests(instanceId, cacheKey)
-	if err != nil {
+	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
