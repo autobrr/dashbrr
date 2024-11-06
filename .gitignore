@@ -36,3 +36,4 @@ docs/
 main
 backend/test.db
 dev-dist/
+license.sh

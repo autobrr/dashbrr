@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, s0up and the autobrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 // Get the current frontend URL
 const getFrontendUrl = () => {
   // In development, use localhost:3000

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, s0up and the autobrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 import { ServiceHealthMonitor } from "./components/services/ServiceHealthMonitor";
 import { ConfigurationProvider } from "./contexts/ConfigurationContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
