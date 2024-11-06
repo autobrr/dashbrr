@@ -20,7 +20,7 @@ BUILD_DIR=dist
 # Main Go file
 MAIN_GO=./backend/main.go
 
-.PHONY: all build clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build docker-push help test redis-dev redis-stop wait-backend docker-clean test-integration test-integration-db test-integration-db-stop
+.PHONY: all clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run
 
 # Default target
 all: clean deps-frontend deps-go frontend backend
@@ -130,10 +130,6 @@ docker-build:
 	@echo "Building Docker image..."
 	docker build -t $(BINARY_NAME):latest .
 
-docker-push:
-	@echo "Pushing Docker image..."
-	docker push $(BINARY_NAME):latest
-
 # Start PostgreSQL for integration tests
 test-integration-db:
 	@echo "Starting PostgreSQL for integration tests..."
@@ -175,9 +171,20 @@ run: all
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  all           - Build everything (default)"
-	@echo "  clean         - Remove build artifacts"
-	@echo "  deps-go       - Install Go dependencies"
-	@echo "  deps-frontend - Install frontend dependencies"
-	@echo "  frontend      - Build only the frontend"
-	@echo "  backend       -
+	@echo "  all                      - Build everything (clean, install dependencies, build frontend and backend)"
+	@echo "  clean                    - Remove build artifacts and clean Go workspace"
+	@echo "  deps-go                  - Install Go dependencies"
+	@echo "  deps-frontend            - Install frontend dependencies using pnpm"
+	@echo "  frontend                 - Build the frontend application"
+	@echo "  backend                  - Build the backend Go binary"
+	@echo "  dev                      - Start development environment with SQLite and Redis"
+	@echo "  redis-dev                - Start Redis server for development"
+	@echo "  redis-stop               - Stop Redis development server"
+	@echo "  docker-dev               - Start Docker development environment with PostgreSQL (rebuilds containers)"
+	@echo "  docker-dev-quick         - Start Docker development environment without rebuilding"
+	@echo "  docker-clean             - Clean Docker environment including volumes"
+	@echo "  docker-build             - Build Docker image"
+	@echo "  test-integration         - Run integration tests with PostgreSQL"
+	@echo "  test-integration-db      - Start PostgreSQL for integration tests"
+	@echo "  test-integration-db-stop - Stop PostgreSQL integration test database"
+	@echo "  run                      - Build and run the application"
