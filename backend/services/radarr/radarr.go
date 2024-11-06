@@ -132,6 +132,10 @@ func (s *RadarrService) GetQueue(baseURL, apiKey string) (*QueueResponse, error)
 	if err != nil {
 		return nil, err
 	}
+
+	if resp == nil {
+		return nil, fmt.Errorf("received nil response from server")
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

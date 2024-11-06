@@ -102,6 +102,12 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Radarr queue"})
 		return
 	}
+
+	if resp == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Radarr")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Radarr"})
+		return
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

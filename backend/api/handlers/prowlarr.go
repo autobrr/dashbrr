@@ -102,6 +102,12 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Prowlarr stats"})
 		return
 	}
+
+	if resp == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Prowlarr")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Prowlarr"})
+		return
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -189,6 +195,12 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Prowlarr indexers")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Prowlarr indexers"})
+		return
+	}
+
+	if resp == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Prowlarr")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Prowlarr"})
 		return
 	}
 	defer resp.Body.Close()

@@ -52,7 +52,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	// Try to get from cache first
 	var sessions *plex.PlexSessionsResponse
 	err := h.cache.Get(ctx, cacheKey, &sessions)
-	if err == nil {
+	if err == nil && sessions != nil {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("size", sessions.MediaContainer.Size).
@@ -64,7 +64,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
-	// If not in cache, fetch from service
+	// If not in cache or invalid cache data, fetch from service
 	sessions, err = h.fetchAndCacheSessions(instanceId, cacheKey)
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -78,10 +78,16 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("size", sessions.MediaContainer.Size).
-		Msg("Successfully retrieved and cached Plex sessions")
+	if sessions != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("size", sessions.MediaContainer.Size).
+			Msg("Successfully retrieved and cached Plex sessions")
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Retrieved empty Plex sessions")
+	}
 
 	c.JSON(http.StatusOK, sessions)
 }
@@ -100,6 +106,10 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*plex.
 	sessions, err := service.GetSessions(plexConfig.URL, plexConfig.APIKey)
 	if err != nil {
 		return nil, err
+	}
+
+	if sessions == nil {
+		return nil, fmt.Errorf("received nil response from Plex service")
 	}
 
 	// Initialize empty metadata if nil
@@ -129,8 +139,14 @@ func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("size", sessions.MediaContainer.Size).
-		Msg("Successfully refreshed Plex sessions cache")
+	if sessions != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("size", sessions.MediaContainer.Size).
+			Msg("Successfully refreshed Plex sessions cache")
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Refreshed cache with empty Plex sessions")
+	}
 }

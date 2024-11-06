@@ -101,9 +101,25 @@ func TestHealthService_GetAllHealth(t *testing.T) {
 	// Get all health checks
 	allHealth := hs.GetAllHealth()
 
+	// Verify we got the expected number of health checks
 	assert.Len(t, allHealth, 2)
-	assert.Equal(t, "healthy", allHealth["test1"].Status)
-	assert.Equal(t, "error", allHealth["test2"].Status)
+
+	// Verify each health check exists and has the expected status
+	test1Health, exists := allHealth["test1"]
+	assert.True(t, exists, "test1 health check should exist")
+	if test1Health != nil {
+		assert.Equal(t, "healthy", test1Health.Status)
+	} else {
+		t.Error("test1 health check should not be nil")
+	}
+
+	test2Health, exists := allHealth["test2"]
+	assert.True(t, exists, "test2 health check should exist")
+	if test2Health != nil {
+		assert.Equal(t, "error", test2Health.Status)
+	} else {
+		t.Error("test2 health check should not be nil")
+	}
 }
 
 func TestHealthService_Cleanup(t *testing.T) {

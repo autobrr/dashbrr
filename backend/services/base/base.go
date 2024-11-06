@@ -119,6 +119,10 @@ func (s *BaseService) MakeRequestWithContext(ctx context.Context, url string, ap
 		return nil, fmt.Errorf("request failed: %v", err)
 	}
 
+	if resp == nil {
+		return nil, fmt.Errorf("received nil response from server")
+	}
+
 	// Check if response is a redirect to a login page or similar
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
 		resp.Body.Close()

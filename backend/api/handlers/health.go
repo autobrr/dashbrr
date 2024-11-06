@@ -73,7 +73,14 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		}
 	}
 
-	serviceType := strings.Split(serviceID, "-")[0]
+	// Validate service ID format and extract service type
+	parts := strings.Split(serviceID, "-")
+	if len(parts) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID format"})
+		return
+	}
+	serviceType := parts[0]
+
 	serviceChecker := h.serviceFactory.CreateService(serviceType)
 	if serviceChecker == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported service type: " + serviceType})

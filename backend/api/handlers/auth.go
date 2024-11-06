@@ -370,6 +370,12 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
 		return
 	}
+
+	if resp == nil {
+		log.Error().Msg("received nil response from userinfo endpoint")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

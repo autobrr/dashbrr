@@ -169,6 +169,10 @@ func TestServiceOperations(t *testing.T) {
 		t.Fatalf("Failed to get updated service: %v", err)
 	}
 
+	if retrieved == nil {
+		t.Fatal("Expected to find updated service, got nil")
+	}
+
 	if retrieved.DisplayName != "Updated Test Service" {
 		t.Errorf("Expected updated display name %s, got %s", "Updated Test Service", retrieved.DisplayName)
 	}
