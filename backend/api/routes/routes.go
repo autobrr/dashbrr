@@ -26,6 +26,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.SetupCORS())
+	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
 
 	// Initialize Redis cache
 	redisCache, err := cache.InitCache()

@@ -117,24 +117,95 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to get embedded files")
 	}
 
-	// Serve static files with proper MIME types and headers
-	r.GET("/assets/*filepath", func(c *gin.Context) {
-		filepath := strings.TrimPrefix(c.Param("filepath"), "/")
-
-		// Open the file from embedded filesystem
-		file, err := dist.Open(path.Join("assets", filepath))
+	// Helper function to serve static files with proper headers
+	serveStaticFile := func(c *gin.Context, filepath string, contentType string) {
+		file, err := dist.Open(filepath)
 		if err != nil {
 			c.Status(http.StatusNotFound)
 			return
 		}
 		defer file.Close()
 
-		// Read file info to get content type
 		stat, err := file.Stat()
 		if err != nil {
 			c.Status(http.StatusInternalServerError)
 			return
 		}
+
+		c.Header("Content-Type", contentType)
+		if strings.Contains(filepath, "sw.js") || strings.Contains(filepath, "manifest.json") {
+			c.Header("Cache-Control", "no-cache")
+			if strings.Contains(filepath, "sw.js") {
+				c.Header("Service-Worker-Allowed", "/")
+			}
+		} else {
+			c.Header("Cache-Control", "public, max-age=31536000")
+		}
+		c.Header("X-Content-Type-Options", "nosniff")
+
+		c.DataFromReader(http.StatusOK, stat.Size(), contentType, file, nil)
+	}
+
+	// Serve static files from root path
+	r.GET("/logo.svg", func(c *gin.Context) {
+		serveStaticFile(c, "logo.svg", "image/svg+xml")
+	})
+
+	r.GET("/masked-icon.svg", func(c *gin.Context) {
+		serveStaticFile(c, "masked-icon.svg", "image/svg+xml")
+	})
+
+	r.GET("/favicon.ico", func(c *gin.Context) {
+		serveStaticFile(c, "favicon.ico", "image/x-icon")
+	})
+
+	r.GET("/apple-touch-icon.png", func(c *gin.Context) {
+		serveStaticFile(c, "apple-touch-icon.png", "image/png")
+	})
+
+	r.GET("/apple-touch-icon-iphone-60x60.png", func(c *gin.Context) {
+		serveStaticFile(c, "apple-touch-icon-iphone-60x60.png", "image/png")
+	})
+
+	r.GET("/apple-touch-icon-ipad-76x76.png", func(c *gin.Context) {
+		serveStaticFile(c, "apple-touch-icon-ipad-76x76.png", "image/png")
+	})
+
+	r.GET("/apple-touch-icon-iphone-retina-120x120.png", func(c *gin.Context) {
+		serveStaticFile(c, "apple-touch-icon-iphone-retina-120x120.png", "image/png")
+	})
+
+	r.GET("/apple-touch-icon-ipad-retina-152x152.png", func(c *gin.Context) {
+		serveStaticFile(c, "apple-touch-icon-ipad-retina-152x152.png", "image/png")
+	})
+
+	r.GET("/pwa-192x192.png", func(c *gin.Context) {
+		serveStaticFile(c, "pwa-192x192.png", "image/png")
+	})
+
+	r.GET("/pwa-512x512.png", func(c *gin.Context) {
+		serveStaticFile(c, "pwa-512x512.png", "image/png")
+	})
+
+	// Serve manifest.json
+	r.GET("/manifest.json", func(c *gin.Context) {
+		serveStaticFile(c, "manifest.json", "application/manifest+json; charset=utf-8")
+	})
+
+	// Serve service worker
+	r.GET("/sw.js", func(c *gin.Context) {
+		serveStaticFile(c, "sw.js", "text/javascript; charset=utf-8")
+	})
+
+	// Serve workbox files
+	r.GET("/workbox-:hash.js", func(c *gin.Context) {
+		serveStaticFile(c, c.Request.URL.Path[1:], "text/javascript; charset=utf-8")
+	})
+
+	// Serve assets directory
+	r.GET("/assets/*filepath", func(c *gin.Context) {
+		filepath := strings.TrimPrefix(c.Param("filepath"), "/")
+		fullPath := path.Join("assets", filepath)
 
 		// Set content type based on file extension
 		ext := strings.ToLower(path.Ext(filepath))
@@ -142,43 +213,30 @@ func main() {
 		switch ext {
 		case ".css":
 			contentType = "text/css; charset=utf-8"
-		case ".js":
-			contentType = "application/javascript; charset=utf-8"
+		case ".js", ".mjs", ".tsx", ".ts":
+			contentType = "text/javascript; charset=utf-8"
 		case ".svg":
 			contentType = "image/svg+xml"
 		case ".png":
 			contentType = "image/png"
 		case ".jpg", ".jpeg":
 			contentType = "image/jpeg"
+		case ".json":
+			contentType = "application/json; charset=utf-8"
+		case ".woff":
+			contentType = "font/woff"
+		case ".woff2":
+			contentType = "font/woff2"
 		default:
-			contentType = "application/octet-stream"
+			contentType = "text/javascript; charset=utf-8"
 		}
 
-		// Set headers
-		c.Header("Content-Type", contentType)
-		c.Header("Cache-Control", "public, max-age=31536000")
-		c.Header("X-Content-Type-Options", "nosniff")
-
-		// Stream the file
-		c.DataFromReader(http.StatusOK, stat.Size(), contentType, file, nil)
+		serveStaticFile(c, fullPath, contentType)
 	})
 
-	// Serve specific static files
-	r.GET("/favicon.ico", func(c *gin.Context) {
-		file, err := dist.Open("favicon.ico")
-		if err != nil {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		defer file.Close()
-
-		c.Header("Content-Type", "image/x-icon")
-		c.Header("Cache-Control", "public, max-age=31536000")
-		io.Copy(c.Writer, file)
-	})
-
-	// Serve index.html for root path with proper headers
+	// Serve index.html for root path and direct requests
 	r.GET("/", serveIndex(dist))
+	r.GET("/index.html", serveIndex(dist))
 
 	// Handle all other routes
 	r.NoRoute(func(c *gin.Context) {

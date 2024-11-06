@@ -21,6 +21,8 @@ type SecureConfig struct {
 	CSPObjectSrc          []string
 	CSPMediaSrc           []string
 	CSPFrameSrc           []string
+	CSPWorkerSrc          []string
+	CSPManifestSrc        []string
 	HSTSEnabled           bool
 	HSTSMaxAge            int
 	HSTSIncludeSubdomains bool
@@ -38,14 +40,16 @@ func DefaultSecureConfig() *SecureConfig {
 	return &SecureConfig{
 		CSPEnabled:            true,
 		CSPDefaultSrc:         []string{"'self'"},
-		CSPScriptSrc:          []string{"'self'", "'unsafe-inline'", "'unsafe-eval'"},
-		CSPStyleSrc:           []string{"'self'", "'unsafe-inline'"},
-		CSPImgSrc:             []string{"'self'", "data:", "https:"},
-		CSPConnectSrc:         []string{"'self'"},
-		CSPFontSrc:            []string{"'self'"},
+		CSPScriptSrc:          []string{"'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:", "data:", "http:", "https:"},
+		CSPStyleSrc:           []string{"'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "http:", "https:"},
+		CSPImgSrc:             []string{"'self'", "data:", "http:", "https:", "blob:"},
+		CSPConnectSrc:         []string{"'self'", "ws:", "wss:", "http:", "https:", "data:"},
+		CSPFontSrc:            []string{"'self'", "https://fonts.googleapis.com", "https://fonts.gstatic.com", "http:", "https:"},
 		CSPObjectSrc:          []string{"'none'"},
-		CSPMediaSrc:           []string{"'self'"},
+		CSPMediaSrc:           []string{"'self'", "http:", "https:"},
 		CSPFrameSrc:           []string{"'none'"},
+		CSPWorkerSrc:          []string{"'self'", "blob:", "http:", "https:"},
+		CSPManifestSrc:        []string{"'self'", "http:", "https:"},
 		HSTSEnabled:           true,
 		HSTSMaxAge:            31536000, // 1 year
 		HSTSIncludeSubdomains: true,
@@ -92,6 +96,12 @@ func (c *SecureConfig) buildCSPHeader() string {
 	}
 	if len(c.CSPFrameSrc) > 0 {
 		csp += "frame-src " + joinSources(c.CSPFrameSrc) + "; "
+	}
+	if len(c.CSPWorkerSrc) > 0 {
+		csp += "worker-src " + joinSources(c.CSPWorkerSrc) + "; "
+	}
+	if len(c.CSPManifestSrc) > 0 {
+		csp += "manifest-src " + joinSources(c.CSPManifestSrc) + "; "
 	}
 
 	return csp
