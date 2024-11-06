@@ -1,5 +1,4 @@
 import { ServiceCard } from "./ServiceCard";
-import Masonry from "react-masonry-css";
 import { Service } from "../../types/service";
 import LoadingSkeleton from "../shared/LoadingSkeleton";
 import { useState, useEffect, useRef, CSSProperties } from "react";
@@ -59,7 +58,7 @@ const DraggableServiceCard = ({
     : undefined;
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className="mb-6 break-inside-avoid">
       <ServiceCard
         service={service}
         onRemove={onRemove}
@@ -192,13 +191,6 @@ export const ServiceGrid = ({
     );
   }
 
-  const breakpointColumns = {
-    default: 4,
-    1536: 3,
-    1280: 2,
-    1024: 1,
-  };
-
   return (
     <div className="w-full">
       <div className="px-0 py-6 w-full">
@@ -211,21 +203,19 @@ export const ServiceGrid = ({
             items={items.map((item) => item.instanceId)}
             strategy={rectSortingStrategy}
           >
-            <Masonry
-              breakpointCols={breakpointColumns}
-              className="flex -ml-6 w-auto"
-              columnClassName="pl-6 bg-clip-padding"
+            <div
+              className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6"
+              style={{ columnFill: "balance" }}
             >
               {items.map((service) => (
-                <div key={service.instanceId} className="mb-6">
-                  <DraggableServiceCard
-                    service={service}
-                    onRemove={() => onRemoveService(service.instanceId)}
-                    isConnected={isConnected}
-                  />
-                </div>
+                <DraggableServiceCard
+                  key={service.instanceId}
+                  service={service}
+                  onRemove={() => onRemoveService(service.instanceId)}
+                  isConnected={isConnected}
+                />
               ))}
-            </Masonry>
+            </div>
           </SortableContext>
         </DndContext>
       </div>

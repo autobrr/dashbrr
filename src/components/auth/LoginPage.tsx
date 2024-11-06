@@ -5,6 +5,7 @@ import { RegisterCredentials } from "../../types/auth";
 import { toast } from "react-hot-toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faOpenid } from "@fortawesome/free-brands-svg-icons";
+import { faCheck, faTimes } from "@fortawesome/free-solid-svg-icons";
 import Toast from "../Toast";
 import logo from "../../assets/logo.svg";
 import { Footer } from "../shared/Footer";
@@ -27,10 +28,22 @@ export function LoginPage() {
   const [checkingRegistration, setCheckingRegistration] = useState(true);
 
   // Form state
-  const [formData, setFormData] = useState<RegisterCredentials>({
+  const [formData, setFormData] = useState<
+    RegisterCredentials & { confirmPassword?: string }
+  >({
     username: "",
     password: "",
+    confirmPassword: "",
     email: "", // Will be set during registration
+  });
+
+  // Password validation state
+  const [passwordValidation, setPasswordValidation] = useState({
+    minLength: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasNumber: false,
+    passwordsMatch: false,
   });
 
   // Get the return URL from location state, or default to '/'
@@ -73,6 +86,21 @@ export function LoginPage() {
     }
   }, [isAuthenticated, loading, navigate, from]);
 
+  // Password validation effect
+  useEffect(() => {
+    if (isRegistering) {
+      const password = formData.password;
+      setPasswordValidation({
+        minLength: password.length >= 8,
+        hasUppercase: /[A-Z]/.test(password),
+        hasLowercase: /[a-z]/.test(password),
+        hasNumber: /[0-9]/.test(password),
+        passwordsMatch:
+          password === formData.confirmPassword && password !== "",
+      });
+    }
+  }, [formData.password, formData.confirmPassword, isRegistering]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -88,6 +116,31 @@ export function LoginPage() {
 
     try {
       if (isRegistering) {
+        // Check if passwords match
+        if (formData.password !== formData.confirmPassword) {
+          setError("Passwords do not match");
+          toast.custom((t) => (
+            <Toast type="error" body="Passwords do not match" t={t} />
+          ));
+          return;
+        }
+
+        // Check if all password requirements are met
+        const allRequirementsMet = Object.values(passwordValidation).every(
+          (value) => value
+        );
+        if (!allRequirementsMet) {
+          setError("Please meet all password requirements");
+          toast.custom((t) => (
+            <Toast
+              type="error"
+              body="Please meet all password requirements"
+              t={t}
+            />
+          ));
+          return;
+        }
+
         try {
           // Generate a default email using the username
           const defaultEmail = `${formData.username}@dashbrr.local`;
@@ -224,24 +277,109 @@ export function LoginPage() {
                   name="password"
                   type="password"
                   required
-                  className="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-700 dark:border-gray-900 bg-gray-700 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full px-3 py-2 border border-gray-700 dark:border-gray-900 bg-gray-700 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                   placeholder="Password"
                   value={formData.password}
                   onChange={handleInputChange}
                 />
               </div>
+              {isRegistering && (
+                <div>
+                  <label htmlFor="confirmPassword" className="sr-only">
+                    Confirm Password
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    className="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-700 dark:border-gray-900 bg-gray-700 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                    placeholder="Confirm Password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
             </div>
 
             {isRegistering && (
               <div className="rounded-md bg-blue-900 bg-opacity-20 p-4">
-                <div className="text-sm text-blue-400">
-                  <h4 className="font-medium mb-2">Password Requirements:</h4>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>Minimum 8 characters</li>
-                    <li>At least one uppercase letter</li>
-                    <li>At least one lowercase letter</li>
-                    <li>At least one number</li>
-                    <li>At least one special character</li>
+                <div className="text-sm">
+                  <h4 className="font-medium mb-2 text-blue-400">
+                    Password Requirements:
+                  </h4>
+                  <ul className="space-y-1">
+                    <li
+                      className={`flex items-center ${
+                        passwordValidation.minLength
+                          ? "text-green-400"
+                          : "text-blue-400"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={passwordValidation.minLength ? faCheck : faTimes}
+                        className="w-4 h-4 mr-2"
+                      />
+                      Minimum 8 characters
+                    </li>
+                    <li
+                      className={`flex items-center ${
+                        passwordValidation.hasUppercase
+                          ? "text-green-400"
+                          : "text-blue-400"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={
+                          passwordValidation.hasUppercase ? faCheck : faTimes
+                        }
+                        className="w-4 h-4 mr-2"
+                      />
+                      At least one uppercase letter
+                    </li>
+                    <li
+                      className={`flex items-center ${
+                        passwordValidation.hasLowercase
+                          ? "text-green-400"
+                          : "text-blue-400"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={
+                          passwordValidation.hasLowercase ? faCheck : faTimes
+                        }
+                        className="w-4 h-4 mr-2"
+                      />
+                      At least one lowercase letter
+                    </li>
+                    <li
+                      className={`flex items-center ${
+                        passwordValidation.hasNumber
+                          ? "text-green-400"
+                          : "text-blue-400"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={passwordValidation.hasNumber ? faCheck : faTimes}
+                        className="w-4 h-4 mr-2"
+                      />
+                      At least one number
+                    </li>
+                    <li
+                      className={`flex items-center ${
+                        passwordValidation.passwordsMatch
+                          ? "text-green-400"
+                          : "text-blue-400"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={
+                          passwordValidation.passwordsMatch ? faCheck : faTimes
+                        }
+                        className="w-4 h-4 mr-2"
+                      />
+                      Passwords match
+                    </li>
                   </ul>
                 </div>
               </div>

@@ -86,8 +86,8 @@ A sleek, modern dashboard for monitoring and managing your media stack services.
   - Gin web framework
   - Redis for caching
   - Database support:
-    - SQLite (default for local development)
-    - PostgreSQL (recommended for production)
+    - SQLite
+    - PostgreSQL
 - **Frontend**
   - React
   - TypeScript
@@ -251,10 +251,7 @@ Clone the repository and use either:
 docker build -t dashbrr .
 
 # OR using Make (builds and runs everything)
-make run
-
-# OR for development with PostgreSQL
-make docker-dev
+make help # to see options
 ```
 
 ### Manual Installation
