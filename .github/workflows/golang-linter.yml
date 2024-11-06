@@ -2,7 +2,7 @@ name: Golang linters
 on:
   push:
     branches:
-      - "master"
+      - "main"
       - "develop"
     tags:
       - "v*"

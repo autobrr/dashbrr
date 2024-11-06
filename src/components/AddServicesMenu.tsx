@@ -1,5 +1,5 @@
 import { Menu, Transition } from "@headlessui/react";
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { ServiceType } from "../types/service";
 import AnimatedModal from "../../src/components/ui/AnimatedModal";
 import { FormInput } from "./ui/FormInput";
@@ -34,6 +34,17 @@ export function AddServicesMenu({
   );
   const [url, setUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+
+  // Reset form fields when modal is opened/closed or when pending service changes
+  useEffect(() => {
+    if (!showServiceConfig) {
+      setUrl("");
+      setApiKey("");
+      setDisplayName("");
+    } else if (pendingService) {
+      setDisplayName(pendingService.displayName);
+    }
+  }, [showServiceConfig, pendingService]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
