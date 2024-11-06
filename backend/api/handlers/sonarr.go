@@ -12,6 +12,7 @@ import (
 
 	"github.com/autobrr/dashbrr/backend/database"
 	"github.com/autobrr/dashbrr/backend/services/cache"
+	"github.com/autobrr/dashbrr/backend/types"
 )
 
 const (
@@ -19,40 +20,6 @@ const (
 	sonarrQueuePrefix   = "sonarr:queue:"
 	sonarrStatsPrefix   = "sonarr:stats:"
 )
-
-// SonarrQueueResponse represents the queue response from Sonarr API
-type SonarrQueueResponse struct {
-	Page          int           `json:"page"`
-	PageSize      int           `json:"pageSize"`
-	SortKey       string        `json:"sortKey"`
-	SortDirection string        `json:"sortDirection"`
-	TotalRecords  int           `json:"totalRecords"`
-	Records       []QueueRecord `json:"records"`
-}
-
-// QueueRecord represents a record in the Sonarr queue
-type QueueRecord struct {
-	ID                    int    `json:"id"`
-	Title                 string `json:"title"`
-	Status                string `json:"status"`
-	TimeLeft              string `json:"timeleft,omitempty"`
-	Indexer               string `json:"indexer"`
-	DownloadClient        string `json:"downloadClient"`
-	CustomFormatScore     int    `json:"customFormatScore"`
-	TrackedDownloadStatus string `json:"trackedDownloadStatus"`
-	TrackedDownloadState  string `json:"trackedDownloadState"`
-}
-
-// SonarrStatsResponse represents the stats response from Sonarr API
-type SonarrStatsResponse struct {
-	MovieCount       int `json:"movieCount"`
-	EpisodeCount     int `json:"episodeCount"`
-	EpisodeFileCount int `json:"episodeFileCount"`
-	Monitored        int `json:"monitored"`
-	Unmonitored      int `json:"unmonitored"`
-	QueuedCount      int `json:"queuedCount"`
-	MissingCount     int `json:"missingCount"`
-}
 
 type SonarrHandler struct {
 	db    *database.DB
@@ -85,7 +52,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var queueResp SonarrQueueResponse
+	var queueResp types.SonarrQueueResponse
 	err := h.cache.Get(ctx, cacheKey, &queueResp)
 	if err == nil {
 		log.Debug().
@@ -180,7 +147,7 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var statsResp SonarrStatsResponse
+	var statsResp types.SonarrStatsResponse
 	err := h.cache.Get(ctx, cacheKey, &statsResp)
 	if err == nil {
 		log.Debug().

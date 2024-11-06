@@ -12,6 +12,7 @@ import (
 
 	"github.com/autobrr/dashbrr/backend/database"
 	"github.com/autobrr/dashbrr/backend/services/cache"
+	"github.com/autobrr/dashbrr/backend/types"
 )
 
 const (
@@ -19,21 +20,6 @@ const (
 	prowlarrStatsPrefix   = "prowlarr:stats:"
 	prowlarrIndexerPrefix = "prowlarr:indexers:"
 )
-
-// ProwlarrIndexer represents an indexer in Prowlarr
-type ProwlarrIndexer struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Enable   bool   `json:"enable"`
-	Priority int    `json:"priority"`
-}
-
-// ProwlarrStatsResponse represents the stats response from Prowlarr API
-type ProwlarrStatsResponse struct {
-	GrabCount    int `json:"grabCount"`
-	FailCount    int `json:"failCount"`
-	IndexerCount int `json:"indexerCount"`
-}
 
 type ProwlarrHandler struct {
 	db    *database.DB
@@ -66,7 +52,7 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var statsResp ProwlarrStatsResponse
+	var statsResp types.ProwlarrStatsResponse
 	err := h.cache.Get(ctx, cacheKey, &statsResp)
 	if err == nil {
 		log.Debug().
@@ -161,7 +147,7 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var indexers []ProwlarrIndexer
+	var indexers []types.ProwlarrIndexer
 	err := h.cache.Get(ctx, cacheKey, &indexers)
 	if err == nil {
 		log.Debug().

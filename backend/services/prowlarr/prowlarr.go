@@ -142,19 +142,54 @@ func (s *ProwlarrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 		extras["version"] = version
 	}
 
-	// If there are no health issues, the service is healthy
-	if len(healthIssues) == 0 {
-		return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK
+	var allWarnings []string
+
+	// Process health issues first
+	if len(healthIssues) > 0 {
+		var indexerWarnings []string
+		var otherWarnings []string
+
+		for _, issue := range healthIssues {
+			message := issue.Message
+			message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
+			message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
+
+			// Check for update message
+			if strings.HasPrefix(message, "New update is available:") {
+				extras["updateAvailable"] = true
+				continue
+			}
+
+			if strings.Contains(message, "Indexers unavailable due to failures") {
+				// Extract indexer names from the message
+				parts := strings.Split(message, ":")
+				if len(parts) > 1 {
+					indexers := strings.Split(parts[1], ",")
+					for _, indexer := range indexers {
+						indexer = strings.TrimSpace(indexer)
+						if indexer != "" {
+							indexerWarnings = append(indexerWarnings, fmt.Sprintf("- %s", indexer))
+						}
+					}
+				}
+			} else {
+				otherWarnings = append(otherWarnings, fmt.Sprintf("- %s", message))
+			}
+		}
+
+		if len(indexerWarnings) > 0 {
+			allWarnings = append(allWarnings, fmt.Sprintf("Indexers unavailable due to failures:\n%s", strings.Join(indexerWarnings, "\n")))
+		}
+		if len(otherWarnings) > 0 {
+			allWarnings = append(allWarnings, strings.Join(otherWarnings, "\n"))
+		}
 	}
 
-	// Process health issues
-	var messages []string
-	for _, issue := range healthIssues {
-		message := issue.Message
-		message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
-		message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
-		messages = append(messages, message)
+	// If there are any warnings, return them all
+	if len(allWarnings) > 0 {
+		return s.CreateHealthResponse(startTime, "warning", strings.Join(allWarnings, "\n\n"), extras), http.StatusOK
 	}
 
-	return s.CreateHealthResponse(startTime, "warning", strings.Join(messages, "; "), extras), http.StatusOK
+	// If no warnings, the service is healthy
+	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK
 }

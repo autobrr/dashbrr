@@ -12,28 +12,13 @@ import (
 
 	"github.com/autobrr/dashbrr/backend/database"
 	"github.com/autobrr/dashbrr/backend/services/cache"
+	"github.com/autobrr/dashbrr/backend/types"
 )
 
 const (
 	radarrCacheDuration = 5 * time.Second
 	radarrQueuePrefix   = "radarr:queue:"
 )
-
-// RadarrQueueResponse represents the queue response from Radarr API
-type RadarrQueueResponse struct {
-	TotalRecords int            `json:"totalRecords"`
-	Records      []RadarrRecord `json:"records"`
-}
-
-type RadarrRecord struct {
-	ID                int    `json:"id"`
-	Title             string `json:"title"`
-	Status            string `json:"status"`
-	TimeLeft          string `json:"timeleft,omitempty"`
-	Indexer           string `json:"indexer"`
-	DownloadClient    string `json:"downloadClient"`
-	CustomFormatScore int    `json:"customFormatScore"`
-}
 
 type RadarrHandler struct {
 	db    *database.DB
@@ -66,7 +51,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var queueResp RadarrQueueResponse
+	var queueResp types.RadarrQueueResponse
 	err := h.cache.Get(ctx, cacheKey, &queueResp)
 	if err == nil {
 		log.Debug().

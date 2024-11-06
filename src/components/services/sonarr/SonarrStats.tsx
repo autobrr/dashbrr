@@ -90,12 +90,6 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
                   </div>
                   <div className="text-xs opacity-75">
                     <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Download Status:{" "}
-                    </span>
-                    {firstRecord.trackedDownloadStatus}
-                  </div>
-                  <div className="text-xs opacity-75">
-                    <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
                       State:{" "}
                     </span>
                     {firstRecord.trackedDownloadState}

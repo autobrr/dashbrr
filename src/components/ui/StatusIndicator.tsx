@@ -17,6 +17,12 @@ interface StatusIndicatorProps {
   isConnected?: boolean;
 }
 
+// List of headers that should receive warning styling
+const WARNING_HEADERS = [
+  "Queue warnings",
+  "Indexers unavailable due to failures",
+];
+
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   status,
   message,
@@ -106,7 +112,98 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     ? "Initializing service..."
     : !isConnected
     ? "Connection to server lost"
-    : message;
+    : message || "";
+
+  const isWarningHeader = (title: string): boolean => {
+    return WARNING_HEADERS.some((header) => title.startsWith(header));
+  };
+
+  const formatMessage = (msg: string) => {
+    // Split the message into lines
+    const lines = msg.split("\n");
+
+    // Initialize an array to hold the JSX elements
+    const elements: React.ReactNode[] = [];
+
+    // Temporary array to collect list items
+    let listItems: string[] = [];
+
+    lines.forEach((line, index) => {
+      if (line.startsWith("- ")) {
+        // Collect list items
+        listItems.push(line.substring(2));
+      } else {
+        // If there are accumulated list items, render them first
+        if (listItems.length > 0) {
+          elements.push(
+            <ul key={`ul-${index}`} className="list-disc ml-6 space-y-1 pb-2">
+              {listItems.map((item, idx) => (
+                <li key={idx} className="text-current opacity-90">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          );
+          listItems = []; // Reset list items
+        }
+
+        // Handle lines with ":" if needed
+        if (line.includes(":")) {
+          const [title, ...rest] = line.split(":");
+          const isWarning = isWarningHeader(title.trim());
+
+          if (rest.length === 0) {
+            elements.push(
+              <div
+                key={index}
+                className={`${
+                  isWarning
+                    ? "text-yellow-500 dark:text-yellow-400 tracking-wider mt-4 mb-2"
+                    : "font-medium mt-3 mb-2"
+                }`}
+              >
+                {title}:
+              </div>
+            );
+          } else {
+            // If there's content after ":", display it normally
+            elements.push(
+              <div key={index} className="space-y-2">
+                <div
+                  className={`${
+                    isWarning
+                      ? "text-yellow-500 dark:text-yellow-400 text-xs font-bold pb-1 tracking-wider"
+                      : "font-medium"
+                  } mb-2`}
+                >
+                  {title}:
+                </div>
+                <div className="ml-1">{rest.join(":")}</div>
+              </div>
+            );
+          }
+        } else {
+          // Regular lines
+          elements.push(<div key={index}>{line}</div>);
+        }
+      }
+    });
+
+    // If any list items remain after the loop, render them
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key="ul-end" className="list-disc ml-6 space-y-1">
+          {listItems.map((item, idx) => (
+            <li key={idx} className="text-current opacity-90">
+              {item}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return elements;
+  };
 
   return (
     <div className="space-y-2 transition-all duration-200 mb-4">
@@ -114,9 +211,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
         <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
           Status
         </span>
-        <div
-          className={`flex items-center gap-1 ${statusDisplay.color} font-medium`}
-        >
+        <div className={`flex items-center gap-1 ${statusDisplay.color}`}>
           <span className="text-xs pointer-events-none">
             {statusDisplay.text}
           </span>
@@ -131,17 +226,13 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
       </div>
 
       {shouldShowMessage && (
-        <div
-          className={`flex items-center text-xs p-2 rounded-lg ${getMessageStyle(
-            status
-          )}`}
-        >
-          <div className="flex-1 min-h-[24px] flex items-center">
-            {displayMessage}
-            {(status === "loading" || isInitialLoad) && (
-              <span className="inline-block animate-pulse ml-1">...</span>
-            )}
+        <div className={`text-xs p-2 rounded-lg ${getMessageStyle(status)}`}>
+          <div className="space-y-1 mr-4 font-medium overflow-hidden">
+            {formatMessage(displayMessage)}
           </div>
+          {(status === "loading" || isInitialLoad) && (
+            <span className="inline-block animate-pulse ml-1">...</span>
+          )}
         </div>
       )}
     </div>

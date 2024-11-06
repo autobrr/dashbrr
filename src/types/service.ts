@@ -109,6 +109,7 @@ export interface SonarrQueueItem {
   timeLeft?: string;
   trackedDownloadState?: string;
   trackedDownloadStatus?: string;
+  errorMessage?: string;
 }
 
 export interface SonarrQueue {
