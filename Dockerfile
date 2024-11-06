@@ -1,5 +1,5 @@
 # build web
-FROM node:20.17.0-alpine3.20 AS web-builder
+FROM node:22.10.0-alpine3.20 AS web-builder
 RUN corepack enable
 
 WORKDIR /web
@@ -56,4 +56,5 @@ COPY --from=app-builder /app/dashbrr /dashbrr
 EXPOSE 8080
 
 USER 65532:65532
-ENTRYPOINT ["/dashbrr", "--db", "./data/dashbrr.db"]
+
+ENTRYPOINT ["/dashbrr"]

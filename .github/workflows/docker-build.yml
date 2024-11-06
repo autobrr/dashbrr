@@ -11,6 +11,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  GO_VERSION: "1.23"
+
 jobs:
   backend-tests:
     name: Go Tests
@@ -40,7 +43,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.23"
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Install Go dependencies
@@ -49,8 +52,47 @@ jobs:
       - name: Run tests
         run: go test -v ./...
 
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: dashbrr
+          POSTGRES_PASSWORD: dashbrr
+          POSTGRES_DB: dashbrr_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Run integration tests
+        env:
+          DASHBRR__DB_HOST: localhost
+          DASHBRR__DB_PORT: 5432
+          DASHBRR__DB_USER: dashbrr
+          DASHBRR__DB_PASSWORD: dashbrr
+          DASHBRR__DB_NAME: dashbrr_test
+        run: go test -v -tags=integration ./...
+
   build-and-push:
-    needs: backend-tests
+    needs: [backend-tests, integration-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

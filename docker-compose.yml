@@ -1,17 +1,27 @@
 services:
-  app:
+  dashbrr:
     container_name: dashbrr
-    image: ghcr.io/autobrr/dashbrr:latest
-    #build:
-    #  context: .
-    #  dockerfile: Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - DASHBRR__DB_PATH=/data/dashbrr.db
+      # Database configuration - uncomment desired database type
+      # SQLite configuration
+      #- DASHBRR__DB_TYPE=sqlite
+      #- DASHBRR__DB_PATH=/data/dashbrr.db
+      # PostgreSQL configuration
+      - DASHBRR__DB_TYPE=postgres
+      - DASHBRR__DB_HOST=postgres
+      - DASHBRR__DB_PORT=5432
+      - DASHBRR__DB_USER=dashbrr
+      - DASHBRR__DB_PASSWORD=dashbrr
+      - DASHBRR__DB_NAME=dashbrr
       - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
+
       #- OIDC_ISSUER=optional
       #- OIDC_CLIENT_ID=optional
       #- OIDC_CLIENT_SECRET=optional
@@ -19,10 +29,14 @@ services:
     volumes:
       - ./data:/data
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - dashbrr-network
+    command: ["/dashbrr"]
 
   redis:
     container_name: dashbrr-redis
@@ -41,9 +55,31 @@ services:
       timeout: 5s
       retries: 3
 
+  postgres:
+    container_name: dashbrr-postgres
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=dashbrr
+      - POSTGRES_PASSWORD=dashbrr
+      - POSTGRES_DB=dashbrr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dashbrr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashbrr"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   redis_data:
     name: dashbrr_redis_data
+  postgres_data:
+    name: dashbrr_postgres_data
 
 networks:
   dashbrr-network:
