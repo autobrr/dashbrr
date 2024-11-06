@@ -82,6 +82,42 @@ func (s *RadarrService) getSystemStatus(baseURL, apiKey string) (string, error) 
 	return status.Version, nil
 }
 
+func (s *RadarrService) checkForUpdates(baseURL, apiKey string) (bool, error) {
+	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(baseURL, "/"))
+	headers := map[string]string{
+		"auth_header": "X-Api-Key",
+		"auth_value":  apiKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resp, err := s.MakeRequestWithContext(ctx, updateURL, "", headers)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return false, err
+	}
+
+	var updates []types.UpdateResponse
+	if err := json.Unmarshal(body, &updates); err != nil {
+		return false, err
+	}
+
+	// Check if there's any update available
+	for _, update := range updates {
+		if !update.Installed && update.Installable {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (s *RadarrService) getQueue(url, apiKey string) ([]types.RadarrQueueRecord, error) {
 	if url == "" || apiKey == "" {
 		return nil, fmt.Errorf("service not configured: missing URL or API key")
@@ -141,6 +177,17 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 		versionChan <- version
 	}()
 
+	// Start update check in background
+	updateChan := make(chan bool, 1)
+	go func() {
+		hasUpdate, err := s.checkForUpdates(url, apiKey)
+		if err != nil {
+			updateChan <- false
+			return
+		}
+		updateChan <- hasUpdate
+	}()
+
 	// Start queue check in background
 	queueChan := make(chan []types.RadarrQueueRecord, 1)
 	go func() {
@@ -187,6 +234,15 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 		// Continue without version if it takes too long
 	}
 
+	// Wait for update check with timeout
+	var updateAvailable bool
+	select {
+	case u := <-updateChan:
+		updateAvailable = u
+	case <-time.After(500 * time.Millisecond):
+		// Continue without update check if it takes too long
+	}
+
 	// Wait for queue with timeout
 	var queue []types.RadarrQueueRecord
 	select {
@@ -202,6 +258,9 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 	if version != "" {
 		extras["version"] = version
 	}
+	if updateAvailable {
+		extras["updateAvailable"] = true
+	}
 
 	var allWarnings []string
 
@@ -214,12 +273,6 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 			message := issue.Message
 			message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
 			message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
-
-			// Check for update message
-			if strings.HasPrefix(message, "New update is available:") {
-				extras["updateAvailable"] = true
-				continue
-			}
 
 			if strings.Contains(message, "Indexers unavailable due to failures") {
 				// Extract indexer names from the message
