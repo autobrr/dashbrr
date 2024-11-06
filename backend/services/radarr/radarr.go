@@ -13,10 +13,7 @@ import (
 
 	"github.com/autobrr/dashbrr/backend/models"
 	"github.com/autobrr/dashbrr/backend/services/base"
-)
-
-const (
-	queueTimeout = 5 * time.Second
+	"github.com/autobrr/dashbrr/backend/types"
 )
 
 type RadarrService struct {
@@ -32,27 +29,6 @@ type HealthResponse struct {
 
 type SystemStatusResponse struct {
 	Version string `json:"version"`
-}
-
-type QueueResponse struct {
-	Page          int           `json:"page"`
-	PageSize      int           `json:"pageSize"`
-	SortKey       string        `json:"sortKey"`
-	SortDirection string        `json:"sortDirection"`
-	TotalRecords  int           `json:"totalRecords"`
-	Records       []QueueRecord `json:"records"`
-}
-
-type QueueRecord struct {
-	MovieID        int       `json:"movieId"`
-	Title          string    `json:"title"`
-	Status         string    `json:"status"`
-	TimeLeft       string    `json:"timeleft"`
-	EstimatedTime  time.Time `json:"estimatedCompletionTime"`
-	Protocol       string    `json:"protocol"`
-	DownloadClient string    `json:"downloadClient"`
-	Size           int64     `json:"size"`
-	SizeLeft       int64     `json:"sizeleft"`
 }
 
 func init() {
@@ -106,38 +82,23 @@ func (s *RadarrService) getSystemStatus(baseURL, apiKey string) (string, error) 
 	return status.Version, nil
 }
 
-func (s *RadarrService) GetQueue(baseURL, apiKey string) (*QueueResponse, error) {
-	queueURL := fmt.Sprintf("%s/api/v3/queue", strings.TrimRight(baseURL, "/"))
+func (s *RadarrService) getQueue(url, apiKey string) ([]types.RadarrQueueRecord, error) {
+	if url == "" || apiKey == "" {
+		return nil, fmt.Errorf("service not configured: missing URL or API key")
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), queueTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	transport := &http.Transport{
-		ForceAttemptHTTP2: true,
-		MaxIdleConns:      10,
-		IdleConnTimeout:   30 * time.Second,
+	queueURL := fmt.Sprintf("%s/api/v3/queue", strings.TrimRight(url, "/"))
+	headers := map[string]string{
+		"auth_header": "X-Api-Key",
+		"auth_value":  apiKey,
 	}
 
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   queueTimeout,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", queueURL, nil)
+	resp, err := s.MakeRequestWithContext(ctx, queueURL, apiKey, headers)
 	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("X-Api-Key", apiKey)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp == nil {
-		return nil, fmt.Errorf("received nil response from server")
+		return nil, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -145,12 +106,17 @@ func (s *RadarrService) GetQueue(baseURL, apiKey string) (*QueueResponse, error)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var queueResp QueueResponse
-	if err := json.NewDecoder(resp.Body).Decode(&queueResp); err != nil {
-		return nil, err
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	return &queueResp, nil
+	var queue types.RadarrQueueResponse
+	if err := json.Unmarshal(body, &queue); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return queue.Records, nil
 }
 
 func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
@@ -173,6 +139,17 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 			return
 		}
 		versionChan <- version
+	}()
+
+	// Start queue check in background
+	queueChan := make(chan []types.RadarrQueueRecord, 1)
+	go func() {
+		queue, err := s.getQueue(url, apiKey)
+		if err != nil {
+			queueChan <- nil
+			return
+		}
+		queueChan <- queue
 	}()
 
 	// Perform health check
@@ -210,6 +187,15 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 		// Continue without version if it takes too long
 	}
 
+	// Wait for queue with timeout
+	var queue []types.RadarrQueueRecord
+	select {
+	case q := <-queueChan:
+		queue = q
+	case <-time.After(500 * time.Millisecond):
+		// Continue without queue if it takes too long
+	}
+
 	extras := map[string]interface{}{
 		"responseTime": responseTime.Milliseconds(),
 	}
@@ -217,19 +203,104 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 		extras["version"] = version
 	}
 
-	// If there are no health issues, the service is healthy
-	if len(healthIssues) == 0 {
-		return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK
+	var allWarnings []string
+
+	// Process health issues first
+	if len(healthIssues) > 0 {
+		var indexerWarnings []string
+		var otherWarnings []string
+
+		for _, issue := range healthIssues {
+			message := issue.Message
+			message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
+			message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
+
+			// Check for update message
+			if strings.HasPrefix(message, "New update is available:") {
+				extras["updateAvailable"] = true
+				continue
+			}
+
+			if strings.Contains(message, "Indexers unavailable due to failures") {
+				// Extract indexer names from the message
+				parts := strings.Split(message, ":")
+				if len(parts) > 1 {
+					indexers := strings.Split(parts[1], ",")
+					for _, indexer := range indexers {
+						indexer = strings.TrimSpace(indexer)
+						if indexer != "" {
+							indexerWarnings = append(indexerWarnings, fmt.Sprintf("- %s", indexer))
+						}
+					}
+				}
+			} else {
+				otherWarnings = append(otherWarnings, fmt.Sprintf("- %s", message))
+			}
+		}
+
+		if len(indexerWarnings) > 0 {
+			allWarnings = append(allWarnings, fmt.Sprintf("Indexers unavailable due to failures:\n%s", strings.Join(indexerWarnings, "\n")))
+		}
+		if len(otherWarnings) > 0 {
+			allWarnings = append(allWarnings, strings.Join(otherWarnings, "\n"))
+		}
 	}
 
-	// Process health issues
-	var messages []string
-	for _, issue := range healthIssues {
-		message := issue.Message
-		message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
-		message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
-		messages = append(messages, message)
+	// Check queue for warning status
+	if queue != nil {
+		type releaseWarnings struct {
+			title    string
+			messages []string
+			status   string
+		}
+		warningsByRelease := make(map[string]*releaseWarnings)
+
+		for _, record := range queue {
+			if record.TrackedDownloadStatus == "warning" {
+				warnings, exists := warningsByRelease[record.Title]
+				if !exists {
+					warnings = &releaseWarnings{
+						title:    record.Title,
+						messages: []string{},
+						status:   record.Status,
+					}
+					warningsByRelease[record.Title] = warnings
+				}
+
+				// Add status as first message if it's "Downloaded - Unable to Import Automatically"
+				if record.Status == "downloadFolderImported" {
+					warnings.messages = append(warnings.messages, "Downloaded - Unable to Import Automatically")
+				}
+
+				// Collect all status messages
+				for _, msg := range record.StatusMessages {
+					if msg.Title != "" && !strings.Contains(msg.Title, record.Title) {
+						warnings.messages = append(warnings.messages, msg.Title)
+					}
+					warnings.messages = append(warnings.messages, msg.Messages...)
+				}
+			}
+		}
+
+		if len(warningsByRelease) > 0 {
+			var warningMessages []string
+			for _, warnings := range warningsByRelease {
+				var messages []string
+				for _, msg := range warnings.messages {
+					messages = append(messages, fmt.Sprintf("- %s", msg))
+				}
+				message := fmt.Sprintf("\n%s:\n%s", warnings.title, strings.Join(messages, "\n"))
+				warningMessages = append(warningMessages, message)
+			}
+			allWarnings = append(allWarnings, fmt.Sprintf("Queue warnings:%s", strings.Join(warningMessages, "")))
+		}
 	}
 
-	return s.CreateHealthResponse(startTime, "warning", strings.Join(messages, "; "), extras), http.StatusOK
+	// If there are any warnings, return them all
+	if len(allWarnings) > 0 {
+		return s.CreateHealthResponse(startTime, "warning", strings.Join(allWarnings, "\n\n"), extras), http.StatusOK
+	}
+
+	// If no warnings, the service is healthy
+	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK
 }

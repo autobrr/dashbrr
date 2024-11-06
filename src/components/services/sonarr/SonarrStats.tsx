@@ -89,34 +89,26 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
                   </div>
                   <div className="text-xs opacity-75">
                     <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Status:{" "}
-                    </span>
-                    {firstRecord.status}
-                  </div>
-                  <div className="text-xs opacity-75">
-                    <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Download Status:{" "}
-                    </span>
-                    {firstRecord.trackedDownloadStatus}
-                  </div>
-                  <div className="text-xs opacity-75">
-                    <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
                       State:{" "}
                     </span>
                     {firstRecord.trackedDownloadState}
                   </div>
-                  <div className="text-xs opacity-75">
-                    <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Indexer:{" "}
-                    </span>
-                    {firstRecord.indexer}
-                  </div>
-                  <div className="text-xs opacity-75">
-                    <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Custom Format Score:{" "}
-                    </span>
-                    {firstRecord.customFormatScore}
-                  </div>
+                  {firstRecord.indexer && (
+                    <div className="text-xs opacity-75">
+                      <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
+                        Indexer:{" "}
+                      </span>
+                      {firstRecord.indexer}
+                    </div>
+                  )}
+                  {firstRecord.customFormatScore != null && (
+                    <div className="text-xs opacity-75">
+                      <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
+                        Custom Format Score:{" "}
+                      </span>
+                      {firstRecord.customFormatScore}
+                    </div>
+                  )}
                   <div className="text-xs opacity-75">
                     <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
                       Client:{" "}

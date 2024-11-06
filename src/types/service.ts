@@ -114,6 +114,7 @@ export interface SonarrQueueItem {
   timeLeft?: string;
   trackedDownloadState?: string;
   trackedDownloadStatus?: string;
+  errorMessage?: string;
 }
 
 export interface SonarrQueue {
@@ -139,6 +140,7 @@ export interface RadarrQueueItem {
   customFormatScore: number;
   downloadClient: string;
   timeLeft?: string;
+  trackedDownloadState?: string;
 }
 
 export interface RadarrQueue {

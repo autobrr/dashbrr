@@ -90,7 +90,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
               <span
                 className={`inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition-colors duration-200 flex-shrink-0 ${
                   updateAvailable
-                    ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-100"
+                    ? "text-green-600 dark:text-green-400 bg-green-50/90 dark:bg-green-900/30"
                     : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
                 }`}
               >
@@ -99,10 +99,10 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
                     href={getUpdateUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:text-yellow-600 dark:hover:text-yellow-300 transition-colors duration-200"
+                    className="hover:text-green-600 dark:hover:text-green-200 transition-colors duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    Update
+                    Update Available
                   </a>
                 ) : (
                   trimVersion(version)

@@ -93,17 +93,27 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                   </div>
                   <div className="text-xs opacity-75">
                     <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Indexer:{" "}
+                      State:{" "}
                     </span>
-                    {firstRecord.indexer}
+                    {firstRecord.trackedDownloadState}
                   </div>
-                  <div className="text-xs opacity-75">
-                    <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Custom Format Score:{" "}
-                    </span>
-                    {firstRecord.customFormatScore}
-                  </div>
-                  <div className="text-xs opacity-75">
+                  {firstRecord.indexer != null && (
+                    <div className="text-xs opacity-75">
+                      <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
+                        Indexer:{" "}
+                      </span>
+                      {firstRecord.indexer}
+                    </div>
+                  )}
+                  {firstRecord.customFormatScore && (
+                    <div className="text-xs opacity-75">
+                      <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
+                        Custom Format Score:{" "}
+                      </span>
+                      {firstRecord.customFormatScore}
+                    </div>
+                  )}
+                  <div className="text-xs opacity-75 pb-2">
                     <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
                       Client:{" "}
                     </span>
