@@ -41,7 +41,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
       case "online":
         return `${baseStyles} text-green-600 dark:text-green-400 bg-green-50/90 dark:bg-green-900/30 border border-green-100 dark:border-green-900/50 shadow-sm shadow-green-100/50 dark:shadow-green-900/30`;
       case "warning":
-        return `${baseStyles} text-yellow-600 dark:text-yellow-400 bg-yellow-50/90 dark:bg-yellow-900/30 border border-yellow-100 dark:border-yellow-900/50 shadow-sm shadow-yellow-100/50 dark:shadow-yellow-900/30`;
+        return `${baseStyles} text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40 shadow-sm shadow-amber-100/50 dark:shadow-amber-900/20`;
       case "offline":
       case "error":
         return `${baseStyles} text-red-600 dark:text-red-400 bg-red-50/90 dark:bg-red-900/30 border border-red-100 dark:border-red-900/50 shadow-sm shadow-red-100/50 dark:shadow-red-900/30`;
@@ -65,7 +65,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     if (!isConnected) {
       return {
         text: "Disconnected",
-        color: "text-yellow-500 dark:text-yellow-400",
+        color: "text-amber-500 dark:text-amber-300",
         icon: "⚠",
       };
     }
@@ -92,7 +92,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
       case "warning":
         return {
           text: "Warning",
-          color: "text-yellow-500 dark:text-yellow-400",
+          color: "text-amber-500 dark:text-amber-300",
           icon: "⚠",
         };
       case "offline":
@@ -123,96 +123,149 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     return WARNING_HEADERS.some((header) => title.startsWith(header));
   };
 
+  const isReleaseName = (line: string): boolean => {
+    // Define common video file extensions
+    const videoExtensions = [
+      ".mkv",
+      ".mp4",
+      ".avi",
+      ".mov",
+      ".wmv",
+      ".flv",
+      ".iso",
+      ".m4v",
+    ];
+
+    const qualityTags = ["720p", "1080p", "1440p", "2160p", "4k", "HD", "SD"];
+
+    const hasVideoExtension = videoExtensions.some((extension) =>
+      line.includes(extension)
+    );
+
+    const hasQualityTag = qualityTags.some((quality) => line.includes(quality));
+    const hasReleaseType =
+      line.includes("WEBRip") ||
+      line.includes("WEB-DL") ||
+      line.includes("BluRay") ||
+      line.includes("DVD") ||
+      line.includes("HDRip");
+
+    return hasVideoExtension || (hasReleaseType && hasQualityTag);
+  };
+
   const formatMessage = (msg: string) => {
-    // Split the message into lines
-    const lines = msg.split("\n");
-
-    // Initialize an array to hold the JSX elements
-    const elements: React.ReactNode[] = [];
-
-    // Temporary array to collect list items
+    const sections: { [key: string]: React.ReactNode[] } = {};
+    let currentSection = "";
+    let currentRelease = "";
+    let currentContent: React.ReactNode[] = [];
     let listItems: string[] = [];
 
-    lines.forEach((line, index) => {
-      if (line.startsWith("- ")) {
-        // Collect list items
-        listItems.push(line.substring(2));
-      } else {
-        // If there are accumulated list items, render them first
-        if (listItems.length > 0) {
-          elements.push(
-            <ul key={`ul-${index}`} className="list-disc ml-6 space-y-1 pb-2">
-              {listItems.map((item, idx) => (
-                <li key={idx} className="text-current opacity-90">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          );
-          listItems = []; // Reset list items
+    const lines = msg.split("\n").filter((line) => line.trim());
+
+    const addListItems = () => {
+      if (listItems.length > 0) {
+        currentContent.push(
+          <ul
+            key={`list-${currentContent.length}`}
+            className="list-disc ml-6 space-y-1"
+          >
+            {listItems.map((item, idx) => (
+              <li key={idx} className="text-current opacity-90">
+                {item}
+              </li>
+            ))}
+          </ul>
+        );
+        listItems = [];
+      }
+    };
+
+    const addToSection = () => {
+      addListItems();
+      if (currentSection) {
+        if (!sections[currentSection]) {
+          sections[currentSection] = [];
         }
-
-        // Handle lines with ":" if needed
-        if (line.includes(":")) {
-          const [title, ...rest] = line.split(":");
-          const isWarning = isWarningHeader(title.trim());
-
-          if (rest.length === 0) {
-            elements.push(
+        if (currentContent.length > 0) {
+          if (currentRelease) {
+            // For release-based content
+            sections[currentSection].push(
               <div
-                key={index}
-                className={`${
-                  isWarning
-                    ? "text-yellow-500 dark:text-yellow-400 tracking-wider mt-4 mb-2"
-                    : "font-medium mt-3 mb-2"
-                }`}
+                key={`${currentSection}-${currentRelease}`}
+                className={`text-xs p-2 mb-4 rounded-lg ${getMessageStyle(
+                  status
+                )}`}
               >
-                {title}:
+                <div className="text-amber-500 dark:text-amber-300 font-medium mb-2 overflow-hidden">
+                  {currentRelease}
+                </div>
+                <div className="space-y-1">{currentContent}</div>
               </div>
             );
           } else {
-            // If there's content after ":", display it normally
-            elements.push(
-              <div key={index} className="space-y-2">
-                <div
-                  className={`${
-                    isWarning
-                      ? "text-yellow-500 dark:text-yellow-400 text-xs font-bold pb-0 tracking-wider"
-                      : "font-medium"
-                  } mb-1`}
-                >
-                  {title}:
-                </div>
-                <div className="ml-1">{rest.join(":")}</div>
+            // For non-release content (like Prowlarr messages)
+            sections[currentSection].push(
+              <div
+                key={`${currentSection}-${sections[currentSection].length}`}
+                className={`text-xs p-2 rounded-lg ${getMessageStyle(status)}`}
+              >
+                <div className="space-y-1">{currentContent}</div>
               </div>
             );
           }
-        } else {
-          // Regular lines
-          elements.push(<div key={index}>{line}</div>);
         }
+      }
+      currentContent = [];
+    };
+
+    lines.forEach((line, index) => {
+      if (isWarningHeader(line.split(":")[0])) {
+        addToSection();
+        currentSection = line.split(":")[0].trim();
+        currentRelease = "";
+      } else if (isReleaseName(line)) {
+        if (currentRelease) {
+          addToSection();
+        }
+        currentRelease = line;
+      } else if (line.startsWith("- ")) {
+        listItems.push(line.substring(2));
+      } else if (line.includes(":")) {
+        addListItems();
+        const [title, ...rest] = line.split(":");
+        currentContent.push(
+          <div key={index} className="mb-1">
+            <span className="font-medium">{title}:</span>
+            {rest.join(":")}
+          </div>
+        );
+      } else if (line.trim()) {
+        addListItems();
+        currentContent.push(
+          <div key={index} className="mb-1">
+            {line}
+          </div>
+        );
       }
     });
 
-    // If any list items remain after the loop, render them
-    if (listItems.length > 0) {
-      elements.push(
-        <ul key="ul-end" className="list-disc ml-6 space-y-1">
-          {listItems.map((item, idx) => (
-            <li key={idx} className="text-current opacity-90">
-              {item}
-            </li>
-          ))}
-        </ul>
-      );
-    }
+    addToSection();
 
-    return elements;
+    return Object.entries(sections).map(([sectionTitle, content], idx) => (
+      <div key={idx} className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs mb-1 font-semibold text-gray-700 dark:text-gray-300">
+            {sectionTitle}:
+          </span>
+        </div>
+        {content}
+      </div>
+    ));
   };
 
   return (
-    <div className="space-y-2 transition-all duration-200 mb-4">
-      <div className="flex items-center gap-1.5 select-none">
+    <div className="space-y-2 transition-all duration-200 mb-1">
+      <div className="flex items-center gap-1.5 select-none pb-2">
         <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
           Status
         </span>
@@ -231,10 +284,8 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
       </div>
 
       {shouldShowMessage && (
-        <div className={`text-xs p-2 rounded-lg ${getMessageStyle(status)}`}>
-          <div className="space-y-1 mr-4 font-normal overflow-hidden">
-            {formatMessage(displayMessage)}
-          </div>
+        <div className="space-y-2">
+          {formatMessage(displayMessage)}
           {(status === "loading" || isInitialLoad) && (
             <span className="inline-block animate-pulse ml-1">...</span>
           )}

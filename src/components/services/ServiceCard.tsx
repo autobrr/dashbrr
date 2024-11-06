@@ -176,7 +176,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="mt-4">
+              <div className="mt-2">
                 {(displayMessage || !isConnected || isInitialLoad) && (
                   <StatusIndicator
                     status={

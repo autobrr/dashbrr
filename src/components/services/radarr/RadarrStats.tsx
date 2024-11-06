@@ -68,7 +68,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
     <div className="mt-2 space-y-4">
       {queue.totalRecords > 0 && (
         <div>
-          <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
+          <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
             Queue ({queue.totalRecords}):
           </div>
           <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
@@ -113,7 +113,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                       {firstRecord.customFormatScore}
                     </div>
                   )}
-                  <div className="text-xs opacity-75 pb-2">
+                  <div className="text-xs opacity-75">
                     <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
                       Client:{" "}
                     </span>
