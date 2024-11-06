@@ -172,9 +172,9 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
                 <div
                   className={`${
                     isWarning
-                      ? "text-yellow-500 dark:text-yellow-400 text-xs font-bold pb-1 tracking-wider"
+                      ? "text-yellow-500 dark:text-yellow-400 text-xs font-bold pb-0 tracking-wider"
                       : "font-medium"
-                  } mb-2`}
+                  } mb-1`}
                 >
                   {title}:
                 </div>
@@ -227,7 +227,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
 
       {shouldShowMessage && (
         <div className={`text-xs p-2 rounded-lg ${getMessageStyle(status)}`}>
-          <div className="space-y-1 mr-4 font-medium overflow-hidden">
+          <div className="space-y-1 mr-4 font-normal overflow-hidden">
             {formatMessage(displayMessage)}
           </div>
           {(status === "loading" || isInitialLoad) && (

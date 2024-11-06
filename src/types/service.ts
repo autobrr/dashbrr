@@ -135,6 +135,7 @@ export interface RadarrQueueItem {
   customFormatScore: number;
   downloadClient: string;
   timeLeft?: string;
+  trackedDownloadState?: string;
 }
 
 export interface RadarrQueue {
