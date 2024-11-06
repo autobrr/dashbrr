@@ -187,9 +187,6 @@ export const ServiceGrid = ({
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Click the "Add Service" button to get started.
           </p>
-          <div className="mt-4 flex justify-center">
-            <div className="animate-bounce text-4xl">⬆️</div>
-          </div>
         </div>
       </div>
     );
