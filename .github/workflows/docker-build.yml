@@ -46,7 +46,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build web frontend
-        run: pnpm run build
+        run: pnpm build
 
       - name: Upload web production build
         uses: actions/upload-artifact@v4
@@ -56,6 +56,7 @@ jobs:
 
   test:
     name: Test
+    needs: [web]
     runs-on: ubuntu-latest
     services:
       postgres:
