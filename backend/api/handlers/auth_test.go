@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,44 +20,106 @@ type MockCache struct {
 	mock.Mock
 }
 
+// safeArgs ensures we always return a valid mock.Arguments
+func (m *MockCache) safeArgs(args mock.Arguments) mock.Arguments {
+	if args == nil {
+		return mock.Arguments{errors.New("mock not configured")}
+	}
+	return args
+}
+
 func (m *MockCache) Get(ctx context.Context, key string, value interface{}) error {
-	args := m.Called(ctx, key, value)
-	return args.Error(0)
+	args := m.safeArgs(m.Called(ctx, key, value))
+	if args.Get(0) == nil {
+		return nil
+	}
+	if err, ok := args.Get(0).(error); ok {
+		return err
+	}
+	return errors.New("unknown error")
 }
 
 func (m *MockCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	args := m.Called(ctx, key, value, expiration)
-	return args.Error(0)
+	args := m.safeArgs(m.Called(ctx, key, value, expiration))
+	if args.Get(0) == nil {
+		return nil
+	}
+	if err, ok := args.Get(0).(error); ok {
+		return err
+	}
+	return errors.New("unknown error")
 }
 
 func (m *MockCache) Delete(ctx context.Context, key string) error {
-	args := m.Called(ctx, key)
-	return args.Error(0)
+	args := m.safeArgs(m.Called(ctx, key))
+	if args.Get(0) == nil {
+		return nil
+	}
+	if err, ok := args.Get(0).(error); ok {
+		return err
+	}
+	return errors.New("unknown error")
 }
 
 func (m *MockCache) Increment(ctx context.Context, key string, timestamp int64) error {
-	args := m.Called(ctx, key, timestamp)
-	return args.Error(0)
+	args := m.safeArgs(m.Called(ctx, key, timestamp))
+	if args.Get(0) == nil {
+		return nil
+	}
+	if err, ok := args.Get(0).(error); ok {
+		return err
+	}
+	return errors.New("unknown error")
 }
 
 func (m *MockCache) CleanAndCount(ctx context.Context, key string, windowStart int64) error {
-	args := m.Called(ctx, key, windowStart)
-	return args.Error(0)
+	args := m.safeArgs(m.Called(ctx, key, windowStart))
+	if args.Get(0) == nil {
+		return nil
+	}
+	if err, ok := args.Get(0).(error); ok {
+		return err
+	}
+	return errors.New("unknown error")
 }
 
 func (m *MockCache) GetCount(ctx context.Context, key string) (int64, error) {
-	args := m.Called(ctx, key)
-	return args.Get(0).(int64), args.Error(1)
+	args := m.safeArgs(m.Called(ctx, key))
+	var count int64
+	if args.Get(0) != nil {
+		if c, ok := args.Get(0).(int64); ok {
+			count = c
+		}
+	}
+	var err error
+	if args.Get(1) != nil {
+		if e, ok := args.Get(1).(error); ok {
+			err = e
+		}
+	}
+	return count, err
 }
 
 func (m *MockCache) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	args := m.Called(ctx, key, expiration)
-	return args.Error(0)
+	args := m.safeArgs(m.Called(ctx, key, expiration))
+	if args.Get(0) == nil {
+		return nil
+	}
+	if err, ok := args.Get(0).(error); ok {
+		return err
+	}
+	return errors.New("unknown error")
 }
 
 func (m *MockCache) Close() error {
-	args := m.Called()
-	return args.Error(0)
+	args := m.safeArgs(m.Called())
+	if args.Get(0) == nil {
+		return nil
+	}
+	if err, ok := args.Get(0).(error); ok {
+		return err
+	}
+	return errors.New("unknown error")
 }
 
 func TestNewAuthHandler(t *testing.T) {
@@ -66,9 +129,9 @@ func TestNewAuthHandler(t *testing.T) {
 		ClientSecret: "test-client-secret",
 		RedirectURL:  "http://localhost:3000/callback",
 	}
-	cache := new(MockCache)
+	mockCache := new(MockCache)
 
-	handler := NewAuthHandler(config, cache)
+	handler := NewAuthHandler(config, mockCache)
 
 	assert.NotNil(t, handler)
 	assert.Equal(t, config, handler.config)
@@ -85,13 +148,17 @@ func TestLogin_NoFrontendURL(t *testing.T) {
 	req := httptest.NewRequest("GET", "/login", nil)
 	c.Request = req
 
+	mockCache := new(MockCache)
+	// No mock expectations needed for this test as no cache methods are called
+
 	handler := &AuthHandler{
-		cache: new(MockCache),
+		cache: mockCache,
 	}
 
 	handler.Login(c)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	mockCache.AssertExpectations(t)
 }
 
 func TestCallback_NoCode(t *testing.T) {
@@ -101,6 +168,9 @@ func TestCallback_NoCode(t *testing.T) {
 	req := httptest.NewRequest("GET", "/callback", nil)
 	c.Request = req
 
+	mockCache := new(MockCache)
+	// No mock expectations needed for this test as no cache methods are called
+
 	handler := &AuthHandler{
 		config: &types.AuthConfig{
 			Issuer:       "https://test.auth0.com",
@@ -108,13 +178,14 @@ func TestCallback_NoCode(t *testing.T) {
 			ClientSecret: "test-client-secret",
 			RedirectURL:  "http://localhost:3000/callback",
 		},
-		cache: new(MockCache),
+		cache: mockCache,
 	}
 
 	handler.Callback(c)
 
 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
 	assert.Contains(t, w.Header().Get("Location"), "/login?error=no_code")
+	mockCache.AssertExpectations(t)
 }
 
 func TestLogout_NoFrontendURL(t *testing.T) {
@@ -124,6 +195,9 @@ func TestLogout_NoFrontendURL(t *testing.T) {
 	req := httptest.NewRequest("GET", "/logout", nil)
 	c.Request = req
 
+	mockCache := new(MockCache)
+	// No mock expectations needed for this test as no cache methods are called
+
 	handler := &AuthHandler{
 		config: &types.AuthConfig{
 			Issuer:       "https://test.auth0.com",
@@ -131,10 +205,11 @@ func TestLogout_NoFrontendURL(t *testing.T) {
 			ClientSecret: "test-client-secret",
 			RedirectURL:  "http://localhost:3000/callback",
 		},
-		cache: new(MockCache),
+		cache: mockCache,
 	}
 
 	handler.Logout(c)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	mockCache.AssertExpectations(t)
 }

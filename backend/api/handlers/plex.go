@@ -52,7 +52,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	// Try to get from cache first
 	var sessions *plex.PlexSessionsResponse
 	err := h.cache.Get(ctx, cacheKey, &sessions)
-	if err == nil {
+	if err == nil && sessions != nil {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("size", sessions.MediaContainer.Size).
@@ -64,9 +64,18 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
-	// If not in cache, fetch from service
+	// If not in cache or invalid cache data, fetch from service
 	sessions, err = h.fetchAndCacheSessions(instanceId, cacheKey)
 	if err != nil {
+		if err.Error() == "service not configured" {
+			// Return empty response for unconfigured service
+			emptyResponse := &plex.PlexSessionsResponse{}
+			emptyResponse.MediaContainer.Size = 0
+			emptyResponse.MediaContainer.Metadata = []plex.PlexSession{}
+			c.JSON(http.StatusOK, emptyResponse)
+			return
+		}
+
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			status = http.StatusGatewayTimeout
@@ -78,10 +87,16 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("size", sessions.MediaContainer.Size).
-		Msg("Successfully retrieved and cached Plex sessions")
+	if sessions != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("size", sessions.MediaContainer.Size).
+			Msg("Successfully retrieved and cached Plex sessions")
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Retrieved empty Plex sessions")
+	}
 
 	c.JSON(http.StatusOK, sessions)
 }
@@ -92,14 +107,18 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*plex.
 		return nil, err
 	}
 
-	if plexConfig == nil {
-		return nil, fmt.Errorf("plex is not configured")
+	if plexConfig == nil || plexConfig.URL == "" {
+		return nil, fmt.Errorf("service not configured")
 	}
 
 	service := &plex.PlexService{}
 	sessions, err := service.GetSessions(plexConfig.URL, plexConfig.APIKey)
 	if err != nil {
 		return nil, err
+	}
+
+	if sessions == nil {
+		return nil, nil
 	}
 
 	// Initialize empty metadata if nil
@@ -121,7 +140,7 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*plex.
 
 func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
 	sessions, err := h.fetchAndCacheSessions(instanceId, cacheKey)
-	if err != nil {
+	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -129,8 +148,14 @@ func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("size", sessions.MediaContainer.Size).
-		Msg("Successfully refreshed Plex sessions cache")
+	if sessions != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("size", sessions.MediaContainer.Size).
+			Msg("Successfully refreshed Plex sessions cache")
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Refreshed cache with empty Plex sessions")
+	}
 }

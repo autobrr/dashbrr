@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -73,7 +74,25 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		}
 	}
 
-	serviceType := strings.Split(serviceID, "-")[0]
+	// Check if service is configured
+	if service.URL == "" {
+		c.JSON(http.StatusOK, models.ServiceHealth{
+			Status:      "unconfigured",
+			Message:     "Service is not configured",
+			ServiceID:   serviceID,
+			LastChecked: time.Now(),
+		})
+		return
+	}
+
+	// Validate service ID format and extract service type
+	parts := strings.Split(serviceID, "-")
+	if len(parts) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID format"})
+		return
+	}
+	serviceType := parts[0]
+
 	serviceChecker := h.serviceFactory.CreateService(serviceType)
 	if serviceChecker == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported service type: " + serviceType})

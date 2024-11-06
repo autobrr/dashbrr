@@ -78,6 +78,10 @@ func (s *BaseService) initCache() error {
 
 // MakeRequestWithContext makes an HTTP request with the provided context and timeout
 func (s *BaseService) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
+	if url == "" {
+		return nil, fmt.Errorf("service is not configured")
+	}
+
 	// Default timeout of 15 seconds if not specified in context
 	timeout := 15 * time.Second
 	if deadline, ok := ctx.Deadline(); ok {
@@ -117,6 +121,10 @@ func (s *BaseService) MakeRequestWithContext(ctx context.Context, url string, ap
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %v", err)
+	}
+
+	if resp == nil {
+		return nil, fmt.Errorf("received nil response from server")
 	}
 
 	// Check if response is a redirect to a login page or similar

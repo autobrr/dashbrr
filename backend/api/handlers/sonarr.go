@@ -121,6 +121,12 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Sonarr queue"})
 		return
 	}
+
+	if resp == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Sonarr")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Sonarr"})
+		return
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -208,6 +214,12 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Sonarr stats")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Sonarr stats"})
+		return
+	}
+
+	if resp == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Sonarr")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Sonarr"})
 		return
 	}
 	defer resp.Body.Close()

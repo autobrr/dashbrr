@@ -27,6 +27,7 @@ A sleek, modern dashboard for monitoring and managing your media stack services.
   - With optional **OpenID Connect (OIDC)** support
 - Responsive and modern UI
 - Docker support
+- Multiple database support (SQLite & PostgreSQL)
 
 ## Supported Services
 
@@ -84,7 +85,9 @@ A sleek, modern dashboard for monitoring and managing your media stack services.
   - Go
   - Gin web framework
   - Redis for caching
-  - SQLite database
+  - Database support:
+    - SQLite (default for local development)
+    - PostgreSQL (recommended for production)
 - **Frontend**
   - React
   - TypeScript
@@ -100,7 +103,9 @@ We provide a distroless container image for enhanced security and smaller size. 
 
 #### Using Pre-built Image
 
-Create a `docker-compose.yml` file:
+Create a `docker-compose.yml` file. You can choose between SQLite and PostgreSQL:
+
+SQLite configuration:
 
 ```yaml
 services:
@@ -112,6 +117,7 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - DASHBRR__DB_TYPE=sqlite
       - DASHBRR__DB_PATH=/data/dashbrr.db
       - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
       #- OIDC_ISSUER=optional
@@ -151,6 +157,85 @@ networks:
     driver: bridge
 ```
 
+PostgreSQL configuration:
+
+```yaml
+services:
+  app:
+    container_name: dashbrr
+    image: ghcr.io/autobrr/dashbrr:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DASHBRR__DB_TYPE=postgres
+      - DASHBRR__DB_HOST=postgres
+      - DASHBRR__DB_PORT=5432
+      - DASHBRR__DB_USER=dashbrr
+      - DASHBRR__DB_PASSWORD=dashbrr
+      - DASHBRR__DB_NAME=dashbrr
+      - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
+      #- OIDC_ISSUER=optional
+      #- OIDC_CLIENT_ID=optional
+      #- OIDC_CLIENT_SECRET=optional
+      #- OIDC_REDIRECT_URL=optional
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dashbrr-network
+
+  redis:
+    container_name: dashbrr-redis
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --save 60 1 --loglevel warning
+    restart: unless-stopped
+    networks:
+      - dashbrr-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    container_name: dashbrr-postgres
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=dashbrr
+      - POSTGRES_PASSWORD=dashbrr
+      - POSTGRES_DB=dashbrr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dashbrr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashbrr"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    name: dashbrr_redis_data
+  postgres_data:
+    name: dashbrr_postgres_data
+
+networks:
+  dashbrr-network:
+    name: dashbrr-network
+    driver: bridge
+```
+
 Start the containers:
 
 ```bash
@@ -167,6 +252,9 @@ docker build -t dashbrr .
 
 # OR using Make (builds and runs everything)
 make run
+
+# OR for development with PostgreSQL
+make docker-dev
 ```
 
 ### Manual Installation
@@ -177,6 +265,7 @@ make run
    - Node.js LTS
    - PNPM
    - Redis
+   - PostgreSQL (optional)
 
 2. Build and run:
 
@@ -184,8 +273,11 @@ make run
 git clone https://github.com/autobrr/dashbrr.git
 cd dashbrr
 
-# Development mode (runs frontend, backend, and Redis)
+# Development mode with SQLite (runs frontend, backend, and Redis)
 make dev
+
+# OR Development mode with PostgreSQL
+make docker-dev
 
 # OR Production build
 make run
@@ -205,7 +297,22 @@ make help
 
 - `REDIS_HOST`: Redis host address (default: localhost)
 - `REDIS_PORT`: Redis port number (default: 6379)
+
+#### Database Configuration
+
+SQLite (default):
+
+- `DASHBRR__DB_TYPE`: Set to "sqlite"
 - `DASHBRR__DB_PATH`: Path to SQLite database file
+
+PostgreSQL:
+
+- `DASHBRR__DB_TYPE`: Set to "postgres"
+- `DASHBRR__DB_HOST`: PostgreSQL host address
+- `DASHBRR__DB_PORT`: PostgreSQL port (default: 5432)
+- `DASHBRR__DB_USER`: PostgreSQL username
+- `DASHBRR__DB_PASSWORD`: PostgreSQL password
+- `DASHBRR__DB_NAME`: PostgreSQL database name
 
 #### Optional
 

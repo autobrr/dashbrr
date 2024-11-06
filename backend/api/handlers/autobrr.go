@@ -62,6 +62,12 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	// If not in cache, fetch from service
 	stats, err = h.fetchAndCacheStats(instanceId, cacheKey)
 	if err != nil {
+		if err.Error() == "service not configured" {
+			// Return empty response for unconfigured service
+			c.JSON(http.StatusOK, autobrr.AutobrrStats{})
+			return
+		}
+
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			status = http.StatusGatewayTimeout
@@ -108,6 +114,12 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	// If not in cache, fetch from service
 	status, err = h.fetchAndCacheIRC(instanceId, cacheKey)
 	if err != nil {
+		if err.Error() == "service not configured" {
+			// Return empty response for unconfigured service
+			c.JSON(http.StatusOK, []autobrr.IRCStatus{})
+			return
+		}
+
 		httpStatus := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			httpStatus = http.StatusGatewayTimeout
@@ -132,8 +144,8 @@ func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobr
 		return autobrr.AutobrrStats{}, err
 	}
 
-	if autobrrConfig == nil {
-		return autobrr.AutobrrStats{}, fmt.Errorf("autobrr is not configured")
+	if autobrrConfig == nil || autobrrConfig.URL == "" {
+		return autobrr.AutobrrStats{}, fmt.Errorf("service not configured")
 	}
 
 	service := &autobrr.AutobrrService{
@@ -163,8 +175,8 @@ func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobr
 		return nil, err
 	}
 
-	if autobrrConfig == nil {
-		return nil, fmt.Errorf("autobrr is not configured")
+	if autobrrConfig == nil || autobrrConfig.URL == "" {
+		return nil, fmt.Errorf("service not configured")
 	}
 
 	service := &autobrr.AutobrrService{
@@ -190,7 +202,7 @@ func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobr
 
 func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
 	_, err := h.fetchAndCacheStats(instanceId, cacheKey)
-	if err != nil {
+	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -205,7 +217,7 @@ func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
 
 func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
 	_, err := h.fetchAndCacheIRC(instanceId, cacheKey)
-	if err != nil {
+	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).

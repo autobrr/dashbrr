@@ -1,5 +1,5 @@
 # build web
-FROM --platform=$BUILDPLATFORM node:20.17.0-alpine3.20 AS web-builder
+FROM --platform=$BUILDPLATFORM node:22.10.0-alpine3.20 AS web-builder
 RUN corepack enable
 
 WORKDIR /web
