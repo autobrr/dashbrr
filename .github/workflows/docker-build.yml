@@ -15,8 +15,8 @@ env:
   GO_VERSION: "1.23"
 
 jobs:
-  backend-tests:
-    name: Go Tests
+  build-web:
+    name: Build Web Assets
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +35,30 @@ jobs:
         run: pnpm install
 
       - name: Build web assets
+        run: pnpm build
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v3
+        with:
+          name: web-build
+          path: dist/
+          retention-days: 1
+
+  backend-tests:
+    name: Go Tests
+    needs: [build-web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download web build
+        uses: actions/download-artifact@v3
+        with:
+          name: web-build
+          path: dist
+
+      - name: Copy web assets
         run: |
-          pnpm build
           mkdir -p backend/web
           cp -r dist backend/web/
 
@@ -54,6 +76,7 @@ jobs:
 
   integration-tests:
     name: Integration Tests
+    needs: [build-web]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -72,6 +95,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download web build
+        uses: actions/download-artifact@v3
+        with:
+          name: web-build
+          path: dist
+
+      - name: Copy web assets
+        run: |
+          mkdir -p backend/web
+          cp -r dist backend/web/
 
       - name: Set up Go
         uses: actions/setup-go@v4
