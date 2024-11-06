@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, s0up and the autobrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 import { ServiceCard } from "./ServiceCard";
 import { Service } from "../../types/service";
 import LoadingSkeleton from "../shared/LoadingSkeleton";

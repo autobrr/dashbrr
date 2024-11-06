@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, s0up and the autobrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "react-hot-toast";
 import Toast from "../Toast";

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, s0up and the autobrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 // Use different base URLs for development and production
 export const API_BASE_URL = import.meta.env.DEV 
   ? ''  // Empty for development to use relative URLs with Vite proxy
