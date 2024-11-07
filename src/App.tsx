@@ -6,6 +6,10 @@
 import { ServiceHealthMonitor } from "./components/services/ServiceHealthMonitor";
 import { ConfigurationProvider } from "./contexts/ConfigurationContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import {
+  NotificationProvider,
+  useNotifications,
+} from "./contexts/NotificationContext";
 import { Toaster } from "react-hot-toast";
 import Toast from "./components/Toast";
 import { AddServicesMenu } from "./components/AddServicesMenu";
@@ -20,7 +24,11 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { LoginPage } from "./components/auth/LoginPage";
 import { CallbackPage } from "./components/auth/CallbackPage";
 import { ServiceType } from "./types/service";
-import { ArrowRightStartOnRectangleIcon } from "@heroicons/react/20/solid";
+import {
+  ArrowRightStartOnRectangleIcon,
+  BellIcon,
+  BellSlashIcon,
+} from "@heroicons/react/20/solid";
 import { StatusCounters } from "./components/shared/StatusCounters";
 import { useServiceHealth } from "./hooks/useServiceHealth";
 
@@ -33,25 +41,27 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <ConfigurationProvider>
-          <Suspense fallback={<LoadingSkeleton />}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/auth/callback" element={<CallbackPage />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <AppContent />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/auth/login"
-                element={<Navigate to="/login" replace />}
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
+          <NotificationProvider>
+            <Suspense fallback={<LoadingSkeleton />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/auth/callback" element={<CallbackPage />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <AppContent />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/auth/login"
+                  element={<Navigate to="/login" replace />}
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </NotificationProvider>
         </ConfigurationProvider>
       </AuthProvider>
     </BrowserRouter>
@@ -70,6 +80,19 @@ function AppContent() {
   } = useServiceManagement();
   const { logout } = useAuth();
   const { services } = useServiceHealth();
+  const { notificationsEnabled, toggleNotifications, requestPermission } =
+    useNotifications();
+
+  const handleNotificationToggle = async () => {
+    if (!notificationsEnabled) {
+      const granted = await requestPermission();
+      if (granted) {
+        toggleNotifications();
+      }
+    } else {
+      toggleNotifications();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-color pattern p-2 sm:p-6 flex flex-col">
@@ -98,6 +121,21 @@ function AppContent() {
                 initialConfigOpen={showTailscaleConfig}
                 onConfigClose={() => setShowTailscaleConfig(false)}
               />
+              <button
+                onClick={handleNotificationToggle}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                title={
+                  notificationsEnabled
+                    ? "Disable Notifications"
+                    : "Enable Notifications"
+                }
+              >
+                {notificationsEnabled ? (
+                  <BellIcon className="h-5 w-5" />
+                ) : (
+                  <BellSlashIcon className="h-5 w-5" />
+                )}
+              </button>
               <button
                 onClick={logout}
                 className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"

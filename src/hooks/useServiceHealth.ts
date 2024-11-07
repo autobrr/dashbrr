@@ -7,6 +7,7 @@ import { useCallback } from 'react';
 import { useServiceData } from './useServiceData';
 import { ServiceStatus } from '../types/service';
 import { api } from '../utils/api';
+import { useNotifications } from '../contexts/NotificationContext';
 
 type StatusCount = Record<ServiceStatus, number>;
 
@@ -29,6 +30,7 @@ interface HealthResponse {
 
 export const useServiceHealth = () => {
   const { services, isLoading, refreshService } = useServiceData();
+  const { notifyServiceUpdate, notifyVersionUpdate } = useNotifications();
 
   const getStatusCounts = useCallback((): StatusCount => {
     return (services || []).reduce(
@@ -48,13 +50,52 @@ export const useServiceHealth = () => {
       const response = await api.get<HealthResponse>(`/api/health/${instanceId}`);
       if (response && response.status) {
         refreshService(instanceId, 'health');
+        
+        // Find the service to get its name and current version
+        const service = services?.find(s => s.instanceId === instanceId);
+        if (service) {
+          // Handle status change notifications
+          if (['error', 'offline', 'warning'].includes(response.status)) {
+            notifyServiceUpdate(
+              service.name,
+              response.status,
+              response.message || `Service is ${response.status}`
+            );
+          }
+          // Notify when service comes back online from a problematic state
+          else if (
+            response.status === 'online' && 
+            service.status && 
+            ['error', 'offline', 'warning'].includes(service.status)
+          ) {
+            notifyServiceUpdate(
+              service.name,
+              'online',
+              'Service is now online'
+            );
+          }
+
+          // Handle version update notifications
+          if (
+            response.updateAvailable &&
+            response.version &&
+            service.version &&
+            response.version !== service.version
+          ) {
+            notifyVersionUpdate(
+              service.name,
+              service.version,
+              response.version
+            );
+          }
+        }
       }
       return response;
     } catch (error) {
       console.error(`Error refreshing health for service ${instanceId}:`, error);
       return null;
     }
-  }, [refreshService]);
+  }, [refreshService, services, notifyServiceUpdate, notifyVersionUpdate]);
 
   return {
     services: services || [],
