@@ -43,16 +43,18 @@ jobs:
           cache: pnpm
 
       - name: Fetch dependencies
+        working-directory: web
         run: pnpm install --frozen-lockfile
 
       - name: Build web frontend
+        working-directory: web
         run: pnpm build
 
       - name: Upload web production build
         uses: actions/upload-artifact@v4
         with:
           name: web-dist
-          path: dist
+          path: web/dist
 
   test:
     name: Test
@@ -83,12 +85,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: web-dist
-          path: dist
-
-      - name: Copy web assets
-        run: |
-          mkdir -p backend/web
-          cp -r dist backend/web/
+          path: web/dist
 
       - name: Set up Go
         uses: actions/setup-go@v5

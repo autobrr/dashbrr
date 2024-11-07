@@ -2,12 +2,13 @@
 FROM --platform=$BUILDPLATFORM node:22.10.0-alpine3.20 AS web-builder
 RUN corepack enable
 
-WORKDIR /app
+WORKDIR /app/web
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY web/ ./web/
+COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
-RUN cd web && pnpm run build
+
+COPY web/ ./
+RUN pnpm run build
 
 # build app
 FROM --platform=$BUILDPLATFORM golang:1.23-alpine3.20 AS app-builder
