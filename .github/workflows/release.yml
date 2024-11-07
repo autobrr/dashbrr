@@ -133,7 +133,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --skip=validate --skip=publish --parallelism 5
+          args: release --clean --snapshot --skip=validate --skip=publish --parallelism 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
