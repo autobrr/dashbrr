@@ -20,7 +20,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  rectSortingStrategy,
+  verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 
@@ -63,7 +63,7 @@ const DraggableServiceCard = ({
     : undefined;
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-6 break-inside-avoid">
+    <div ref={setNodeRef} style={style} className="mb-4 break-inside-avoid">
       <ServiceCard
         service={service}
         onRemove={onRemove}
@@ -206,10 +206,10 @@ export const ServiceGrid = ({
         >
           <SortableContext
             items={items.map((item) => item.instanceId)}
-            strategy={rectSortingStrategy}
+            strategy={verticalListSortingStrategy}
           >
             <div
-              className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6"
+              className="columns-1 sm:columns-2 lg:columns-3 2xl:columns-4 gap-4"
               style={{ columnFill: "balance" }}
             >
               {items.map((service) => (

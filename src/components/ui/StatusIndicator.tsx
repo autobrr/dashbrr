@@ -26,6 +26,8 @@ interface StatusIndicatorProps {
 const WARNING_HEADERS = [
   "Queue warnings",
   "Indexers unavailable due to failures",
+  "Autobrr is running but reports unhealthy IRC connections",
+  "Autobrr is running but stats check failed",
 ];
 
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({

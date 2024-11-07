@@ -113,6 +113,12 @@ export function AddServicesMenu({
           text: "Settings",
           link: url ? `${url}/settings/main` : null,
         };
+      case "maintainerr":
+        return {
+          prefix: "Found in ",
+          text: "Settings",
+          link: url ? `${url}/settings/main` : null,
+        };
       default:
         return {
           prefix: "",
