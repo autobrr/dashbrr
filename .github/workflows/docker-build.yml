@@ -40,7 +40,9 @@ jobs:
       - name: Set up cache
         uses: actions/setup-node@v4
         with:
-          cache: pnpm
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "web/pnpm-lock.yaml"
 
       - name: Fetch dependencies
         working-directory: web
