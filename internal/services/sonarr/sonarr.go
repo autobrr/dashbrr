@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/base"
+	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type SonarrService struct {
-	base.BaseService
+	core.ServiceCore
 }
 
 type HealthResponse struct {

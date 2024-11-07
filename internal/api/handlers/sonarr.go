@@ -26,10 +26,10 @@ const (
 
 type SonarrHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewSonarrHandler(db *database.DB, cache *cache.Cache) *SonarrHandler {
+func NewSonarrHandler(db *database.DB, cache cache.Store) *SonarrHandler {
 	return &SonarrHandler{
 		db:    db,
 		cache: cache,

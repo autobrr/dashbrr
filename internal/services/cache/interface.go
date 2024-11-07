@@ -8,8 +8,9 @@ import (
 	"time"
 )
 
-// CacheInterface defines the interface for cache operations
-type CacheInterface interface {
+// Store defines the caching operations.
+// Implementations must be safe for concurrent use.
+type Store interface {
 	Get(ctx context.Context, key string, value interface{}) error
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
 	Delete(ctx context.Context, key string) error
@@ -20,5 +21,5 @@ type CacheInterface interface {
 	Close() error
 }
 
-// Ensure Cache implements CacheInterface
-var _ CacheInterface = (*Cache)(nil)
+// Ensure RedisStore implements Store
+var _ Store = (*RedisStore)(nil)

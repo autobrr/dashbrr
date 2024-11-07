@@ -24,10 +24,10 @@ const (
 
 type PlexHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewPlexHandler(db *database.DB, cache *cache.Cache) *PlexHandler {
+func NewPlexHandler(db *database.DB, cache cache.Store) *PlexHandler {
 	return &PlexHandler{
 		db:    db,
 		cache: cache,

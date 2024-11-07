@@ -25,10 +25,10 @@ const (
 
 type RadarrHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewRadarrHandler(db *database.DB, cache *cache.Cache) *RadarrHandler {
+func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
 	return &RadarrHandler{
 		db:    db,
 		cache: cache,

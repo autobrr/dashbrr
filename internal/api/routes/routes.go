@@ -18,7 +18,7 @@ import (
 )
 
 // SetupRoutes configures all the routes for the application and returns the cache instance for cleanup
-func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) *cache.Cache {
+func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) cache.Store {
 	// Set Gin to release mode in production
 	gin.SetMode(gin.ReleaseMode)
 
@@ -29,40 +29,40 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
 
 	// Initialize Redis cache
-	redisCache, err := cache.InitCache()
+	store, err := cache.InitCache()
 	if err != nil {
 		panic(err)
 	}
 
 	// Create rate limiters with different configurations
-	apiRateLimiter := middleware.NewRateLimiter(redisCache, time.Minute, 60, "api:")       // 60 requests per minute for API
-	healthRateLimiter := middleware.NewRateLimiter(redisCache, time.Minute, 30, "health:") // 30 health checks per minute
-	authRateLimiter := middleware.NewRateLimiter(redisCache, time.Minute, 30, "auth:")     // 30 auth requests per minute
+	apiRateLimiter := middleware.NewRateLimiter(store, time.Minute, 60, "api:")       // 60 requests per minute for API
+	healthRateLimiter := middleware.NewRateLimiter(store, time.Minute, 30, "health:") // 30 health checks per minute
+	authRateLimiter := middleware.NewRateLimiter(store, time.Minute, 30, "auth:")     // 30 auth requests per minute
 
 	// Special rate limiter for Tailscale services
-	tailscaleRateLimiter := middleware.NewRateLimiter(redisCache, 2*time.Minute, 20, "tailscale:") // 20 requests per 2 minutes
+	tailscaleRateLimiter := middleware.NewRateLimiter(store, 2*time.Minute, 20, "tailscale:") // 20 requests per 2 minutes
 
 	// Create cache middleware (now handles TTLs internally)
-	cacheMiddleware := middleware.NewCacheMiddleware(redisCache)
+	cacheMiddleware := middleware.NewCacheMiddleware(store)
 
 	// Initialize handlers with cache
 	settingsHandler := handlers.NewSettingsHandler(db)
 	healthHandler := handlers.NewHealthHandler(db, health)
 	eventsHandler := handlers.NewEventsHandler(db, health)
-	autobrrHandler := handlers.NewAutobrrHandler(db, redisCache)
-	omegabrrHandler := handlers.NewOmegabrrHandler(db, redisCache)
-	maintainerrHandler := handlers.NewMaintainerrHandler(db, redisCache)
-	plexHandler := handlers.NewPlexHandler(db, redisCache)
-	tailscaleHandler := handlers.NewTailscaleHandler(db, redisCache)
-	overseerrHandler := handlers.NewOverseerrHandler(db, redisCache)
-	sonarrHandler := handlers.NewSonarrHandler(db, redisCache)
-	radarrHandler := handlers.NewRadarrHandler(db, redisCache)
-	prowlarrHandler := handlers.NewProwlarrHandler(db, redisCache)
+	autobrrHandler := handlers.NewAutobrrHandler(db, store)
+	omegabrrHandler := handlers.NewOmegabrrHandler(db, store)
+	maintainerrHandler := handlers.NewMaintainerrHandler(db, store)
+	plexHandler := handlers.NewPlexHandler(db, store)
+	tailscaleHandler := handlers.NewTailscaleHandler(db, store)
+	overseerrHandler := handlers.NewOverseerrHandler(db, store)
+	sonarrHandler := handlers.NewSonarrHandler(db, store)
+	radarrHandler := handlers.NewRadarrHandler(db, store)
+	prowlarrHandler := handlers.NewProwlarrHandler(db, store)
 
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
-	builtinAuthHandler := handlers.NewBuiltinAuthHandler(db, redisCache)
-	authMiddleware := middleware.NewAuthMiddleware(redisCache)
+	builtinAuthHandler := handlers.NewBuiltinAuthHandler(db, store)
+	authMiddleware := middleware.NewAuthMiddleware(store)
 
 	// Initialize OIDC if configuration is provided
 	if hasOIDCConfig() {
@@ -72,7 +72,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 			ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),
 			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/callback"),
 		}
-		oidcAuthHandler = handlers.NewAuthHandler(authConfig, redisCache)
+		oidcAuthHandler = handlers.NewAuthHandler(authConfig, store)
 	}
 
 	// Start the health monitor
@@ -208,7 +208,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 		}
 	}
 
-	return redisCache
+	return store
 }
 
 // hasOIDCConfig checks if all required OIDC configuration is provided

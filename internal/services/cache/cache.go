@@ -37,8 +37,8 @@ const (
 	CleanupInterval = 1 * time.Minute // Increased to reduce cleanup frequency
 )
 
-// Cache represents a Redis cache instance with local memory cache
-type Cache struct {
+// RedisStore represents a Redis cache instance with local memory cache
+type RedisStore struct {
 	client *redis.Client
 	local  *LocalCache
 	ctx    context.Context
@@ -60,7 +60,7 @@ type localCacheItem struct {
 }
 
 // NewCache creates a new Redis cache instance with optimized configuration
-func NewCache(addr string) (*Cache, error) {
+func NewCache(addr string) (Store, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Development-optimized Redis configuration
@@ -105,7 +105,7 @@ func NewCache(addr string) (*Cache, error) {
 		return nil, lastErr
 	}
 
-	cache := &Cache{
+	store := &RedisStore{
 		client: client,
 		local: &LocalCache{
 			items: make(map[string]*localCacheItem),
@@ -115,26 +115,26 @@ func NewCache(addr string) (*Cache, error) {
 	}
 
 	// Start cleanup goroutine
-	cache.wg.Add(1)
+	store.wg.Add(1)
 	go func() {
-		defer cache.wg.Done()
-		cache.localCacheCleanup()
+		defer store.wg.Done()
+		store.localCacheCleanup()
 	}()
 
-	return cache, nil
+	return store, nil
 }
 
 // Get retrieves a value from cache with local cache first
-func (c *Cache) Get(ctx context.Context, key string, value interface{}) error {
-	c.mu.RLock()
-	if c.closed {
-		c.mu.RUnlock()
+func (s *RedisStore) Get(ctx context.Context, key string, value interface{}) error {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
 		return redis.ErrClosed
 	}
-	c.mu.RUnlock()
+	s.mu.RUnlock()
 
 	// Try local cache first
-	if data, ok := c.getFromLocalCache(key); ok {
+	if data, ok := s.getFromLocalCache(key); ok {
 		if err := json.Unmarshal(data, value); err != nil {
 			log.Error().Err(err).Str("key", key).Msg("Failed to unmarshal local cached value")
 		} else {
@@ -149,12 +149,12 @@ func (c *Cache) Get(ctx context.Context, key string, value interface{}) error {
 			return ctx.Err()
 		default:
 			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			data, err := c.client.Get(timeoutCtx, key).Bytes()
+			data, err := s.client.Get(timeoutCtx, key).Bytes()
 			cancel()
 
 			if err == nil {
 				// Store in local cache with same TTL as Redis
-				ttl := c.client.TTL(ctx, key).Val()
+				ttl := s.client.TTL(ctx, key).Val()
 				if ttl < 0 {
 					if strings.HasPrefix(key, PrefixHealth) {
 						ttl = HealthTTL
@@ -166,7 +166,7 @@ func (c *Cache) Get(ctx context.Context, key string, value interface{}) error {
 						ttl = DefaultTTL
 					}
 				}
-				c.setInLocalCache(key, data, ttl)
+				s.setInLocalCache(key, data, ttl)
 				return json.Unmarshal(data, value)
 			}
 
@@ -185,13 +185,13 @@ func (c *Cache) Get(ctx context.Context, key string, value interface{}) error {
 }
 
 // Set stores a value in both Redis and local cache
-func (c *Cache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	c.mu.RLock()
-	if c.closed {
-		c.mu.RUnlock()
+func (s *RedisStore) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
 		return redis.ErrClosed
 	}
-	c.mu.RUnlock()
+	s.mu.RUnlock()
 
 	if expiration == 0 {
 		if strings.HasPrefix(key, PrefixHealth) {
@@ -218,11 +218,11 @@ func (c *Cache) Set(ctx context.Context, key string, value interface{}, expirati
 			return ctx.Err()
 		default:
 			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			err := c.client.Set(timeoutCtx, key, data, expiration).Err()
+			err := s.client.Set(timeoutCtx, key, data, expiration).Err()
 			cancel()
 
 			if err == nil {
-				c.setInLocalCache(key, data, expiration)
+				s.setInLocalCache(key, data, expiration)
 				return nil
 			}
 
@@ -237,30 +237,30 @@ func (c *Cache) Set(ctx context.Context, key string, value interface{}, expirati
 }
 
 // Local cache methods
-func (c *Cache) getFromLocalCache(key string) ([]byte, bool) {
-	c.local.RLock()
-	defer c.local.RUnlock()
+func (s *RedisStore) getFromLocalCache(key string) ([]byte, bool) {
+	s.local.RLock()
+	defer s.local.RUnlock()
 
-	if item, exists := c.local.items[key]; exists {
+	if item, exists := s.local.items[key]; exists {
 		if time.Now().Before(item.expiration) {
 			return item.value, true
 		}
-		delete(c.local.items, key)
+		delete(s.local.items, key)
 	}
 	return nil, false
 }
 
-func (c *Cache) setInLocalCache(key string, value []byte, ttl time.Duration) {
-	c.local.Lock()
-	defer c.local.Unlock()
+func (s *RedisStore) setInLocalCache(key string, value []byte, ttl time.Duration) {
+	s.local.Lock()
+	defer s.local.Unlock()
 
-	c.local.items[key] = &localCacheItem{
+	s.local.items[key] = &localCacheItem{
 		value:      value,
 		expiration: time.Now().Add(ttl),
 	}
 }
 
-func (c *Cache) localCacheCleanup() {
+func (s *RedisStore) localCacheCleanup() {
 	ticker := time.NewTicker(CleanupInterval)
 	defer ticker.Stop()
 
@@ -268,35 +268,35 @@ func (c *Cache) localCacheCleanup() {
 		select {
 		case <-ticker.C:
 			func() {
-				c.local.Lock()
-				defer c.local.Unlock()
+				s.local.Lock()
+				defer s.local.Unlock()
 
 				now := time.Now()
-				for key, item := range c.local.items {
+				for key, item := range s.local.items {
 					if now.After(item.expiration) {
-						delete(c.local.items, key)
+						delete(s.local.items, key)
 					}
 				}
 			}()
-		case <-c.ctx.Done():
+		case <-s.ctx.Done():
 			return
 		}
 	}
 }
 
 // Delete removes a value from both Redis and local cache
-func (c *Cache) Delete(ctx context.Context, key string) error {
-	c.mu.RLock()
-	if c.closed {
-		c.mu.RUnlock()
+func (s *RedisStore) Delete(ctx context.Context, key string) error {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
 		return redis.ErrClosed
 	}
-	c.mu.RUnlock()
+	s.mu.RUnlock()
 
 	// Remove from local cache immediately
-	c.local.Lock()
-	delete(c.local.items, key)
-	c.local.Unlock()
+	s.local.Lock()
+	delete(s.local.items, key)
+	s.local.Unlock()
 
 	var lastErr error
 	for i := 0; i < RetryAttempts; i++ {
@@ -305,7 +305,7 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 			return ctx.Err()
 		default:
 			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			err := c.client.Del(timeoutCtx, key).Err()
+			err := s.client.Del(timeoutCtx, key).Err()
 			cancel()
 
 			if err == nil {
@@ -323,13 +323,13 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 }
 
 // Rate limiting methods
-func (c *Cache) Increment(ctx context.Context, key string, timestamp int64) error {
-	c.mu.RLock()
-	if c.closed {
-		c.mu.RUnlock()
+func (s *RedisStore) Increment(ctx context.Context, key string, timestamp int64) error {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
 		return redis.ErrClosed
 	}
-	c.mu.RUnlock()
+	s.mu.RUnlock()
 
 	var lastErr error
 	for i := 0; i < RetryAttempts; i++ {
@@ -339,7 +339,7 @@ func (c *Cache) Increment(ctx context.Context, key string, timestamp int64) erro
 		default:
 			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 			member := strconv.FormatInt(timestamp, 10)
-			err := c.client.ZAdd(timeoutCtx, key, &redis.Z{
+			err := s.client.ZAdd(timeoutCtx, key, &redis.Z{
 				Score:  float64(timestamp),
 				Member: member,
 			}).Err()
@@ -358,13 +358,13 @@ func (c *Cache) Increment(ctx context.Context, key string, timestamp int64) erro
 	return lastErr
 }
 
-func (c *Cache) CleanAndCount(ctx context.Context, key string, windowStart int64) error {
-	c.mu.RLock()
-	if c.closed {
-		c.mu.RUnlock()
+func (s *RedisStore) CleanAndCount(ctx context.Context, key string, windowStart int64) error {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
 		return redis.ErrClosed
 	}
-	c.mu.RUnlock()
+	s.mu.RUnlock()
 
 	var lastErr error
 	for i := 0; i < RetryAttempts; i++ {
@@ -374,7 +374,7 @@ func (c *Cache) CleanAndCount(ctx context.Context, key string, windowStart int64
 		default:
 			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 			// Remove all entries strictly less than windowStart
-			err := c.client.ZRemRangeByScore(timeoutCtx, key, "-inf", "("+strconv.FormatInt(windowStart, 10)).Err()
+			err := s.client.ZRemRangeByScore(timeoutCtx, key, "-inf", "("+strconv.FormatInt(windowStart, 10)).Err()
 			cancel()
 
 			if err == nil {
@@ -390,13 +390,13 @@ func (c *Cache) CleanAndCount(ctx context.Context, key string, windowStart int64
 	return lastErr
 }
 
-func (c *Cache) GetCount(ctx context.Context, key string) (int64, error) {
-	c.mu.RLock()
-	if c.closed {
-		c.mu.RUnlock()
+func (s *RedisStore) GetCount(ctx context.Context, key string) (int64, error) {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
 		return 0, redis.ErrClosed
 	}
-	c.mu.RUnlock()
+	s.mu.RUnlock()
 
 	var lastErr error
 	for i := 0; i < RetryAttempts; i++ {
@@ -405,7 +405,7 @@ func (c *Cache) GetCount(ctx context.Context, key string) (int64, error) {
 			return 0, ctx.Err()
 		default:
 			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			count, err := c.client.ZCard(timeoutCtx, key).Result()
+			count, err := s.client.ZCard(timeoutCtx, key).Result()
 			cancel()
 
 			if err == nil {
@@ -421,13 +421,13 @@ func (c *Cache) GetCount(ctx context.Context, key string) (int64, error) {
 	return 0, lastErr
 }
 
-func (c *Cache) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	c.mu.RLock()
-	if c.closed {
-		c.mu.RUnlock()
+func (s *RedisStore) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
 		return redis.ErrClosed
 	}
-	c.mu.RUnlock()
+	s.mu.RUnlock()
 
 	if expiration == 0 {
 		expiration = DefaultTTL
@@ -440,7 +440,7 @@ func (c *Cache) Expire(ctx context.Context, key string, expiration time.Duration
 			return ctx.Err()
 		default:
 			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			err := c.client.Expire(timeoutCtx, key, expiration).Err()
+			err := s.client.Expire(timeoutCtx, key, expiration).Err()
 			cancel()
 
 			if err == nil {
@@ -457,30 +457,28 @@ func (c *Cache) Expire(ctx context.Context, key string, expiration time.Duration
 }
 
 // Close closes the Redis connection and stops the cleanup goroutine
-func (c *Cache) Close() error {
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
+func (s *RedisStore) Close() error {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
 		return redis.ErrClosed
 	}
-	c.closed = true
-	c.mu.Unlock()
+	s.closed = true
+	s.mu.Unlock()
 
 	// Cancel context to stop cleanup goroutine
-	c.cancel()
+	s.cancel()
 
 	// Wait for cleanup goroutine to finish
-	c.wg.Wait()
+	s.wg.Wait()
 
 	// Clear local cache
 	func() {
-		c.local.Lock()
-		defer c.local.Unlock()
-		c.local.items = make(map[string]*localCacheItem)
+		s.local.Lock()
+		defer s.local.Unlock()
+		s.local.items = make(map[string]*localCacheItem)
 	}()
 
 	// Close Redis client
-	return c.client.Close()
+	return s.client.Close()
 }
-
-// Rest of the methods remain unchanged...

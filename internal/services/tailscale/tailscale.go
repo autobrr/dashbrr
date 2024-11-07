@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/base"
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 type TailscaleService struct {
-	base.BaseService
+	core.ServiceCore
 }
 
 type Device struct {

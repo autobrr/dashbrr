@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package base
+package core
 
 import (
 	"context"
@@ -21,14 +21,14 @@ var (
 	httpClients sync.Map
 )
 
-type BaseService struct {
+type ServiceCore struct {
 	Type           string
 	DisplayName    string
 	Description    string
 	DefaultURL     string
 	ApiKey         string
 	HealthEndpoint string
-	cache          *cache.Cache
+	cache          cache.Store
 }
 
 // getHTTPClient returns a client with the specified timeout
@@ -54,7 +54,7 @@ func getHTTPClient(timeout time.Duration) *http.Client {
 	return client
 }
 
-func (s *BaseService) initCache() error {
+func (s *ServiceCore) initCache() error {
 	if s.cache != nil {
 		return nil
 	}
@@ -80,7 +80,7 @@ func (s *BaseService) initCache() error {
 }
 
 // MakeRequestWithContext makes an HTTP request with the provided context and timeout
-func (s *BaseService) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
+func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
 	if url == "" {
 		return nil, fmt.Errorf("service is not configured")
 	}
@@ -142,14 +142,14 @@ func (s *BaseService) MakeRequestWithContext(ctx context.Context, url string, ap
 	return resp, nil
 }
 
-func (s *BaseService) MakeRequest(url string, apiKey string, headers map[string]string) (*http.Response, error) {
+func (s *ServiceCore) MakeRequest(url string, apiKey string, headers map[string]string) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	return s.MakeRequestWithContext(ctx, url, apiKey, headers)
 }
 
 // ReadBody reads and returns the response body
-func (s *BaseService) ReadBody(resp *http.Response) ([]byte, error) {
+func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	if resp == nil {
 		return nil, fmt.Errorf("nil response")
 	}
@@ -169,7 +169,7 @@ func (s *BaseService) ReadBody(resp *http.Response) ([]byte, error) {
 }
 
 // GetVersionFromCache retrieves the version from cache
-func (s *BaseService) GetVersionFromCache(baseURL string) string {
+func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 	if err := s.initCache(); err != nil {
 		return ""
 	}
@@ -185,7 +185,7 @@ func (s *BaseService) GetVersionFromCache(baseURL string) string {
 }
 
 // CacheVersion stores the version in cache with the specified TTL
-func (s *BaseService) CacheVersion(baseURL, version string, ttl time.Duration) error {
+func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) error {
 	if err := s.initCache(); err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (s *BaseService) CacheVersion(baseURL, version string, ttl time.Duration) e
 }
 
 // CreateHealthResponse creates a standardized health response
-func (s *BaseService) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) models.ServiceHealth {
+func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) models.ServiceHealth {
 	response := models.ServiceHealth{
 		Status:      status,
 		LastChecked: lastChecked,
@@ -218,7 +218,7 @@ func (s *BaseService) CreateHealthResponse(lastChecked time.Time, status string,
 }
 
 // GetCachedVersion attempts to get version from cache or fetches it if not found
-func (s *BaseService) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
+func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
 	if err := s.initCache(); err != nil {
 		return "", fmt.Errorf("cache initialization failed: %v", err)
 	}
@@ -247,7 +247,7 @@ func (s *BaseService) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 }
 
 // ConcurrentRequest executes multiple requests concurrently and returns their results
-func (s *BaseService) ConcurrentRequest(requests []func() (interface{}, error)) []interface{} {
+func (s *ServiceCore) ConcurrentRequest(requests []func() (interface{}, error)) []interface{} {
 	var wg sync.WaitGroup
 	results := make([]interface{}, len(requests))
 

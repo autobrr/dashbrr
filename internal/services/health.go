@@ -14,7 +14,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 )
 
-var serviceFactory = models.NewServiceFactory()
+var serviceRegistry = models.NewServiceRegistry()
 
 type HealthService struct {
 	mu                sync.RWMutex
@@ -38,7 +38,7 @@ func NewHealthService() *HealthService {
 	}
 }
 
-// CheckServiceHealth performs the health check for a given service using the factory pattern
+// CheckServiceHealth performs the health check for a given service using the registry pattern
 func CheckServiceHealth(serviceType, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
@@ -50,8 +50,8 @@ func CheckServiceHealth(serviceType, url, apiKey string) (models.ServiceHealth, 
 		}, http.StatusBadRequest
 	}
 
-	// Get the appropriate service checker from the factory
-	serviceChecker := serviceFactory.CreateService(serviceType)
+	// Get the appropriate service checker from the registry
+	serviceChecker := serviceRegistry.CreateService(serviceType)
 	if serviceChecker == nil {
 		log.Warn().Str("service_type", serviceType).Msg("No service checker found for type")
 		return models.ServiceHealth{

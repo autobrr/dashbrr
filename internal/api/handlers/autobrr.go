@@ -14,8 +14,8 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
-	"github.com/autobrr/dashbrr/internal/services/base"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 const (
@@ -27,13 +27,13 @@ const (
 
 type AutobrrHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	store cache.Store
 }
 
-func NewAutobrrHandler(db *database.DB, cache *cache.Cache) *AutobrrHandler {
+func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
 	return &AutobrrHandler{
 		db:    db,
-		cache: cache,
+		store: store,
 	}
 }
 
@@ -50,7 +50,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 
 	// Try to get from cache first
 	var stats autobrr.AutobrrStats
-	err := h.cache.Get(ctx, cacheKey, &stats)
+	err := h.store.Get(ctx, cacheKey, &stats)
 	if err == nil {
 		log.Debug().
 			Str("instanceId", instanceId).
@@ -102,7 +102,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 
 	// Try to get from cache first
 	var status []autobrr.IRCStatus
-	err := h.cache.Get(ctx, cacheKey, &status)
+	err := h.store.Get(ctx, cacheKey, &status)
 	if err == nil {
 		log.Debug().
 			Str("instanceId", instanceId).
@@ -152,7 +152,7 @@ func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobr
 	}
 
 	service := &autobrr.AutobrrService{
-		BaseService: base.BaseService{},
+		ServiceCore: core.ServiceCore{},
 	}
 
 	stats, err := service.GetReleaseStats(autobrrConfig.URL, autobrrConfig.APIKey)
@@ -162,7 +162,7 @@ func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobr
 
 	// Cache the results
 	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, stats, autobrrStatsCacheDuration); err != nil {
+	if err := h.store.Set(ctx, cacheKey, stats, autobrrStatsCacheDuration); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -183,7 +183,7 @@ func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobr
 	}
 
 	service := &autobrr.AutobrrService{
-		BaseService: base.BaseService{},
+		ServiceCore: core.ServiceCore{},
 	}
 
 	status, err := service.GetIRCStatus(autobrrConfig.URL, autobrrConfig.APIKey)
@@ -193,7 +193,7 @@ func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobr
 
 	// Cache the results
 	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, status, autobrrIRCCacheDuration); err != nil {
+	if err := h.store.Set(ctx, cacheKey, status, autobrrIRCCacheDuration); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).

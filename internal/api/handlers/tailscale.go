@@ -25,10 +25,10 @@ const (
 
 type TailscaleHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewTailscaleHandler(db *database.DB, cache *cache.Cache) *TailscaleHandler {
+func NewTailscaleHandler(db *database.DB, cache cache.Store) *TailscaleHandler {
 	return &TailscaleHandler{
 		db:    db,
 		cache: cache,

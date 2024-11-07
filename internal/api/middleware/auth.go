@@ -16,10 +16,10 @@ import (
 )
 
 type AuthMiddleware struct {
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewAuthMiddleware(cache *cache.Cache) *AuthMiddleware {
+func NewAuthMiddleware(cache cache.Store) *AuthMiddleware {
 	return &AuthMiddleware{
 		cache: cache,
 	}

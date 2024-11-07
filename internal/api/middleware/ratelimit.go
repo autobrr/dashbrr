@@ -15,14 +15,14 @@ import (
 )
 
 type RateLimiter struct {
-	cache     *cache.Cache
+	store     cache.Store
 	window    time.Duration
 	limit     int
 	keyPrefix string
 }
 
 // NewRateLimiter creates a new rate limiter with the specified configuration
-func NewRateLimiter(cache *cache.Cache, window time.Duration, limit int, keyPrefix string) *RateLimiter {
+func NewRateLimiter(store cache.Store, window time.Duration, limit int, keyPrefix string) *RateLimiter {
 	if window == 0 {
 		window = time.Hour
 	}
@@ -30,7 +30,7 @@ func NewRateLimiter(cache *cache.Cache, window time.Duration, limit int, keyPref
 		limit = 1000
 	}
 	return &RateLimiter{
-		cache:     cache,
+		store:     store,
 		window:    window,
 		limit:     limit,
 		keyPrefix: keyPrefix,
@@ -55,14 +55,14 @@ func (rl *RateLimiter) RateLimit() gin.HandlerFunc {
 		windowStart := now - int64(rl.window.Seconds())
 
 		// Clean up old requests
-		if err := rl.cache.CleanAndCount(c, key, windowStart); err != nil {
+		if err := rl.store.CleanAndCount(c, key, windowStart); err != nil {
 			log.Error().Err(err).Msg("Failed to clean rate limit data")
 			c.Next() // Continue on error
 			return
 		}
 
 		// Get current count
-		count, err := rl.cache.GetCount(c, key)
+		count, err := rl.store.GetCount(c, key)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to get rate limit count")
 			c.Next() // Continue on error
@@ -88,14 +88,14 @@ func (rl *RateLimiter) RateLimit() gin.HandlerFunc {
 		}
 
 		// Record this request
-		if err := rl.cache.Increment(c, key, now); err != nil {
+		if err := rl.store.Increment(c, key, now); err != nil {
 			log.Error().Err(err).Msg("Failed to record request")
 			c.Next() // Continue on error
 			return
 		}
 
 		// Set expiration
-		if err := rl.cache.Expire(c, key, rl.window); err != nil {
+		if err := rl.store.Expire(c, key, rl.window); err != nil {
 			log.Error().Err(err).Msg("Failed to set expiration")
 		}
 

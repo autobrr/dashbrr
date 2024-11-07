@@ -18,15 +18,20 @@ type testStruct struct {
 	Value int
 }
 
-func setupTestCache(t *testing.T) *Cache {
-	cache, err := NewCache("localhost:6379")
+func setupTestCache(t *testing.T) *RedisStore {
+	store, err := NewCache("localhost:6379")
 	if err != nil {
 		t.Skip("Redis not available, skipping test:", err)
 	}
-	return cache
+	// Type assertion since we know it's a RedisStore
+	redisStore, ok := store.(*RedisStore)
+	if !ok {
+		t.Fatal("Expected RedisStore type")
+	}
+	return redisStore
 }
 
-func cleanupTestCache(t *testing.T, cache *Cache) {
+func cleanupTestCache(t *testing.T, cache *RedisStore) {
 	if err := cache.Close(); err != nil {
 		t.Errorf("Failed to close cache: %v", err)
 	}
@@ -52,15 +57,20 @@ func TestNewCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, err := NewCache(tt.addr)
+			store, err := NewCache(tt.addr)
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Nil(t, cache)
+				assert.Nil(t, store)
 			} else if err != nil {
 				t.Skip("Redis not available, skipping test:", err)
 			} else {
 				assert.NoError(t, err)
-				assert.NotNil(t, cache)
+				assert.NotNil(t, store)
+				// Type assertion since we know it's a RedisStore
+				cache, ok := store.(*RedisStore)
+				if !ok {
+					t.Fatal("Expected RedisStore type")
+				}
 				cleanupTestCache(t, cache)
 			}
 		})

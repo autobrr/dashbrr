@@ -14,8 +14,8 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/base"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/omegabrr"
 )
 
@@ -26,7 +26,7 @@ const (
 
 type OmegabrrHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
 type WebhookRequest struct {
@@ -39,7 +39,7 @@ type WebhookResponse struct {
 	Message string `json:"message"`
 }
 
-func NewOmegabrrHandler(db *database.DB, cache *cache.Cache) *OmegabrrHandler {
+func NewOmegabrrHandler(db *database.DB, cache cache.Store) *OmegabrrHandler {
 	return &OmegabrrHandler{
 		db:    db,
 		cache: cache,
@@ -105,7 +105,7 @@ func (h *OmegabrrHandler) fetchAndCacheStatus(instanceId, cacheKey string) (mode
 	}
 
 	service := &omegabrr.OmegabrrService{
-		BaseService: base.BaseService{},
+		ServiceCore: core.ServiceCore{},
 	}
 
 	health, statusCode := service.CheckHealth(omegabrrConfig.URL, omegabrrConfig.APIKey)
@@ -164,7 +164,7 @@ func (h *OmegabrrHandler) TriggerWebhookArrs(c *gin.Context) {
 	}
 
 	service := &omegabrr.OmegabrrService{
-		BaseService: base.BaseService{},
+		ServiceCore: core.ServiceCore{},
 	}
 
 	statusCode := service.TriggerARRsWebhook(req.TargetURL, req.APIKey)
@@ -211,7 +211,7 @@ func (h *OmegabrrHandler) TriggerWebhookLists(c *gin.Context) {
 	}
 
 	service := &omegabrr.OmegabrrService{
-		BaseService: base.BaseService{},
+		ServiceCore: core.ServiceCore{},
 	}
 
 	statusCode := service.TriggerListsWebhook(req.TargetURL, req.APIKey)
@@ -258,7 +258,7 @@ func (h *OmegabrrHandler) TriggerWebhookAll(c *gin.Context) {
 	}
 
 	service := &omegabrr.OmegabrrService{
-		BaseService: base.BaseService{},
+		ServiceCore: core.ServiceCore{},
 	}
 
 	statusCode := service.TriggerAllWebhooks(req.TargetURL, req.APIKey)

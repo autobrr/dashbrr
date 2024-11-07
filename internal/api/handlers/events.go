@@ -120,7 +120,7 @@ func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []models.Se
 						LastChecked: time.Now(),
 					}
 
-					serviceChecker := models.NewServiceFactory().CreateService(serviceType)
+					serviceChecker := models.NewServiceRegistry().CreateService(serviceType)
 					if serviceChecker != nil {
 						health, _ := serviceChecker.CheckHealth(svc.URL, svc.APIKey)
 						health.ServiceID = svc.InstanceID

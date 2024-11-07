@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	instance     *Cache
+	instance     *RedisStore
 	initOnce     sync.Once
 	isInitiating int32
 )
@@ -38,7 +38,7 @@ func GetRedisAddress() string {
 }
 
 // InitCache initializes and returns a new Cache instance
-func InitCache() (*Cache, error) {
+func InitCache() (Store, error) {
 	// If we're already initializing, return the existing instance or wait for initialization
 	if !atomic.CompareAndSwapInt32(&isInitiating, 0, 1) {
 		log.Debug().Msg("Cache initialization already in progress, waiting...")
@@ -74,13 +74,19 @@ func InitCache() (*Cache, error) {
 		// Create new instance
 		log.Debug().Msg("Initializing Redis cache")
 		addr := GetRedisAddress()
-		cache, err := NewCache(addr)
+		store, err := NewCache(addr)
 		if err != nil {
 			initErr = err
 			return
 		}
 
-		instance = cache
+		// Type assertion since we know it's a RedisStore
+		redisStore, ok := store.(*RedisStore)
+		if !ok {
+			initErr = fmt.Errorf("unexpected store type")
+			return
+		}
+		instance = redisStore
 	})
 
 	if initErr != nil {

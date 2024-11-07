@@ -26,10 +26,10 @@ const (
 
 type ProwlarrHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewProwlarrHandler(db *database.DB, cache *cache.Cache) *ProwlarrHandler {
+func NewProwlarrHandler(db *database.DB, cache cache.Store) *ProwlarrHandler {
 	return &ProwlarrHandler{
 		db:    db,
 		cache: cache,

@@ -25,10 +25,10 @@ const (
 
 type MaintainerrHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewMaintainerrHandler(db *database.DB, cache *cache.Cache) *MaintainerrHandler {
+func NewMaintainerrHandler(db *database.DB, cache cache.Store) *MaintainerrHandler {
 	return &MaintainerrHandler{
 		db:    db,
 		cache: cache,

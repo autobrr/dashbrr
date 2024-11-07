@@ -33,12 +33,12 @@ func (m *mockServiceHealthChecker) CheckHealth(url, apiKey string) (models.Servi
 	}, http.StatusOK
 }
 
-// mockServiceFactory implements models.ServiceFactory interface for testing
-type mockServiceFactory struct {
+// mockServiceCreator implements models.ServiceCreator interface for testing
+type mockServiceCreator struct {
 	createServiceFunc func(serviceType string) models.ServiceHealthChecker
 }
 
-func (m *mockServiceFactory) CreateService(serviceType string) models.ServiceHealthChecker {
+func (m *mockServiceCreator) CreateService(serviceType string) models.ServiceHealthChecker {
 	if m.createServiceFunc != nil {
 		return m.createServiceFunc(serviceType)
 	}
@@ -123,8 +123,8 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 				checkHealthFunc: tt.mockHealth,
 			}
 
-			// Create mock factory that returns our mock checker for valid services
-			mockFactory := &mockServiceFactory{
+			// Create mock service creator that returns our mock checker for valid services
+			mockCreator := &mockServiceCreator{
 				createServiceFunc: func(serviceType string) models.ServiceHealthChecker {
 					if serviceType == "autobrr" {
 						return mockChecker
@@ -134,7 +134,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 			}
 
 			// Create the handler with our mocks
-			handler := NewHealthHandler(mockDB, services.NewHealthService(), mockFactory)
+			handler := NewHealthHandler(mockDB, services.NewHealthService(), mockCreator)
 
 			// Setup the router
 			r := gin.New()

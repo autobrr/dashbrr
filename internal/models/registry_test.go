@@ -7,18 +7,18 @@ import (
 	"testing"
 )
 
-func TestNewServiceFactory(t *testing.T) {
-	factory := NewServiceFactory()
-	if factory == nil {
-		t.Error("Expected non-nil factory")
+func TestNewServiceRegistry(t *testing.T) {
+	registry := NewServiceRegistry()
+	if registry == nil {
+		t.Error("Expected non-nil registry")
 	}
 }
 
 func TestCreateService(t *testing.T) {
-	factory := NewServiceFactory()
+	registry := NewServiceRegistry()
 
 	// Test unknown service type
-	service := factory.CreateService("nonexistent")
+	service := registry.CreateService("nonexistent")
 	if service != nil {
 		t.Error("Expected nil for unknown service type")
 	}
@@ -35,13 +35,13 @@ func TestCreateService(t *testing.T) {
 	}
 
 	// Test with different cases
-	factory.CreateService("AUTOBRR")
+	registry.CreateService("AUTOBRR")
 	if !called {
 		t.Error("Service creator not called for uppercase service type")
 	}
 
 	called = false
-	factory.CreateService("autobrr")
+	registry.CreateService("autobrr")
 	if !called {
 		t.Error("Service creator not called for lowercase service type")
 	}

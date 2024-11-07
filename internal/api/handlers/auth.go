@@ -22,11 +22,11 @@ import (
 
 type AuthHandler struct {
 	config       *types.AuthConfig
-	cache        cache.CacheInterface
+	cache        cache.Store
 	oauth2Config *oauth2.Config
 }
 
-func NewAuthHandler(config *types.AuthConfig, cache cache.CacheInterface) *AuthHandler {
+func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	// Ensure issuer URL doesn't have trailing slash
 	issuer := strings.TrimRight(config.Issuer, "/")
 
@@ -43,7 +43,7 @@ func NewAuthHandler(config *types.AuthConfig, cache cache.CacheInterface) *AuthH
 
 	return &AuthHandler{
 		config:       config,
-		cache:        cache,
+		cache:        store,
 		oauth2Config: oauth2Config,
 	}
 }

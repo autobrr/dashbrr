@@ -21,7 +21,7 @@ const (
 )
 
 type CacheMiddleware struct {
-	cache *cache.Cache
+	store cache.Store
 }
 
 type CachedResponse struct {
@@ -31,9 +31,9 @@ type CachedResponse struct {
 	Headers     map[string]string `json:"headers"`
 }
 
-func NewCacheMiddleware(cache *cache.Cache) *CacheMiddleware {
+func NewCacheMiddleware(store cache.Store) *CacheMiddleware {
 	return &CacheMiddleware{
-		cache: cache,
+		store: store,
 	}
 }
 
@@ -50,7 +50,7 @@ func (m *CacheMiddleware) Cache() gin.HandlerFunc {
 
 		// Try to get from cache
 		var cachedResponse CachedResponse
-		err := m.cache.Get(c.Request.Context(), cacheKey, &cachedResponse)
+		err := m.store.Get(c.Request.Context(), cacheKey, &cachedResponse)
 		if err == nil {
 			// Set cached headers
 			for k, v := range cachedResponse.Headers {
@@ -97,7 +97,7 @@ func (m *CacheMiddleware) Cache() gin.HandlerFunc {
 			// Determine TTL based on endpoint
 			ttl := m.getTTL(c.Request.URL.Path)
 
-			err := m.cache.Set(c.Request.Context(), cacheKey, responseData, ttl)
+			err := m.store.Set(c.Request.Context(), cacheKey, responseData, ttl)
 			if err != nil {
 				log.Error().Err(err).Str("key", cacheKey).Msg("Failed to cache response")
 			}

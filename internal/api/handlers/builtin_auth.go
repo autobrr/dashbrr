@@ -19,10 +19,10 @@ import (
 
 type BuiltinAuthHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewBuiltinAuthHandler(db *database.DB, cache *cache.Cache) *BuiltinAuthHandler {
+func NewBuiltinAuthHandler(db *database.DB, cache cache.Store) *BuiltinAuthHandler {
 	return &BuiltinAuthHandler{
 		db:    db,
 		cache: cache,

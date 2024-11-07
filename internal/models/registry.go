@@ -7,16 +7,16 @@ import (
 	"strings"
 )
 
-// ServiceFactory is responsible for creating service instances
-type ServiceFactory interface {
+// ServiceCreator is responsible for creating service instances
+type ServiceCreator interface {
 	CreateService(serviceType string) ServiceHealthChecker
 }
 
-// DefaultServiceFactory is the default implementation of ServiceFactory
-type DefaultServiceFactory struct{}
+// ServiceRegistry is the default implementation of ServiceCreator
+type ServiceRegistry struct{}
 
 // CreateService returns a new service instance based on the service type
-func (f *DefaultServiceFactory) CreateService(serviceType string) ServiceHealthChecker {
+func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker {
 	switch strings.ToLower(serviceType) {
 	case "autobrr":
 		if NewAutobrrService != nil {
@@ -59,7 +59,7 @@ func (f *DefaultServiceFactory) CreateService(serviceType string) ServiceHealthC
 	return nil
 }
 
-// NewServiceFactory creates a new instance of DefaultServiceFactory
-func NewServiceFactory() ServiceFactory {
-	return &DefaultServiceFactory{}
+// NewServiceRegistry creates a new instance of ServiceRegistry
+func NewServiceRegistry() ServiceCreator {
+	return &ServiceRegistry{}
 }

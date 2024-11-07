@@ -23,21 +23,21 @@ type DatabaseService interface {
 type HealthHandler struct {
 	db             DatabaseService
 	health         *services.HealthService
-	serviceFactory models.ServiceFactory
+	serviceCreator models.ServiceCreator
 }
 
-func NewHealthHandler(db DatabaseService, health *services.HealthService, factory ...models.ServiceFactory) *HealthHandler {
-	var sf models.ServiceFactory
-	if len(factory) > 0 {
-		sf = factory[0]
+func NewHealthHandler(db DatabaseService, health *services.HealthService, creator ...models.ServiceCreator) *HealthHandler {
+	var sc models.ServiceCreator
+	if len(creator) > 0 {
+		sc = creator[0]
 	} else {
-		sf = models.NewServiceFactory()
+		sc = models.NewServiceRegistry()
 	}
 
 	return &HealthHandler{
 		db:             db,
 		health:         health,
-		serviceFactory: sf,
+		serviceCreator: sc,
 	}
 }
 
@@ -96,7 +96,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	}
 	serviceType := parts[0]
 
-	serviceChecker := h.serviceFactory.CreateService(serviceType)
+	serviceChecker := h.serviceCreator.CreateService(serviceType)
 	if serviceChecker == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported service type: " + serviceType})
 		return

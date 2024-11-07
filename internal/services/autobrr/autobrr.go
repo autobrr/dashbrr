@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/base"
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 type AutobrrService struct {
-	base.BaseService
+	core.ServiceCore
 }
 
 type AutobrrStats struct {

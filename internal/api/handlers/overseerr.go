@@ -24,10 +24,10 @@ const (
 
 type OverseerrHandler struct {
 	db    *database.DB
-	cache *cache.Cache
+	cache cache.Store
 }
 
-func NewOverseerrHandler(db *database.DB, cache *cache.Cache) *OverseerrHandler {
+func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
 	return &OverseerrHandler{
 		db:    db,
 		cache: cache,
