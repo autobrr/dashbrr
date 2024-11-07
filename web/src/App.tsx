@@ -98,25 +98,27 @@ function AppContent() {
     <div className="min-h-screen bg-color pattern p-2 sm:p-6 flex flex-col">
       <div className="p-2 flex-1">
         <header className="mb-4">
-          {/* Top header section with logo and controls */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-2">
-            <div
-              className="flex items-center"
-              style={{
-                pointerEvents: "none",
-                userSelect: "none",
-                WebkitUserSelect: "none",
-                MozUserSelect: "none",
-                msUserSelect: "none",
-              }}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              <img src={logo} alt="Logo" className="h-8 mr-3" />
-              <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">
-                Dashbrr
-              </h1>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center">
+              <div
+                className="flex items-center"
+                style={{
+                  pointerEvents: "none",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  MozUserSelect: "none",
+                  msUserSelect: "none",
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <img src={logo} alt="Logo" className="h-8 mr-3" />
+                <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">
+                  Dashbrr
+                </h1>
+              </div>
             </div>
-            <div className="flex items-center justify-between sm:justify-end gap-4">
+
+            <div className="flex items-center gap-2 ml-auto">
               <TailscaleStatusBar
                 initialConfigOpen={showTailscaleConfig}
                 onConfigClose={() => setShowTailscaleConfig(false)}
@@ -146,12 +148,9 @@ function AppContent() {
             </div>
           </div>
 
-          {/* Subtitle and instruction text */}
-          <div className="space-y-2">
-            <p className="dark:text-gray-400 text-sm sm:text-base">
-              Service Health Monitor - and then some
-            </p>
-          </div>
+          <h2 className="text-gray-400 mt-4 sm:mt-2">
+            Service Health Monitor - and then some
+          </h2>
         </header>
 
         <main>

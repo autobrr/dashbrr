@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useCallback } from 'react';
+import { useCallback, useContext } from 'react';
 import { useServiceData } from './useServiceData';
 import { ServiceStatus } from '../types/service';
 import { api } from '../utils/api';
-import { useNotifications } from '../contexts/NotificationContext';
+import { NotificationContext } from '../contexts/NotificationContext';
 
 type StatusCount = Record<ServiceStatus, number>;
 
@@ -30,7 +30,13 @@ interface HealthResponse {
 
 export const useServiceHealth = () => {
   const { services, isLoading, refreshService } = useServiceData();
-  const { notifyServiceUpdate, notifyVersionUpdate } = useNotifications();
+  const notificationContext = useContext(NotificationContext);
+
+  if (!notificationContext) {
+    throw new Error('useServiceHealth must be used within a NotificationProvider');
+  }
+
+  const { notifyServiceUpdate, notifyVersionUpdate } = notificationContext;
 
   const getStatusCounts = useCallback((): StatusCount => {
     return (services || []).reduce(

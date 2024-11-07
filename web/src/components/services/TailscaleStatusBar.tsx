@@ -157,39 +157,32 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
     if (error) {
       return (
         <div className="text-sm flex items-center justify-center">
-          <>
-            Tailscale:
-            <span className="text-red-500 ml-1">
-              {error === "Invalid API token"
-                ? "Invalid Token"
-                : error === "Not configured"
-                ? "Not Configured"
-                : error === "Not authenticated"
-                ? "Not Authenticated"
-                : error === "Connection timeout"
-                ? "Timeout"
-                : error === "Network error - Is the backend running?"
-                ? "Network Error"
-                : "Error"}
-            </span>
-          </>
+          <span className="hidden sm:inline text-gray-400">Tailscale:</span>
+          <span className="text-red-500 ml-1">
+            {error === "Invalid API token"
+              ? "Invalid Token"
+              : error === "Not configured"
+              ? "Not Configured"
+              : error === "Not authenticated"
+              ? "Not Authenticated"
+              : error === "Connection timeout"
+              ? "Timeout"
+              : error === "Network error - Is the backend running?"
+              ? "Network Error"
+              : "Error"}
+          </span>
         </div>
       );
     }
 
-    return isOnline ? (
+    return (
       <div className="text-sm flex items-center justify-center">
-        <>
-          Tailscale:
-          <span className="text-green-500 ml-1">Connected</span>
-        </>
-      </div>
-    ) : (
-      <div className="text-sm flex items-center justify-center">
-        <>
-          Tailscale:
-          <span className="text-yellow-500 ml-1">Offline</span>
-        </>
+        <span className="hidden sm:inline text-gray-400">Tailscale:</span>
+        <span
+          className={`ml-1 ${isOnline ? "text-green-500" : "text-yellow-500"}`}
+        >
+          {isOnline ? "Connected" : "Offline"}
+        </span>
       </div>
     );
   };
@@ -225,7 +218,7 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
             </button>
             <button
               onClick={() => setIsConfigModalOpen(true)}
-              className="p-1 text-sm rounded-md font-medium text-gray-300 dark:text-gray-400  hover:bg-gray-700"
+              className="p-1 text-sm rounded-md font-medium text-gray-400 hover:text-gray-600 dark:hover:text-white"
               disabled={!isAuthenticated || loading}
             >
               <CogIcon className="w-5 h-5" />
