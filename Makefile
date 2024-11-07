@@ -15,12 +15,12 @@ PNPM=pnpm
 DOCKER_COMPOSE=docker compose
 
 # Build directory
-BUILD_DIR=dist
+BUILD_DIR=web/dist
 
 # Main Go file
-MAIN_GO=./backend/main.go
+MAIN_GO=./cmd/dashbrr/main.go
 
-.PHONY: all clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run
+.PHONY: all clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview
 
 # Default target
 all: clean deps-frontend deps-go frontend backend
@@ -30,7 +30,6 @@ clean:
 	@echo "Cleaning..."
 	$(GOCLEAN)
 	rm -rf $(BUILD_DIR)
-	rm -rf backend/web/dist
 	rm -f $(BINARY_NAME)
 
 # Install Go dependencies
@@ -42,20 +41,32 @@ deps-go:
 # Install frontend dependencies
 deps-frontend:
 	@echo "Installing frontend dependencies..."
-	$(PNPM) install
+	cd web && $(PNPM) install
 
 # Build frontend
-frontend: deps-frontend
+frontend: deps-frontend type-check lint
 	@echo "Building frontend..."
-	$(PNPM) build
-	@echo "Moving frontend build to backend directory for embedding..."
-	mkdir -p backend/web
-	cp -r $(BUILD_DIR) backend/web/
+	cd web && $(PNPM) build
 
 # Build backend and create final binary
 backend: deps-go
 	@echo "Building backend..."
 	$(GOBUILD) -o $(BINARY_NAME) $(MAIN_GO)
+
+# Lint frontend code
+lint:
+	@echo "Linting frontend code..."
+	cd web && $(PNPM) lint
+
+# Type check frontend code
+type-check:
+	@echo "Type checking frontend code..."
+	cd web && $(PNPM) run tsc -b
+
+# Preview frontend build
+preview:
+	@echo "Starting frontend preview server..."
+	cd web && $(PNPM) preview
 
 # Start Redis for development
 redis-dev:
@@ -103,7 +114,7 @@ dev: redis-dev
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
 	echo "Starting frontend server..."; \
-	$(PNPM) dev & \
+	cd web && $(PNPM) dev & \
 	frontend_pid=$$!; \
 	trap 'kill $$backend_pid $$frontend_pid 2>/dev/null; make redis-stop' EXIT; \
 	wait
@@ -177,6 +188,9 @@ help:
 	@echo "  deps-frontend            - Install frontend dependencies using pnpm"
 	@echo "  frontend                 - Build the frontend application"
 	@echo "  backend                  - Build the backend Go binary"
+	@echo "  lint                     - Run ESLint on frontend code"
+	@echo "  type-check              - Run TypeScript type checking"
+	@echo "  preview                 - Start frontend preview server"
 	@echo "  dev                      - Start development environment with SQLite and Redis"
 	@echo "  redis-dev                - Start Redis server for development"
 	@echo "  redis-stop               - Stop Redis development server"
