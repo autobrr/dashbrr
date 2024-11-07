@@ -28,7 +28,7 @@ dist-ssr
 backend/data/dashbrr.db
 backend/dashbrr.db
 dashbrr.db
-dashbrr
+/dashbrr
 data/
 dump.rdb
 .env
