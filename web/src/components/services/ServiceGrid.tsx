@@ -11,6 +11,7 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
+  TouchSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -135,11 +136,22 @@ export const ServiceGrid = ({
     prevServicesRef.current = services;
   }, [items.length, services]);
 
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 200,
+      tolerance: 8,
+    },
+  });
+  const pointerSensor = useSensor(PointerSensor);
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  });
+
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    ...(isMobile ? [touchSensor] : [pointerSensor]),
+    keyboardSensor
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
