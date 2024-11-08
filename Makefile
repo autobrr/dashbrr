@@ -108,13 +108,13 @@ wait-backend:
 dev: redis-dev
 	@echo "Starting development servers..."
 	@echo "Redis is running on localhost:6379"
-	@echo "Starting backend server with SQLite..."
-	DASHBRR__DB_TYPE=sqlite $(GOCMD) run $(MAIN_GO) --db ./data/dashbrr.db & \
+	@echo "Starting backend server with SQLite in debug mode..."
+	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite $(GOCMD) run $(MAIN_GO) --db ./data/dashbrr.db & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
 	echo "Starting frontend server..."; \
-	cd web && $(PNPM) dev & \
+	cd web && $(PNPM) dev --host & \
 	frontend_pid=$$!; \
 	trap 'kill $$backend_pid $$frontend_pid 2>/dev/null; make redis-stop' EXIT; \
 	wait

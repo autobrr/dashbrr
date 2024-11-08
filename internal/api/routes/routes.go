@@ -19,9 +19,6 @@ import (
 
 // SetupRoutes configures all the routes for the application and returns the cache instance for cleanup
 func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) cache.Store {
-	// Set Gin to release mode in production
-	gin.SetMode(gin.ReleaseMode)
-
 	// Use custom logger instead of default Gin logger
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
