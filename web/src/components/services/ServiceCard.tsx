@@ -35,6 +35,8 @@ interface ServiceCardProps {
   onRemove: () => void;
   dragHandleProps?: DragHandleProps;
   isDragging?: boolean;
+  isConnected?: boolean;
+  isInitialLoad?: boolean;
 }
 
 const getStorageKey = (instanceId: string) =>
@@ -45,6 +47,8 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   onRemove,
   dragHandleProps = {},
   isDragging = false,
+  isConnected = true,
+  isInitialLoad,
 }) => {
   const [showConfig, setShowConfig] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -74,6 +78,17 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
 
   const renderServiceSpecificControls = () => {
     if (needsConfiguration) return null;
+
+    // Don't render controls if we're not connected or still loading
+    if (!isConnected || isInitialLoad) {
+      return (
+        <div className="flex items-center justify-center p-6 text-center">
+          <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 px-4 py-2 rounded-lg">
+            {isInitialLoad ? "Loading..." : "Disconnected from backend"}
+          </p>
+        </div>
+      );
+    }
 
     switch (service.type) {
       case "autobrr":
@@ -114,7 +129,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
           needsConfiguration
             ? "border-2 border-dashed dark:border-gray-600"
             : "border border-gray-200 dark:border-gray-700"
-        }`}
+        } ${!isConnected && "opacity-75"}`}
       >
         <div className="p-4">
           <div
