@@ -61,14 +61,13 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
       {/* Status and Messages */}
       <PlexMessage status={service.status} message={message} />
 
-      {/* Active Streams Summary - Always show the header */}
-      <div>
-        <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
-          Active Streams ({activeStreams}):
-        </div>
+      {/* Active Streams Summary - Only show when there are active streams */}
+      {activeStreams > 0 && (
+        <div>
+          <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
+            Active Streams:
+          </div>
 
-        {/* Only show the details box when there are active streams */}
-        {activeStreams > 0 && (
           <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex flex-col">
@@ -167,8 +166,8 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

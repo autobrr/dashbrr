@@ -429,13 +429,25 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 	// Enhanced health issues check
 	for _, issue := range healthIssues {
 		if issue.Type == "warning" || issue.Type == "error" {
-			warning := issue.Message
-			if issue.WikiURL != "" {
-				warning += fmt.Sprintf("\nWiki: %s", issue.WikiURL)
+			var warning string
+
+			// Handle notifications and indexers without source prefix and wiki
+			if strings.Contains(issue.Message, "Notifications unavailable") ||
+				strings.Contains(issue.Message, "Indexers unavailable") {
+				warning = issue.Message
+			} else {
+				// For other types of warnings, include source and wiki
+				warning = issue.Message
+				if issue.WikiURL != "" {
+					warning += fmt.Sprintf("\nWiki: %s", issue.WikiURL)
+				}
+				if issue.Source != "" &&
+					issue.Source != "IndexerLongTermStatusCheck" &&
+					issue.Source != "NotificationStatusCheck" {
+					warning = fmt.Sprintf("[%s] %s", issue.Source, warning)
+				}
 			}
-			if issue.Source != "" {
-				warning = fmt.Sprintf("[%s] %s", issue.Source, warning)
-			}
+
 			allWarnings = append(allWarnings, warning)
 		}
 	}

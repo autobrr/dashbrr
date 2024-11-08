@@ -54,7 +54,7 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
       <ProwlarrMessage status={service.status} message={service.message} />
 
       {/* Stats Display */}
-      {stats && (
+      {stats && stats.grabCount + stats.failCount + stats.indexerCount > 0 && (
         <div>
           <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
             Statistics:
@@ -95,7 +95,7 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
               .filter((indexer: ProwlarrIndexer) => indexer.enable)
               .sort(
                 (a: ProwlarrIndexer, b: ProwlarrIndexer) =>
-                  b.priority - a.priority
+                  a.priority - b.priority
               )
               .slice(0, 5)
               .map((indexer: ProwlarrIndexer) => (

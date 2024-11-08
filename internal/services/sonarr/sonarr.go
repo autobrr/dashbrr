@@ -431,83 +431,44 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 
 	var allWarnings []string
 
-	// Process health issues first
-	if len(healthIssues) > 0 {
-		var indexerWarnings []string
-		var otherWarnings []string
+	// Enhanced health issues check
+	for _, issue := range healthIssues {
+		if issue.Type == "warning" || issue.Type == "error" {
+			var warning string
 
-		for _, issue := range healthIssues {
-			message := issue.Message
-			message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
-			message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
-
-			if strings.Contains(message, "Indexers unavailable due to failures") {
-				// Extract indexer names from the message
-				parts := strings.Split(message, ":")
-				if len(parts) > 1 {
-					indexers := strings.Split(parts[1], ",")
-					for _, indexer := range indexers {
-						indexer = strings.TrimSpace(indexer)
-						if indexer != "" {
-							indexerWarnings = append(indexerWarnings, fmt.Sprintf("- %s", indexer))
-						}
-					}
-				}
+			// Handle notifications and indexers without source prefix and wiki
+			if strings.Contains(issue.Message, "Notifications unavailable") ||
+				strings.Contains(issue.Message, "Indexers unavailable") {
+				warning = issue.Message
 			} else {
-				otherWarnings = append(otherWarnings, fmt.Sprintf("- %s", message))
+				// For other types of warnings, include source and wiki
+				warning = issue.Message
+				if issue.WikiURL != "" {
+					warning += fmt.Sprintf("\nWiki: %s", issue.WikiURL)
+				}
+				if issue.Source != "" &&
+					issue.Source != "IndexerLongTermStatusCheck" &&
+					issue.Source != "NotificationStatusCheck" {
+					warning = fmt.Sprintf("[%s] %s", issue.Source, warning)
+				}
 			}
-		}
 
-		if len(indexerWarnings) > 0 {
-			allWarnings = append(allWarnings, fmt.Sprintf("Indexers unavailable due to failures:\n%s", strings.Join(indexerWarnings, "\n")))
-		}
-		if len(otherWarnings) > 0 {
-			allWarnings = append(allWarnings, strings.Join(otherWarnings, "\n"))
+			allWarnings = append(allWarnings, warning)
 		}
 	}
 
 	// Check queue for warning status
 	if queue != nil {
-		type releaseWarnings struct {
-			title    string
-			messages []string
-			status   string
-		}
-		warningsByRelease := make(map[string]*releaseWarnings)
-
 		for _, record := range queue {
 			if record.TrackedDownloadStatus == "warning" {
-				warnings, exists := warningsByRelease[record.Title]
-				if !exists {
-					warnings = &releaseWarnings{
-						title:    record.Title,
-						messages: []string{},
-						status:   record.Status,
-					}
-					warningsByRelease[record.Title] = warnings
-				}
-
-				// Collect all status messages
+				warning := fmt.Sprintf("%s:", record.Title)
 				for _, msg := range record.StatusMessages {
-					if msg.Title != "" && !strings.Contains(msg.Title, record.Title) {
-						warnings.messages = append(warnings.messages, msg.Title)
+					for _, message := range msg.Messages {
+						warning += "\n" + message
 					}
-					warnings.messages = append(warnings.messages, msg.Messages...)
 				}
+				allWarnings = append(allWarnings, warning)
 			}
-		}
-
-		if len(warningsByRelease) > 0 {
-			var warningMessages []string
-			for _, warnings := range warningsByRelease {
-				var messages []string
-				for _, msg := range warnings.messages {
-					messages = append(messages, fmt.Sprintf("- %s", msg))
-				}
-				message := fmt.Sprintf("\n%s:\n%s", warnings.title, strings.Join(messages, "\n"))
-				warningMessages = append(warningMessages, message)
-			}
-			allWarnings = append(allWarnings, fmt.Sprintf("Queue warnings:%s", strings.Join(warningMessages, "")))
 		}
 	}
 

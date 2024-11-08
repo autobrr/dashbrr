@@ -164,36 +164,41 @@ func (s *ProwlarrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 
 	// Process health issues
 	for _, issue := range healthIssues {
-		message := issue.Message
-		message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
-		message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
+		if issue.Type == "warning" || issue.Type == "error" {
+			message := issue.Message
+			message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
+			message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
 
-		// Check for update message
-		if strings.HasPrefix(message, "New update is available:") {
-			extras["updateAvailable"] = true
-			continue
-		}
+			// Check for update message
+			if strings.HasPrefix(message, "New update is available:") {
+				extras["updateAvailable"] = true
+				continue
+			}
 
-		if strings.Contains(message, "Indexers unavailable due to failures") {
-			// Extract indexer names from the message
-			parts := strings.Split(message, ":")
-			if len(parts) > 1 {
-				indexers := strings.Split(parts[1], ",")
-				for _, indexer := range indexers {
-					indexer = strings.TrimSpace(indexer)
-					if indexer != "" {
-						indexerWarnings = append(indexerWarnings, fmt.Sprintf("- %s", indexer))
+			if strings.Contains(message, "Indexers unavailable due to failures") {
+				// Extract indexer names from the message and clean them up
+				parts := strings.Split(message, ":")
+				if len(parts) > 1 {
+					indexers := strings.Split(strings.TrimSpace(parts[1]), ",")
+					for _, indexer := range indexers {
+						indexer = strings.TrimSpace(indexer)
+						if indexer != "" {
+							// Remove any "Wiki" suffix and clean up the format
+							indexer = strings.TrimSuffix(indexer, " Wiki")
+							indexerWarnings = append(indexerWarnings, indexer)
+						}
 					}
 				}
+			} else {
+				otherWarnings = append(otherWarnings, message)
 			}
-		} else {
-			otherWarnings = append(otherWarnings, fmt.Sprintf("- %s", message))
 		}
 	}
 
 	// Format warnings
 	if len(indexerWarnings) > 0 {
-		allWarnings = append(allWarnings, fmt.Sprintf("Indexers unavailable due to failures:\n%s", strings.Join(indexerWarnings, "\n")))
+		allWarnings = append(allWarnings, fmt.Sprintf("Indexers unavailable due to failures:\n%s",
+			strings.Join(indexerWarnings, "\n")))
 	}
 	if len(otherWarnings) > 0 {
 		allWarnings = append(allWarnings, strings.Join(otherWarnings, "\n"))

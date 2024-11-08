@@ -95,43 +95,64 @@ export const RadarrMessage: React.FC<Props> = ({ message, status }) => {
   const formatMessage = () => {
     if (!message) return null;
 
-    // Check for indexer warnings
-    if (message.includes("Indexers unavailable")) {
-      // Split the message into the warning and indexers part
-      const [warningText, indexersText] = message.split(/:\s+/);
-      // Get the indexers list before any movie filename
-      const indexers = indexersText.split(/\s+\w+\./)[0].split(", ");
+    const warnings = message.split("\n\n");
 
-      return (
-        <div className="space-y-2">
-          <div className="opacity-90 font-bold">
-            {warningText}:
-            <ul className="list-disc font-normal pl-5 mt-1">
-              {indexers.map((indexer, index) => (
-                <li key={index}>{indexer.trim()}</li>
-              ))}
-            </ul>
-          </div>
-          {message.includes("Not an upgrade") ||
-          message.includes("Not a Custom Format upgrade") ? (
-            <div className="opacity-90 font-bold pt-2">
-              Item(s) are stuck in import queue
+    return (
+      <div className="space-y-4">
+        {/* Indexer warnings */}
+        {warnings.some((w) => w.includes("Indexers unavailable")) && (
+          <div className="space-y-2">
+            <div className="opacity-90 font-bold">
+              Indexers unavailable due to failures for more than 6 hours:
+              <ul className="list-disc font-normal pl-5 mt-1">
+                {warnings
+                  .filter((w) => w.includes("Indexers unavailable"))
+                  .flatMap((w) =>
+                    w
+                      .split(/:\s+/)[1]
+                      .split(/\s+\w+\./)[0]
+                      .split(", ")
+                  )
+                  .map((indexer, index) => (
+                    <li key={index}>
+                      {indexer.trim().replace(/\s*Wiki$/, "")}
+                    </li>
+                  ))}
+              </ul>
             </div>
-          ) : null}
-        </div>
-      );
-    }
+          </div>
+        )}
 
-    // If only stuck downloads without indexer warning
-    if (
-      message.includes("Not an upgrade") ||
-      message.includes("Not a Custom Format upgrade")
-    ) {
-      return <div className="opacity-90">Items stuck in import queue</div>;
-    }
+        {/* Notification warnings */}
+        {warnings.some((w) => w.includes("Notifications unavailable")) && (
+          <div className="space-y-2">
+            <div className="opacity-90 font-bold">
+              Notifications unavailable due to failures:
+              <ul className="list-disc font-normal pl-5 mt-1">
+                {warnings
+                  .filter((w) => w.includes("Notifications unavailable"))
+                  .flatMap((w) => w.split(/:\s+/)[1].split(", "))
+                  .map((notifier, index) => (
+                    <li key={index}>{notifier.trim()}</li>
+                  ))}
+              </ul>
+            </div>
+          </div>
+        )}
 
-    // For any other messages, return as is
-    return <div className="opacity-90">{message}</div>;
+        {/* Queue warnings - only show once if any release has upgrade issues */}
+        {warnings.some(
+          (w) =>
+            (w.includes(".WEBRip.") || w.includes("WEB-DL")) &&
+            (w.includes("Not an upgrade") ||
+              w.includes("Not a Custom Format upgrade"))
+        ) && (
+          <div className="opacity-90 font-bold">
+            Item(s) are stuck in import queue
+          </div>
+        )}
+      </div>
+    );
   };
 
   const statusDisplay = getStatusDisplay();

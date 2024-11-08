@@ -95,64 +95,63 @@ export const ProwlarrMessage: React.FC<Props> = ({ message, status }) => {
   const formatMessage = () => {
     if (!message) return null;
 
-    const lines = message.split("\n");
-    const formattedContent: React.ReactNode[] = [];
-    let currentSection = "";
-    let listItems: string[] = [];
+    const warnings = message.split("\n\n");
 
-    const addListItems = () => {
-      if (listItems.length > 0) {
-        formattedContent.push(
-          <ul
-            key={`list-${formattedContent.length}`}
-            className="list-disc ml-6 space-y-1"
-          >
-            {listItems.map((item, idx) => (
-              <li key={idx} className="text-current opacity-90">
-                {item}
-              </li>
-            ))}
-          </ul>
-        );
-        listItems = [];
-      }
-    };
-
-    lines.forEach((line, index) => {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) return;
-
-      if (trimmedLine.endsWith(":")) {
-        // Section header
-        addListItems();
-        if (currentSection) {
-          formattedContent.push(
-            <div key={`spacer-${index}`} className="h-2" />
-          );
-        }
-        currentSection = trimmedLine;
-        formattedContent.push(
-          <div key={index} className="font-medium">
-            {trimmedLine}
+    return (
+      <div className="space-y-4">
+        {/* Indexer warnings */}
+        {warnings.some((w) => w.includes("Indexers unavailable")) && (
+          <div className="space-y-2">
+            <div className="opacity-90 font-bold">
+              Indexers unavailable due to failures:
+              <ul className="list-disc font-normal pl-5 mt-1">
+                {warnings
+                  .filter((w) => w.includes("Indexers unavailable"))
+                  .flatMap((w) =>
+                    w
+                      .split(/:\s+/)[1]
+                      .split(/\s+\w+\./)[0]
+                      .split(", ")
+                  )
+                  .map((indexer, index) => (
+                    <li key={index}>
+                      {indexer.trim().replace(/\s*Wiki$/, "")}
+                    </li>
+                  ))}
+              </ul>
+            </div>
           </div>
-        );
-      } else if (trimmedLine.startsWith("- ")) {
-        // List item
-        listItems.push(trimmedLine.substring(2));
-      } else {
-        // Regular text
-        addListItems();
-        formattedContent.push(
-          <div key={index} className="opacity-90">
-            {trimmedLine}
+        )}
+
+        {/* Health warnings */}
+        {warnings.some((w) => w.includes("Health issue")) && (
+          <div className="space-y-2">
+            <div className="opacity-90 font-bold">
+              Health issues:
+              <ul className="list-disc font-normal pl-5 mt-1">
+                {warnings
+                  .filter((w) => w.includes("Health issue"))
+                  .map((warning, index) => (
+                    <li key={index}>{warning.split(": ")[1]}</li>
+                  ))}
+              </ul>
+            </div>
           </div>
-        );
-      }
-    });
+        )}
 
-    addListItems();
-
-    return formattedContent;
+        {/* Other warnings that don't match specific patterns */}
+        {warnings
+          .filter(
+            (w) =>
+              !w.includes("Indexers unavailable") && !w.includes("Health issue")
+          )
+          .map((warning, idx) => (
+            <div key={idx} className="opacity-90 font-bold">
+              {warning}
+            </div>
+          ))}
+      </div>
+    );
   };
 
   const statusDisplay = getStatusDisplay();
