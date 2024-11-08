@@ -79,26 +79,95 @@ export interface MaintainerrCollection {
 export interface PlexUser {
   id: string;
   title: string;
+  thumb?: string;
 }
 
 export interface PlexPlayer {
-  remotePublicAddress: string;
+  address: string;
+  device?: string;
+  machineIdentifier: string;
+  model: string;
+  platform: string;
+  platformVersion: string;
   product: string;
-  device: string;
+  profile: string;
+  remotePublicAddress: string;
+  state: string;
+  title: string;
+  version: string;
+  local: boolean;
+  relayed: boolean;
+  secure: boolean;
+  userID: number;
+}
+
+export interface PlexMediaStream {
+  audioChannelLayout?: string;
+  bitDepth?: number;
+  bitrate?: number;
+  channels?: number;
+  codec: string;
+  displayTitle: string;
+  extendedDisplayTitle: string;
+  id: string;
+  samplingRate?: number;
+  selected: boolean;
+  streamType: number;
+  location: string;
+}
+
+export interface PlexMediaPart {
+  container: string;
+  duration: number;
+  file: string;
+  size: number;
+  decision: string;
+  selected: boolean;
+  streams?: PlexMediaStream[];
+}
+
+export interface PlexMedia {
+  audioChannels: number;
+  audioCodec: string;
+  bitrate: number;
+  container: string;
+  duration: number;
+  id: string;
+  selected: boolean;
+  parts?: PlexMediaPart[];
 }
 
 export interface PlexTranscodeSession {
   videoDecision: string;
   audioDecision: string;
   progress: number;
+  speed?: number;
+  size?: number;
+  context?: string;
 }
 
 export interface PlexSession {
-  type: string;
-  title: string;
+  addedAt: number;
+  duration: number;
+  grandparentArt?: string;
+  grandparentGuid?: string;
+  grandparentKey?: string;
   grandparentTitle?: string;
+  guid: string;
+  key: string;
+  parentTitle?: string;
+  title: string;
+  type: string;
+  viewOffset: number;
+  sessionKey: string;
   User?: PlexUser;
   Player?: PlexPlayer;
+  Media?: PlexMedia[];
+  Session?: {
+    id: string;
+    bandwidth: number;
+    location: string;
+  };
   TranscodeSession?: PlexTranscodeSession;
 }
 
@@ -117,9 +186,9 @@ export interface OverseerrMediaRequest {
     requests: string[];
     createdAt: string;
     updatedAt: string;
-    serviceUrl?: string; // fetched from Radarr/Sonarr
-    title?: string; // fetched from Radarr/Sonarr
-    externalServiceId?: number; // fetched from Radarr/Sonarr
+    serviceUrl?: string;
+    title?: string;
+    externalServiceId?: number;
     externalServiceSlug?: string;
   };
   requestedBy: {
