@@ -158,7 +158,12 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				regularServices.GET("/autobrr/irc", autobrrHandler.GetAutobrrIRCStatus)
 				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
-				regularServices.GET("/overseerr/requests", overseerrHandler.GetRequests)
+
+				// Overseerr endpoints
+				overseerr := regularServices.Group("/overseerr")
+				{
+					overseerr.GET("/requests", overseerrHandler.GetRequests)
+				}
 
 				// Sonarr endpoints
 				sonarr := regularServices.Group("/sonarr")
@@ -201,6 +206,17 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 			tailscaleServices.Use(cacheMiddleware.Cache())
 			{
 				tailscaleServices.GET("/tailscale/devices", tailscaleHandler.GetTailscaleDevices)
+			}
+
+			// Service action endpoints that require instanceId
+			serviceActions := services.Group("/services/:instanceId")
+			serviceActions.Use(apiRateLimiter.RateLimit())
+			{
+				// Overseerr action endpoints
+				overseerrActions := serviceActions.Group("/overseerr")
+				{
+					overseerrActions.POST("/request/:requestId/:status", overseerrHandler.UpdateRequestStatus)
+				}
 			}
 		}
 	}

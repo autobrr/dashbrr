@@ -4,6 +4,7 @@
 package overseerr
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // ErrOverseerr is a custom error type for Overseerr-specific errors
@@ -41,78 +43,6 @@ type OverseerrService struct {
 	db *database.DB
 }
 
-type StatusResponse struct {
-	Version         string `json:"version"`
-	CommitTag       string `json:"commitTag"`
-	Status          int    `json:"status"`
-	UpdateAvailable bool   `json:"updateAvailable"`
-}
-
-type RequestsResponse struct {
-	PageInfo struct {
-		Pages    int `json:"pages"`
-		PageSize int `json:"pageSize"`
-		Results  int `json:"results"`
-		Page     int `json:"page"`
-	} `json:"pageInfo"`
-	Results []interface{} `json:"results"`
-}
-
-type MediaRequest struct {
-	ID        int       `json:"id"`
-	Status    int       `json:"status"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Media     struct {
-		ID                int      `json:"id"`
-		TmdbID            int      `json:"tmdbId"`
-		TvdbID            int      `json:"tvdbId"`
-		Status            int      `json:"status"`
-		Requests          []string `json:"requests"`
-		CreatedAt         string   `json:"createdAt"`
-		UpdatedAt         string   `json:"updatedAt"`
-		MediaType         string   `json:"mediaType"`
-		ServiceUrl        string   `json:"serviceUrl"`
-		Title             string   `json:"title,omitempty"`
-		ExternalServiceID int      `json:"externalServiceId,omitempty"`
-	} `json:"media"`
-	RequestedBy struct {
-		ID           int    `json:"id"`
-		Email        string `json:"email"`
-		Username     string `json:"username"`
-		PlexToken    string `json:"plexToken"`
-		PlexUsername string `json:"plexUsername"`
-		UserType     int    `json:"userType"`
-		Permissions  int    `json:"permissions"`
-		Avatar       string `json:"avatar"`
-		CreatedAt    string `json:"createdAt"`
-		UpdatedAt    string `json:"updatedAt"`
-		RequestCount int    `json:"requestCount"`
-	} `json:"requestedBy"`
-	ModifiedBy struct {
-		ID           int    `json:"id"`
-		Email        string `json:"email"`
-		Username     string `json:"username"`
-		PlexToken    string `json:"plexToken"`
-		PlexUsername string `json:"plexUsername"`
-		UserType     int    `json:"userType"`
-		Permissions  int    `json:"permissions"`
-		Avatar       string `json:"avatar"`
-		CreatedAt    string `json:"createdAt"`
-		UpdatedAt    string `json:"updatedAt"`
-		RequestCount int    `json:"requestCount"`
-	} `json:"modifiedBy"`
-	Is4k       bool   `json:"is4k"`
-	ServerID   int    `json:"serverId"`
-	ProfileID  int    `json:"profileId"`
-	RootFolder string `json:"rootFolder"`
-}
-
-type RequestsStats struct {
-	PendingCount int            `json:"pendingCount"`
-	Requests     []MediaRequest `json:"requests"`
-}
-
 func init() {
 	models.NewOverseerrService = func() models.ServiceHealthChecker {
 		return &OverseerrService{}
@@ -129,14 +59,60 @@ func (s *OverseerrService) SetDB(db *database.DB) {
 	s.db = db
 }
 
-// fetchMediaTitle fetches the title from either Radarr or Sonarr based on mediaType
-func (s *OverseerrService) fetchMediaTitle(request MediaRequest) (string, error) {
-	if s.db == nil {
-		return "", fmt.Errorf("database not initialized")
+// UpdateRequestStatus updates the status of a media request (approve/reject)
+func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int, approve bool) error {
+	if url == "" {
+		return &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
 
-	if request.Media.ExternalServiceID == 0 {
-		return "", fmt.Errorf("no external service ID provided")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	baseURL := strings.TrimRight(url, "/")
+	status := "approve"
+	if !approve {
+		status = "decline"
+	}
+	endpoint := fmt.Sprintf("%s/api/v1/request/%d/%s", baseURL, requestID, status)
+
+	// Create an empty request body
+	emptyBody := bytes.NewReader([]byte("{}"))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, emptyBody)
+	if err != nil {
+		return &ErrOverseerr{Message: "Failed to create request", Errors: []string{err.Error()}}
+	}
+
+	req.Header.Set("X-Api-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("url", url).
+			Int("requestID", requestID).
+			Str("status", status).
+			Msg("Failed to update Overseerr request status")
+		return &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return &ErrOverseerr{
+			Message: "Failed to update request status",
+			Errors:  []string{fmt.Sprintf("Server returned status code: %d", resp.StatusCode)},
+		}
+	}
+
+	return nil
+}
+
+// fetchMediaTitle fetches the title from either Radarr or Sonarr based on mediaType
+func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, error) {
+	if s.db == nil {
+		return "", fmt.Errorf("database not initialized")
 	}
 
 	var service *models.ServiceConfiguration
@@ -154,7 +130,8 @@ func (s *OverseerrService) fetchMediaTitle(request MediaRequest) (string, error)
 		}
 
 		radarrService := &radarr.RadarrService{}
-		movie, err := radarrService.GetMovie(service.URL, service.APIKey, request.Media.ExternalServiceID)
+		// Use TmdbID for movie lookups
+		movie, err := radarrService.LookupByTmdbId(service.URL, service.APIKey, request.Media.TmdbID)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch movie from Radarr: %w", err)
 		}
@@ -171,7 +148,8 @@ func (s *OverseerrService) fetchMediaTitle(request MediaRequest) (string, error)
 		}
 
 		sonarrService := &sonarr.SonarrService{}
-		series, err := sonarrService.GetSeries(service.URL, service.APIKey, request.Media.ExternalServiceID)
+		// Use TvdbID for TV show lookups
+		series, err := sonarrService.LookupByTvdbId(service.URL, service.APIKey, request.Media.TvdbID)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch series from Sonarr: %w", err)
 		}
@@ -182,7 +160,7 @@ func (s *OverseerrService) fetchMediaTitle(request MediaRequest) (string, error)
 	}
 }
 
-func (s *OverseerrService) GetRequests(url, apiKey string) (*RequestsStats, error) {
+func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats, error) {
 	if url == "" {
 		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
@@ -221,7 +199,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*RequestsStats, erro
 		return nil, &ErrOverseerr{Message: "Service error", Errors: []string{err.Error()}}
 	}
 
-	var requestsResponse RequestsResponse
+	var requestsResponse types.RequestsResponse
 	if err := json.Unmarshal(body, &requestsResponse); err != nil {
 		log.Error().
 			Err(err).
@@ -232,7 +210,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*RequestsStats, erro
 	}
 
 	// Convert the generic results to MediaRequest structs and count pending
-	mediaRequests := make([]MediaRequest, 0)
+	mediaRequests := make([]types.MediaRequest, 0)
 	pendingCount := 0
 
 	for _, result := range requestsResponse.Results {
@@ -245,7 +223,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*RequestsStats, erro
 			continue
 		}
 
-		var mediaRequest MediaRequest
+		var mediaRequest types.MediaRequest
 		if err := json.Unmarshal(resultBytes, &mediaRequest); err != nil {
 			log.Warn().
 				Err(err).
@@ -258,18 +236,17 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*RequestsStats, erro
 			pendingCount++
 		}
 
-		// If we have an external service ID, try to fetch the title
-		if mediaRequest.Media.ExternalServiceID != 0 {
-			title, err := s.fetchMediaTitle(mediaRequest)
-			if err != nil {
-				log.Warn().
-					Err(err).
-					Str("mediaType", mediaRequest.Media.MediaType).
-					Int("externalServiceId", mediaRequest.Media.ExternalServiceID).
-					Msg("Failed to fetch media title")
-			} else {
-				mediaRequest.Media.Title = title
-			}
+		// Try to fetch the title using the appropriate lookup method
+		title, err := s.fetchMediaTitle(mediaRequest)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("mediaType", mediaRequest.Media.MediaType).
+				Int("tmdbId", mediaRequest.Media.TmdbID).
+				Int("tvdbId", mediaRequest.Media.TvdbID).
+				Msg("Failed to fetch media title")
+		} else {
+			mediaRequest.Media.Title = title
 		}
 
 		mediaRequests = append(mediaRequests, mediaRequest)
@@ -280,7 +257,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*RequestsStats, erro
 		Int("pendingCount", pendingCount).
 		Msg("Successfully processed Overseerr requests")
 
-	return &RequestsStats{
+	return &types.RequestsStats{
 		PendingCount: pendingCount,
 		Requests:     mediaRequests,
 	}, nil
@@ -342,7 +319,7 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	}
 
 	// Parse the response
-	var statusResponse StatusResponse
+	var statusResponse types.StatusResponse
 	if err := json.Unmarshal(body, &statusResponse); err != nil {
 		log.Error().
 			Err(err).

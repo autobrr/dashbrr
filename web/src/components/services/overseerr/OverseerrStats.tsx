@@ -3,10 +3,15 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { OverseerrMessage } from "./OverseerrMessage";
 import { OverseerrMediaRequest } from "../../../types/service";
+import { OverseerrRequestModal } from "./OverseerrRequestModal";
+import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import { api } from "../../../utils/api";
+import { toast } from "react-hot-toast";
+import Toast from "../../Toast";
 
 interface OverseerrStatsProps {
   instanceId: string;
@@ -15,12 +20,75 @@ interface OverseerrStatsProps {
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
 }) => {
-  const { services } = useServiceData();
+  const { services, refreshService } = useServiceData();
   const service = services.find((s) => s.instanceId === instanceId);
-  const requests = service?.stats?.overseerr?.requests || [];
-  const pendingCount = service?.stats?.overseerr?.pendingCount || 0;
+  const [localRequests, setLocalRequests] = useState<OverseerrMediaRequest[]>(
+    []
+  );
+  const requests =
+    localRequests.length > 0
+      ? localRequests
+      : service?.stats?.overseerr?.requests || [];
+  const pendingRequests = requests.filter((req) => req.status === 1);
+  const pendingCount = pendingRequests.length;
   const isLoading = !service || service.status === "loading";
   const error = service?.status === "error" ? service.message : null;
+
+  const [selectedRequest, setSelectedRequest] =
+    useState<OverseerrMediaRequest | null>(null);
+  const [modalAction, setModalAction] = useState<"approve" | "reject" | null>(
+    null
+  );
+
+  const handleAction = async (
+    request: OverseerrMediaRequest,
+    action: "approve" | "reject"
+  ) => {
+    setSelectedRequest(request);
+    setModalAction(action);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!selectedRequest || !modalAction) return;
+
+    try {
+      const status = modalAction === "approve" ? 2 : 3; // 2 for approved, 3 for declined
+      await api.post(
+        `/api/services/${instanceId}/overseerr/request/${selectedRequest.id}/${status}`
+      );
+
+      // Update local state immediately
+      const updatedRequests = requests.map((req) =>
+        req.id === selectedRequest.id ? { ...req, status } : req
+      );
+      setLocalRequests(updatedRequests);
+
+      // Show success toast
+      toast.custom((t) => (
+        <Toast
+          type="success"
+          body={`Successfully ${modalAction}d request for ${
+            selectedRequest.media.title || "media"
+          }`}
+          t={t}
+        />
+      ));
+
+      // Refresh service data in background
+      refreshService(instanceId, "stats");
+      setSelectedRequest(null);
+      setModalAction(null);
+    } catch (error) {
+      console.error("Failed to update request status:", error);
+      toast.custom((t) => (
+        <Toast
+          type="error"
+          body={`Failed to ${modalAction} request: ${error}`}
+          t={t}
+        />
+      ));
+    }
+  };
 
   if (isLoading) {
     return <p className="text-xs text-gray-500">Loading requests...</p>;
@@ -98,21 +166,68 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       : `Movie (TMDB: ${request.media.tmdbId})`;
   };
 
+  const RequestActions = ({ request }: { request: OverseerrMediaRequest }) => (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => handleAction(request, "approve")}
+        className="p-1 rounded-full hover:bg-gray-700/50 text-green-500 transition-colors"
+        title="Approve request"
+      >
+        <CheckCircleIcon className="h-5 w-5" />
+      </button>
+      <button
+        onClick={() => handleAction(request, "reject")}
+        className="p-1 rounded-full hover:bg-gray-700/50 text-red-500 transition-colors"
+        title="Reject request"
+      >
+        <XCircleIcon className="h-5 w-5" />
+      </button>
+    </div>
+  );
+
+  const RequestItem = ({ request }: { request: OverseerrMediaRequest }) => (
+    <div className="border-b border-gray-800 last:border-0 pb-2 last:pb-0 space-y-1">
+      <div className="flex justify-between items-center">
+        <div className="font-medium">{getMediaTitle(request)}</div>
+        <div className="flex items-center gap-2 ml-2 shrink-0">
+          {request.status === 1 && <RequestActions request={request} />}
+          <span
+            className={`${getStatusColor(request.status)} text-xs font-medium`}
+          >
+            {getStatusLabel(request.status)}
+          </span>
+        </div>
+      </div>
+      <div className="text-gray-500 flex items-center gap-2 flex-wrap pt-1">
+        <span>Requested by: {getUserDisplayName(request.requestedBy)}</span>
+        <span>•</span>
+        <span>{formatDate(request.createdAt)}</span>
+        <span>•</span>
+        <span className="text-[10px] font-medium text-gray-500">
+          {getMediaType(request)}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       {/* Status and Messages */}
       <OverseerrMessage status={service.status} message={message} />
 
-      {/* Pending Requests Count */}
-      <div>
-        <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
-          Pending Requests:
+      {/* Pending Requests */}
+      {pendingCount > 0 && (
+        <div>
+          <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
+            Pending Requests:
+          </div>
+          <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 overflow-hidden space-y-2">
+            {pendingRequests.map((request) => (
+              <RequestItem key={request.id} request={request} />
+            ))}
+          </div>
         </div>
-        <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4">
-          {pendingCount} {pendingCount === 1 ? "request" : "requests"} awaiting
-          approval
-        </div>
-      </div>
+      )}
 
       {/* Recent Requests List */}
       {requests.length > 0 && (
@@ -121,35 +236,28 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
             Recent Requests:
           </div>
           <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
-            {requests.slice(0, 5).map((request: OverseerrMediaRequest) => (
-              <div
-                key={request.id}
-                className="flex justify-between items-start border-b border-gray-800 last:border-0 pb-2 last:pb-0"
-              >
-                <div className="flex-1">
-                  <div className="font-medium flex items-center gap-2">
-                    {getMediaTitle(request)}
-                    <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-700/70 text-gray-300">
-                      {getMediaType(request)}
-                    </span>
-                  </div>
-                  <div className="text-gray-500 flex items-center gap-2">
-                    <span>{getUserDisplayName(request.requestedBy)}</span>
-                    <span>•</span>
-                    <span>{formatDate(request.createdAt)}</span>
-                  </div>
-                </div>
-                <div
-                  className={`${getStatusColor(
-                    request.status
-                  )} text-xs font-medium ml-2`}
-                >
-                  {getStatusLabel(request.status)}
-                </div>
-              </div>
-            ))}
+            {requests
+              .filter((request) => request.status !== 1)
+              .slice(0, 5)
+              .map((request) => (
+                <RequestItem key={request.id} request={request} />
+              ))}
           </div>
         </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {selectedRequest && modalAction && (
+        <OverseerrRequestModal
+          isOpen={true}
+          onClose={() => {
+            setSelectedRequest(null);
+            setModalAction(null);
+          }}
+          request={selectedRequest}
+          onConfirm={handleConfirmAction}
+          action={modalAction}
+        />
       )}
     </div>
   );

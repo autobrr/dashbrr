@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -34,6 +36,83 @@ func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
 	}
 }
 
+func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
+	instanceId := c.Param("instanceId")
+	requestId := c.Param("requestId")
+	status := c.Param("status")
+
+	if instanceId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
+		return
+	}
+
+	if requestId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "requestId is required"})
+		return
+	}
+
+	if status == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "status is required"})
+		return
+	}
+
+	// Convert request ID to integer
+	reqID, err := strconv.Atoi(requestId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request ID"})
+		return
+	}
+
+	// Convert numeric status to approve/decline
+	approve := false
+	if status == "2" {
+		status = "approve"
+		approve = true
+	} else if status == "3" {
+		status = "decline"
+		approve = false
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status"})
+		return
+	}
+
+	// Get service configuration
+	overseerrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	if err != nil {
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get service configuration")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+
+	if overseerrConfig == nil || overseerrConfig.URL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Service not configured"})
+		return
+	}
+
+	// Create Overseerr service instance
+	service := &overseerr.OverseerrService{}
+	service.SetDB(h.db)
+
+	// Update request status
+	if err := service.UpdateRequestStatus(overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve); err != nil {
+		log.Error().Err(err).
+			Str("instanceId", instanceId).
+			Int("requestId", reqID).
+			Bool("approve", approve).
+			Msg("Failed to update request status")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update request status: %v", err)})
+		return
+	}
+
+	// Clear the cache for this instance to force a refresh
+	cacheKey := overseerrCachePrefix + instanceId
+	if err := h.cache.Delete(context.Background(), cacheKey); err != nil {
+		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after status update")
+	}
+
+	c.Status(http.StatusOK)
+}
+
 func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
@@ -46,7 +125,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var response *overseerr.RequestsStats
+	var response *types.RequestsStats
 	err := h.cache.Get(ctx, cacheKey, &response)
 	if err == nil {
 		log.Debug().
@@ -66,9 +145,9 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
-			c.JSON(http.StatusOK, &overseerr.RequestsStats{
+			c.JSON(http.StatusOK, &types.RequestsStats{
 				PendingCount: 0,
-				Requests:     []overseerr.MediaRequest{},
+				Requests:     []types.MediaRequest{},
 			})
 			return
 		}
@@ -93,7 +172,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*overseerr.RequestsStats, error) {
+func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*types.RequestsStats, error) {
 	overseerrConfig, err := h.db.GetServiceByInstanceID(instanceId)
 	if err != nil {
 		return nil, err

@@ -52,6 +52,8 @@ A sleek, modern dashboard for monitoring and managing your media stack services.
 ### Overseerr
 
 - Pending requests monitoring
+- Request management (approve/reject)
+- Recent requests history
 - Version check
 
 ### Prowlarr
@@ -329,9 +331,9 @@ To enable OIDC authentication, set the following environment variables:
 - `OIDC_ISSUER`: Your OIDC provider's issuer URL
 - `OIDC_CLIENT_ID`: Client ID from your OIDC provider
 - `OIDC_CLIENT_SECRET`: Client secret from your OIDC provider
-- `OIDC_REDIRECT_URL`: Callback URL for OIDC authentication (default: http://localhost:3000/auth/callback)
+- `OIDC_REDIRECT_URL`: Callback URL for OIDC authentication (default: <http://localhost:3000/auth/callback>)
 
-It has been tested and working with https://auth0.com/
+It has been tested and working with [Auth0](https://auth0.com/)
 
 ## Screenshots
 

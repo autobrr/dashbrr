@@ -71,6 +71,48 @@ func (s *RadarrService) GetHealthEndpoint(baseURL string) string {
 	return fmt.Sprintf("%s/api/v3/health", baseURL)
 }
 
+// LookupByTmdbId fetches movie details from Radarr by TMDB ID
+func (s *RadarrService) LookupByTmdbId(baseURL, apiKey string, tmdbId int) (*types.RadarrMovieResponse, error) {
+	if baseURL == "" {
+		return nil, &ErrRadarr{Op: "lookup_tmdb", Err: fmt.Errorf("URL is required")}
+	}
+
+	if apiKey == "" {
+		return nil, &ErrRadarr{Op: "lookup_tmdb", Err: fmt.Errorf("API key is required")}
+	}
+
+	lookupURL := fmt.Sprintf("%s/api/v3/movie/lookup/tmdb?tmdbId=%d", strings.TrimRight(baseURL, "/"), tmdbId)
+	headers := map[string]string{
+		"auth_header": "X-Api-Key",
+		"auth_value":  apiKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := s.MakeRequestWithContext(ctx, lookupURL, "", headers)
+	if err != nil {
+		return nil, &ErrRadarr{Op: "lookup_tmdb", Err: fmt.Errorf("failed to make request: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ErrRadarr{Op: "lookup_tmdb", HttpCode: resp.StatusCode}
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, &ErrRadarr{Op: "lookup_tmdb", Err: fmt.Errorf("failed to read response: %w", err)}
+	}
+
+	var movie types.RadarrMovieResponse
+	if err := json.Unmarshal(body, &movie); err != nil {
+		return nil, &ErrRadarr{Op: "lookup_tmdb", Err: fmt.Errorf("failed to parse response: %w", err)}
+	}
+
+	return &movie, nil
+}
+
 // GetMovie fetches movie details from Radarr by ID
 func (s *RadarrService) GetMovie(baseURL, apiKey string, movieID int) (*types.RadarrMovieResponse, error) {
 	if baseURL == "" {

@@ -71,6 +71,53 @@ func (s *SonarrService) GetHealthEndpoint(baseURL string) string {
 	return fmt.Sprintf("%s/api/v3/health", baseURL)
 }
 
+// LookupByTvdbId fetches series details from Sonarr by TVDB ID
+func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*types.SonarrSeriesResponse, error) {
+	if baseURL == "" {
+		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("URL is required")}
+	}
+
+	if apiKey == "" {
+		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("API key is required")}
+	}
+
+	lookupURL := fmt.Sprintf("%s/api/v3/series/lookup?term=tvdb%%3A%d", strings.TrimRight(baseURL, "/"), tvdbId)
+	headers := map[string]string{
+		"auth_header": "X-Api-Key",
+		"auth_value":  apiKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := s.MakeRequestWithContext(ctx, lookupURL, "", headers)
+	if err != nil {
+		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to make request: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ErrSonarr{Op: "lookup_tvdb", HttpCode: resp.StatusCode}
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to read response: %w", err)}
+	}
+
+	var series []types.SonarrSeriesResponse
+	if err := json.Unmarshal(body, &series); err != nil {
+		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to parse response: %w", err)}
+	}
+
+	// Return the first match
+	if len(series) > 0 {
+		return &series[0], nil
+	}
+
+	return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("no series found for TVDB ID: %d", tvdbId)}
+}
+
 // GetSeries fetches series details from Sonarr by ID
 func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.SonarrSeriesResponse, error) {
 	if baseURL == "" {
