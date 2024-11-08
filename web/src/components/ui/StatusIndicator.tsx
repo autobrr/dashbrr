@@ -30,23 +30,28 @@ const WARNING_HEADERS = [
   "Autobrr is running but stats check failed",
 ];
 
+// List of headers that should receive error styling
+const ERROR_HEADERS = ["Service Error", "Error", "Connection issues detected"];
+
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   status,
   message,
   isInitialLoad = false,
   isConnected = true,
 }) => {
-  const getMessageStyle = (status: StatusType) => {
+  const getMessageStyle = (status: StatusType, isErrorHeader = false) => {
     const baseStyles = "transition-all duration-200 backdrop-blur-sm";
+
+    // Force error styling if it's an error header or status is error/offline
+    if (isErrorHeader || status === "error" || status === "offline") {
+      return `${baseStyles} text-red-600 dark:text-red-400 bg-red-50/90 dark:bg-red-900/30 border border-red-100 dark:border-red-900/50 shadow-sm shadow-red-100/50 dark:shadow-red-900/30`;
+    }
 
     switch (status) {
       case "online":
         return `${baseStyles} text-green-600 dark:text-green-400 bg-green-50/90 dark:bg-green-900/30 border border-green-100 dark:border-green-900/50 shadow-sm shadow-green-100/50 dark:shadow-green-900/30`;
       case "warning":
         return `${baseStyles} text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40 shadow-sm shadow-amber-100/50 dark:shadow-amber-900/20`;
-      case "offline":
-      case "error":
-        return `${baseStyles} text-red-600 dark:text-red-400 bg-red-50/90 dark:bg-red-900/30 border border-red-100 dark:border-red-900/50 shadow-sm shadow-red-100/50 dark:shadow-red-900/30`;
       case "loading":
       case "pending":
         return `${baseStyles} text-blue-600 dark:text-blue-400 bg-blue-50/90 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-900/50 shadow-sm shadow-blue-100/50 dark:shadow-blue-900/30`;
@@ -125,6 +130,13 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     return WARNING_HEADERS.some((header) => title.startsWith(header));
   };
 
+  const isErrorHeader = (title: string): boolean => {
+    return (
+      ERROR_HEADERS.some((header) => title.startsWith(header)) ||
+      (status === "error" && title.startsWith("Error:"))
+    );
+  };
+
   const isReleaseName = (line: string): boolean => {
     // Define common video file extensions
     const videoExtensions = [
@@ -189,13 +201,15 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
           sections[currentSection] = [];
         }
         if (currentContent.length > 0) {
+          const isError = isErrorHeader(currentSection);
           if (currentRelease) {
             // For release-based content
             sections[currentSection].push(
               <div
                 key={`${currentSection}-${currentRelease}`}
                 className={`text-xs p-2 mb-4 rounded-lg ${getMessageStyle(
-                  status
+                  status,
+                  isError
                 )}`}
               >
                 <div className="text-amber-500 dark:text-amber-300 font-medium mb-2 overflow-hidden">
@@ -205,11 +219,14 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
               </div>
             );
           } else {
-            // For non-release content (like Prowlarr messages)
+            // For non-release content
             sections[currentSection].push(
               <div
                 key={`${currentSection}-${sections[currentSection].length}`}
-                className={`text-xs p-2 rounded-lg ${getMessageStyle(status)}`}
+                className={`text-xs p-2 rounded-lg ${getMessageStyle(
+                  status,
+                  isError
+                )}`}
               >
                 <div className="space-y-1">{currentContent}</div>
               </div>
@@ -220,38 +237,57 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
       currentContent = [];
     };
 
-    lines.forEach((line, index) => {
-      if (isWarningHeader(line.split(":")[0])) {
-        addToSection();
-        currentSection = line.split(":")[0].trim();
-        currentRelease = "";
-      } else if (isReleaseName(line)) {
-        if (currentRelease) {
+    // If no sections are defined in the message, create a default error section
+    if (
+      status === "error" &&
+      !lines.some(
+        (line) =>
+          isWarningHeader(line.split(":")[0]) ||
+          isErrorHeader(line.split(":")[0])
+      )
+    ) {
+      currentSection = "Error";
+      currentContent.push(
+        <div key="error-message" className="mb-1">
+          {msg}
+        </div>
+      );
+      addToSection();
+    } else {
+      lines.forEach((line, index) => {
+        const headerPart = line.split(":")[0].trim();
+        if (isWarningHeader(headerPart) || isErrorHeader(headerPart)) {
           addToSection();
+          currentSection = headerPart;
+          currentRelease = "";
+        } else if (isReleaseName(line)) {
+          if (currentRelease) {
+            addToSection();
+          }
+          currentRelease = line;
+        } else if (line.startsWith("- ")) {
+          listItems.push(line.substring(2));
+        } else if (line.includes(":")) {
+          addListItems();
+          const [title, ...rest] = line.split(":");
+          currentContent.push(
+            <div key={index} className="mb-1">
+              <span className="font-medium">{title}:</span>
+              {rest.join(":")}
+            </div>
+          );
+        } else if (line.trim()) {
+          addListItems();
+          currentContent.push(
+            <div key={index} className="mb-1">
+              {line}
+            </div>
+          );
         }
-        currentRelease = line;
-      } else if (line.startsWith("- ")) {
-        listItems.push(line.substring(2));
-      } else if (line.includes(":")) {
-        addListItems();
-        const [title, ...rest] = line.split(":");
-        currentContent.push(
-          <div key={index} className="mb-1">
-            <span className="font-medium">{title}:</span>
-            {rest.join(":")}
-          </div>
-        );
-      } else if (line.trim()) {
-        addListItems();
-        currentContent.push(
-          <div key={index} className="mb-1">
-            {line}
-          </div>
-        );
-      }
-    });
+      });
 
-    addToSection();
+      addToSection();
+    }
 
     return Object.entries(sections).map(([sectionTitle, content], idx) => (
       <div key={idx} className="mb-4">

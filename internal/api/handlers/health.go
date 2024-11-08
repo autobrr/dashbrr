@@ -52,12 +52,10 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	url := c.Query("url")
 	apiKey := c.Query("apiKey")
 
-	// If URL or API key is provided in query params, use those for validation
-	// Otherwise, fetch from database
 	var service *models.ServiceConfiguration
 	var err error
 
-	if url != "" && apiKey != "" {
+	if url != "" {
 		service = &models.ServiceConfiguration{
 			InstanceID: serviceID,
 			URL:        url,
@@ -99,6 +97,16 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	serviceChecker := h.serviceCreator.CreateService(serviceType)
 	if serviceChecker == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported service type: " + serviceType})
+		return
+	}
+
+	// For general service, API key is optional
+	// For other services, ensure API key is provided
+	if serviceType != "general" && service.APIKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "API key is required for this service type",
+		})
 		return
 	}
 

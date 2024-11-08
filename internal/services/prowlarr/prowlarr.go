@@ -15,6 +15,19 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
+// ErrProwlarr represents a Prowlarr-specific error
+type ErrProwlarr struct {
+	Message string
+	Err     error
+}
+
+func (e *ErrProwlarr) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Err)
+	}
+	return e.Message
+}
+
 type ProwlarrService struct {
 	core.ServiceCore
 }
@@ -58,18 +71,18 @@ func (s *ProwlarrService) getSystemStatus(baseURL, apiKey string) (string, error
 
 	resp, err := s.MakeRequestWithContext(ctx, statusURL, "", headers)
 	if err != nil {
-		return "", err
+		return "", &ErrProwlarr{Message: "Failed to get system status", Err: err}
 	}
 	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return "", err
+		return "", &ErrProwlarr{Message: "Failed to read system status response", Err: err}
 	}
 
 	var status SystemStatusResponse
 	if err := json.Unmarshal(body, &status); err != nil {
-		return "", err
+		return "", &ErrProwlarr{Message: "Failed to parse system status response", Err: err}
 	}
 
 	// Cache version for 1 hour
@@ -146,13 +159,12 @@ func (s *ProwlarrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 	}
 
 	var allWarnings []string
+	var indexerWarnings []string
+	var otherWarnings []string
 
-	// Process health issues first
-	if len(healthIssues) > 0 {
-		var indexerWarnings []string
-		var otherWarnings []string
-
-		for _, issue := range healthIssues {
+	// Process health issues
+	for _, issue := range healthIssues {
+		if issue.Type == "warning" || issue.Type == "error" {
 			message := issue.Message
 			message = strings.TrimPrefix(message, "IndexerStatusCheck: ")
 			message = strings.TrimPrefix(message, "ApplicationLongTermStatusCheck: ")
@@ -164,28 +176,32 @@ func (s *ProwlarrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 			}
 
 			if strings.Contains(message, "Indexers unavailable due to failures") {
-				// Extract indexer names from the message
+				// Extract indexer names from the message and clean them up
 				parts := strings.Split(message, ":")
 				if len(parts) > 1 {
-					indexers := strings.Split(parts[1], ",")
+					indexers := strings.Split(strings.TrimSpace(parts[1]), ",")
 					for _, indexer := range indexers {
 						indexer = strings.TrimSpace(indexer)
 						if indexer != "" {
-							indexerWarnings = append(indexerWarnings, fmt.Sprintf("- %s", indexer))
+							// Remove any "Wiki" suffix and clean up the format
+							indexer = strings.TrimSuffix(indexer, " Wiki")
+							indexerWarnings = append(indexerWarnings, indexer)
 						}
 					}
 				}
 			} else {
-				otherWarnings = append(otherWarnings, fmt.Sprintf("- %s", message))
+				otherWarnings = append(otherWarnings, message)
 			}
 		}
+	}
 
-		if len(indexerWarnings) > 0 {
-			allWarnings = append(allWarnings, fmt.Sprintf("Indexers unavailable due to failures:\n%s", strings.Join(indexerWarnings, "\n")))
-		}
-		if len(otherWarnings) > 0 {
-			allWarnings = append(allWarnings, strings.Join(otherWarnings, "\n"))
-		}
+	// Format warnings
+	if len(indexerWarnings) > 0 {
+		allWarnings = append(allWarnings, fmt.Sprintf("Indexers unavailable due to failures:\n%s",
+			strings.Join(indexerWarnings, "\n")))
+	}
+	if len(otherWarnings) > 0 {
+		allWarnings = append(allWarnings, strings.Join(otherWarnings, "\n"))
 	}
 
 	// If there are any warnings, return them all

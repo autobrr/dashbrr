@@ -68,16 +68,27 @@ func main() {
 	// Initialize health service
 	healthService := services.NewHealthService()
 
+	// Set Gin mode based on environment
+	if os.Getenv("GIN_MODE") != "release" {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	// Initialize Gin router
-	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 
 	// Use zerolog middleware and recovery
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
 
-	// Configure trusted proxies - only trust loopback addresses
-	err = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
+	// In development mode, trust all proxies to allow IP access
+	if gin.Mode() == gin.DebugMode {
+		err = r.SetTrustedProxies(nil) // Trust all proxies in development
+	} else {
+		// In production, only trust loopback addresses
+		err = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
+	}
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to set trusted proxies")
 	}
@@ -107,7 +118,7 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Info().Msgf("Starting server on %s", finalListenAddr)
+		log.Info().Msgf("Starting server on %s in %s mode", finalListenAddr, gin.Mode())
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("Failed to start server")
 		}

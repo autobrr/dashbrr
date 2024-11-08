@@ -3,21 +3,12 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import { useState, useEffect, ReactNode, useCallback } from "react";
 import { API_BASE_URL, API_PREFIX } from "../config/api";
 import { ServiceConfig } from "../types/service";
 import { useAuth } from "./AuthContext";
 import { ConfigurationContext } from "./context";
 import { ConfigurationContextType } from "./types";
-
-interface ConfigCache {
-  data: { [instanceId: string]: ServiceConfig };
-  timestamp: number;
-}
-
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // 2 seconds
 
 export function ConfigurationProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -26,8 +17,6 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const configCache = useRef<ConfigCache | null>(null);
-  const retryCount = useRef(0);
 
   const buildUrl = useCallback((path: string) => {
     const apiPath = path.startsWith("/api") ? path : `${API_PREFIX}${path}`;
@@ -42,72 +31,37 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const fetchConfigurations = useCallback(
-    async (retryAttempt = 0) => {
-      if (!isAuthenticated) {
-        setConfigurations({});
-        setIsLoading(false);
-        return;
+  const fetchConfigurations = useCallback(async () => {
+    if (!isAuthenticated) {
+      setConfigurations({});
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(buildUrl("/settings"), {
+        headers: getAuthHeaders(),
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch configurations: ${response.status}`);
       }
 
-      // Check cache first
-      if (
-        configCache.current &&
-        Date.now() - configCache.current.timestamp < CACHE_DURATION
-      ) {
-        setConfigurations(configCache.current.data);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(buildUrl("/settings"), {
-          headers: getAuthHeaders(),
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch configurations: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Update cache and state
-        configCache.current = {
-          data,
-          timestamp: Date.now(),
-        };
-        setConfigurations(data);
-        retryCount.current = 0; // Reset retry count on success
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to fetch configurations";
-
-        // Implement retry logic
-        if (retryAttempt < MAX_RETRIES) {
-          setTimeout(() => {
-            fetchConfigurations(retryAttempt + 1);
-          }, RETRY_DELAY * Math.pow(2, retryAttempt)); // Exponential backoff
-          return;
-        }
-
-        setError(errorMessage);
-        console.error("Error fetching configurations:", err);
-
-        // Use cached data if available when all retries fail
-        if (configCache.current) {
-          setConfigurations(configCache.current.data);
-          console.log("Using cached configuration data after fetch failure");
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [isAuthenticated, buildUrl, getAuthHeaders]
-  );
+      const data = await response.json();
+      setConfigurations(data);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to fetch configurations";
+      setError(errorMessage);
+      console.error("Error fetching configurations:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, buildUrl, getAuthHeaders]);
 
   useEffect(() => {
     fetchConfigurations();
@@ -131,21 +85,13 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
       }
 
       const updatedConfig = await response.json();
-
-      // Update both cache and state
-      if (configCache.current) {
-        configCache.current.data = {
-          ...configCache.current.data,
-          [instanceId]: updatedConfig,
-        };
-        configCache.current.timestamp = Date.now();
-      }
-
       setConfigurations((prev) => ({
         ...prev,
         [instanceId]: updatedConfig,
       }));
 
+      // Fetch fresh data to ensure consistency
+      await fetchConfigurations();
       return updatedConfig;
     } catch (err) {
       const errorMessage =
@@ -168,21 +114,15 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
         throw new Error(errorData.error || "Failed to delete configuration");
       }
 
-      // Update both cache and state
-      if (configCache.current) {
-        const newCacheData = { ...configCache.current.data };
-        delete newCacheData[instanceId];
-        configCache.current = {
-          data: newCacheData,
-          timestamp: Date.now(),
-        };
-      }
-
+      // Remove from local state
       setConfigurations((prev) => {
         const newConfigs = { ...prev };
         delete newConfigs[instanceId];
         return newConfigs;
       });
+
+      // Fetch fresh data to ensure consistency
+      await fetchConfigurations();
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to delete configuration";
@@ -191,17 +131,11 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const forceRefresh = useCallback(async () => {
-    // Clear cache and fetch fresh data
-    configCache.current = null;
-    await fetchConfigurations();
-  }, [fetchConfigurations]);
-
   const contextValue: ConfigurationContextType = {
     configurations,
     updateConfiguration,
     deleteConfiguration,
-    fetchConfigurations: forceRefresh, // Use forceRefresh for manual refreshes
+    fetchConfigurations,
     isLoading,
     error,
   };

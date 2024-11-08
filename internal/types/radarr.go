@@ -52,3 +52,35 @@ type RadarrCustomFormat struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
+
+// RadarrMovieResponse represents a movie from Radarr's movie endpoint
+type RadarrMovieResponse struct {
+	ID            int     `json:"id"`
+	Title         string  `json:"title"`
+	OriginalTitle string  `json:"originalTitle"`
+	Year          int     `json:"year"`
+	Overview      string  `json:"overview"`
+	ImdbId        string  `json:"imdbId"`
+	TmdbId        int     `json:"tmdbId"`
+	Status        string  `json:"status"`
+	Added         string  `json:"added"`
+	HasFile       bool    `json:"hasFile"`
+	Path          string  `json:"path"`
+	SizeOnDisk    int64   `json:"sizeOnDisk"`
+	Runtime       int     `json:"runtime"`
+	Ratings       Ratings `json:"ratings"`
+}
+
+// Ratings represents rating information for a movie
+type Ratings struct {
+	Tmdb  Rating `json:"tmdb"`
+	Imdb  Rating `json:"imdb"`
+	Value int    `json:"value"`
+	Votes int    `json:"votes"`
+}
+
+// Rating represents a single rating source
+type Rating struct {
+	Value float64 `json:"value"`
+	Votes int     `json:"votes"`
+}

@@ -38,7 +38,11 @@ export const useServiceManagement = () => {
       .length;
     const instanceNumber = existingInstances + 1;
     const instanceId = `${templateType}-${instanceNumber}`;
-    const displayName = `${templateName}${instanceNumber > 1 ? ` ${instanceNumber}` : ''}`;
+    
+    // For general service, don't set an initial display name
+    const displayName = templateType === 'general' 
+      ? '' 
+      : `${templateName}${instanceNumber > 1 ? ` ${instanceNumber}` : ''}`;
 
     setPendingService({
       type: templateType,
@@ -49,17 +53,18 @@ export const useServiceManagement = () => {
     setShowServiceConfig(true);
   }, [configurations]);
 
-  const confirmServiceAddition = useCallback(async (url: string, apiKey: string) => {
+  const confirmServiceAddition = useCallback(async (url: string, apiKey: string, displayName: string) => {
     if (!pendingService) return;
 
     try {
       await updateConfiguration(pendingService.instanceId, {
         url,
         apiKey,
-        displayName: pendingService.displayName
+        // Use the provided display name from the form
+        displayName: displayName || pendingService.displayName
       } as ServiceConfig);
       
-      toast.success(`Added new ${pendingService.name} instance`);
+      toast.success(`Added new service instance`);
       setShowServiceConfig(false);
       setPendingService(null);
     } catch (err) {

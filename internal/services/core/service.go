@@ -161,8 +161,25 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	}
 
 	contentType := resp.Header.Get("Content-Type")
-	if resp.StatusCode != http.StatusOK && contentType != "application/json" {
-		return nil, fmt.Errorf("unexpected response (status %d, type %s): %s", resp.StatusCode, contentType, string(body))
+	if resp.StatusCode != http.StatusOK {
+		switch resp.StatusCode {
+		case http.StatusBadGateway:
+			return nil, fmt.Errorf("service unavailable (502 bad gateway)")
+		case http.StatusServiceUnavailable:
+			return nil, fmt.Errorf("service unavailable (503)")
+		case http.StatusGatewayTimeout:
+			return nil, fmt.Errorf("service timeout (504)")
+		case http.StatusUnauthorized:
+			return nil, fmt.Errorf("unauthorized access (401)")
+		case http.StatusForbidden:
+			return nil, fmt.Errorf("access forbidden (403)")
+		case http.StatusNotFound:
+			return nil, fmt.Errorf("endpoint not found (404)")
+		default:
+			if contentType != "application/json" {
+				return nil, fmt.Errorf("service error (status %d)", resp.StatusCode)
+			}
+		}
 	}
 
 	return body, nil

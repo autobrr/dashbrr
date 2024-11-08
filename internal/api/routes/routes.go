@@ -19,9 +19,6 @@ import (
 
 // SetupRoutes configures all the routes for the application and returns the cache instance for cleanup
 func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) cache.Store {
-	// Set Gin to release mode in production
-	gin.SetMode(gin.ReleaseMode)
-
 	// Use custom logger instead of default Gin logger
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
@@ -46,7 +43,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	cacheMiddleware := middleware.NewCacheMiddleware(store)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(db)
+	settingsHandler := handlers.NewSettingsHandler(db, health)
 	healthHandler := handlers.NewHealthHandler(db, health)
 	eventsHandler := handlers.NewEventsHandler(db, health)
 	autobrrHandler := handlers.NewAutobrrHandler(db, store)
@@ -132,9 +129,8 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	api := r.Group("/api")
 	api.Use(authMiddleware.RequireAuth())
 	{
-		// Settings endpoints
+		// Settings endpoints - no caching to ensure fresh data
 		settings := api.Group("/settings")
-		settings.Use(cacheMiddleware.Cache())
 		{
 			settings.GET("", settingsHandler.GetSettings)
 			settings.POST("/:instance", settingsHandler.SaveSettings)
@@ -161,7 +157,12 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				regularServices.GET("/autobrr/irc", autobrrHandler.GetAutobrrIRCStatus)
 				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
-				regularServices.GET("/overseerr/pending", overseerrHandler.GetPendingRequests)
+
+				// Overseerr endpoints
+				overseerr := regularServices.Group("/overseerr")
+				{
+					overseerr.GET("/requests", overseerrHandler.GetRequests)
+				}
 
 				// Sonarr endpoints
 				sonarr := regularServices.Group("/sonarr")
@@ -204,6 +205,17 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 			tailscaleServices.Use(cacheMiddleware.Cache())
 			{
 				tailscaleServices.GET("/tailscale/devices", tailscaleHandler.GetTailscaleDevices)
+			}
+
+			// Service action endpoints that require instanceId
+			serviceActions := services.Group("/services/:instanceId")
+			serviceActions.Use(apiRateLimiter.RateLimit())
+			{
+				// Overseerr action endpoints
+				overseerrActions := serviceActions.Group("/overseerr")
+				{
+					overseerrActions.POST("/request/:requestId/:status", overseerrHandler.UpdateRequestStatus)
+				}
 			}
 		}
 	}

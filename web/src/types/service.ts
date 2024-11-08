@@ -5,7 +5,13 @@
 
 export type ServiceStatus = 'online' | 'offline' | 'warning' | 'error' | 'loading' | 'pending' | 'unknown';
 
-export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'other';
+export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'general' | 'other';
+
+export interface ServiceHealth {
+  status: ServiceStatus;
+  message: string;
+  extras?: Record<string, unknown>;
+}
 
 // Base Service interface
 export interface Service {
@@ -26,6 +32,7 @@ export interface Service {
   retryCount?: number;
   stats?: ServiceStats;
   details?: ServiceDetails;
+  health?: ServiceHealth;
 }
 
 export interface ServiceConfig {
@@ -96,8 +103,60 @@ export interface PlexSession {
 }
 
 // Overseerr Types
+export interface OverseerrMediaRequest {
+  id: number;
+  status: number;
+  createdAt: string;
+  updatedAt: string;
+  media: {
+    id: number;
+    mediaType: string;
+    tmdbId: number;
+    tvdbId: number;
+    status: number;
+    requests: string[];
+    createdAt: string;
+    updatedAt: string;
+    serviceUrl?: string; // fetched from Radarr/Sonarr
+    title?: string; // fetched from Radarr/Sonarr
+    externalServiceId?: number; // fetched from Radarr/Sonarr
+    externalServiceSlug?: string;
+  };
+  requestedBy: {
+    id: number;
+    email: string;
+    username: string;
+    plexToken: string;
+    plexUsername: string;
+    userType: number;
+    permissions: number;
+    avatar: string;
+    createdAt: string;
+    updatedAt: string;
+    requestCount: number;
+  };
+  modifiedBy: {
+    id: number;
+    email: string;
+    username: string;
+    plexToken: string;
+    plexUsername: string;
+    userType: number;
+    permissions: number;
+    avatar: string;
+    createdAt: string;
+    updatedAt: string;
+    requestCount: number;
+  };
+  is4k: boolean;
+  serverId: number;
+  profileId: number;
+  rootFolder: string;
+}
+
 export interface OverseerrStats {
-  pendingRequests: number;
+  pendingCount: number;
+  requests: OverseerrMediaRequest[];
   version?: string;
   status?: number;
   updateAvailable?: boolean;
@@ -132,6 +191,19 @@ export interface SonarrStats {
 }
 
 // Radarr Types
+export interface RadarrMovie {
+  title: string;
+  originalTitle: string;
+  year: number;
+  folderPath: string;
+  customFormats: RadarrCustomFormat[];
+}
+
+export interface RadarrCustomFormat {
+  id: number;
+  name: string;
+}
+
 export interface RadarrQueueItem {
   id: number;
   title: string;
@@ -141,16 +213,14 @@ export interface RadarrQueueItem {
   downloadClient: string;
   timeLeft?: string;
   trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  movie: RadarrMovie;
 }
 
 export interface RadarrQueue {
   totalRecords: number;
   records: RadarrQueueItem[];
-}
-
-export interface SonarrQueue {
-  totalRecords: number;
-  records: SonarrQueueItem[];
 }
 
 // Prowlarr Types
