@@ -27,6 +27,7 @@ export const ConfigurationForm = ({
   const { configurations, updateConfiguration } = useConfiguration();
   const { refreshServiceHealth } = useServiceHealth();
   const currentConfig = configurations[instanceId];
+  const serviceType = instanceId.split("-")[0];
 
   const [url, setUrl] = useState(currentConfig?.url || "");
   const [apiKey, setApiKey] = useState(currentConfig?.apiKey || "");
@@ -40,7 +41,7 @@ export const ConfigurationForm = ({
     try {
       const queryParams = new URLSearchParams({
         url: config.url || "",
-        apiKey: config.apiKey || "",
+        ...(config.apiKey && { apiKey: config.apiKey }),
       }).toString();
 
       const health = await api.get<{
@@ -70,8 +71,8 @@ export const ConfigurationForm = ({
     try {
       const config: ServiceConfig = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
-        apiKey,
         displayName,
+        ...(serviceType !== "general" ? { apiKey } : {}),
       };
 
       // Validate configuration
@@ -102,7 +103,7 @@ export const ConfigurationForm = ({
   };
 
   const getApiKeyLabel = () => {
-    switch (instanceId.split("-")[0]) {
+    switch (serviceType) {
       case "plex":
         return "X-Plex-Token";
       case "radarr":
@@ -117,8 +118,6 @@ export const ConfigurationForm = ({
   };
 
   const getApiKeyHelp = () => {
-    const serviceType = instanceId.split("-")[0];
-
     switch (serviceType) {
       case "autobrr":
         return {
@@ -162,9 +161,11 @@ export const ConfigurationForm = ({
   };
 
   const getUrlPlaceholder = () => {
-    switch (instanceId.split("-")[0]) {
+    switch (serviceType) {
       case "plex":
         return "http://localhost:32400";
+      case "general":
+        return "Enter full URL including health endpoint";
       default:
         return "Enter service URL";
     }
@@ -195,16 +196,19 @@ export const ConfigurationForm = ({
         data-1p-ignore
       />
 
-      <FormInput
-        id="apiKey"
-        label={getApiKeyLabel()}
-        type="password"
-        value={apiKey}
-        onChange={(e) => setApiKey(e.target.value)}
-        placeholder={`Enter ${getApiKeyLabel()}`}
-        helpText={apiKeyHelp}
-        data-1p-ignore
-      />
+      {serviceType !== "general" && (
+        <FormInput
+          id="apiKey"
+          label={getApiKeyLabel()}
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={`Enter ${getApiKeyLabel()}`}
+          helpText={apiKeyHelp}
+          required
+          data-1p-ignore
+        />
+      )}
 
       {error && (
         <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>

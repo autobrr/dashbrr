@@ -72,6 +72,8 @@ export function AddServicesMenu({
         return "API Key";
       case "overseerr":
         return "API Key";
+      case "general":
+        return "API Key";
       default:
         return "API Key";
     }
@@ -119,6 +121,12 @@ export function AddServicesMenu({
           text: "Settings",
           link: url ? `${url}/settings/main` : null,
         };
+      case "general":
+        return {
+          prefix: "Optional - ",
+          text: "api token for authentication if required",
+          link: null,
+        };
       default:
         return {
           prefix: "",
@@ -134,12 +142,15 @@ export function AddServicesMenu({
     switch (pendingService.type) {
       case "plex":
         return "http://localhost:32400";
+      case "general":
+        return "Enter full URL including health endpoint";
       default:
         return "Enter service URL";
     }
   };
 
   const apiKeyHelp = getApiKeyHelp();
+  const isApiKeyRequired = pendingService?.type !== "general";
 
   return (
     <>
@@ -228,7 +239,7 @@ export function AddServicesMenu({
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={`Enter ${getApiKeyLabel()}`}
             helpText={apiKeyHelp}
-            required
+            required={isApiKeyRequired}
             data-1p-ignore
           />
 

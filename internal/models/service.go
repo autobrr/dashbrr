@@ -45,4 +45,5 @@ var (
 	NewOmegabrrService    func() ServiceHealthChecker
 	NewTailscaleService   func() ServiceHealthChecker
 	NewMaintainerrService func() ServiceHealthChecker
+	NewGeneralService     func() ServiceHealthChecker
 )

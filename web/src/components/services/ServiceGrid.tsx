@@ -134,25 +134,7 @@ export const ServiceGrid = ({
     }
 
     prevServicesRef.current = services;
-  }, [items.length, services]);
-
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: {
-      delay: 200,
-      tolerance: 8,
-    },
-  });
-  const pointerSensor = useSensor(PointerSensor);
-  const keyboardSensor = useSensor(KeyboardSensor, {
-    coordinateGetter: sortableKeyboardCoordinates,
-  });
-
-  const sensors = useSensors(
-    ...(isMobile ? [touchSensor] : [pointerSensor]),
-    keyboardSensor
-  );
+  }, [services, items.length]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -182,6 +164,24 @@ export const ServiceGrid = ({
       });
     }
   };
+
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 200,
+      tolerance: 8,
+    },
+  });
+  const pointerSensor = useSensor(PointerSensor);
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  });
+
+  const sensors = useSensors(
+    ...(isMobile ? [touchSensor] : [pointerSensor]),
+    keyboardSensor
+  );
 
   if (isLoading) {
     return (

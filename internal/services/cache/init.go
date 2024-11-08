@@ -4,94 +4,89 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"sync"
-	"sync/atomic"
+	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 )
 
-var (
-	instance     *RedisStore
-	initOnce     sync.Once
-	isInitiating int32
-)
+// getRedisOptions returns Redis configuration optimized for the current environment
+func getRedisOptions() *redis.Options {
+	isDev := os.Getenv("GIN_MODE") != "release"
 
-// GetRedisAddress returns the Redis connection address from environment variables
-func GetRedisAddress() string {
+	// Get Redis connection details from environment
 	host := os.Getenv("REDIS_HOST")
-	port := os.Getenv("REDIS_PORT")
-
 	if host == "" {
 		host = "localhost"
-		log.Debug().Msg("Using default Redis host: localhost")
 	}
+	port := os.Getenv("REDIS_PORT")
 	if port == "" {
 		port = "6379"
-		log.Debug().Msg("Using default Redis port: 6379")
+	}
+	addr := fmt.Sprintf("%s:%s", host, port)
+
+	// Base configuration
+	opts := &redis.Options{
+		Addr:            addr,
+		MinIdleConns:    2,
+		MaxRetries:      RetryAttempts,
+		MinRetryBackoff: RetryDelay,
+		MaxRetryBackoff: time.Second,
 	}
 
-	addr := fmt.Sprintf("%s:%s", host, port)
-	log.Debug().Str("addr", addr).Msg("Redis address configured")
-	return addr
+	if isDev {
+		// Development-optimized settings
+		opts.PoolSize = 5
+		opts.MaxConnAge = 30 * time.Second
+		opts.ReadTimeout = 2 * time.Second
+		opts.WriteTimeout = 2 * time.Second
+		opts.PoolTimeout = 2 * time.Second
+		opts.IdleTimeout = 30 * time.Second
+	} else {
+		// Production settings
+		opts.PoolSize = 10
+		opts.MaxConnAge = 5 * time.Minute
+		opts.ReadTimeout = DefaultTimeout
+		opts.WriteTimeout = DefaultTimeout
+		opts.PoolTimeout = DefaultTimeout * 2
+		opts.IdleTimeout = time.Minute
+	}
+
+	return opts
 }
 
-// InitCache initializes and returns a new Cache instance
+// InitCache initializes a Redis cache instance with environment-specific configuration
 func InitCache() (Store, error) {
-	// If we're already initializing, return the existing instance or wait for initialization
-	if !atomic.CompareAndSwapInt32(&isInitiating, 0, 1) {
-		log.Debug().Msg("Cache initialization already in progress, waiting...")
-		// Wait for initialization to complete and return existing instance
-		for atomic.LoadInt32(&isInitiating) == 1 {
-			if instance != nil {
-				return instance, nil
-			}
-		}
-		return instance, nil
+	isDev := os.Getenv("GIN_MODE") != "release"
+	opts := getRedisOptions()
+
+	// Create context with shorter timeout for development
+	timeout := DefaultTimeout
+	if isDev {
+		timeout = 2 * time.Second
 	}
 
-	defer atomic.StoreInt32(&isInitiating, 0)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	var initErr error
-	initOnce.Do(func() {
-		if instance != nil {
-			instance.mu.RLock()
-			closed := instance.closed
-			instance.mu.RUnlock()
+	client := redis.NewClient(opts)
+	err := client.Ping(ctx).Err()
 
-			if !closed {
-				return
-			}
-
-			// If the instance is closed, clean it up properly
-			if err := instance.Close(); err != nil {
-				log.Error().Err(err).Msg("Failed to close existing Redis cache instance")
-			}
-			instance = nil
+	if err != nil {
+		if isDev {
+			// In development, log warning but continue with degraded functionality
+			log.Warn().Err(err).Str("addr", opts.Addr).Msg("Redis connection failed, some features may be degraded")
+			return NewCache(opts.Addr)
 		}
-
-		// Create new instance
-		log.Debug().Msg("Initializing Redis cache")
-		addr := GetRedisAddress()
-		store, err := NewCache(addr)
-		if err != nil {
-			initErr = err
-			return
+		if client != nil {
+			client.Close()
 		}
-
-		// Type assertion since we know it's a RedisStore
-		redisStore, ok := store.(*RedisStore)
-		if !ok {
-			initErr = fmt.Errorf("unexpected store type")
-			return
-		}
-		instance = redisStore
-	})
-
-	if initErr != nil {
-		return nil, initErr
+		return nil, err
 	}
 
-	return instance, nil
+	// Initialize cache store with the configured client
+	return NewCache(opts.Addr)
 }

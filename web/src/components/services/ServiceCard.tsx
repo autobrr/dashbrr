@@ -15,6 +15,7 @@ import { MaintainerrService } from "./maintainerr/MaintainerrService";
 import { SonarrStats } from "./sonarr/SonarrStats";
 import { RadarrStats } from "./radarr/RadarrStats";
 import { ProwlarrStats } from "./prowlarr/ProwlarrStats";
+import { GeneralStats } from "./general/GeneralStats";
 import AnimatedModal from "../ui/AnimatedModal";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon } from "@heroicons/react/24/outline";
@@ -115,6 +116,8 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
         return <RadarrStats instanceId={service.instanceId} />;
       case "prowlarr":
         return <ProwlarrStats instanceId={service.instanceId} />;
+      case "general":
+        return <GeneralStats instanceId={service.instanceId} />;
       default:
         return null;
     }

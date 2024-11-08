@@ -43,7 +43,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	cacheMiddleware := middleware.NewCacheMiddleware(store)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(db)
+	settingsHandler := handlers.NewSettingsHandler(db, health)
 	healthHandler := handlers.NewHealthHandler(db, health)
 	eventsHandler := handlers.NewEventsHandler(db, health)
 	autobrrHandler := handlers.NewAutobrrHandler(db, store)
@@ -129,9 +129,8 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	api := r.Group("/api")
 	api.Use(authMiddleware.RequireAuth())
 	{
-		// Settings endpoints
+		// Settings endpoints - no caching to ensure fresh data
 		settings := api.Group("/settings")
-		settings.Use(cacheMiddleware.Cache())
 		{
 			settings.GET("", settingsHandler.GetSettings)
 			settings.POST("/:instance", settingsHandler.SaveSettings)

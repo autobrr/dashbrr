@@ -78,6 +78,15 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     url: "",
     healthEndpoint: "/api/health/maintainerr",
   },
+  {
+    name: "General Service",
+    displayName: "", // Allow custom display name to be set
+    type: "general",
+    status: "offline",
+    url: "",
+    healthEndpoint: "", // The URL itself is the health endpoint
+    apiKey: undefined, // Make API key optional
+  },
 ];
 
 export default serviceTemplates;
