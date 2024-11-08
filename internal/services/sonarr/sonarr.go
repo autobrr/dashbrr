@@ -16,6 +16,27 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
+// Custom error types for better error handling
+type ErrSonarr struct {
+	Op       string // Operation that failed
+	Err      error  // Underlying error
+	HttpCode int    // HTTP status code if applicable
+}
+
+func (e *ErrSonarr) Error() string {
+	if e.HttpCode > 0 {
+		return fmt.Sprintf("sonarr %s: server returned %s (%d)", e.Op, http.StatusText(e.HttpCode), e.HttpCode)
+	}
+	if e.Err != nil {
+		return fmt.Sprintf("sonarr %s: %v", e.Op, e.Err)
+	}
+	return fmt.Sprintf("sonarr %s", e.Op)
+}
+
+func (e *ErrSonarr) Unwrap() error {
+	return e.Err
+}
+
 type SonarrService struct {
 	core.ServiceCore
 }
@@ -50,7 +71,53 @@ func (s *SonarrService) GetHealthEndpoint(baseURL string) string {
 	return fmt.Sprintf("%s/api/v3/health", baseURL)
 }
 
+// GetSeries fetches series details from Sonarr by ID
+func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.SonarrSeriesResponse, error) {
+	if baseURL == "" {
+		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("URL is required")}
+	}
+
+	if apiKey == "" {
+		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("API key is required")}
+	}
+
+	seriesURL := fmt.Sprintf("%s/api/v3/series/%d", strings.TrimRight(baseURL, "/"), seriesID)
+	headers := map[string]string{
+		"auth_header": "X-Api-Key",
+		"auth_value":  apiKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := s.MakeRequestWithContext(ctx, seriesURL, "", headers)
+	if err != nil {
+		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to make request: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ErrSonarr{Op: "get_series", HttpCode: resp.StatusCode}
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to read response: %w", err)}
+	}
+
+	var series types.SonarrSeriesResponse
+	if err := json.Unmarshal(body, &series); err != nil {
+		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to parse response: %w", err)}
+	}
+
+	return &series, nil
+}
+
 func (s *SonarrService) getSystemStatus(baseURL, apiKey string) (string, error) {
+	if baseURL == "" {
+		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
+	}
+
 	// Check cache first
 	if version := s.GetVersionFromCache(baseURL); version != "" {
 		return version, nil
@@ -67,18 +134,22 @@ func (s *SonarrService) getSystemStatus(baseURL, apiKey string) (string, error) 
 
 	resp, err := s.MakeRequestWithContext(ctx, statusURL, "", headers)
 	if err != nil {
-		return "", err
+		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return "", &ErrSonarr{Op: "get_system_status", HttpCode: resp.StatusCode}
+	}
+
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return "", err
+		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var status SystemStatusResponse
 	if err := json.Unmarshal(body, &status); err != nil {
-		return "", err
+		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	// Cache version for 1 hour
@@ -91,6 +162,10 @@ func (s *SonarrService) getSystemStatus(baseURL, apiKey string) (string, error) 
 }
 
 func (s *SonarrService) checkForUpdates(baseURL, apiKey string) (bool, error) {
+	if baseURL == "" {
+		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("URL is required")}
+	}
+
 	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(baseURL, "/"))
 	headers := map[string]string{
 		"auth_header": "X-Api-Key",
@@ -102,18 +177,22 @@ func (s *SonarrService) checkForUpdates(baseURL, apiKey string) (bool, error) {
 
 	resp, err := s.MakeRequestWithContext(ctx, updateURL, "", headers)
 	if err != nil {
-		return false, err
+		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return false, &ErrSonarr{Op: "check_for_updates", HttpCode: resp.StatusCode}
+	}
+
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return false, err
+		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var updates []types.UpdateResponse
 	if err := json.Unmarshal(body, &updates); err != nil {
-		return false, err
+		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	// Check if there's any update available
@@ -127,8 +206,12 @@ func (s *SonarrService) checkForUpdates(baseURL, apiKey string) (bool, error) {
 }
 
 func (s *SonarrService) getQueue(url, apiKey string) ([]types.QueueRecord, error) {
-	if url == "" || apiKey == "" {
-		return nil, fmt.Errorf("service not configured: missing URL or API key")
+	if url == "" {
+		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("URL is required")}
+	}
+
+	if apiKey == "" {
+		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("API key is required")}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -142,22 +225,22 @@ func (s *SonarrService) getQueue(url, apiKey string) ([]types.QueueRecord, error
 
 	resp, err := s.MakeRequestWithContext(ctx, queueURL, apiKey, headers)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %v", err)
+		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, &ErrSonarr{Op: "get_queue", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var queue types.SonarrQueueResponse
 	if err := json.Unmarshal(body, &queue); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
+		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	return queue.Records, nil
@@ -176,35 +259,29 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 
 	// Start version check in background
 	versionChan := make(chan string, 1)
+	versionErrChan := make(chan error, 1)
 	go func() {
 		version, err := s.getSystemStatus(url, apiKey)
-		if err != nil {
-			versionChan <- ""
-			return
-		}
 		versionChan <- version
+		versionErrChan <- err
 	}()
 
 	// Start update check in background
 	updateChan := make(chan bool, 1)
+	updateErrChan := make(chan error, 1)
 	go func() {
 		hasUpdate, err := s.checkForUpdates(url, apiKey)
-		if err != nil {
-			updateChan <- false
-			return
-		}
 		updateChan <- hasUpdate
+		updateErrChan <- err
 	}()
 
 	// Start queue check in background
 	queueChan := make(chan []types.QueueRecord, 1)
+	queueErrChan := make(chan error, 1)
 	go func() {
 		queue, err := s.getQueue(url, apiKey)
-		if err != nil {
-			queueChan <- nil
-			return
-		}
 		queueChan <- queue
+		queueErrChan <- err
 	}()
 
 	// Perform health check
@@ -216,7 +293,7 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
 	if err != nil {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusServiceUnavailable
+		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}
 	defer resp.Body.Close()
 
@@ -225,37 +302,60 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to read response: %v", err)), http.StatusInternalServerError
+		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to read response: %v", err)), http.StatusOK
+	}
+
+	if resp.StatusCode >= 400 {
+		statusText := http.StatusText(resp.StatusCode)
+		status := "error"
+		message := fmt.Sprintf("Server returned %s (%d)", statusText, resp.StatusCode)
+
+		// Determine appropriate status based on response code
+		switch resp.StatusCode {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			message = fmt.Sprintf("Service is temporarily unavailable (%d %s)", resp.StatusCode, statusText)
+		case http.StatusUnauthorized:
+			message = "Invalid API key"
+		case http.StatusForbidden:
+			message = "Access forbidden"
+		case http.StatusNotFound:
+			message = "Service endpoint not found"
+		}
+
+		return s.CreateHealthResponse(startTime, status, message), http.StatusOK
 	}
 
 	var healthIssues []HealthResponse
 	if err := json.Unmarshal(body, &healthIssues); err != nil {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to parse response: %v", err)), http.StatusInternalServerError
+		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to parse response: %v", err)), http.StatusOK
 	}
 
 	// Wait for version with timeout
 	var version string
+	var versionErr error
 	select {
-	case v := <-versionChan:
-		version = v
+	case version = <-versionChan:
+		versionErr = <-versionErrChan
 	case <-time.After(500 * time.Millisecond):
 		// Continue without version if it takes too long
 	}
 
 	// Wait for update check with timeout
 	var updateAvailable bool
+	var updateErr error
 	select {
-	case u := <-updateChan:
-		updateAvailable = u
+	case updateAvailable = <-updateChan:
+		updateErr = <-updateErrChan
 	case <-time.After(500 * time.Millisecond):
 		// Continue without update check if it takes too long
 	}
 
 	// Wait for queue with timeout
 	var queue []types.QueueRecord
+	var queueErr error
 	select {
-	case q := <-queueChan:
-		queue = q
+	case queue = <-queueChan:
+		queueErr = <-queueErrChan
 	case <-time.After(500 * time.Millisecond):
 		// Continue without queue if it takes too long
 	}
@@ -263,11 +363,23 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 	extras := map[string]interface{}{
 		"responseTime": responseTime.Milliseconds(),
 	}
+
 	if version != "" {
 		extras["version"] = version
 	}
+	if versionErr != nil {
+		extras["versionError"] = versionErr.Error()
+	}
+
 	if updateAvailable {
 		extras["updateAvailable"] = true
+	}
+	if updateErr != nil {
+		extras["updateError"] = updateErr.Error()
+	}
+
+	if queueErr != nil {
+		extras["queueError"] = queueErr.Error()
 	}
 
 	var allWarnings []string

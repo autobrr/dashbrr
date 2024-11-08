@@ -6,6 +6,7 @@
 import React from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { SonarrQueueItem } from "../../../types/service";
+import { SonarrMessage } from "./SonarrMessage";
 
 interface SonarrStatsProps {
   instanceId: string;
@@ -40,87 +41,85 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
     );
   }
 
-  if (!service?.stats?.sonarr?.queue) {
+  if (!service) {
     return null;
   }
-
-  const { queue } = service.stats.sonarr;
-
-  if (queue.totalRecords === 0) {
-    return null;
-  }
-
-  // Group records by series name
-  const groupedRecords = queue.records?.reduce<
-    Record<string, SonarrQueueItem[]>
-  >((acc, record) => {
-    const seriesName = record.title?.split(".")[0] || "";
-    if (!acc[seriesName]) {
-      acc[seriesName] = [];
-    }
-    acc[seriesName].push(record);
-    return acc;
-  }, {});
-
-  const uniqueSeries = Object.entries(groupedRecords || {}).slice(0, 3);
 
   return (
-    <div className="mt-2 space-y-4">
-      {queue.totalRecords > 0 && (
-        <div>
-          <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
-            Queue ({queue.totalRecords}):
-          </div>
-          <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
-            {uniqueSeries.map(([, records]) => {
-              const firstRecord = records[0];
-              return (
-                <div
-                  key={firstRecord.id}
-                  className="flex flex-col space-y-1 overflow-hidden"
-                >
-                  <div className="text-xs opacity-75">
-                    <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Release:{" "}
-                    </span>
-                    <span className="text-xs overflow-hidden">
-                      {firstRecord.title}
-                    </span>
-                  </div>
-                  <div className="text-xs opacity-75">
-                    <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                      State:{" "}
-                    </span>
-                    {firstRecord.trackedDownloadState}
-                  </div>
-                  {firstRecord.indexer && (
-                    <div className="text-xs opacity-75">
-                      <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                        Indexer:{" "}
-                      </span>
-                      {firstRecord.indexer}
+    <div className="space-y-4">
+      {/* Status and Messages */}
+      <SonarrMessage status={service.status} message={service.message} />
+
+      {/* Queue Display */}
+      {service.stats?.sonarr?.queue &&
+        service.stats.sonarr.queue.totalRecords > 0 && (
+          <div>
+            <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
+              Queue ({service.stats.sonarr.queue.totalRecords}):
+            </div>
+            <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
+              {Object.entries(
+                service.stats.sonarr.queue.records?.reduce<
+                  Record<string, SonarrQueueItem[]>
+                >((acc, record) => {
+                  const seriesName = record.title?.split(".")[0] || "";
+                  if (!acc[seriesName]) {
+                    acc[seriesName] = [];
+                  }
+                  acc[seriesName].push(record);
+                  return acc;
+                }, {}) || {}
+              )
+                .slice(0, 3)
+                .map(([, records]) => {
+                  const firstRecord = records[0];
+                  return (
+                    <div
+                      key={firstRecord.id}
+                      className="flex flex-col space-y-1 overflow-hidden"
+                    >
+                      <div className="text-xs opacity-75">
+                        <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
+                          Release:{" "}
+                        </span>
+                        <span className="text-xs overflow-hidden">
+                          {firstRecord.title}
+                        </span>
+                      </div>
+                      <div className="text-xs opacity-75">
+                        <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
+                          State:{" "}
+                        </span>
+                        {firstRecord.trackedDownloadState}
+                      </div>
+                      {firstRecord.indexer && (
+                        <div className="text-xs opacity-75">
+                          <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
+                            Indexer:{" "}
+                          </span>
+                          {firstRecord.indexer}
+                        </div>
+                      )}
+                      {firstRecord.customFormatScore != null && (
+                        <div className="text-xs opacity-75">
+                          <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
+                            Custom Format Score:{" "}
+                          </span>
+                          {firstRecord.customFormatScore}
+                        </div>
+                      )}
+                      <div className="text-xs opacity-75">
+                        <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
+                          Client:{" "}
+                        </span>
+                        {firstRecord.downloadClient}
+                      </div>
                     </div>
-                  )}
-                  {firstRecord.customFormatScore != null && (
-                    <div className="text-xs opacity-75">
-                      <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
-                        Custom Format Score:{" "}
-                      </span>
-                      {firstRecord.customFormatScore}
-                    </div>
-                  )}
-                  <div className="text-xs opacity-75">
-                    <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
-                      Client:{" "}
-                    </span>
-                    {firstRecord.downloadClient}
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };

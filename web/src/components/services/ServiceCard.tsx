@@ -7,9 +7,8 @@ import React, { useState, useEffect } from "react";
 import { Service } from "../../types/service";
 import { ConfigurationForm } from "../configuration/ConfigurationForm";
 import { ServiceHeader } from "../ui/ServiceHeader";
-import { StatusIndicator } from "../ui/StatusIndicator";
-import { PlexCard } from "./plex/PlexCard";
-import { OmegabrrControls } from "./omegabrr/OmegabrrControls";
+import { PlexStats } from "./plex/PlexStats";
+import { OmegabrrStats } from "./omegabrr/OmegabrrStats";
 import { OverseerrStats } from "./overseerr/OverseerrStats";
 import { AutobrrStats } from "./autobrr/AutobrrStats";
 import { MaintainerrService } from "./maintainerr/MaintainerrService";
@@ -34,8 +33,6 @@ interface DragHandleProps {
 interface ServiceCardProps {
   service: Service;
   onRemove: () => void;
-  isInitialLoad?: boolean;
-  isConnected?: boolean;
   dragHandleProps?: DragHandleProps;
   isDragging?: boolean;
 }
@@ -46,8 +43,6 @@ const getStorageKey = (instanceId: string) =>
 export const ServiceCard: React.FC<ServiceCardProps> = ({
   service,
   onRemove,
-  isInitialLoad = false,
-  isConnected = true,
   dragHandleProps = {},
   isDragging = false,
 }) => {
@@ -76,7 +71,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   }, [isCollapsed, service.instanceId]);
 
   const needsConfiguration = !service.url;
-  const displayMessage = service.message;
 
   const renderServiceSpecificControls = () => {
     if (needsConfiguration) return null;
@@ -89,11 +83,11 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
           </div>
         );
       case "omegabrr":
-        return <OmegabrrControls url={service.url!} apiKey={service.apiKey!} />;
+        return <OmegabrrStats instanceId={service.instanceId} />;
       case "overseerr":
         return <OverseerrStats instanceId={service.instanceId} />;
       case "plex":
-        return <PlexCard instanceId={service.instanceId} />;
+        return <PlexStats instanceId={service.instanceId} />;
       case "maintainerr":
         return service.url ? (
           <div className="bg-transparent">
@@ -151,15 +145,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                   onRemove();
                 }}
                 needsConfiguration={needsConfiguration}
-                status={
-                  service.status as
-                    | "online"
-                    | "offline"
-                    | "warning"
-                    | "error"
-                    | "loading"
-                    | "unknown"
-                }
+                status={service.status}
               />
             </div>
           </div>
@@ -176,26 +162,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="mt-2">
-                {(displayMessage || !isConnected || isInitialLoad) && (
-                  <StatusIndicator
-                    status={
-                      service.status as
-                        | "online"
-                        | "offline"
-                        | "warning"
-                        | "error"
-                        | "loading"
-                        | "unknown"
-                    }
-                    message={displayMessage}
-                    isInitialLoad={isInitialLoad}
-                    isConnected={isConnected}
-                  />
-                )}
-
-                {renderServiceSpecificControls()}
-              </div>
+              <div className="mt-2">{renderServiceSpecificControls()}</div>
             )}
           </div>
 

@@ -372,6 +372,35 @@ func (db *DB) GetServiceByInstanceID(instanceID string) (*models.ServiceConfigur
 	return &service, nil
 }
 
+// GetServiceByURL retrieves a service configuration by its URL
+func (db *DB) GetServiceByURL(url string) (*models.ServiceConfiguration, error) {
+	var service models.ServiceConfiguration
+	var placeholder string
+	if db.driver == "postgres" {
+		placeholder = "$1"
+	} else {
+		placeholder = "?"
+	}
+
+	err := db.QueryRow(`
+		SELECT id, instance_id, display_name, url, api_key 
+		FROM service_configurations 
+		WHERE url = `+placeholder, url).Scan(
+		&service.ID,
+		&service.InstanceID,
+		&service.DisplayName,
+		&service.URL,
+		&service.APIKey,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &service, nil
+}
+
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
 func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfiguration, error) {
 	var service models.ServiceConfiguration

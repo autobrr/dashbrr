@@ -10,16 +10,9 @@ import {
   TrashIcon,
 } from "@heroicons/react/20/solid";
 import AnimatedModal from "./AnimatedModal";
-import { StatusIcon } from "./StatusIcon";
+import { StatusIcon, StatusType } from "./StatusIcon";
 import { repoUrls } from "../../config/repoUrls";
-
-type StatusType =
-  | "online"
-  | "offline"
-  | "warning"
-  | "error"
-  | "loading"
-  | "unknown";
+import { ServiceStatus } from "../../types/service";
 
 interface ServiceHeaderProps {
   displayName: string;
@@ -30,7 +23,7 @@ interface ServiceHeaderProps {
   onConfigure: (e?: React.MouseEvent) => void;
   onRemove: (e?: React.MouseEvent) => void;
   needsConfiguration?: boolean;
-  status?: StatusType;
+  status?: ServiceStatus;
 }
 
 export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
@@ -141,7 +134,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
           </div>
           {status && (
             <div className="flex-shrink-0">
-              <StatusIcon status={status} />
+              <StatusIcon status={status as StatusType} />
             </div>
           )}
         </div>

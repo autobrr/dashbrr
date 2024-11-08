@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	overseerrCacheDuration = 30 * time.Second
+	overseerrCacheDuration = 5 * time.Minute
 	overseerrCachePrefix   = "overseerr:requests:"
 )
 
@@ -34,7 +34,7 @@ func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
 	}
 }
 
-func (h *OverseerrHandler) GetPendingRequests(c *gin.Context) {
+func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
 		log.Error().Msg("No instanceId provided")
@@ -46,15 +46,14 @@ func (h *OverseerrHandler) GetPendingRequests(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var response struct {
-		PendingRequests int `json:"pendingRequests"`
-	}
+	var response *overseerr.RequestsStats
 	err := h.cache.Get(ctx, cacheKey, &response)
 	if err == nil {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Int("count", response.PendingRequests).
-			Msg("Serving Overseerr pending requests from cache")
+			Int("pendingCount", response.PendingCount).
+			Int("totalRequests", len(response.Requests)).
+			Msg("Serving Overseerr requests from cache")
 		c.JSON(http.StatusOK, response)
 
 		// Refresh cache in background if needed
@@ -63,12 +62,13 @@ func (h *OverseerrHandler) GetPendingRequests(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from service
-	count, err := h.fetchAndCacheRequests(instanceId, cacheKey)
+	stats, err := h.fetchAndCacheRequests(instanceId, cacheKey)
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
-			c.JSON(http.StatusOK, gin.H{
-				"pendingRequests": 0,
+			c.JSON(http.StatusOK, &overseerr.RequestsStats{
+				PendingCount: 0,
+				Requests:     []overseerr.MediaRequest{},
 			})
 			return
 		}
@@ -86,52 +86,48 @@ func (h *OverseerrHandler) GetPendingRequests(c *gin.Context) {
 
 	log.Debug().
 		Str("instanceId", instanceId).
-		Int("count", count).
-		Msg("Successfully retrieved and cached Overseerr pending requests")
+		Int("pendingCount", stats.PendingCount).
+		Int("totalRequests", len(stats.Requests)).
+		Msg("Successfully retrieved and cached Overseerr requests")
 
-	c.JSON(http.StatusOK, gin.H{
-		"pendingRequests": count,
-	})
+	c.JSON(http.StatusOK, stats)
 }
 
-func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (int, error) {
+func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*overseerr.RequestsStats, error) {
 	overseerrConfig, err := h.db.GetServiceByInstanceID(instanceId)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	if overseerrConfig == nil || overseerrConfig.URL == "" {
-		return 0, fmt.Errorf("service not configured")
+		return nil, fmt.Errorf("service not configured")
 	}
 
 	service := &overseerr.OverseerrService{}
-	count, err := service.GetPendingRequests(overseerrConfig.URL, overseerrConfig.APIKey)
+	service.SetDB(h.db) // Set the database instance for fetching Radarr/Sonarr configs
+
+	stats, err := service.GetRequests(overseerrConfig.URL, overseerrConfig.APIKey)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	// Cache the results
 	ctx := context.Background()
-	response := struct {
-		PendingRequests int `json:"pendingRequests"`
-	}{
-		PendingRequests: count,
-	}
-	if err := h.cache.Set(ctx, cacheKey, response, overseerrCacheDuration); err != nil {
+	if err := h.cache.Set(ctx, cacheKey, stats, overseerrCacheDuration); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to cache Overseerr pending requests")
+			Msg("Failed to cache Overseerr requests")
 	}
 
-	return count, nil
+	return stats, nil
 }
 
 func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	count, err := h.fetchAndCacheRequests(instanceId, cacheKey)
+	stats, err := h.fetchAndCacheRequests(instanceId, cacheKey)
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
@@ -142,6 +138,7 @@ func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
 
 	log.Debug().
 		Str("instanceId", instanceId).
-		Int("count", count).
+		Int("pendingCount", stats.PendingCount).
+		Int("totalRequests", len(stats.Requests)).
 		Msg("Successfully refreshed Overseerr requests cache")
 }

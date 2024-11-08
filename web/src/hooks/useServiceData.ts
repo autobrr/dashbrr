@@ -167,7 +167,7 @@ export const useServiceData = () => {
       switch (service.type) {
         case 'overseerr': {
           const stats = await api.get<OverseerrStats>(
-            `/api/overseerr/pending?instanceId=${service.instanceId}`
+            `/api/overseerr/requests?instanceId=${service.instanceId}`
           );
           data = { stats: { overseerr: stats }, details: {} };
           break;

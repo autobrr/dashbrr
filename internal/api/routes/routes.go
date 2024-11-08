@@ -161,7 +161,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				regularServices.GET("/autobrr/irc", autobrrHandler.GetAutobrrIRCStatus)
 				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
-				regularServices.GET("/overseerr/pending", overseerrHandler.GetPendingRequests)
+				regularServices.GET("/overseerr/requests", overseerrHandler.GetRequests)
 
 				// Sonarr endpoints
 				sonarr := regularServices.Group("/sonarr")

@@ -16,18 +16,17 @@ export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
   const service = services.find((s) => s.instanceId === instanceId);
   const collections = service?.stats?.maintainerr?.collections || [];
   const isLoading = !service || service.status === "loading";
-  const error = service?.status === "error" ? service.message : null;
 
-  if (isLoading || error || collections.length === 0) {
+  if (isLoading) {
     return (
       <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
-        {isLoading
-          ? "Loading collections..."
-          : error
-          ? `Error: ${error}`
-          : "No collections found"}
+        Loading collections...
       </div>
     );
+  }
+
+  if (collections.length === 0) {
+    return null;
   }
 
   return (

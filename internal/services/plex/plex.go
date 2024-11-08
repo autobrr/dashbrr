@@ -181,9 +181,10 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 		"responseTime": responseTime.Milliseconds(),
 	}
 
-	message := fmt.Sprintf("Running on %s", plexResponse.MediaContainer.Platform)
-	if plexResponse.MediaContainer.Platform == "" {
-		message = "Healthy"
+	// Always set status to "online" when healthy and include a message
+	message := "Healthy"
+	if plexResponse.MediaContainer.Platform != "" {
+		message = fmt.Sprintf("Healthy - Running on %s", plexResponse.MediaContainer.Platform)
 	}
 
 	return s.CreateHealthResponse(startTime, "online", message, extras), http.StatusOK
