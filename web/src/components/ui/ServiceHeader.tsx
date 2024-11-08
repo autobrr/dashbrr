@@ -95,7 +95,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
                     className="hover:text-green-600 dark:hover:text-green-200 transition-colors duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    Update Available
+                    Update
                   </a>
                 ) : (
                   trimVersion(version)
