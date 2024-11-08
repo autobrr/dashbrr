@@ -23,16 +23,10 @@ interface ServiceConfig {
 
 export const useServiceManagement = () => {
   const { configurations, updateConfiguration, deleteConfiguration } = useConfiguration();
-  const [showTailscaleConfig, setShowTailscaleConfig] = useState(false);
   const [showServiceConfig, setShowServiceConfig] = useState(false);
   const [pendingService, setPendingService] = useState<PendingService | null>(null);
 
   const addServiceInstance = useCallback(async (templateType: ServiceType, templateName: string) => {
-    if (templateType === 'tailscale') {
-      setShowTailscaleConfig(true);
-      return;
-    }
-
     const existingInstances = Object.keys(configurations)
       .filter(key => key.startsWith(`${templateType}-`))
       .length;
@@ -91,8 +85,6 @@ export const useServiceManagement = () => {
   return {
     addServiceInstance,
     removeServiceInstance,
-    showTailscaleConfig,
-    setShowTailscaleConfig,
     showServiceConfig,
     pendingService,
     confirmServiceAddition,

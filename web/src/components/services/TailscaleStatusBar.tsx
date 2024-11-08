@@ -6,7 +6,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { CogIcon } from "@heroicons/react/24/solid";
 import TailscaleDeviceModal from "./TailscaleDeviceModal";
-import { TailscaleConfigModal } from "./TailscaleConfigModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
 import { useAuth } from "../../contexts/AuthContext";
 import { api } from "../../utils/api";
@@ -34,15 +33,13 @@ interface ErrorResponse {
 
 interface TailscaleStatusBarProps {
   initialConfigOpen?: boolean;
-  onConfigClose?: () => void;
+  onConfigOpen?: () => void;
 }
 
 export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
-  initialConfigOpen = false,
-  onConfigClose,
+  onConfigOpen,
 }) => {
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
-  const [isConfigModalOpen, setIsConfigModalOpen] = useState(initialConfigOpen);
   const [devices, setDevices] = useState<Device[]>([]);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -135,15 +132,17 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
         setError("Not configured");
       }
     }
-  }, [config?.url, config?.apiKey, fetchDevices, isAuthenticated, loading]);
+  }, [
+    config?.url,
+    config?.apiKey,
+    fetchDevices,
+    isAuthenticated,
+    loading,
+    config,
+  ]);
 
-  useEffect(() => {
-    setIsConfigModalOpen(initialConfigOpen);
-  }, [initialConfigOpen]);
-
-  const handleConfigClose = () => {
-    setIsConfigModalOpen(false);
-    onConfigClose?.();
+  const handleConfigClick = () => {
+    onConfigOpen?.();
   };
 
   const baseButtonClasses =
@@ -198,42 +197,33 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
     <>
       <div className="flex align-middle items-center space-x-2">
         {config ? (
-          <>
-            <button
-              onClick={() => setIsDeviceModalOpen(true)}
-              className={`${baseButtonClasses}`}
-              title={error || undefined}
-              disabled={!isAuthenticated || loading}
-            >
-              <div className="w-6 mr-1 pb-1">
-                <img
-                  src={tailscaleLogo}
-                  alt="Tailscale"
-                  className="w-full h-full text-gray-300"
-                  draggable="false"
-                  style={{
-                    pointerEvents: "none",
-                    userSelect: "none",
-                    WebkitUserSelect: "none",
-                    MozUserSelect: "none",
-                    msUserSelect: "none",
-                  }}
-                  onContextMenu={(e) => e.preventDefault()}
-                />
-              </div>
-              {getStatusDisplay()}
-            </button>
-            <button
-              onClick={() => setIsConfigModalOpen(true)}
-              className="p-1 text-sm rounded-md font-medium text-gray-300 dark:text-gray-400  hover:bg-gray-700"
-              disabled={!isAuthenticated || loading}
-            >
-              <CogIcon className="w-5 h-5" />
-            </button>
-          </>
+          <button
+            onClick={() => setIsDeviceModalOpen(true)}
+            className={`${baseButtonClasses}`}
+            title={error || undefined}
+            disabled={!isAuthenticated || loading}
+          >
+            <div className="w-6 mr-1 pb-1">
+              <img
+                src={tailscaleLogo}
+                alt="Tailscale"
+                className="w-full h-full text-gray-300"
+                draggable="false"
+                style={{
+                  pointerEvents: "none",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  MozUserSelect: "none",
+                  msUserSelect: "none",
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+              />
+            </div>
+            {getStatusDisplay()}
+          </button>
         ) : (
           <button
-            onClick={() => setIsConfigModalOpen(true)}
+            onClick={handleConfigClick}
             className="px-3 py-1 text-sm rounded-md font-medium text-white bg-gray-800 hover:bg-gray-700"
             disabled={!isAuthenticated || loading}
           >
@@ -246,12 +236,6 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
         isOpen={isDeviceModalOpen}
         onClose={() => setIsDeviceModalOpen(false)}
         devices={devices}
-      />
-
-      <TailscaleConfigModal
-        isOpen={isConfigModalOpen}
-        onClose={handleConfigClose}
-        configId={config?.id}
       />
     </>
   );

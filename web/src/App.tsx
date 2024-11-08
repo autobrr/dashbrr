@@ -61,8 +61,6 @@ function App() {
 function AppContent() {
   const {
     addServiceInstance,
-    showTailscaleConfig,
-    setShowTailscaleConfig,
     showServiceConfig,
     pendingService,
     confirmServiceAddition,
@@ -70,6 +68,10 @@ function AppContent() {
   } = useServiceManagement();
   const { logout } = useAuth();
   const { services } = useServiceHealth();
+
+  const handleTailscaleConfig = () => {
+    addServiceInstance("tailscale", "Tailscale");
+  };
 
   return (
     <div className="min-h-screen bg-color pattern p-2 sm:p-6 flex flex-col">
@@ -94,10 +96,7 @@ function AppContent() {
               </h1>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-4">
-              <TailscaleStatusBar
-                initialConfigOpen={showTailscaleConfig}
-                onConfigClose={() => setShowTailscaleConfig(false)}
-              />
+              <TailscaleStatusBar onConfigOpen={handleTailscaleConfig} />
               <button
                 onClick={logout}
                 className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
@@ -127,9 +126,7 @@ function AppContent() {
             </div>
             <div className="w-full sm:w-auto">
               <AddServicesMenu
-                serviceTemplates={serviceTemplates.filter(
-                  (t) => t.type !== "tailscale"
-                )}
+                serviceTemplates={serviceTemplates}
                 onAddService={(type: ServiceType, name: string) =>
                   addServiceInstance(type, name)
                 }
