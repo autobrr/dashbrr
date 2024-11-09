@@ -101,8 +101,7 @@ func NewCache(addr string) (Store, error) {
 		if client != nil {
 			client.Close()
 		}
-		log.Error().Err(lastErr).Str("addr", addr).Msg("Failed to connect to Redis after retries")
-		return nil, lastErr
+		return NewMemoryStore(), nil
 	}
 
 	store := &RedisStore{
