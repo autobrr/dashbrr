@@ -22,6 +22,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands"
 	"github.com/autobrr/dashbrr/internal/commands/health"
 	"github.com/autobrr/dashbrr/internal/commands/help"
+	"github.com/autobrr/dashbrr/internal/commands/user"
 	"github.com/autobrr/dashbrr/internal/commands/version"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -57,12 +58,21 @@ func executeCommand() error {
 		return fmt.Errorf("no command specified\n\nRun 'dashbrr run help' for usage")
 	}
 
+	// Initialize database for user commands
+	dbPath := "./data/dashbrr.db"
+	db, err := database.InitDB(dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %v", err)
+	}
+	defer db.Close()
+
 	registry := commands.NewRegistry()
 	helpCmd := help.NewHelpCommand(registry)
 
 	registry.Register(version.NewVersionCommand())
 	registry.Register(health.NewHealthCommand())
 	registry.Register(helpCmd)
+	registry.Register(user.NewUserCommand(db))
 
 	cmdName := os.Args[2]
 	cmdArgs := os.Args[3:]
