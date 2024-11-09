@@ -168,6 +168,8 @@ Simple username/password authentication with user management through the applica
 
 ![Built-in Login](.github/assets/built-in-login.png)
 
+![Built-in Register](.github/assets/built-in-register.png)
+
 #### OpenID Connect (OIDC)
 
 Enterprise-grade authentication with support for providers like Auth0.
@@ -204,6 +206,9 @@ _Main dashboard with service health monitoring and status cards_
 
 ![Built-in Authentication](.github/assets/built-in-login.png)
 _Built-in authentication system_
+
+![Built-in Register](.github/assets/built-in-register.png)
+_Registration form_
 
 ![OIDC Login](.github/assets/OIDC-login.png)
 _OpenID Connect (OIDC) authentication support_
