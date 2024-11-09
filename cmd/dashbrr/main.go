@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,20 +50,32 @@ func main() {
 	listenAddr := flag.String("listen", ":8080", "address to listen on")
 	flag.Parse()
 
-	// Load configuration from file (medium priority)
-	// Environment variables are automatically loaded and override file values
-	cfg, err := config.LoadConfig(*configPath)
-	if err != nil {
-		// If config file doesn't exist or has errors, create a default config
-		cfg = &config.Config{
-			Server: config.ServerConfig{
-				ListenAddr: *listenAddr,
-			},
-			Database: config.DatabaseConfig{
-				Path: *dbPath,
-			},
+	// Initialize configuration
+	var cfg *config.Config
+	var err error
+
+	// Check if all required environment variables are set
+	if config.HasRequiredEnvVars() {
+		cfg = &config.Config{}
+		if err := config.LoadEnvOverrides(cfg); err != nil {
+			log.Fatal().Err(err).Msg("Failed to load environment variables")
 		}
-		log.Warn().Err(err).Msg("Failed to load configuration file, using defaults")
+		//log.Debug().Msg("Using environment variables for configuration")
+	} else {
+		// Try loading from config file
+		cfg, err = config.LoadConfig(*configPath)
+		if err != nil {
+			// Create default config using command line flags
+			cfg = &config.Config{
+				Server: config.ServerConfig{
+					ListenAddr: *listenAddr,
+				},
+				Database: config.DatabaseConfig{
+					Path: *dbPath,
+				},
+			}
+			log.Warn().Err(err).Msg("Failed to load configuration file, using defaults")
+		}
 	}
 
 	// Initialize database
@@ -104,10 +117,16 @@ func main() {
 	r.Use(middleware.SetupCORS())
 
 	// Setup API routes with database and health service
-	redisCache := routes.SetupRoutes(r, db, healthService)
+	cacheStore := routes.SetupRoutes(r, db, healthService)
 	defer func() {
-		if err := redisCache.Close(); err != nil {
-			log.Error().Err(err).Msg("Failed to close Redis cache")
+		if err := cacheStore.Close(); err != nil {
+			// Log cleanup errors based on cache type
+			cacheType := strings.ToLower(os.Getenv("CACHE_TYPE"))
+			if cacheType == "redis" {
+				log.Error().Err(err).Msg("Failed to close Redis cache connection")
+			} else {
+				log.Debug().Err(err).Msg("Cache cleanup completed")
+			}
 		}
 	}()
 

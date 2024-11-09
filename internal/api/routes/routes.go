@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/api/handlers"
 	"github.com/autobrr/dashbrr/internal/api/middleware"
@@ -17,7 +18,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-// SetupRoutes configures all the routes for the application and returns the cache instance for cleanup
+// SetupRoutes configures all the routes for the application
 func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) cache.Store {
 	// Use custom logger instead of default Gin logger
 	r.Use(middleware.Logger())
@@ -25,11 +26,15 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	r.Use(middleware.SetupCORS())
 	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
 
-	// Initialize Redis cache
+	// Initialize cache
 	store, err := cache.InitCache()
 	if err != nil {
-		panic(err)
+		// This should never happen as InitCache always returns a valid store
+		log.Debug().Err(err).Msg("Using memory cache")
+		store = cache.NewMemoryStore()
 	}
+
+	log.Debug().Str("type", os.Getenv("CACHE_TYPE")).Msg("Cache initialized")
 
 	// Create rate limiters with different configurations
 	apiRateLimiter := middleware.NewRateLimiter(store, time.Minute, 60, "api:")       // 60 requests per minute for API
@@ -177,7 +182,6 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				{
 					radarr.GET("/queue", radarrHandler.GetQueue)
 					radarr.DELETE("/queue/:id", radarrHandler.DeleteQueueItem)
-					//radarr.POST("/queue/grab/:id", radarrHandler.GrabQueueItem) // Updated to match Radarr API structure
 				}
 
 				// Prowlarr endpoints

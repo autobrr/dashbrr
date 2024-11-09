@@ -71,11 +71,11 @@ func getRedisOptions() *redis.Options {
 func getCacheType() CacheType {
 	cacheType := os.Getenv("CACHE_TYPE")
 	if cacheType == "" {
-		// Default to memory cache if Redis host is not set
-		if os.Getenv("REDIS_HOST") == "" {
-			return CacheTypeMemory
+		// If CACHE_TYPE is not set, use Redis only if REDIS_HOST is set
+		if os.Getenv("REDIS_HOST") != "" {
+			return CacheTypeRedis
 		}
-		return CacheTypeRedis
+		return CacheTypeMemory
 	}
 
 	switch strings.ToLower(cacheType) {
@@ -89,7 +89,8 @@ func getCacheType() CacheType {
 	}
 }
 
-// InitCache initializes a cache instance based on environment configuration
+// InitCache initializes a cache instance based on environment configuration.
+// It always returns a valid cache store, falling back to memory cache if Redis fails.
 func InitCache() (Store, error) {
 	cacheType := getCacheType()
 
@@ -97,6 +98,12 @@ func InitCache() (Store, error) {
 
 	switch cacheType {
 	case CacheTypeRedis:
+		// Only attempt Redis connection if Redis is explicitly configured
+		if os.Getenv("REDIS_HOST") == "" {
+			log.Debug().Msg("Redis cache type selected but REDIS_HOST not set, using memory cache")
+			return NewMemoryStore(), nil
+		}
+
 		isDev := os.Getenv("GIN_MODE") != "release"
 		opts := getRedisOptions()
 
@@ -113,19 +120,21 @@ func InitCache() (Store, error) {
 		err := client.Ping(ctx).Err()
 
 		if err != nil {
-			if isDev {
-				// In development, log warning and fallback to memory cache
-				log.Warn().Err(err).Str("addr", opts.Addr).Msg("Redis connection failed, falling back to memory cache")
-				return NewMemoryStore(), nil
-			}
 			if client != nil {
 				client.Close()
 			}
-			return nil, err
+			// Only show Redis connection error if Redis was explicitly configured
+			log.Error().Err(err).Str("addr", opts.Addr).Msg("Failed to connect to Redis, using memory cache")
+			return NewMemoryStore(), err
 		}
 
 		// Initialize Redis cache store
-		return NewCache(opts.Addr)
+		store, err := NewCache(opts.Addr)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to initialize Redis cache, using memory cache")
+			return NewMemoryStore(), err
+		}
+		return store, nil
 
 	case CacheTypeMemory:
 		log.Debug().Msg("Initializing memory cache")

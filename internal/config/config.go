@@ -60,28 +60,76 @@ type OIDCConfig struct {
 	RedirectURL  string `toml:"redirect_url" env:"OIDC_REDIRECT_URL"`
 }
 
-// LoadConfig loads the configuration from a TOML file
+// HasRequiredEnvVars checks if all required environment variables are set
+func HasRequiredEnvVars() bool {
+	// Check server config
+	if os.Getenv("DASHBRR__LISTEN_ADDR") == "" {
+		return false
+	}
+
+	// Check database config - either SQLite or PostgreSQL must be configured
+	dbType := os.Getenv("DASHBRR__DB_TYPE")
+	if dbType == "" {
+		return false
+	}
+
+	switch dbType {
+	case "sqlite":
+		if os.Getenv("DASHBRR__DB_PATH") == "" {
+			return false
+		}
+	case "postgres":
+		requiredVars := []string{
+			"DASHBRR__DB_HOST",
+			"DASHBRR__DB_PORT",
+			"DASHBRR__DB_USER",
+			"DASHBRR__DB_PASSWORD",
+			"DASHBRR__DB_NAME",
+		}
+		for _, v := range requiredVars {
+			if os.Getenv(v) == "" {
+				return false
+			}
+		}
+	default:
+		return false
+	}
+
+	return true
+}
+
+// LoadConfig loads the configuration from environment variables or TOML file
 func LoadConfig(path string) (*Config, error) {
+	config := &Config{}
+
+	// If all required environment variables are set, use them directly
+	if HasRequiredEnvVars() {
+		if err := LoadEnvOverrides(config); err != nil {
+			return nil, fmt.Errorf("error loading environment variables: %w", err)
+		}
+		return config, nil
+	}
+
+	// Otherwise try to load from config file
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config file: %w", err)
 	}
 
-	config := &Config{}
 	if err := toml.Unmarshal(data, config); err != nil {
 		return nil, fmt.Errorf("error decoding config file: %w", err)
 	}
 
-	// Override with environment variables if they exist
-	if err := loadEnvOverrides(config); err != nil {
+	// Override with any environment variables that are set
+	if err := LoadEnvOverrides(config); err != nil {
 		return nil, fmt.Errorf("error loading environment variables: %w", err)
 	}
 
 	return config, nil
 }
 
-// loadEnvOverrides checks for environment variables and overrides config values
-func loadEnvOverrides(config *Config) error {
+// LoadEnvOverrides loads configuration from environment variables
+func LoadEnvOverrides(config *Config) error {
 	// Server
 	if env := os.Getenv("DASHBRR__LISTEN_ADDR"); env != "" {
 		config.Server.ListenAddr = env
