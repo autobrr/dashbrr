@@ -36,6 +36,121 @@ func NewSonarrHandler(db *database.DB, cache cache.Store) *SonarrHandler {
 	}
 }
 
+func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
+	instanceId := c.Query("instanceId")
+	if instanceId == "" {
+		log.Error().Msg("No instanceId provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
+		return
+	}
+
+	// Verify this is a Sonarr instance
+	if instanceId[:6] != "sonarr" {
+		log.Error().Str("instanceId", instanceId).Msg("Invalid Sonarr instance ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
+		return
+	}
+
+	queueId := c.Param("id")
+	if queueId == "" {
+		log.Error().Msg("No queue ID provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Queue ID is required"})
+		return
+	}
+
+	// Get delete options from query parameters
+	removeFromClient := c.Query("removeFromClient") == "true"
+	blocklist := c.Query("blocklist") == "true"
+	skipRedownload := c.Query("skipRedownload") == "true"
+	changeCategory := c.Query("changeCategory") == "true"
+
+	// Get Sonarr configuration
+	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	if err != nil {
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Sonarr configuration")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Sonarr configuration"})
+		return
+	}
+
+	if sonarrConfig == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Sonarr is not configured")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Sonarr is not configured"})
+		return
+	}
+
+	// Build delete URL with query parameters
+	deleteURL := fmt.Sprintf("%s/api/v3/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
+		sonarrConfig.URL,
+		queueId,
+		removeFromClient,
+		blocklist,
+		skipRedownload)
+
+	if changeCategory {
+		deleteURL += "&changeCategory=true"
+	}
+
+	// Create DELETE request
+	req, err := http.NewRequest(http.MethodDelete, deleteURL, nil)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create delete request")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create delete request"})
+		return
+	}
+
+	// Add API key header
+	req.Header.Add("X-Api-Key", sonarrConfig.APIKey)
+
+	// Execute request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to execute delete request")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to execute delete request"})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResponse struct {
+			Message string `json:"message"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err == nil && errorResponse.Message != "" {
+			log.Error().
+				Str("message", errorResponse.Message).
+				Int("statusCode", resp.StatusCode).
+				Msg("Sonarr API returned error")
+			c.JSON(resp.StatusCode, gin.H{"error": errorResponse.Message})
+			return
+		}
+		log.Error().
+			Int("statusCode", resp.StatusCode).
+			Msg("Sonarr API returned non-200 status")
+		c.JSON(resp.StatusCode, gin.H{"error": fmt.Sprintf("Sonarr API returned status: %d", resp.StatusCode)})
+		return
+	}
+
+	// Clear queue cache for this instance
+	cacheKey := sonarrQueuePrefix + instanceId
+	if err := h.cache.Delete(context.Background(), cacheKey); err != nil {
+		log.Warn().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("Failed to clear Sonarr queue cache")
+	}
+
+	log.Info().
+		Str("instanceId", instanceId).
+		Str("queueId", queueId).
+		Bool("removeFromClient", removeFromClient).
+		Bool("blocklist", blocklist).
+		Bool("skipRedownload", skipRedownload).
+		Bool("changeCategory", changeCategory).
+		Msg("Successfully deleted queue item")
+
+	c.Status(http.StatusOK)
+}
+
 func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {

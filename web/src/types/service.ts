@@ -232,10 +232,16 @@ export interface OverseerrStats {
 }
 
 // Sonarr Types
+export interface SonarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
 export interface SonarrQueueItem {
   id: number;
   title: string;
   status: string;
+  protocol: string; // "usenet" or "torrent"
   indexer?: string;
   customFormatScore: number;
   downloadClient: string;
@@ -243,6 +249,7 @@ export interface SonarrQueueItem {
   trackedDownloadState?: string;
   trackedDownloadStatus?: string;
   errorMessage?: string;
+  statusMessages?: SonarrStatusMessage[];
 }
 
 export interface SonarrQueue {
@@ -273,10 +280,16 @@ export interface RadarrCustomFormat {
   name: string;
 }
 
+export interface RadarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
 export interface RadarrQueueItem {
   id: number;
   title: string;
   status: string;
+  protocol: string; // "usenet" or "torrent"
   indexer?: string;
   customFormatScore: number;
   downloadClient: string;
@@ -285,6 +298,8 @@ export interface RadarrQueueItem {
   trackedDownloadStatus?: string;
   errorMessage?: string;
   movie: RadarrMovie;
+  movieId: number;
+  statusMessages?: RadarrStatusMessage[];
 }
 
 export interface RadarrQueue {
