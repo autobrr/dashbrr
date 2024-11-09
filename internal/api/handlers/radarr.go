@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -34,6 +34,75 @@ func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
 		cache: cache,
 	}
 }
+
+// GrabQueueItem handles grabbing/retrying a queue item
+// func (h *RadarrHandler) GrabQueueItem(c *gin.Context) {
+// 	instanceId := c.Query("instanceId")
+// 	if instanceId == "" {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
+// 		return
+// 	}
+
+// 	movieId := c.Query("movieId")
+// 	if movieId == "" {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "movieId is required"})
+// 		return
+// 	}
+
+// 	path := c.Query("path")
+// 	if path == "" {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+// 		return
+// 	}
+
+// 	// Convert movieId to int
+// 	movieIdInt, err := strconv.Atoi(movieId)
+// 	if err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid movieId"})
+// 		return
+// 	}
+
+// 	radarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+// 	if err != nil {
+// 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Radarr configuration")
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Radarr configuration"})
+// 		return
+// 	}
+
+// 	if radarrConfig == nil {
+// 		log.Error().Str("instanceId", instanceId).Msg("Radarr is not configured")
+// 		c.JSON(http.StatusNotFound, gin.H{"error": "Radarr is not configured"})
+// 		return
+// 	}
+
+// 	// Create Radarr service instance
+// 	service := &radarr.RadarrService{}
+
+// 	// Call the service method to grab the queue item
+// 	if err := service.GrabQueueItem(radarrConfig.URL, radarrConfig.APIKey, movieIdInt, path); err != nil {
+// 		if radarrErr, ok := err.(*radarr.ErrRadarr); ok {
+// 			log.Error().
+// 				Err(radarrErr).
+// 				Str("instanceId", instanceId).
+// 				Int("movieId", movieIdInt).
+// 				Str("path", path).
+// 				Msg("Failed to grab queue item")
+
+// 			if radarrErr.HttpCode > 0 {
+// 				c.JSON(radarrErr.HttpCode, gin.H{"error": radarrErr.Error()})
+// 				return
+// 			}
+// 		}
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to grab queue item: %v", err)})
+// 		return
+// 	}
+
+// 	// Clear cache after successful grab
+// 	cacheKey := radarrQueuePrefix + instanceId
+// 	h.cache.Delete(context.Background(), cacheKey)
+
+// 	c.JSON(http.StatusOK, gin.H{"message": "Queue item grabbed successfully"})
+// }
 
 func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	instanceId := c.Query("instanceId")
@@ -79,39 +148,31 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	// Build Radarr API URL
-	apiURL := fmt.Sprintf("%s/api/v3/queue?apikey=%s", radarrConfig.URL, radarrConfig.APIKey)
+	// Create Radarr service instance
+	service := &radarr.RadarrService{}
 
-	// Make request to Radarr
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(apiURL)
+	// Get queue records using the service
+	records, err := service.GetQueue(radarrConfig.URL, radarrConfig.APIKey)
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Radarr queue")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Radarr queue"})
+		if radarrErr, ok := err.(*radarr.ErrRadarr); ok {
+			log.Error().
+				Err(radarrErr).
+				Str("instanceId", instanceId).
+				Msg("Failed to fetch Radarr queue")
+
+			if radarrErr.HttpCode > 0 {
+				c.JSON(radarrErr.HttpCode, gin.H{"error": radarrErr.Error()})
+				return
+			}
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch queue: %v", err)})
 		return
 	}
 
-	if resp == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Radarr")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Radarr"})
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Error().
-			Str("instanceId", instanceId).
-			Int("statusCode", resp.StatusCode).
-			Msg("Radarr API returned non-200 status")
-		c.JSON(resp.StatusCode, gin.H{"error": fmt.Sprintf("Radarr API returned status: %d", resp.StatusCode)})
-		return
-	}
-
-	// Parse response
-	if err := json.NewDecoder(resp.Body).Decode(&queueResp); err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to parse Radarr response")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse Radarr response"})
-		return
+	// Create response
+	queueResp = types.RadarrQueueResponse{
+		Records:      records,
+		TotalRecords: len(records),
 	}
 
 	// Cache the results
@@ -128,4 +189,67 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		Msg("Successfully retrieved and cached Radarr queue")
 
 	c.JSON(http.StatusOK, queueResp)
+}
+
+// DeleteQueueItem handles the deletion of a queue item with specified options
+func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
+	instanceId := c.Query("instanceId")
+	if instanceId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
+		return
+	}
+
+	queueId := c.Param("id")
+	if queueId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "queue item id is required"})
+		return
+	}
+
+	// Get options from query parameters
+	options := types.RadarrQueueDeleteOptions{
+		RemoveFromClient: c.Query("removeFromClient") == "true",
+		Blocklist:        c.Query("blocklist") == "true",
+		SkipRedownload:   c.Query("skipRedownload") == "true",
+		ChangeCategory:   c.Query("changeCategory") == "true",
+	}
+
+	radarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	if err != nil {
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Radarr configuration")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Radarr configuration"})
+		return
+	}
+
+	if radarrConfig == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Radarr is not configured")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Radarr is not configured"})
+		return
+	}
+
+	// Create Radarr service instance
+	service := &radarr.RadarrService{}
+
+	// Call the service method to delete the queue item
+	if err := service.DeleteQueueItem(radarrConfig.URL, radarrConfig.APIKey, queueId, options); err != nil {
+		if radarrErr, ok := err.(*radarr.ErrRadarr); ok {
+			log.Error().
+				Err(radarrErr).
+				Str("instanceId", instanceId).
+				Str("queueId", queueId).
+				Msg("Failed to delete queue item")
+
+			if radarrErr.HttpCode > 0 {
+				c.JSON(radarrErr.HttpCode, gin.H{"error": radarrErr.Error()})
+				return
+			}
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete queue item: %v", err)})
+		return
+	}
+
+	// Clear cache after successful deletion
+	cacheKey := radarrQueuePrefix + instanceId
+	h.cache.Delete(context.Background(), cacheKey)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }

@@ -91,7 +91,14 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 		timeout = time.Until(deadline)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	// Get method from headers if provided, default to GET
+	method := http.MethodGet
+	if m, ok := headers["method"]; ok {
+		method = m
+		delete(headers, "method") // Remove method from headers after using it
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}

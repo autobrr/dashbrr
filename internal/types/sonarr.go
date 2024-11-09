@@ -13,6 +13,14 @@ type SonarrQueueResponse struct {
 	Records       []QueueRecord `json:"records"`
 }
 
+// SonarrQueueDeleteOptions represents the options for deleting a queue item in Sonarr
+type SonarrQueueDeleteOptions struct {
+	RemoveFromClient bool `json:"removeFromClient"`
+	Blocklist        bool `json:"blocklist"`
+	SkipRedownload   bool `json:"skipRedownload"`
+	ChangeCategory   bool `json:"changeCategory"`
+}
+
 // QueueRecord represents a record in the Sonarr queue
 type QueueRecord struct {
 	ID                      int             `json:"id"`
