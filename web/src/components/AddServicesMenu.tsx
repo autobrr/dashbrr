@@ -93,18 +93,14 @@ export function AddServicesMenu({
       setError(null);
     } else if (pendingService) {
       setDisplayName(pendingService.displayName);
-      // Set default URL for Tailscale
-      if (pendingService.type === "tailscale") {
+      // Set default URL for Tailscale only if URL is empty
+      if (pendingService.type === "tailscale" && url === "") {
         setUrl("https://api.tailscale.com");
       }
     }
-  }, [showServiceConfig, pendingService]);
+  }, [showServiceConfig, pendingService, url]);
 
   const validateTailscaleApiToken = async (token: string) => {
-    if (!token.startsWith("tskey-api-")) {
-      throw new Error("Invalid API key format. Must start with 'tskey-api-'");
-    }
-
     try {
       const response = await api.get<{ status: string; error?: string }>(
         `/api/tailscale/devices?apiKey=${token}`
@@ -224,7 +220,10 @@ export function AddServicesMenu({
         return {
           prefix: "Found in ",
           text: "Admin Console > Settings > Keys",
-          link: "https://login.tailscale.com/admin/settings/keys",
+          link:
+            url === "https://api.tailscale.com"
+              ? "https://login.tailscale.com/admin/settings/keys"
+              : null,
         };
       default:
         return {
@@ -387,17 +386,18 @@ export function AddServicesMenu({
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Connection Settings
             </h3>
-            <FormInput
-              id="url"
-              label="URL"
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={getUrlPlaceholder()}
-              required
-              disabled={pendingService?.type === "tailscale"}
-              data-1p-ignore
-            />
+            {pendingService?.type !== "tailscale" && (
+              <FormInput
+                id="url"
+                label="URL"
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder={getUrlPlaceholder()}
+                required
+                data-1p-ignore
+              />
+            )}
 
             <FormInput
               id="apiKey"
