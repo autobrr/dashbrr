@@ -32,7 +32,6 @@ dashbrr.db
 data/
 dump.rdb
 .env
-docs/
 main
 backend/test.db
 dev-dist/
