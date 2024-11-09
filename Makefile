@@ -138,14 +138,14 @@ docker-dev:
 	@echo "Starting Docker development environment with PostgreSQL and memory cache..."
 	$(DOCKER_COMPOSE) down
 	$(DOCKER_COMPOSE) build
-	$(DOCKER_COMPOSE) up
+	$(DOCKER_COMPOSE) up --force-recreate
 
 # Docker development mode - run with PostgreSQL and Redis
 docker-dev-redis:
 	@echo "Starting Docker development environment with PostgreSQL and Redis..."
 	$(DOCKER_COMPOSE) -f docker-compose.redis.yml down
 	$(DOCKER_COMPOSE) -f docker-compose.redis.yml build
-	$(DOCKER_COMPOSE) -f docker-compose.redis.yml up
+	$(DOCKER_COMPOSE) -f docker-compose.redis.yml up --force-recreate
 
 # Docker development mode - quick start with current cache configuration
 docker-dev-quick:
