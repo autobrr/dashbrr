@@ -52,43 +52,44 @@ type PlexPlayer struct {
 }
 
 type PlexSession struct {
-	AddedAt              int64            `json:"addedAt"`
-	Art                  string           `json:"art"`
-	Duration             int              `json:"duration"`
-	GrandparentArt       string           `json:"grandparentArt"`
-	GrandparentGuid      string           `json:"grandparentGuid"`
-	GrandparentKey       string           `json:"grandparentKey"`
-	GrandparentRatingKey string           `json:"grandparentRatingKey"`
-	GrandparentThumb     string           `json:"grandparentThumb"`
-	GrandparentTitle     string           `json:"grandparentTitle"`
-	Guid                 string           `json:"guid"`
-	Index                int              `json:"index"`
-	Key                  string           `json:"key"`
-	LibrarySectionID     string           `json:"librarySectionID"`
-	LibrarySectionKey    string           `json:"librarySectionKey"`
-	LibrarySectionTitle  string           `json:"librarySectionTitle"`
-	MusicAnalysisVersion string           `json:"musicAnalysisVersion"`
-	ParentGuid           string           `json:"parentGuid"`
-	ParentIndex          int              `json:"parentIndex"`
-	ParentKey            string           `json:"parentKey"`
-	ParentRatingKey      string           `json:"parentRatingKey"`
-	ParentStudio         string           `json:"parentStudio"`
-	ParentThumb          string           `json:"parentThumb"`
-	ParentTitle          string           `json:"parentTitle"`
-	ParentYear           int              `json:"parentYear"`
-	RatingCount          int              `json:"ratingCount"`
-	RatingKey            string           `json:"ratingKey"`
-	SessionKey           string           `json:"sessionKey"`
-	Thumb                string           `json:"thumb"`
-	Title                string           `json:"title"`
-	TitleSort            string           `json:"titleSort"`
-	Type                 string           `json:"type"`
-	UpdatedAt            int64            `json:"updatedAt"`
-	ViewOffset           int              `json:"viewOffset"`
-	Media                []PlexMedia      `json:"Media"`
-	User                 *PlexUser        `json:"User,omitempty"`
-	Player               *PlexPlayer      `json:"Player,omitempty"`
-	Session              *PlexSessionInfo `json:"Session,omitempty"`
+	AddedAt              int64                 `json:"addedAt"`
+	Art                  string                `json:"art"`
+	Duration             int                   `json:"duration"`
+	GrandparentArt       string                `json:"grandparentArt"`
+	GrandparentGuid      string                `json:"grandparentGuid"`
+	GrandparentKey       string                `json:"grandparentKey"`
+	GrandparentRatingKey string                `json:"grandparentRatingKey"`
+	GrandparentThumb     string                `json:"grandparentThumb"`
+	GrandparentTitle     string                `json:"grandparentTitle"`
+	Guid                 string                `json:"guid"`
+	Index                int                   `json:"index"`
+	Key                  string                `json:"key"`
+	LibrarySectionID     string                `json:"librarySectionID"`
+	LibrarySectionKey    string                `json:"librarySectionKey"`
+	LibrarySectionTitle  string                `json:"librarySectionTitle"`
+	MusicAnalysisVersion string                `json:"musicAnalysisVersion"`
+	ParentGuid           string                `json:"parentGuid"`
+	ParentIndex          int                   `json:"parentIndex"`
+	ParentKey            string                `json:"parentKey"`
+	ParentRatingKey      string                `json:"parentRatingKey"`
+	ParentStudio         string                `json:"parentStudio"`
+	ParentThumb          string                `json:"parentThumb"`
+	ParentTitle          string                `json:"parentTitle"`
+	ParentYear           int                   `json:"parentYear"`
+	RatingCount          int                   `json:"ratingCount"`
+	RatingKey            string                `json:"ratingKey"`
+	SessionKey           string                `json:"sessionKey"`
+	Thumb                string                `json:"thumb"`
+	Title                string                `json:"title"`
+	TitleSort            string                `json:"titleSort"`
+	Type                 string                `json:"type"`
+	UpdatedAt            int64                 `json:"updatedAt"`
+	ViewOffset           int                   `json:"viewOffset"`
+	Media                []PlexMedia           `json:"Media"`
+	User                 *PlexUser             `json:"User,omitempty"`
+	Player               *PlexPlayer           `json:"Player,omitempty"`
+	Session              *PlexSessionInfo      `json:"Session,omitempty"`
+	TranscodeSession     *PlexTranscodeSession `json:"TranscodeSession,omitempty"`
 }
 
 type PlexMedia struct {
@@ -142,4 +143,26 @@ type PlexSessionInfo struct {
 	ID        string `json:"id"`
 	Bandwidth int    `json:"bandwidth"`
 	Location  string `json:"location"`
+}
+
+type PlexTranscodeSession struct {
+	Key                     string  `json:"key"`
+	Throttled               bool    `json:"throttled"`
+	Complete                bool    `json:"complete"`
+	Progress                float64 `json:"progress"`
+	Speed                   float64 `json:"speed"`
+	Size                    int64   `json:"size"`
+	VideoDecision           string  `json:"videoDecision"`
+	AudioDecision           string  `json:"audioDecision"`
+	Protocol                string  `json:"protocol"`
+	Container               string  `json:"container"`
+	VideoCodec              string  `json:"videoCodec"`
+	AudioCodec              string  `json:"audioCodec"`
+	Width                   int     `json:"width"`
+	Height                  int     `json:"height"`
+	TranscodeHwRequested    bool    `json:"transcodeHwRequested"`
+	TranscodeHwFullPipeline bool    `json:"transcodeHwFullPipeline"`
+	TimeStamp               float64 `json:"timeStamp"`
+	MaxOffsetAvailable      float64 `json:"maxOffsetAvailable"`
+	MinOffsetAvailable      float64 `json:"minOffsetAvailable"`
 }

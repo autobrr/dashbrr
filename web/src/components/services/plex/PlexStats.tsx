@@ -16,6 +16,7 @@ import {
   FaDesktop,
   FaMobile,
   FaTablet,
+  FaExchangeAlt,
 } from "react-icons/fa";
 
 interface PlexStatsProps {
@@ -38,7 +39,7 @@ const formatDuration = (duration: number): string => {
 const getMediaTypeIcon = (type: string) => {
   switch (type.toLowerCase()) {
     case "track":
-      return <FaMusic className="text-blue-500" />;
+      return <FaMusic className="text-blue-600 dark:text-blue-400" />;
     case "movie":
       return <FaFilm className="text-amber-500 dark:text-amber-300" />;
     case "episode":
@@ -80,6 +81,14 @@ const formatBitrate = (bitrate: number): string => {
   return `${bitrate} Kbps`;
 };
 
+const isTranscoding = (session: PlexSession): boolean => {
+  return (
+    session.TranscodeSession?.videoDecision === "transcode" ||
+    session.TranscodeSession?.audioDecision === "transcode" ||
+    session.TranscodeSession?.audioCodec?.toLowerCase() === "opus"
+  );
+};
+
 export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   const { services } = useServiceData();
   const [currentOffsets, setCurrentOffsets] = useState<{
@@ -92,16 +101,20 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     [service?.stats?.plex?.sessions]
   );
 
+  const transcodingCount = useMemo(
+    () => sessions.filter((session) => isTranscoding(session)).length,
+    [sessions]
+  );
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentOffsets((prev) => {
         const newOffsets = { ...prev };
         sessions.forEach((session: PlexSession) => {
           const sessionKey = `${session.User?.title}-${session.title}`;
-          // Only update if playing (not paused)
           if (session.Player?.state === "playing") {
             newOffsets[sessionKey] =
-              (prev[sessionKey] || session.viewOffset) + 1000; // Add 1 second (1000ms)
+              (prev[sessionKey] || session.viewOffset) + 1000;
           } else {
             newOffsets[sessionKey] = prev[sessionKey] || session.viewOffset;
           }
@@ -111,7 +124,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [sessions]); // sessions is now properly declared and included in deps
+  }, [sessions]);
 
   if (isLoading) {
     return (
@@ -142,7 +155,6 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   }
 
   const activeStreams = service.details?.plex?.activeStreams || 0;
-  const transcodingCount = service.details?.plex?.transcoding || 0;
 
   const message = service.health?.message
     ? service.message
@@ -152,10 +164,8 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
 
   return (
     <div className="space-y-4">
-      {/* Status and Messages */}
       <PlexMessage status={service.status} message={message} />
 
-      {/* Active Streams Summary */}
       {activeStreams > 0 && (
         <div>
           <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
@@ -163,7 +173,6 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
           </div>
 
           <div className="rounded-lg bg-white dark:bg-gray-800">
-            {/* Summary Stats */}
             <div className="grid grid-cols-2 gap-4 p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -183,14 +192,12 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
               </div>
             </div>
 
-            {/* Active Sessions */}
             <div>
               {sessions.map((session: PlexSession, index: number) => (
                 <div
                   key={index}
                   className="p-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
                 >
-                  {/* Media Title and Type */}
                   <div className="flex items-center space-x-3 mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
@@ -204,6 +211,12 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                             ? `${session.grandparentTitle} - ${session.title}`
                             : session.title}
                         </span>
+                        {isTranscoding(session) && (
+                          <div className="flex items-center space-x-1 text-amber-500 dark:text-amber-400">
+                            <FaExchangeAlt className="h-3 w-3" />
+                            <span className="text-xs">Transcoding</span>
+                          </div>
+                        )}
                       </div>
                       {session.parentTitle && (
                         <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -213,7 +226,6 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                     </div>
                   </div>
 
-                  {/* Progress Bar */}
                   {session.duration && session.viewOffset && (
                     <div className="mb-3">
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
@@ -242,14 +254,13 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                     </div>
                   )}
 
-                  {/* User and Player Info */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="space-y-2">
                       {session.User && (
                         <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                           <FaUser className="flex-shrink-0" />
                           <span
-                            className="cursor-pointer	"
+                            className="cursor-pointer"
                             title={session.Player?.address || ""}
                           >
                             {session.User.title}
