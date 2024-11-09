@@ -11,6 +11,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { api } from "../../utils/api";
 import tailscaleLogo from "../../assets/tailscale.svg";
 import { useServiceManagement } from "../../hooks/useServiceManagement";
+import AnimatedModal from "../ui/AnimatedModal";
 
 interface Device {
   name: string;
@@ -45,6 +46,7 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
   const { configurations } = useConfiguration();
   const { isAuthenticated, loading } = useAuth();
   const { removeServiceInstance } = useServiceManagement();
+  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
   const config = useMemo(() => {
     const tailscaleConfig = Object.entries(configurations).find(([id]) =>
@@ -141,12 +143,14 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
     config,
   ]);
 
-  const handleRemoveClick = async () => {
-    if (
-      config?.id &&
-      window.confirm("Are you sure you want to remove Tailscale?")
-    ) {
+  const handleRemoveClick = () => {
+    setIsRemoveModalOpen(true);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (config?.id) {
       await removeServiceInstance(config.id);
+      setIsRemoveModalOpen(false);
     }
   };
 
@@ -244,6 +248,33 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
         onClose={() => setIsDeviceModalOpen(false)}
         devices={devices}
       />
+
+      <AnimatedModal
+        isOpen={isRemoveModalOpen}
+        onClose={() => setIsRemoveModalOpen(false)}
+        title="Remove Tailscale"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700 dark:text-gray-300">
+            Are you sure you want to remove Tailscale?
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setIsRemoveModalOpen(false)}
+              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmRemove}
+              className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      </AnimatedModal>
     </>
   );
 };

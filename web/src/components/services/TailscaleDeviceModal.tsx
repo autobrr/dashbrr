@@ -140,8 +140,8 @@ const TailscaleDeviceModal: React.FC<Props> = ({
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-850 dark:border-gray-750 dark:text-white"
           />
-          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-500 dark:text-gray-400">
-            <kbd className="inline-flex items-center justify-center space-x-1 rounded border bg-gray-100 px-2 py-1 text-xs font-sans uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+          <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-gray-500 dark:text-gray-400">
+            <kbd className="inline-flex items-center justify-center space-x-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-100 px-2 py-1 text-xs font-sans uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-300">
               {navigator.userAgent?.includes("Mac") ? "⌘" : "Ctrl"}+K
             </kbd>
           </div>
