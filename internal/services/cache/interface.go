@@ -20,6 +20,3 @@ type Store interface {
 	Expire(ctx context.Context, key string, expiration time.Duration) error
 	Close() error
 }
-
-// Ensure RedisStore implements Store
-var _ Store = (*RedisStore)(nil)

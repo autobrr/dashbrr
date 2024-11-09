@@ -13,6 +13,7 @@ A sleek, modern dashboard for monitoring and managing your media stack services.
   - [Docker Installation](#docker-installation)
   - [Manual Installation](#manual-installation)
 - [Configuration](#configuration)
+  - [Configuration File](#configuration-file)
   - [Environment Variables](#environment-variables)
   - [Authentication](#built-in-authentication)
 - [Screenshots](#screenshots)
@@ -86,7 +87,9 @@ A sleek, modern dashboard for monitoring and managing your media stack services.
 - **Backend**
   - Go
   - Gin web framework
-  - Redis for caching
+  - Flexible caching system:
+    - In-memory cache
+    - Redis (optional)
   - Database support:
     - SQLite
     - PostgreSQL
@@ -105,9 +108,24 @@ We provide a distroless container image for enhanced security and smaller size. 
 
 #### Using Pre-built Image
 
-Create a `docker-compose.yml` file. You can choose between SQLite and PostgreSQL:
+We provide two Docker Compose configurations:
 
-SQLite configuration:
+- `docker-compose.yml` - Uses in-memory cache
+- `docker-compose.redis.yml` - Uses Redis cache
+
+For in-memory cache (default):
+
+```bash
+docker compose up -d
+```
+
+For Redis cache:
+
+```bash
+docker compose -f docker-compose.redis.yml up -d
+```
+
+Both configurations support SQLite and PostgreSQL as database options. Here's the SQLite configuration:
 
 ```yaml
 services:
@@ -117,8 +135,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - CACHE_TYPE=memory # or use docker-compose.redis.yml for Redis
       - DASHBRR__DB_TYPE=sqlite
       - DASHBRR__DB_PATH=/data/dashbrr.db
       - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
@@ -128,30 +145,14 @@ services:
       #- OIDC_REDIRECT_URL=optional
     volumes:
       - ./data:/data
-    depends_on:
-      - redis
+      # Mount a custom config file (optional)
+      #- ./config.toml:/config.toml
+    command:
+      # Specify custom config file path (optional)
+      #- "-config=/config.toml"
     restart: unless-stopped
     networks:
       - dashbrr-network
-
-  redis:
-    container_name: dashbrr-redis
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --save 60 1 --loglevel warning
-    restart: unless-stopped
-    networks:
-      - dashbrr-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-volumes:
-  redis_data:
-    name: dashbrr_redis_data
 
 networks:
   dashbrr-network:
@@ -159,7 +160,7 @@ networks:
     driver: bridge
 ```
 
-PostgreSQL configuration:
+And here's the PostgreSQL configuration:
 
 ```yaml
 services:
@@ -169,8 +170,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - CACHE_TYPE=memory # or use docker-compose.redis.yml for Redis
       - DASHBRR__DB_TYPE=postgres
       - DASHBRR__DB_HOST=postgres
       - DASHBRR__DB_PORT=5432
@@ -184,29 +184,17 @@ services:
       #- OIDC_REDIRECT_URL=optional
     volumes:
       - ./data:/data
+      # Mount a custom config file (optional)
+      #- ./config.toml:/config.toml
+    command:
+      # Specify custom config file path (optional)
+      #- "-config=/config.toml"
     depends_on:
-      redis:
-        condition: service_healthy
       postgres:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - dashbrr-network
-
-  redis:
-    container_name: dashbrr-redis
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --save 60 1 --loglevel warning
-    restart: unless-stopped
-    networks:
-      - dashbrr-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
   postgres:
     container_name: dashbrr-postgres
@@ -227,8 +215,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  redis_data:
-    name: dashbrr_redis_data
   postgres_data:
     name: dashbrr_postgres_data
 
@@ -241,7 +227,7 @@ networks:
 Start the containers:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 #### Building Your Own Image
@@ -263,7 +249,7 @@ make help # to see options
    - Go 1.23 or later
    - Node.js LTS
    - PNPM
-   - Redis
+   - Redis (optional)
    - PostgreSQL (optional)
 
 2. Build and run:
@@ -272,7 +258,7 @@ make help # to see options
 git clone https://github.com/autobrr/dashbrr.git
 cd dashbrr
 
-# Development mode with SQLite (runs frontend, backend, and Redis)
+# Development mode with SQLite (runs frontend and backend)
 make dev
 
 # OR Development mode with PostgreSQL
@@ -280,6 +266,9 @@ make docker-dev
 
 # OR Production build
 make run
+
+# Run with custom config file
+./dashbrr -config=/path/to/config.toml
 ```
 
 For more build options:
@@ -290,12 +279,60 @@ make help
 
 ## Configuration
 
+### Configuration File
+
+Dashbrr supports configuration through a TOML file. By default, it looks for `config.toml` in the current directory, but you can specify a custom path:
+
+- When running the binary directly: `./dashbrr -config=/path/to/config.toml`
+- In Docker Compose:
+  ```yaml
+  services:
+    app:
+      volumes:
+        - ./custom-config.toml:/config.toml
+      command:
+        - "-config=/config.toml"
+  ```
+
+The configuration file settings can be overridden by environment variables. See the [Environment Variables](#environment-variables) section for details.
+
+Example config.toml:
+
+```toml
+# This is the default configuration created when no config file exists
+[server]
+listen_addr = ":8080"
+
+[database]
+type = "sqlite"
+path = "./data/dashbrr.db"
+```
+
 ### Environment Variables
 
 #### Required
 
+- `DASHBRR__LISTEN_ADDR`: Listen address for the server (default: 0.0.0.0:8080)
+  - Format: `<host>:<port>` (e.g., 0.0.0.0:8080)
+
+#### Cache Configuration
+
+Dashbrr supports two caching backends:
+
+- `CACHE_TYPE`: Cache implementation to use (default: "redis" if REDIS_HOST is set, "memory" otherwise)
+  - `redis`: Uses Redis for caching
+  - `memory`: Uses in-memory cache
+
+Redis-specific settings (only required when CACHE_TYPE=redis):
+
 - `REDIS_HOST`: Redis host address (default: localhost)
 - `REDIS_PORT`: Redis port number (default: 6379)
+
+The memory cache requires no additional configuration and is automatically used when:
+
+- CACHE_TYPE is set to "memory"
+- Redis connection fails in development mode
+- REDIS_HOST is not set
 
 #### Database Configuration
 
@@ -312,11 +349,6 @@ PostgreSQL:
 - `DASHBRR__DB_USER`: PostgreSQL username
 - `DASHBRR__DB_PASSWORD`: PostgreSQL password
 - `DASHBRR__DB_NAME`: PostgreSQL database name
-
-#### Optional
-
-- `DASHBRR__LISTEN_ADDR`: Listen address for the server (default: 0.0.0.0:8080)
-  - Format: `<host>:<port>` (e.g., 0.0.0.0:8080)
 
 #### Built-in Authentication
 

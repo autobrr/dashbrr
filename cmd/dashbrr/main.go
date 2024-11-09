@@ -17,6 +17,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/routes"
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
 	"github.com/autobrr/dashbrr/internal/services"
@@ -42,24 +43,30 @@ func main() {
 		Str("build_date", date).
 		Msg("Starting dashbrr")
 
-	// Parse command line flags
+	// Parse command line flags (lowest priority)
+	configPath := flag.String("config", "config.toml", "path to config file")
 	dbPath := flag.String("db", "./data/dashbrr.db", "path to database file")
 	listenAddr := flag.String("listen", ":8080", "address to listen on")
 	flag.Parse()
 
-	// Use environment variables if set, otherwise use flag values
-	finalDbPath := os.Getenv("DASHBRR__DB_PATH")
-	if finalDbPath == "" {
-		finalDbPath = *dbPath
-	}
-
-	finalListenAddr := os.Getenv("DASHBRR__LISTEN_ADDR")
-	if finalListenAddr == "" {
-		finalListenAddr = *listenAddr
+	// Load configuration from file (medium priority)
+	// Environment variables are automatically loaded and override file values
+	cfg, err := config.LoadConfig(*configPath)
+	if err != nil {
+		// If config file doesn't exist or has errors, create a default config
+		cfg = &config.Config{
+			Server: config.ServerConfig{
+				ListenAddr: *listenAddr,
+			},
+			Database: config.DatabaseConfig{
+				Path: *dbPath,
+			},
+		}
+		log.Warn().Err(err).Msg("Failed to load configuration file, using defaults")
 	}
 
 	// Initialize database
-	db, err := database.InitDB(finalDbPath)
+	db, err := database.InitDB(cfg.Database.Path)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize database")
 	}
@@ -109,7 +116,7 @@ func main() {
 
 	// Create HTTP server with proper timeouts
 	srv := &http.Server{
-		Addr:         finalListenAddr,
+		Addr:         cfg.Server.ListenAddr,
 		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -118,7 +125,11 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Info().Msgf("Starting server on %s in %s mode", finalListenAddr, gin.Mode())
+		log.Info().
+			Str("address", cfg.Server.ListenAddr).
+			Str("mode", gin.Mode()).
+			Str("database", cfg.Database.Path).
+			Msg("Starting server")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("Failed to start server")
 		}

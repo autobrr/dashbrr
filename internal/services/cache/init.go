@@ -7,10 +7,19 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
+)
+
+// CacheType represents the type of cache to use
+type CacheType string
+
+const (
+	CacheTypeRedis  CacheType = "redis"
+	CacheTypeMemory CacheType = "memory"
 )
 
 // getRedisOptions returns Redis configuration optimized for the current environment
@@ -58,35 +67,70 @@ func getRedisOptions() *redis.Options {
 	return opts
 }
 
-// InitCache initializes a Redis cache instance with environment-specific configuration
+// getCacheType determines which cache implementation to use based on environment
+func getCacheType() CacheType {
+	cacheType := os.Getenv("CACHE_TYPE")
+	if cacheType == "" {
+		// Default to memory cache if Redis host is not set
+		if os.Getenv("REDIS_HOST") == "" {
+			return CacheTypeMemory
+		}
+		return CacheTypeRedis
+	}
+
+	switch strings.ToLower(cacheType) {
+	case "redis":
+		return CacheTypeRedis
+	case "memory":
+		return CacheTypeMemory
+	default:
+		log.Warn().Str("type", cacheType).Msg("Unknown cache type specified, defaulting to memory cache")
+		return CacheTypeMemory
+	}
+}
+
+// InitCache initializes a cache instance based on environment configuration
 func InitCache() (Store, error) {
-	isDev := os.Getenv("GIN_MODE") != "release"
-	opts := getRedisOptions()
+	cacheType := getCacheType()
 
-	// Create context with shorter timeout for development
-	timeout := DefaultTimeout
-	if isDev {
-		timeout = 2 * time.Second
-	}
+	switch cacheType {
+	case CacheTypeRedis:
+		isDev := os.Getenv("GIN_MODE") != "release"
+		opts := getRedisOptions()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	client := redis.NewClient(opts)
-	err := client.Ping(ctx).Err()
-
-	if err != nil {
+		// Create context with shorter timeout for development
+		timeout := DefaultTimeout
 		if isDev {
-			// In development, log warning but continue with degraded functionality
-			log.Warn().Err(err).Str("addr", opts.Addr).Msg("Redis connection failed, some features may be degraded")
-			return NewCache(opts.Addr)
+			timeout = 2 * time.Second
 		}
-		if client != nil {
-			client.Close()
-		}
-		return nil, err
-	}
 
-	// Initialize cache store with the configured client
-	return NewCache(opts.Addr)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		client := redis.NewClient(opts)
+		err := client.Ping(ctx).Err()
+
+		if err != nil {
+			if isDev {
+				// In development, log warning and fallback to memory cache
+				log.Warn().Err(err).Str("addr", opts.Addr).Msg("Redis connection failed, falling back to memory cache")
+				return NewMemoryStore(), nil
+			}
+			if client != nil {
+				client.Close()
+			}
+			return nil, err
+		}
+
+		// Initialize Redis cache store
+		return NewCache(opts.Addr)
+
+	case CacheTypeMemory:
+		log.Info().Msg("Initializing memory cache")
+		return NewMemoryStore(), nil
+
+	default:
+		// This shouldn't happen due to getCacheType's default
+		return NewMemoryStore(), nil
+	}
 }
