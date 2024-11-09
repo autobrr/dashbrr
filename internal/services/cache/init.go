@@ -93,6 +93,8 @@ func getCacheType() CacheType {
 func InitCache() (Store, error) {
 	cacheType := getCacheType()
 
+	log.Debug().Str("type", string(cacheType)).Msg("Initializing cache")
+
 	switch cacheType {
 	case CacheTypeRedis:
 		isDev := os.Getenv("GIN_MODE") != "release"
@@ -126,7 +128,7 @@ func InitCache() (Store, error) {
 		return NewCache(opts.Addr)
 
 	case CacheTypeMemory:
-		log.Info().Msg("Initializing memory cache")
+		log.Debug().Msg("Initializing memory cache")
 		return NewMemoryStore(), nil
 
 	default:
