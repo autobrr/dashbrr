@@ -169,12 +169,15 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				{
 					sonarr.GET("/queue", sonarrHandler.GetQueue)
 					sonarr.GET("/stats", sonarrHandler.GetStats)
+					sonarr.DELETE("/queue/:id", sonarrHandler.DeleteQueueItem)
 				}
 
 				// Radarr endpoints
 				radarr := regularServices.Group("/radarr")
 				{
 					radarr.GET("/queue", radarrHandler.GetQueue)
+					radarr.DELETE("/queue/:id", radarrHandler.DeleteQueueItem)
+					//radarr.POST("/queue/grab/:id", radarrHandler.GrabQueueItem) // Updated to match Radarr API structure
 				}
 
 				// Prowlarr endpoints
@@ -188,8 +191,6 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				omegabrr := regularServices.Group("/omegabrr")
 				{
 					omegabrr.GET("/status", omegabrrHandler.GetOmegabrrStatus)
-
-					// Webhook endpoints
 					webhook := omegabrr.Group("/webhook")
 					{
 						webhook.POST("/arrs", omegabrrHandler.TriggerWebhookArrs)

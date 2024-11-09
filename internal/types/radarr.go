@@ -21,7 +21,7 @@ type RadarrQueueRecord struct {
 	Status                  string                `json:"status"`
 	TimeLeft                string                `json:"timeleft,omitempty"`
 	EstimatedCompletionTime string                `json:"estimatedCompletionTime"`
-	Protocol                string                `json:"protocol"`
+	Protocol                string                `json:"protocol"` // "usenet" or "torrent"
 	Indexer                 string                `json:"indexer"`
 	DownloadClient          string                `json:"downloadClient"`
 	Size                    int64                 `json:"size"`
@@ -86,4 +86,12 @@ type Ratings struct {
 type Rating struct {
 	Value float64 `json:"value"`
 	Votes int     `json:"votes"`
+}
+
+// RadarrQueueDeleteOptions represents the options for deleting a queue item
+type RadarrQueueDeleteOptions struct {
+	RemoveFromClient bool `json:"removeFromClient"`
+	Blocklist        bool `json:"blocklist"`
+	SkipRedownload   bool `json:"skipRedownload"`
+	ChangeCategory   bool `json:"changeCategory"`
 }

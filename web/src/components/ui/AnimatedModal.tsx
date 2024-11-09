@@ -13,6 +13,7 @@ interface AnimatedModalProps {
   children: React.ReactNode;
   title?: React.ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
+  className?: string;
 }
 
 const AnimatedModal: React.FC<AnimatedModalProps> = ({
@@ -21,6 +22,7 @@ const AnimatedModal: React.FC<AnimatedModalProps> = ({
   children,
   title,
   maxWidth = "lg",
+  className,
 }) => {
   const maxWidthClasses = {
     sm: "sm:max-w-sm",
@@ -57,7 +59,11 @@ const AnimatedModal: React.FC<AnimatedModalProps> = ({
               leaveTo="opacity-0 scale-95 translate-y-4"
             >
               <Dialog.Panel
-                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-700`}
+                className={`w-full ${
+                  maxWidthClasses[maxWidth]
+                } transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-700 ${
+                  className || ""
+                }`}
               >
                 <div className="relative">
                   {title && (
@@ -77,7 +83,7 @@ const AnimatedModal: React.FC<AnimatedModalProps> = ({
                       </button>
                     </div>
                   )}
-                  <div className={`p-6 ${title ? "pt-4" : ""}`}>{children}</div>
+                  <div className={`p-6 ${title ? "pt-2" : ""}`}>{children}</div>
                 </div>
 
                 {/* Modal Gradient Border Effect */}
