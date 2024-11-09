@@ -7,8 +7,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Using memory cache by default
-      - CACHE_TYPE=memory
+      # Using Redis cache
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       # Database configuration - uncomment desired database type
       # SQLite configuration
       #- DASHBRR__DB_TYPE=sqlite
@@ -29,12 +30,31 @@ services:
     volumes:
       - ./data:/data
     depends_on:
+      redis:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - dashbrr-network
     command: ["/dashbrr"]
+
+  redis:
+    container_name: dashbrr-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --save 60 1 --loglevel warning
+    restart: unless-stopped
+    networks:
+      - dashbrr-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   postgres:
     container_name: dashbrr-postgres
@@ -57,6 +77,8 @@ services:
     restart: unless-stopped
 
 volumes:
+  redis_data:
+    name: dashbrr_redis_data
   postgres_data:
     name: dashbrr_postgres_data
 

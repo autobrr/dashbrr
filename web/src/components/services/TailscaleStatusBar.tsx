@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { TrashIcon } from "@heroicons/react/24/solid";
+import { Cog6ToothIcon } from "@heroicons/react/24/solid";
 import TailscaleDeviceModal from "./TailscaleDeviceModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
 import { useAuth } from "../../contexts/AuthContext";
@@ -236,10 +236,10 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
         </button>
         <button
           onClick={handleRemoveClick}
-          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+          className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
           title="Remove Tailscale"
         >
-          <TrashIcon className="w-4 h-4" />
+          <Cog6ToothIcon className="w-4 h-4" />
         </button>
       </div>
 

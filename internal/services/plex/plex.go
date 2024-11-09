@@ -80,6 +80,28 @@ func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsRespon
 		sessionsResponse.MediaContainer.Metadata = []types.PlexSession{}
 	}
 
+	// Process each session to check for transcoding
+	for i, session := range sessionsResponse.MediaContainer.Metadata {
+		// Check if TranscodeSession exists and copy its details
+		if session.TranscodeSession != nil {
+			continue // Already has transcode info
+		}
+
+		// Initialize TranscodeSession if needed
+		sessionsResponse.MediaContainer.Metadata[i].TranscodeSession = &types.PlexTranscodeSession{}
+
+		for _, media := range session.Media {
+			for _, part := range media.Part {
+				if part.Decision == "transcode" {
+					// Set transcoding details
+					sessionsResponse.MediaContainer.Metadata[i].TranscodeSession.VideoDecision = "transcode"
+					// You might also want to set other transcode details here
+					break
+				}
+			}
+		}
+	}
+
 	return &sessionsResponse, nil
 }
 

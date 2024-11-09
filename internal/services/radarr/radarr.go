@@ -471,10 +471,9 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 	}
 
 	// Wait for queue with timeout
-	var queue []types.RadarrQueueRecord
 	var queueErr error
 	select {
-	case queue = <-queueChan:
+	case <-queueChan:
 		queueErr = <-queueErrChan
 	case <-time.After(500 * time.Millisecond):
 		// Continue without queue if it takes too long
@@ -527,21 +526,6 @@ func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 			}
 
 			allWarnings = append(allWarnings, warning)
-		}
-	}
-
-	// Check queue for warning status
-	if queue != nil {
-		for _, record := range queue {
-			if record.TrackedDownloadStatus == "warning" {
-				warning := fmt.Sprintf("%s:", record.Title)
-				for _, msg := range record.StatusMessages {
-					for _, message := range msg.Messages {
-						warning += "\n" + message
-					}
-				}
-				allWarnings = append(allWarnings, warning)
-			}
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/routes"
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
 	"github.com/autobrr/dashbrr/internal/services"
@@ -42,24 +44,42 @@ func main() {
 		Str("build_date", date).
 		Msg("Starting dashbrr")
 
-	// Parse command line flags
+	// Parse command line flags (lowest priority)
+	configPath := flag.String("config", "config.toml", "path to config file")
 	dbPath := flag.String("db", "./data/dashbrr.db", "path to database file")
 	listenAddr := flag.String("listen", ":8080", "address to listen on")
 	flag.Parse()
 
-	// Use environment variables if set, otherwise use flag values
-	finalDbPath := os.Getenv("DASHBRR__DB_PATH")
-	if finalDbPath == "" {
-		finalDbPath = *dbPath
-	}
+	// Initialize configuration
+	var cfg *config.Config
+	var err error
 
-	finalListenAddr := os.Getenv("DASHBRR__LISTEN_ADDR")
-	if finalListenAddr == "" {
-		finalListenAddr = *listenAddr
+	// Check if all required environment variables are set
+	if config.HasRequiredEnvVars() {
+		cfg = &config.Config{}
+		if err := config.LoadEnvOverrides(cfg); err != nil {
+			log.Fatal().Err(err).Msg("Failed to load environment variables")
+		}
+		//log.Debug().Msg("Using environment variables for configuration")
+	} else {
+		// Try loading from config file
+		cfg, err = config.LoadConfig(*configPath)
+		if err != nil {
+			// Create default config using command line flags
+			cfg = &config.Config{
+				Server: config.ServerConfig{
+					ListenAddr: *listenAddr,
+				},
+				Database: config.DatabaseConfig{
+					Path: *dbPath,
+				},
+			}
+			log.Warn().Err(err).Msg("Failed to load configuration file, using defaults")
+		}
 	}
 
 	// Initialize database
-	db, err := database.InitDB(finalDbPath)
+	db, err := database.InitDB(cfg.Database.Path)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize database")
 	}
@@ -68,8 +88,8 @@ func main() {
 	// Initialize health service
 	healthService := services.NewHealthService()
 
-	// Set Gin mode based on environment
-	if os.Getenv("GIN_MODE") != "release" {
+	// Set Gin mode - default to release mode unless debug is explicitly set
+	if os.Getenv("GIN_MODE") == "debug" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
@@ -97,10 +117,16 @@ func main() {
 	r.Use(middleware.SetupCORS())
 
 	// Setup API routes with database and health service
-	redisCache := routes.SetupRoutes(r, db, healthService)
+	cacheStore := routes.SetupRoutes(r, db, healthService)
 	defer func() {
-		if err := redisCache.Close(); err != nil {
-			log.Error().Err(err).Msg("Failed to close Redis cache")
+		if err := cacheStore.Close(); err != nil {
+			// Log cleanup errors based on cache type
+			cacheType := strings.ToLower(os.Getenv("CACHE_TYPE"))
+			if cacheType == "redis" {
+				log.Error().Err(err).Msg("Failed to close Redis cache connection")
+			} else {
+				log.Debug().Err(err).Msg("Cache cleanup completed")
+			}
 		}
 	}()
 
@@ -109,7 +135,7 @@ func main() {
 
 	// Create HTTP server with proper timeouts
 	srv := &http.Server{
-		Addr:         finalListenAddr,
+		Addr:         cfg.Server.ListenAddr,
 		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -118,7 +144,11 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Info().Msgf("Starting server on %s in %s mode", finalListenAddr, gin.Mode())
+		log.Info().
+			Str("address", cfg.Server.ListenAddr).
+			Str("mode", gin.Mode()).
+			Str("database", cfg.Database.Path).
+			Msg("Starting server")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("Failed to start server")
 		}

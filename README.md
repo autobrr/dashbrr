@@ -1,353 +1,214 @@
-# Dashbrr
+<h1 align="center">
+  <img alt="autobrr logo" src=".github/assets/logo.png" width="160px"/><br/>
+  Dashbrr
+</h1>
 
-A sleek, modern dashboard for monitoring and managing your media stack services.
+<p align="center">
+<a href="https://github.com/autobrr/dashbrr/releases/latest"><img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/autobrr/dashbrr?style=for-the-badge"></a>&nbsp;
+<a href="https://goreportcard.com/report/github.com/autobrr/dashbrr"><img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/autobrr/dashbrr?style=for-the-badge"></a>&nbsp;
+<a href="https://hub.docker.com/r/autobrr/dashbrr"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/autobrr/dashbrr?style=for-the-badge"></a>
+</p>
 
-![Main Dashboard](.github/assets/dashboard.png)
+<p align="center">
+A sleek, modern dashboard for monitoring and managing your media stack services.<br>
+Dashbrr provides real-time monitoring, service health checks, and unified management for your entire media server ecosystem.
+</p>
+
+<p align="center">
+<img src=".github/assets/dashboard.png" alt="Main Dashboard">
+</p>
 
 ## Table of Contents
 
 - [Features](#features)
 - [Supported Services](#supported-services)
-- [Tech Stack](#tech-stack)
 - [Installation](#installation)
   - [Docker Installation](#docker-installation)
-  - [Manual Installation](#manual-installation)
+  - [Binary Installation](#binary-installation)
 - [Configuration](#configuration)
+  - [Configuration File](#configuration-file)
   - [Environment Variables](#environment-variables)
-  - [Authentication](#built-in-authentication)
+  - [Authentication](#authentication)
+- [Tech Stack](#tech-stack)
 - [Screenshots](#screenshots)
 
 ## Features
 
 - Real-time service health monitoring
 - Service-specific data display and management
-- Cached data with live updates
-- SSE (Server-Sent Events)
-- Built-in authentication system
-  - With optional **OpenID Connect (OIDC)** support
-- Responsive and modern UI
+- Cached data with live updates via SSE (Server-Sent Events)
+- Flexible authentication options:
+  - Built-in authentication system
+  - OpenID Connect (OIDC) support
+- Responsive and modern UI with draggable cards
 - Docker support
 - Multiple database support (SQLite & PostgreSQL)
+- Flexible caching system (In-memory or Redis)
 
 ## Supported Services
 
-### Plex
+### Media Management
 
-- Active streams monitoring
-- Version check
+- **Plex**: Active streams monitoring, version check
+- **Sonarr & Radarr**:
+  - Comprehensive queue management:
+    - Monitor active downloads
+    - Stuck downloads detection and resolution
+  - Error reporting for indexers and download clients
+  - Version check and update notifications
+- **Overseerr**: Request management, pending requests monitoring
 
-### Sonarr & Radarr
+### Download Management
 
-- Queue monitoring
-- Stuck downloads detection
-- Indexer and download client error reporting
-- Version check
+- **Autobrr**: IRC network health, release statistics
+- **Prowlarr**: Indexer health monitoring
+- **Maintainerr**: Rule matching, scheduled deletion monitoring
+- **Omegabrr**: Service health, manual ARR triggers
 
-### Autobrr
+### Network
 
-- IRC network health monitoring
-- Release statistics tracking
-- Version check
-
-### Overseerr
-
-- Pending requests monitoring
-- Request management (approve/reject)
-- Recent requests history
-- Version check
-
-### Prowlarr
-
-- Indexer health monitoring
-
-### Maintainerr
-
-- Rule matching statistics
-- Scheduled deletion monitoring
-- Version check
-
-### Omegabrr
-
-- Service health monitoring
-- Trigger manual runs of ARRs and Lists
-- Version check
-
-### Tailscale
-
-- Device status monitoring (online/offline)
-- Device information tracking (IP, version, type)
-- Update availability notifications
-- Tag management and filtering
-- Quick access to device details
-- Device search functionality
-
-## Tech Stack
-
-- **Backend**
-  - Go
-  - Gin web framework
-  - Redis for caching
-  - Database support:
-    - SQLite
-    - PostgreSQL
-- **Frontend**
-  - React
-  - TypeScript
-  - Vite
-  - TailwindCSS
-  - PNPM package manager
+- **Tailscale**: Device status, information tracking, tag overview
 
 ## Installation
 
 ### Docker Installation
 
-We provide a distroless container image for enhanced security and smaller size. You can either use our pre-built image or build it yourself.
+```bash
+# Using memory cache (default)
+docker compose up -d
 
-#### Using Pre-built Image
-
-Create a `docker-compose.yml` file. You can choose between SQLite and PostgreSQL:
-
-SQLite configuration:
-
-```yaml
-services:
-  app:
-    container_name: dashbrr
-    image: ghcr.io/autobrr/dashbrr:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - DASHBRR__DB_TYPE=sqlite
-      - DASHBRR__DB_PATH=/data/dashbrr.db
-      - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
-      #- OIDC_ISSUER=optional
-      #- OIDC_CLIENT_ID=optional
-      #- OIDC_CLIENT_SECRET=optional
-      #- OIDC_REDIRECT_URL=optional
-    volumes:
-      - ./data:/data
-    depends_on:
-      - redis
-    restart: unless-stopped
-    networks:
-      - dashbrr-network
-
-  redis:
-    container_name: dashbrr-redis
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --save 60 1 --loglevel warning
-    restart: unless-stopped
-    networks:
-      - dashbrr-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-volumes:
-  redis_data:
-    name: dashbrr_redis_data
-
-networks:
-  dashbrr-network:
-    name: dashbrr-network
-    driver: bridge
+# Using Redis cache
+docker compose -f docker-compose.redis.yml up -d
 ```
 
-PostgreSQL configuration:
+Both configurations use PostgreSQL as the database by default. If you want to use SQLite instead, uncomment the SQLite configuration lines and comment out the PostgreSQL ones in your chosen compose file. See example configurations in [docker-compose.yml](docker-compose.yml) and [docker-compose.redis.yml](docker-compose.redis.yml).
 
-```yaml
-services:
-  app:
-    container_name: dashbrr
-    image: ghcr.io/autobrr/dashbrr:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - DASHBRR__DB_TYPE=postgres
-      - DASHBRR__DB_HOST=postgres
-      - DASHBRR__DB_PORT=5432
-      - DASHBRR__DB_USER=dashbrr
-      - DASHBRR__DB_PASSWORD=dashbrr
-      - DASHBRR__DB_NAME=dashbrr
-      - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
-      #- OIDC_ISSUER=optional
-      #- OIDC_CLIENT_ID=optional
-      #- OIDC_CLIENT_SECRET=optional
-      #- OIDC_REDIRECT_URL=optional
-    volumes:
-      - ./data:/data
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - dashbrr-network
+### Binary Installation
 
-  redis:
-    container_name: dashbrr-redis
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --save 60 1 --loglevel warning
-    restart: unless-stopped
-    networks:
-      - dashbrr-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+#### Linux/macOS
 
-  postgres:
-    container_name: dashbrr-postgres
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=dashbrr
-      - POSTGRES_PASSWORD=dashbrr
-      - POSTGRES_DB=dashbrr
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - dashbrr-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dashbrr"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-
-volumes:
-  redis_data:
-    name: dashbrr_redis_data
-  postgres_data:
-    name: dashbrr_postgres_data
-
-networks:
-  dashbrr-network:
-    name: dashbrr-network
-    driver: bridge
-```
-
-Start the containers:
+Download the latest release:
 
 ```bash
-docker-compose up -d
+wget $(curl -s https://api.github.com/repos/autobrr/dashbrr/releases/latest | grep download | grep linux_x86_64 | cut -d\" -f4)
 ```
 
-#### Building Your Own Image
+#### Unpack
 
-Clone the repository and use either:
+Run with `root` or `sudo`. If you do not have root, place the binary in your home directory (e.g., `~/.bin`).
 
 ```bash
-# Using Docker directly
-docker build -t dashbrr .
-
-# OR using Make (builds and runs everything)
-make help # to see options
+tar -C /usr/local/bin -xzf dashbrr*.tar.gz
 ```
 
-### Manual Installation
+#### Systemd Service (Linux)
 
-1. Install dependencies:
-
-   - Go 1.23 or later
-   - Node.js LTS
-   - PNPM
-   - Redis
-   - PostgreSQL (optional)
-
-2. Build and run:
+Create a systemd service file:
 
 ```bash
-git clone https://github.com/autobrr/dashbrr.git
-cd dashbrr
-
-# Development mode with SQLite (runs frontend, backend, and Redis)
-make dev
-
-# OR Development mode with PostgreSQL
-make docker-dev
-
-# OR Production build
-make run
+sudo nano /etc/systemd/system/dashbrr@.service
 ```
 
-For more build options:
+Add the following content:
+
+```systemd
+[Unit]
+Description=dashbrr service for %i
+After=syslog.target network-online.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+ExecStart=/usr/local/bin/dashbrr --config=/home/%i/.config/dashbrr/config.toml
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
 
 ```bash
-make help
+systemctl enable -q --now --user dashbrr@$USER
 ```
 
 ## Configuration
 
+### Configuration File
+
+Dashbrr uses a simple TOML configuration file. Default location: `./config.toml`
+
+```toml
+[server]
+listen_addr = ":8080"
+
+[database]
+type = "sqlite"
+path = "./data/dashbrr.db"
+```
+
 ### Environment Variables
 
-#### Required
+For a complete list of available environment variables and their configurations, see our [Environment Variables Documentation](docs/env_vars.md).
 
-- `REDIS_HOST`: Redis host address (default: localhost)
-- `REDIS_PORT`: Redis port number (default: 6379)
+Key configuration options include:
 
-#### Database Configuration
+- Server settings (listen address, ports)
+- Cache configuration (Memory/Redis)
+- Database settings (SQLite/PostgreSQL)
+- Authentication (Built-in/OIDC)
 
-SQLite (default):
+### Authentication
 
-- `DASHBRR__DB_TYPE`: Set to "sqlite"
-- `DASHBRR__DB_PATH`: Path to SQLite database file
+Dashbrr offers two authentication methods:
 
-PostgreSQL:
+#### Built-in Authentication (Default)
 
-- `DASHBRR__DB_TYPE`: Set to "postgres"
-- `DASHBRR__DB_HOST`: PostgreSQL host address
-- `DASHBRR__DB_PORT`: PostgreSQL port (default: 5432)
-- `DASHBRR__DB_USER`: PostgreSQL username
-- `DASHBRR__DB_PASSWORD`: PostgreSQL password
-- `DASHBRR__DB_NAME`: PostgreSQL database name
+Simple username/password authentication with user management through the application.
 
-#### Optional
+![Built-in Login](.github/assets/built-in-login.png)
 
-- `DASHBRR__LISTEN_ADDR`: Listen address for the server (default: 0.0.0.0:8080)
-  - Format: `<host>:<port>` (e.g., 0.0.0.0:8080)
-
-#### Built-in Authentication
-
-- Default authentication system
-- User management through the application
-- No additional configuration required
+![Built-in Register](.github/assets/built-in-register.png)
 
 #### OpenID Connect (OIDC)
 
-To enable OIDC authentication, set the following environment variables:
+Enterprise-grade authentication with support for providers like Auth0.
 
-- `OIDC_ISSUER`: Your OIDC provider's issuer URL
-- `OIDC_CLIENT_ID`: Client ID from your OIDC provider
-- `OIDC_CLIENT_SECRET`: Client secret from your OIDC provider
-- `OIDC_REDIRECT_URL`: Callback URL for OIDC authentication (default: <http://localhost:3000/auth/callback>)
+![OIDC Login](.github/assets/OIDC-login.png)
 
-It has been tested and working with [Auth0](https://auth0.com/)
+Required OIDC environment variables:
+
+```bash
+OIDC_ISSUER=https://your-provider.com
+OIDC_CLIENT_ID=your-client-id
+OIDC_CLIENT_SECRET=your-client-secret
+OIDC_REDIRECT_URL=http://localhost:3000/auth/callback
+```
+
+## Tech Stack
+
+### Backend
+
+- Go with Gin web framework
+- Flexible caching: In-memory or Redis
+- Database: SQLite or PostgreSQL
+
+### Frontend
+
+- React with TypeScript
+- Vite & TailwindCSS
+- PNPM package manager
 
 ## Screenshots
 
 ![Main Dashboard](.github/assets/dashboard.png)
-_Main dashboard showing service health monitoring and status cards_
+_Main dashboard with service health monitoring and status cards_
 
-![Draggable Card Support](.github/assets/draggable.png)
-_Cards can be dragged and sorted to your liking. You can also collapse them if you wish._
-
-![Tailscale Integration](.github/assets/tailscale.png)
-_Tailscale device management and monitoring_
-
-![Login Screen](.github/assets/login.png)
+![Built-in Authentication](.github/assets/built-in-login.png)
 _Built-in authentication system_
 
-![OIDC Login](.github/assets/oidc.png)
-_Optional OpenID Connect (OIDC) authentication support_
+![Built-in Register](.github/assets/built-in-register.png)
+_Registration form_
+
+![OIDC Login](.github/assets/OIDC-login.png)
+_OpenID Connect (OIDC) authentication support_

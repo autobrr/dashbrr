@@ -138,12 +138,25 @@ export interface PlexMedia {
 }
 
 export interface PlexTranscodeSession {
-  videoDecision: string;
-  audioDecision: string;
+  key: string;
+  throttled: boolean;
+  complete: boolean;
   progress: number;
-  speed?: number;
-  size?: number;
-  context?: string;
+  speed: number;
+  size: number;
+  videoDecision: 'transcode' | 'copy' | 'direct play';
+  audioDecision: 'transcode' | 'copy' | 'direct play';
+  protocol: string;
+  container: string;
+  videoCodec: string;
+  audioCodec: string;
+  width: number;
+  height: number;
+  transcodeHwRequested: boolean;
+  transcodeHwFullPipeline: boolean;
+  timeStamp: number;
+  maxOffsetAvailable: number;
+  minOffsetAvailable: number;
 }
 
 export interface PlexSession {
