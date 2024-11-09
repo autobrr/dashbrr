@@ -75,8 +75,8 @@ func main() {
 	// Initialize health service
 	healthService := services.NewHealthService()
 
-	// Set Gin mode based on environment
-	if os.Getenv("GIN_MODE") != "release" {
+	// Set Gin mode - default to release mode unless debug is explicitly set
+	if os.Getenv("GIN_MODE") == "debug" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
