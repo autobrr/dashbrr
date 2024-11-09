@@ -31,11 +31,12 @@ interface AddServicesMenuProps {
 
 // Add service categories
 const SERVICE_CATEGORIES = {
-  AUTOMATION: "Automation",
-  MEDIA: "Media Management",
-  REQUESTS: "Requests",
+  AUTOMATION: "Automation Tools",
+  MEDIA_SERVER: "Media Servers",
+  MEDIA_MANAGEMENT: "Media Management",
+  REQUESTS: "Media Requests",
   MONITORING: "Monitoring",
-  OTHER: "Other",
+  NETWORK: "Network",
 } as const;
 
 // Add category mapping
@@ -45,15 +46,15 @@ const SERVICE_CATEGORY_MAP: Record<
 > = {
   autobrr: "AUTOMATION",
   omegabrr: "AUTOMATION",
-  radarr: "MEDIA",
-  sonarr: "MEDIA",
-  tailscale: "OTHER",
-  other: "OTHER",
-  plex: "MEDIA",
-  overseerr: "MEDIA",
-  maintainerr: "MEDIA",
-  prowlarr: "MEDIA",
+  radarr: "MEDIA_MANAGEMENT",
+  sonarr: "MEDIA_MANAGEMENT",
+  prowlarr: "MEDIA_MANAGEMENT",
+  plex: "MEDIA_SERVER",
+  overseerr: "REQUESTS",
+  maintainerr: "REQUESTS",
   general: "MONITORING",
+  tailscale: "NETWORK",
+  other: "MONITORING",
 };
 
 export function AddServicesMenu({
