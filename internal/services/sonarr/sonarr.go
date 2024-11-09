@@ -471,12 +471,10 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 	case <-time.After(500 * time.Millisecond):
 		// Continue without update check if it takes too long
 	}
-
 	// Wait for queue with timeout
-	var queue []types.QueueRecord
 	var queueErr error
 	select {
-	case queue = <-queueChan:
+	case <-queueChan:
 		queueErr = <-queueErrChan
 	case <-time.After(500 * time.Millisecond):
 		// Continue without queue if it takes too long
@@ -532,20 +530,7 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 		}
 	}
 
-	// Check queue for warning status
-	if queue != nil {
-		for _, record := range queue {
-			if record.TrackedDownloadStatus == "warning" {
-				warning := fmt.Sprintf("%s:", record.Title)
-				for _, msg := range record.StatusMessages {
-					for _, message := range msg.Messages {
-						warning += "\n" + message
-					}
-				}
-				allWarnings = append(allWarnings, warning)
-			}
-		}
-	}
+	// Removed queue warning check since we handle them in the queue section
 
 	// If there are any warnings, return them all
 	if len(allWarnings) > 0 {

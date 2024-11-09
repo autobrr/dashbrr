@@ -9,8 +9,8 @@ import { RadarrQueueItem } from "../../../types/service";
 import { RadarrMessage } from "./RadarrMessage";
 import AnimatedModal from "../../ui/AnimatedModal";
 import {
-  TrashIcon,
-  ArrowDownTrayIcon,
+  Cog6ToothIcon,
+  ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/solid";
 import { api } from "../../../utils/api";
@@ -204,7 +204,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                                 className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
                                 title="View in Radarr"
                               >
-                                <ArrowDownTrayIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                <ArrowTopRightOnSquareIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                               </a>
                               <button
                                 onClick={() => {
@@ -224,11 +224,11 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                                 title={
                                   record.trackedDownloadState ===
                                   "importBlocked"
-                                    ? "Remove from queue"
+                                    ? "Manage queue"
                                     : "Can only remove items that are import blocked"
                                 }
                               >
-                                <TrashIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                <Cog6ToothIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                               </button>
                             </div>
                           </div>
@@ -316,7 +316,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
           setShowDeleteModal(false);
           setSelectedItem(null);
         }}
-        title="Remove Download"
+        title="Manage Download"
         className="min-h-[400px] max-h-[90vh]"
       >
         <div className="space-y-4">
