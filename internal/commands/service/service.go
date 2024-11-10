@@ -22,12 +22,13 @@ func NewServiceCommand() *ServiceCommand {
 			"<service-type> <action> [arguments]\n\n"+
 				"  Service Types:\n"+
 				"    autobrr    - Autobrr service management\n"+
+				"    maintainerr - Maintainerr service management\n"+
 				"    omegabrr   - Omegabrr service management\n\n"+
+				"    overseerr  - Overseerr service management\n"+
+				"    plex       - Plex service management\n"+
+				"    prowlarr   - Prowlarr service management\n"+
 				"    radarr     - Radarr service management\n"+
 				"    sonarr     - Sonarr service management\n"+
-				"    prowlarr   - Prowlarr service management\n"+
-				"    plex       - Plex service management\n"+
-				"    overseerr  - Overseerr service management\n"+
 				"  Use 'dashbrr run help service <service-type>' for more information",
 		),
 	}
