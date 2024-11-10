@@ -25,7 +25,7 @@ func NewUserCommand(db *database.DB) *UserCommand {
 		BaseCommand: commands.NewBaseCommand(
 			"user",
 			"Manage users in the system",
-			"<subcommand> [arguments]\n\n  Subcommands:\n    create <username> <password> [email]\n    change-password <username> <new_password>",
+			"<subcommand> [arguments]\n\n  Subcommands:\n    create <username> <password>\n    change-password <username> <new_password>",
 		),
 		db: db,
 	}
@@ -40,7 +40,7 @@ func (c *UserCommand) Execute(ctx context.Context, args []string) error {
 	switch subcommand {
 	case "create":
 		if len(args) < 3 {
-			return errors.New("usage: user create <username> <password> [email]")
+			return errors.New("usage: user create <username> <password>")
 		}
 		email := fmt.Sprintf("%s@dashbrr.local", args[1])
 		if len(args) > 3 {

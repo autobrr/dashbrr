@@ -20,8 +20,11 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/routes"
 	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/autobrr"
 	"github.com/autobrr/dashbrr/internal/commands/health"
 	"github.com/autobrr/dashbrr/internal/commands/help"
+	"github.com/autobrr/dashbrr/internal/commands/omegabrr"
+	"github.com/autobrr/dashbrr/internal/commands/service"
 	"github.com/autobrr/dashbrr/internal/commands/user"
 	"github.com/autobrr/dashbrr/internal/commands/version"
 	"github.com/autobrr/dashbrr/internal/config"
@@ -68,14 +71,32 @@ func executeCommand() error {
 
 	registry := commands.NewRegistry()
 	helpCmd := help.NewHelpCommand(registry)
+	serviceCmd := service.NewServiceCommand()
 
+	// Register top-level commands
 	registry.Register(version.NewVersionCommand())
 	registry.Register(health.NewHealthCommand())
 	registry.Register(helpCmd)
 	registry.Register(user.NewUserCommand(db))
+	registry.Register(serviceCmd)
 
-	cmdName := os.Args[2]
-	cmdArgs := os.Args[3:]
+	// Register service-specific commands
+	registry.Register(autobrr.NewAddCommand(db))
+	registry.Register(autobrr.NewRemoveCommand(db))
+	registry.Register(autobrr.NewListCommand(db))
+
+	// Register omegabrr commands
+	registry.Register(omegabrr.NewAddCommand(db))
+	registry.Register(omegabrr.NewRemoveCommand(db))
+	registry.Register(omegabrr.NewListCommand(db))
+
+	// Set registry on commands that need it
+	serviceCmd.SetRegistry(registry)
+
+	// Extract command name and arguments
+	args := os.Args[2:]
+	cmdName := strings.Join(args[:len(args)-len(args[1:])], " ")
+	cmdArgs := args[1:]
 
 	return registry.Execute(context.Background(), cmdName, cmdArgs)
 }

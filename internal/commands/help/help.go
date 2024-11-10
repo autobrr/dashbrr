@@ -3,6 +3,7 @@ package help
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/autobrr/dashbrr/internal/commands"
 )
@@ -17,7 +18,11 @@ func NewHelpCommand(registry *commands.Registry) *HelpCommand {
 		BaseCommand: commands.NewBaseCommand(
 			"help",
 			"Show help about available commands",
-			"[command]",
+			"[command]\n\n"+
+				"Examples:\n"+
+				"  dashbrr run help                  Show available commands\n"+
+				"  dashbrr run help service          Show available service types\n"+
+				"  dashbrr run help service autobrr  Show autobrr service commands",
 		),
 		registry: registry,
 	}
@@ -29,7 +34,9 @@ func (c *HelpCommand) Execute(ctx context.Context, args []string) error {
 		return nil
 	}
 
-	fmt.Println(c.registry.Help(args[0]))
+	// Join all arguments to handle multi-part commands (e.g., "service autobrr")
+	cmdName := strings.Join(args, " ")
+	fmt.Println(c.registry.Help(cmdName))
 	return nil
 }
 
