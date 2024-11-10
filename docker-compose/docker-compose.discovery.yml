@@ -1,0 +1,85 @@
+services:
+  dashbrr:
+    container_name: dashbrr
+    build:
+      context: .
+      dockerfile: Dockerfile.discovery
+    ports:
+      - "8080:8080"
+    environment:
+      # Using memory cache by default
+      - CACHE_TYPE=memory
+      # PostgreSQL configuration
+      - DASHBRR__DB_TYPE=postgres
+      - DASHBRR__DB_HOST=postgres
+      - DASHBRR__DB_PORT=5432
+      - DASHBRR__DB_USER=dashbrr
+      - DASHBRR__DB_PASSWORD=dashbrr
+      - DASHBRR__DB_NAME=dashbrr
+      - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
+      # Service API keys
+      - DASHBRR_RADARR_API_KEY=${DASHBRR_RADARR_API_KEY}
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dashbrr-network
+
+  postgres:
+    container_name: dashbrr-postgres
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=dashbrr
+      - POSTGRES_PASSWORD=dashbrr
+      - POSTGRES_DB=dashbrr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dashbrr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashbrr"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  radarr:
+    container_name: radarr
+    image: linuxserver/radarr:latest
+    ports:
+      - "7878:7878"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - DASHBRR_RADARR_API_KEY=${DASHBRR_RADARR_API_KEY}
+    volumes:
+      - radarr_config:/config
+      - movies:/movies
+      - downloads:/downloads
+    networks:
+      - dashbrr-network
+    restart: unless-stopped
+    labels:
+      com.dashbrr.service.type: "radarr"
+      com.dashbrr.service.url: "http://radarr:7878"
+      com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}"
+      com.dashbrr.service.name: "Movies"
+
+volumes:
+  postgres_data:
+    name: dashbrr_postgres_data
+  radarr_config:
+  movies:
+  downloads:
+
+networks:
+  dashbrr-network:
+    name: dashbrr-network
+    driver: bridge

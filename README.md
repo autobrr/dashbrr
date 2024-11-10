@@ -28,6 +28,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 - [Configuration](#configuration)
   - [Configuration File](#configuration-file)
   - [Environment Variables](#environment-variables)
+  - [Service Discovery](#service-discovery)
   - [Command Line Interface](#command-line-interface)
   - [Authentication](#authentication)
 - [Tech Stack](#tech-stack)
@@ -75,15 +76,22 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 
 ### Docker Installation
 
+Several docker-compose configurations are available in the `docker-compose` directory:
+
 ```bash
 # Using memory cache (default)
-docker compose up -d
+docker compose -f docker-compose/docker-compose.yml up -d
 
 # Using Redis cache
-docker compose -f docker-compose.redis.yml up -d
+docker compose -f docker-compose/docker-compose.redis.yml up -d
+
+# Using service discovery features
+docker compose -f docker-compose/docker-compose.discovery.yml up -d
 ```
 
-Both configurations use PostgreSQL as the database by default. If you want to use SQLite instead, uncomment the SQLite configuration lines and comment out the PostgreSQL ones in your chosen compose file. See example configurations in [docker-compose.yml](docker-compose.yml) and [docker-compose.redis.yml](docker-compose.redis.yml).
+All configurations use PostgreSQL as the database by default. If you want to use SQLite instead, uncomment the SQLite configuration lines and comment out the PostgreSQL ones in your chosen compose file. See example configurations in the respective files in the `docker-compose` directory.
+
+Note: There is also a `docker-compose.integration.yml` file in the docker-compose directory which is used specifically for running integration tests via the `make test-integration` command. This file is not intended for regular deployment use.
 
 ### Binary Installation
 
@@ -159,6 +167,18 @@ Key configuration options include:
 - Cache configuration (Memory/Redis)
 - Database settings (SQLite/PostgreSQL)
 - Authentication (Built-in/OIDC)
+
+### Service Discovery
+
+Dashbrr supports automatic service discovery and configuration through Docker labels, Kubernetes labels, and external configuration files. For detailed information about service discovery and configuration management, see our [Service Discovery Documentation](docs/config_management.md).
+
+Key features include:
+
+- Docker container label-based discovery
+- Kubernetes service label-based discovery
+- YAML/JSON configuration file import/export
+- Environment variable substitution for API keys
+- Secure configuration management
 
 ### Command Line Interface
 
