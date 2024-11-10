@@ -46,10 +46,10 @@ ENV HOME="/config" \
 WORKDIR /config
 VOLUME /config
 
-COPY --from=app-builder /app/dashbrr /dashbrr
+COPY --from=app-builder /app/dashbrr /usr/local/bin/dashbrr
 
 EXPOSE 8080
 
 USER 65532:65532
 
-ENTRYPOINT ["/dashbrr"]
+ENTRYPOINT ["dashbrr"]
