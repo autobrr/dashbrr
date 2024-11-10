@@ -44,9 +44,17 @@ type OverseerrService struct {
 }
 
 func init() {
-	models.NewOverseerrService = func() models.ServiceHealthChecker {
-		return &OverseerrService{}
-	}
+	models.NewOverseerrService = NewOverseerrService
+}
+
+func NewOverseerrService() models.ServiceHealthChecker {
+	service := &OverseerrService{}
+	service.Type = "overseerr"
+	service.DisplayName = "Overseerr"
+	service.Description = "Monitor and manage your Overseerr instance"
+	service.DefaultURL = "http://localhost:5055"
+	service.HealthEndpoint = "/api/v1/status"
+	return service
 }
 
 func (s *OverseerrService) GetHealthEndpoint(baseURL string) string {

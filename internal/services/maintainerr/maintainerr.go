@@ -75,9 +75,17 @@ type Collection struct {
 }
 
 func init() {
-	models.NewMaintainerrService = func() models.ServiceHealthChecker {
-		return &MaintainerrService{}
-	}
+	models.NewMaintainerrService = NewMaintainerrService
+}
+
+func NewMaintainerrService() models.ServiceHealthChecker {
+	service := &MaintainerrService{}
+	service.Type = "maintainerr"
+	service.DisplayName = "Maintainerr"
+	service.Description = "Monitor and manage your Maintainerr instance"
+	service.DefaultURL = "http://localhost:6246"
+	service.HealthEndpoint = "/api/app/status"
+	return service
 }
 
 func (s *MaintainerrService) GetHealthEndpoint(baseURL string) string {

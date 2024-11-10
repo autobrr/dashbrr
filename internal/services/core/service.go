@@ -5,12 +5,13 @@ package core
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
-	"os"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -19,6 +20,10 @@ import (
 var (
 	// Global HTTP client pool
 	httpClients sync.Map
+
+	// Common errors
+	ErrServiceNotConfigured = errors.New("service is not configured")
+	ErrNilResponse          = errors.New("received nil response from server")
 )
 
 type ServiceCore struct {
@@ -59,30 +64,26 @@ func (s *ServiceCore) initCache() error {
 		return nil
 	}
 
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "127.0.0.1"
-	}
-
-	redisPort := os.Getenv("REDIS_PORT")
-	if redisPort == "" {
-		redisPort = "6379"
-	}
-
-	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
-	c, err := cache.NewCache(redisAddr)
+	// Initialize cache using the cache package's initialization logic
+	store, err := cache.InitCache()
 	if err != nil {
-		return fmt.Errorf("failed to initialize cache: %v", err)
+		// If initialization fails, we'll still get a memory cache from InitCache
+		// We can continue with the memory cache but should return the error
+		// for logging purposes
+		s.cache = store
+		log.Warn().Err(err).Msg("Failed to initialize preferred cache, using memory cache")
+		return err
 	}
 
-	s.cache = c
+	s.cache = store
 	return nil
 }
 
 // MakeRequestWithContext makes an HTTP request with the provided context and timeout
 func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
 	if url == "" {
-		return nil, fmt.Errorf("service is not configured")
+		log.Error().Msg("Service is not configured")
+		return nil, ErrServiceNotConfigured
 	}
 
 	// Default timeout of 15 seconds if not specified in context
@@ -100,7 +101,8 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		log.Error().Err(err).Str("url", url).Msg("Failed to create request")
+		return nil, err
 	}
 
 	// Set default headers
@@ -130,21 +132,25 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 	client := getHTTPClient(timeout)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %v", err)
+		log.Error().Err(err).Str("url", url).Msg("Request failed")
+		return nil, err
 	}
 
 	if resp == nil {
-		return nil, fmt.Errorf("received nil response from server")
+		log.Error().Str("url", url).Msg("Received nil response from server")
+		return nil, ErrNilResponse
 	}
 
 	// Check if response is a redirect to a login page or similar
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
 		resp.Body.Close()
-		return nil, fmt.Errorf("received redirect response (status %d), possible authentication issue", resp.StatusCode)
+		err := errors.New("received redirect response, possible authentication issue")
+		log.Error().Err(err).Str("url", url).Int("status", resp.StatusCode).Msg("Authentication error")
+		return nil, err
 	}
 
 	// Store the response time in the response header
-	resp.Header.Set("X-Response-Time", fmt.Sprintf("%d", time.Since(start).Milliseconds()))
+	resp.Header.Set("X-Response-Time", time.Since(start).String())
 
 	return resp, nil
 }
@@ -158,34 +164,40 @@ func (s *ServiceCore) MakeRequest(url string, apiKey string, headers map[string]
 // ReadBody reads and returns the response body
 func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	if resp == nil {
-		return nil, fmt.Errorf("nil response")
+		return nil, ErrNilResponse
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		log.Error().Err(err).Msg("Failed to read response body")
+		return nil, err
 	}
 
 	contentType := resp.Header.Get("Content-Type")
 	if resp.StatusCode != http.StatusOK {
+		var err error
 		switch resp.StatusCode {
 		case http.StatusBadGateway:
-			return nil, fmt.Errorf("service unavailable (502 bad gateway)")
+			err = errors.New("service unavailable (502 bad gateway)")
 		case http.StatusServiceUnavailable:
-			return nil, fmt.Errorf("service unavailable (503)")
+			err = errors.New("service unavailable (503)")
 		case http.StatusGatewayTimeout:
-			return nil, fmt.Errorf("service timeout (504)")
+			err = errors.New("service timeout (504)")
 		case http.StatusUnauthorized:
-			return nil, fmt.Errorf("unauthorized access (401)")
+			err = errors.New("unauthorized access (401)")
 		case http.StatusForbidden:
-			return nil, fmt.Errorf("access forbidden (403)")
+			err = errors.New("access forbidden (403)")
 		case http.StatusNotFound:
-			return nil, fmt.Errorf("endpoint not found (404)")
+			err = errors.New("endpoint not found (404)")
 		default:
 			if contentType != "application/json" {
-				return nil, fmt.Errorf("service error (status %d)", resp.StatusCode)
+				err = errors.New("service error")
 			}
+		}
+		if err != nil {
+			log.Error().Err(err).Int("status", resp.StatusCode).Str("content_type", contentType).Msg("Service error")
+			return nil, err
 		}
 	}
 
@@ -195,13 +207,15 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 // GetVersionFromCache retrieves the version from cache
 func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 	if err := s.initCache(); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
 		return ""
 	}
 
 	var version string
-	cacheKey := fmt.Sprintf("version:%s", baseURL)
+	cacheKey := "version:" + baseURL
 	err := s.cache.Get(context.Background(), cacheKey, &version)
 	if err != nil {
+		// Cache miss is normal operation, no need to log it
 		return ""
 	}
 
@@ -211,11 +225,17 @@ func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 // CacheVersion stores the version in cache with the specified TTL
 func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) error {
 	if err := s.initCache(); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
 		return err
 	}
 
-	cacheKey := fmt.Sprintf("version:%s", baseURL)
-	return s.cache.Set(context.Background(), cacheKey, version, ttl)
+	cacheKey := "version:" + baseURL
+	if err := s.cache.Set(context.Background(), cacheKey, version, ttl); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache version")
+		return err
+	}
+
+	return nil
 }
 
 // CreateHealthResponse creates a standardized health response
@@ -244,10 +264,11 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 // GetCachedVersion attempts to get version from cache or fetches it if not found
 func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
 	if err := s.initCache(); err != nil {
-		return "", fmt.Errorf("cache initialization failed: %v", err)
+		log.Error().Err(err).Str("url", baseURL).Msg("Cache initialization failed")
+		return "", err
 	}
 
-	cacheKey := fmt.Sprintf("version:%s", baseURL)
+	cacheKey := "version:" + baseURL
 	var version string
 
 	// Try to get version from cache
@@ -259,12 +280,14 @@ func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 	// If not in cache or error occurred, fetch it
 	version, err = fetchVersion(baseURL, apiKey)
 	if err != nil {
+		log.Error().Err(err).Str("url", baseURL).Msg("Failed to fetch version")
 		return "", err
 	}
 
 	// Cache the version for 1 hour
 	if err := s.cache.Set(ctx, cacheKey, version, time.Hour); err != nil {
-		return version, fmt.Errorf("failed to cache version: %v", err)
+		log.Warn().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache version")
+		return version, err
 	}
 
 	return version, nil
@@ -281,6 +304,8 @@ func (s *ServiceCore) ConcurrentRequest(requests []func() (interface{}, error)) 
 			defer wg.Done()
 			if result, err := req(); err == nil {
 				results[index] = result
+			} else {
+				log.Error().Err(err).Int("request_index", index).Msg("Concurrent request failed")
 			}
 		}(i, request)
 	}

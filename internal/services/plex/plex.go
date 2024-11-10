@@ -22,9 +22,17 @@ type PlexService struct {
 }
 
 func init() {
-	models.NewPlexService = func() models.ServiceHealthChecker {
-		return &PlexService{}
-	}
+	models.NewPlexService = NewPlexService
+}
+
+func NewPlexService() models.ServiceHealthChecker {
+	service := &PlexService{}
+	service.Type = "plex"
+	service.DisplayName = "Plex"
+	service.Description = "Monitor and manage your Plex Media Server"
+	service.DefaultURL = "http://localhost:32400"
+	service.HealthEndpoint = "/identity"
+	return service
 }
 
 func (s *PlexService) GetHealthEndpoint(baseURL string) string {

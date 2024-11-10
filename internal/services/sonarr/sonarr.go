@@ -87,10 +87,10 @@ func (s *SonarrService) makeRequest(ctx context.Context, method, url, apiKey str
 	req.Header.Set("Content-Type", "application/json")
 
 	// Log the request details
-	log.Debug().
-		Str("method", method).
-		Str("url", url).
-		Msg("Making request to Sonarr API")
+	//log.Debug().
+	//	Str("method", method).
+	//	Str("url", url).
+	//	Msg("Making request to Sonarr API")
 
 	client := &http.Client{}
 	return client.Do(req)
@@ -264,9 +264,9 @@ func (s *SonarrService) GetQueue(url, apiKey string) ([]types.QueueRecord, error
 	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=false",
 		strings.TrimRight(url, "/"))
 
-	log.Debug().
-		Str("url", queueURL).
-		Msg("Fetching queue")
+	//log.Debug().
+	//	Str("url", queueURL).
+	//	Msg("Fetching queue")
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
 	if err != nil {
@@ -529,8 +529,6 @@ func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, i
 			allWarnings = append(allWarnings, warning)
 		}
 	}
-
-	// Removed queue warning check since we handle them in the queue section
 
 	// If there are any warnings, return them all
 	if len(allWarnings) > 0 {

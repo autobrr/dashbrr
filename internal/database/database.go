@@ -180,7 +180,7 @@ func (db *DB) initSchema() error {
 		return err
 	}
 
-	log.Debug().Msg("Database schema initialized")
+	//log.Debug().Msg("Database schema initialized")
 	return nil
 }
 
@@ -339,6 +339,28 @@ func (db *DB) GetUserByID(id int64) (*types.User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+// UpdateUserPassword updates a user's password hash and updated_at timestamp
+func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
+	now := time.Now()
+	var placeholder string
+	if db.driver == "postgres" {
+		placeholder = "$1, $2, $3"
+	} else {
+		placeholder = "?, ?, ?"
+	}
+
+	_, err := db.Exec(`
+		UPDATE users 
+		SET password_hash = `+placeholder[0:2]+`, 
+		    updated_at = `+placeholder[4:5]+`
+		WHERE id = `+placeholder[7:8],
+		newPasswordHash,
+		now,
+		userID,
+	)
+	return err
 }
 
 // Service Management Functions
