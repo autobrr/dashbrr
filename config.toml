@@ -1,28 +1,6 @@
-# Server Configuration
 [server]
-listen_addr = "localhost:8080" # String: Server listen address
+listen_addr = ":8080"
 
-# Cache Configuration
-[cache]
-type = "memory" # String: Cache type (e.g., "redis", "memory")
-
-[cache.redis]
-host = "localhost" # String: Redis server hostname
-port = 6379        # Integer: Redis server port
-
-# Database Configuration
 [database]
-type = "sqlite"          # String: Database type
-path = "data/dashbrr.db" # String: Database file path (for file-based databases)
-host = ""                # String: Database server hostname
-port = 5432              # Integer: Database server port
-user = ""                # String: Database username
-password = ""            # String: Database password
-name = "dashbrr"         # String: Database name
-
-# Authentication Configuration
-[auth.oidc]
-issuer = ""        # String: OIDC issuer URL
-client_id = ""     # String: OIDC client ID
-client_secret = "" # String: OIDC client secret
-redirect_url = ""  # String: OIDC redirect URL
+type = "sqlite"
+path = "./data/dashbrr.db"
