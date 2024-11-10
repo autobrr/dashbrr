@@ -87,10 +87,10 @@ func (s *RadarrService) makeRequest(ctx context.Context, method, url, apiKey str
 	req.Header.Set("Content-Type", "application/json")
 
 	// Log the request details
-	log.Debug().
-		Str("method", method).
-		Str("url", url).
-		Msg("Making request to Radarr API")
+	//log.Debug().
+	//	Str("method", method).
+	//	Str("url", url).
+	//	Msg("Making request to Radarr API")
 
 	client := &http.Client{}
 	return client.Do(req)
@@ -186,9 +186,9 @@ func (s *RadarrService) GetQueue(url, apiKey string) ([]types.RadarrQueueRecord,
 	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownMovieItems=false&includeMovie=false",
 		strings.TrimRight(url, "/"))
 
-	log.Debug().
-		Str("url", queueURL).
-		Msg("Fetching queue")
+	//log.Debug().
+	//	Str("url", queueURL).
+	//	Msg("Fetching queue")
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
 	if err != nil {

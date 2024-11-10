@@ -23,6 +23,7 @@ func NewServiceCommand() *ServiceCommand {
 				"  Service Types:\n"+
 				"    autobrr    - Autobrr service management\n"+
 				"    omegabrr   - Omegabrr service management\n\n"+
+				"    radarr     - Radarr service management\n"+
 				"  Use 'dashbrr run help service <service-type>' for more information",
 		),
 	}
@@ -51,7 +52,7 @@ func (c *ServiceCommand) Execute(ctx context.Context, args []string) error {
 	}
 
 	// Reconstruct the full command name (e.g., "service autobrr add")
-	fullCmd := strings.Join(append([]string{"service", serviceType, args[1]}), " ")
+	fullCmd := strings.Join([]string{"service", serviceType, args[1]}, " ")
 
 	// Look up the command in the registry
 	cmd, exists := c.registry.Get(fullCmd)

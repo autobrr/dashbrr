@@ -12,6 +12,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/omegabrr"
+	"github.com/autobrr/dashbrr/internal/services/radarr"
 )
 
 type HealthCommand struct {
@@ -95,16 +96,20 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 		} else {
 			autobrrService := autobrr.NewAutobrrService()
 			omegabrrService := omegabrr.NewOmegabrrService()
+			radarrService := radarr.NewRadarrService()
 			// TODO: Add other services
 
 			for _, service := range services {
 				// Check all supported services
 				switch {
-				case strings.HasPrefix(service.InstanceID, "autobrr-"),
-					strings.HasPrefix(service.InstanceID, "omegabrr-"):
+				case strings.HasPrefix(service.InstanceID, "autobrr-"):
 					health, _ := autobrrService.CheckHealth(service.URL, service.APIKey)
-					health, _ = omegabrrService.CheckHealth(service.URL, service.APIKey)
-					// Consider service healthy if it responds to liveness check
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "omegabrr-"):
+					health, _ := omegabrrService.CheckHealth(service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "radarr-"):
+					health, _ := radarrService.CheckHealth(service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				}
 			}
@@ -119,17 +124,24 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 }
 
 func (c *HealthCommand) checkDatabase(status *HealthStatus) error {
+	// Get database configuration
+	dbConfig := database.NewConfig()
+	status.System.Database.Type = dbConfig.Driver
+
 	// Try to connect to the database
-	db, err := database.InitDB("./data/dashbrr.db")
+	var db *database.DB
+	var err error
+
+	// Connect using config regardless of driver type
+	db, err = database.InitDBWithConfig(dbConfig)
+
 	if err != nil {
 		status.System.Database.Connected = false
-		status.System.Database.Type = "sqlite3"
 		return err
 	}
 	defer db.Close()
 
 	status.System.Database.Connected = true
-	status.System.Database.Type = "sqlite3"
 	return nil
 }
 

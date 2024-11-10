@@ -10,6 +10,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands/health"
 	"github.com/autobrr/dashbrr/internal/commands/help"
 	"github.com/autobrr/dashbrr/internal/commands/omegabrr"
+	"github.com/autobrr/dashbrr/internal/commands/radarr"
 	"github.com/autobrr/dashbrr/internal/commands/service"
 	"github.com/autobrr/dashbrr/internal/commands/user"
 	"github.com/autobrr/dashbrr/internal/commands/version"
@@ -50,6 +51,11 @@ func ExecuteCommand(args []string) error {
 	registry.Register(omegabrr.NewAddCommand(db))
 	registry.Register(omegabrr.NewRemoveCommand(db))
 	registry.Register(omegabrr.NewListCommand(db))
+
+	// Register radarr commands
+	registry.Register(radarr.NewAddCommand(db))
+	registry.Register(radarr.NewRemoveCommand(db))
+	registry.Register(radarr.NewListCommand(db))
 
 	// Set registry on commands that need it
 	serviceCmd.SetRegistry(registry)
