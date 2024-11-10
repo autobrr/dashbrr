@@ -12,19 +12,18 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands/base"
 )
 
-const (
-	// Update these values during build
-	Version    = "dev"
-	CommitHash = "unknown"
-	BuildTime  = "unknown"
+var (
+	version = "dev"
+	commit  = ""
+	date    = ""
 
 	githubAPIURL = "https://api.github.com/repos/autobrr/dashbrr/releases/latest"
 )
 
 type VersionInfo struct {
-	Version    string `json:"version"`
-	CommitHash string `json:"commit_hash"`
-	BuildTime  string `json:"build_time"`
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
 }
 
 type GitHubRelease struct {
@@ -63,9 +62,9 @@ func (c *VersionCommand) Execute(ctx context.Context, args []string) error {
 
 	// Get current version info
 	current := VersionInfo{
-		Version:    Version,
-		CommitHash: CommitHash,
-		BuildTime:  BuildTime,
+		Version: version,
+		Commit:  commit,
+		Date:    date,
 	}
 
 	if c.jsonOutput {
@@ -74,8 +73,8 @@ func (c *VersionCommand) Execute(ctx context.Context, args []string) error {
 
 	// Print current version
 	fmt.Printf("dashbrr version %s\n", current.Version)
-	fmt.Printf("Commit: %s\n", current.CommitHash)
-	fmt.Printf("Built: %s\n", current.BuildTime)
+	fmt.Printf("Commit: %s\n", current.Commit)
+	fmt.Printf("Built: %s\n", current.Date)
 
 	// Check GitHub if requested
 	if c.checkGithub {
@@ -105,7 +104,7 @@ func (c *VersionCommand) getLatestRelease(ctx context.Context) (*GitHubRelease, 
 	}
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "dashbrr/"+Version)
+	req.Header.Set("User-Agent", "dashbrr/"+version)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

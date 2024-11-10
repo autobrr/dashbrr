@@ -25,6 +25,9 @@ func NewServiceCommand() *ServiceCommand {
 				"    omegabrr   - Omegabrr service management\n\n"+
 				"    radarr     - Radarr service management\n"+
 				"    sonarr     - Sonarr service management\n"+
+				"    prowlarr   - Prowlarr service management\n"+
+				"    plex       - Plex service management\n"+
+				"    overseerr  - Overseerr service management\n"+
 				"  Use 'dashbrr run help service <service-type>' for more information",
 		),
 	}
