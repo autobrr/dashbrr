@@ -28,9 +28,9 @@ import (
 )
 
 var (
-	Version = "dev"
-	Commit  = "none"
-	Date    = "unknown"
+	version = "dev"
+	commit  = ""
+	date    = ""
 )
 
 func init() {
@@ -51,9 +51,9 @@ func main() {
 
 func startServer() {
 	log.Info().
-		Str("version", Version).
-		Str("commit", Commit).
-		Str("build_date", Date).
+		Str("version", version).
+		Str("commit", commit).
+		Str("build_date", date).
 		Msg("Starting dashbrr")
 
 	configPath := flag.String("config", "config.toml", "path to config file")

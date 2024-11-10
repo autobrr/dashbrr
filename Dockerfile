@@ -31,7 +31,7 @@ COPY . ./
 # Copy the built web assets to the web/dist directory for embedding
 COPY --from=web-builder /app/web/dist ./web/dist
 
-# Build with embedded assets
+# Build with embedded assets and dynamic build info
 RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o /app/dashbrr cmd/dashbrr/main.go
 
 # build runner

@@ -180,7 +180,7 @@ func (db *DB) initSchema() error {
 		return err
 	}
 
-	log.Debug().Msg("Database schema initialized")
+	//log.Debug().Msg("Database schema initialized")
 	return nil
 }
 

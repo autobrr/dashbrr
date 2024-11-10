@@ -94,7 +94,7 @@ func getCacheType() CacheType {
 func InitCache() (Store, error) {
 	cacheType := getCacheType()
 
-	log.Debug().Str("type", string(cacheType)).Msg("Initializing cache")
+	//log.Debug().Str("type", string(cacheType)).Msg("Initializing cache")
 
 	switch cacheType {
 	case CacheTypeRedis:
@@ -137,7 +137,7 @@ func InitCache() (Store, error) {
 		return store, nil
 
 	case CacheTypeMemory:
-		log.Debug().Msg("Initializing memory cache")
+		//log.Debug().Msg("Initializing memory cache")
 		return NewMemoryStore(), nil
 
 	default:
