@@ -215,7 +215,7 @@ func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 	cacheKey := "version:" + baseURL
 	err := s.cache.Get(context.Background(), cacheKey, &version)
 	if err != nil {
-		log.Debug().Err(err).Str("url", baseURL).Msg("Version not found in cache")
+		// Cache miss is normal operation, no need to log it
 		return ""
 	}
 
