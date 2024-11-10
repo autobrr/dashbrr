@@ -29,6 +29,16 @@ func init() {
 	}
 }
 
+func NewOmegabrrService() models.ServiceHealthChecker {
+	service := &OmegabrrService{}
+	service.Type = "omegabrr"
+	service.DisplayName = "Omegabrr"
+	service.Description = "Monitor and manage your Omegabrr instance"
+	service.DefaultURL = "http://localhost:7474"
+	service.HealthEndpoint = "/api/healthz/liveness"
+	return service
+}
+
 func (s *OmegabrrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/api/healthz/liveness", baseURL)

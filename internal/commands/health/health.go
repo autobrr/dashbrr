@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services/autobrr"
+	"github.com/autobrr/dashbrr/internal/services/omegabrr"
 )
 
 type HealthCommand struct {
@@ -16,6 +19,7 @@ type HealthCommand struct {
 	checkServices bool
 	checkSystem   bool
 	jsonOutput    bool
+	db            *database.DB
 }
 
 type HealthStatus struct {
@@ -34,13 +38,14 @@ type HealthStatus struct {
 	Services map[string]bool `json:"services,omitempty"`
 }
 
-func NewHealthCommand() *HealthCommand {
+func NewHealthCommand(db *database.DB) *HealthCommand {
 	return &HealthCommand{
 		BaseCommand: base.NewBaseCommand(
 			"health",
 			"Check system and service health",
 			"[--services] [--system] [--json]",
 		),
+		db: db,
 	}
 }
 
@@ -82,12 +87,28 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 
 	// Service health checks
 	if c.checkServices {
-		// TODO: Implement service health checks
-		// This will be expanded when we add more service-specific checks
-		status.Services["autobrr"] = false
-		status.Services["plex"] = false
-		status.Services["radarr"] = false
-		status.Services["sonarr"] = false
+		// Get all configured services
+		services, err := c.db.GetAllServices()
+		if err != nil {
+			// Log error but continue with empty services map
+			fmt.Printf("Failed to retrieve services: %v\n", err)
+		} else {
+			autobrrService := autobrr.NewAutobrrService()
+			omegabrrService := omegabrr.NewOmegabrrService()
+			// TODO: Add other services
+
+			for _, service := range services {
+				// Check all supported services
+				switch {
+				case strings.HasPrefix(service.InstanceID, "autobrr-"),
+					strings.HasPrefix(service.InstanceID, "omegabrr-"):
+					health, _ := autobrrService.CheckHealth(service.URL, service.APIKey)
+					health, _ = omegabrrService.CheckHealth(service.URL, service.APIKey)
+					// Consider service healthy if it responds to liveness check
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				}
+			}
+		}
 	}
 
 	if c.jsonOutput {

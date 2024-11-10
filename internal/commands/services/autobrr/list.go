@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 )
 
 type ListCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 }
 
 func NewListCommand() *ListCommand {
 	return &ListCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"autobrr list",
 			"List configured Autobrr services",
 			"",

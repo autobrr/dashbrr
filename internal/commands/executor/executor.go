@@ -36,7 +36,7 @@ func ExecuteCommand(args []string) error {
 
 	// Register top-level commands
 	registry.Register(version.NewVersionCommand())
-	registry.Register(health.NewHealthCommand())
+	registry.Register(health.NewHealthCommand(db)) // Pass db to health command
 	registry.Register(helpCmd)
 	registry.Register(user.NewUserCommand(db))
 	registry.Register(serviceCmd)

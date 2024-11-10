@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 )
 
 type AddCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 }
 
 func NewAddCommand() *AddCommand {
 	return &AddCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"autobrr add",
 			"Add an Autobrr service configuration",
 			"<url> <api-key>",
