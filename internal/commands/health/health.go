@@ -12,6 +12,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/omegabrr"
+	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 )
@@ -99,6 +100,7 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 			omegabrrService := omegabrr.NewOmegabrrService()
 			radarrService := radarr.NewRadarrService()
 			sonarrService := sonarr.NewSonarrService()
+			prowlarrService := prowlarr.NewProwlarrService()
 			// TODO: Add other services
 
 			for _, service := range services {
@@ -115,6 +117,9 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "sonarr-"):
 					health, _ := sonarrService.CheckHealth(service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "prowlarr-"):
+					health, _ := prowlarrService.CheckHealth(service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				}
 			}

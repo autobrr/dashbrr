@@ -24,7 +24,9 @@ func NewHelpCommand(registry *base.Registry) *HelpCommand {
 				"  dashbrr run help service\n"+
 				"  dashbrr run help service autobrr\n"+
 				"  dashbrr run help service omegabrr\n"+
-				"  dashbrr run help service radarr\n",
+				"  dashbrr run help service radarr\n"+
+				"  dashbrr run help service sonarr\n"+
+				"  dashbrr run help service prowlarr\n",
 		),
 		registry: registry,
 	}

@@ -117,6 +117,8 @@ func (r *Registry) listServiceCommands() string {
 	b.WriteString("  autobrr    - Autobrr service management\n")
 	b.WriteString("  omegabrr   - Omegabrr service management\n")
 	b.WriteString("  radarr     - Radarr service management\n")
+	b.WriteString("  sonarr     - Sonarr service management\n")
+	b.WriteString("  prowlarr   - Prowlarr service management\n")
 	b.WriteString("\nUse 'dashbrr run help service <service-type>' for more information about a service type.")
 	return b.String()
 }
