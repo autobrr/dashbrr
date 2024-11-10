@@ -7,6 +7,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/commands/autobrr"
 	"github.com/autobrr/dashbrr/internal/commands/base"
+	"github.com/autobrr/dashbrr/internal/commands/general"
 	"github.com/autobrr/dashbrr/internal/commands/health"
 	"github.com/autobrr/dashbrr/internal/commands/help"
 	"github.com/autobrr/dashbrr/internal/commands/maintainerr"
@@ -17,6 +18,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands/radarr"
 	"github.com/autobrr/dashbrr/internal/commands/service"
 	"github.com/autobrr/dashbrr/internal/commands/sonarr"
+	"github.com/autobrr/dashbrr/internal/commands/tailscale"
 	"github.com/autobrr/dashbrr/internal/commands/user"
 	"github.com/autobrr/dashbrr/internal/commands/version"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -81,6 +83,8 @@ func registerCommands(registry *base.Registry, db *database.DB) error {
 		plex.NewAddCommand(db), plex.NewRemoveCommand(db), plex.NewListCommand(db),
 		overseerr.NewAddCommand(db), overseerr.NewRemoveCommand(db), overseerr.NewListCommand(db),
 		maintainerr.NewAddCommand(db), maintainerr.NewRemoveCommand(db), maintainerr.NewListCommand(db),
+		tailscale.NewAddCommand(db), tailscale.NewRemoveCommand(db), tailscale.NewListCommand(db),
+		general.NewAddCommand(db), general.NewRemoveCommand(db), general.NewListCommand(db),
 	}
 
 	// Register all commands

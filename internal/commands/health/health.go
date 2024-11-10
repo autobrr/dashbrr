@@ -11,6 +11,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
+	"github.com/autobrr/dashbrr/internal/services/general"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/omegabrr"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
@@ -18,6 +19,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
+	"github.com/autobrr/dashbrr/internal/services/tailscale"
 )
 
 type HealthCommand struct {
@@ -107,6 +109,8 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 			plexService := plex.NewPlexService()
 			overseerrService := overseerr.NewOverseerrService()
 			maintainerrService := maintainerr.NewMaintainerrService()
+			tailscaleService := tailscale.NewTailscaleService()
+			generalService := general.NewGeneralService()
 			// TODO: Add other services
 
 			for _, service := range services {
@@ -135,6 +139,12 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "maintainerr-"):
 					health, _ := maintainerrService.CheckHealth(service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "tailscale-"):
+					health, _ := tailscaleService.CheckHealth(service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "general-"):
+					health, _ := generalService.CheckHealth(service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				}
 			}

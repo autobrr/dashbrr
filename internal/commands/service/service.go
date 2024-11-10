@@ -29,6 +29,8 @@ func NewServiceCommand() *ServiceCommand {
 				"    prowlarr   - Prowlarr service management\n"+
 				"    radarr     - Radarr service management\n"+
 				"    sonarr     - Sonarr service management\n"+
+				"    tailscale  - Tailscale service management\n"+
+				"    general    - General service management\n"+
 				"  Use 'dashbrr run help service <service-type>' for more information",
 		),
 	}
