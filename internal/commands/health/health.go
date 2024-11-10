@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 )
 
 type HealthCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	checkServices bool
 	checkSystem   bool
 	jsonOutput    bool
@@ -36,7 +36,7 @@ type HealthStatus struct {
 
 func NewHealthCommand() *HealthCommand {
 	return &HealthCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"health",
 			"Check system and service health",
 			"[--services] [--system] [--json]",

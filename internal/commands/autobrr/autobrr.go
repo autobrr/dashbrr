@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
@@ -15,13 +15,13 @@ import (
 
 // AddCommand handles adding a new Autobrr service
 type AddCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	db *database.DB
 }
 
 func NewAddCommand(db *database.DB) *AddCommand {
 	return &AddCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"service autobrr add",
 			"Add an Autobrr service configuration",
 			"<url> <api-key>\n\n"+
@@ -119,13 +119,13 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 
 // RemoveCommand handles removing an Autobrr service
 type RemoveCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	db *database.DB
 }
 
 func NewRemoveCommand(db *database.DB) *RemoveCommand {
 	return &RemoveCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"service autobrr remove",
 			"Remove an Autobrr service configuration",
 			"<url>\n\n"+
@@ -166,13 +166,13 @@ func (c *RemoveCommand) Execute(ctx context.Context, args []string) error {
 
 // ListCommand handles listing Autobrr services
 type ListCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	db *database.DB
 }
 
 func NewListCommand(db *database.DB) *ListCommand {
 	return &ListCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"service autobrr list",
 			"List configured Autobrr services",
 			"",

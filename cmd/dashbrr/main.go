@@ -19,14 +19,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/routes"
-	"github.com/autobrr/dashbrr/internal/commands"
-	"github.com/autobrr/dashbrr/internal/commands/autobrr"
-	"github.com/autobrr/dashbrr/internal/commands/health"
-	"github.com/autobrr/dashbrr/internal/commands/help"
-	"github.com/autobrr/dashbrr/internal/commands/omegabrr"
-	"github.com/autobrr/dashbrr/internal/commands/service"
-	"github.com/autobrr/dashbrr/internal/commands/user"
-	"github.com/autobrr/dashbrr/internal/commands/version"
+	"github.com/autobrr/dashbrr/internal/commands/executor"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
@@ -46,7 +39,7 @@ func init() {
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "run" {
-		if err := executeCommand(); err != nil {
+		if err := executor.ExecuteCommand(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -54,51 +47,6 @@ func main() {
 	}
 
 	startServer()
-}
-
-func executeCommand() error {
-	if len(os.Args) < 3 {
-		return fmt.Errorf("no command specified\n\nRun 'dashbrr run help' for usage")
-	}
-
-	// Initialize database for user commands
-	dbPath := "./data/dashbrr.db"
-	db, err := database.InitDB(dbPath)
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %v", err)
-	}
-	defer db.Close()
-
-	registry := commands.NewRegistry()
-	helpCmd := help.NewHelpCommand(registry)
-	serviceCmd := service.NewServiceCommand()
-
-	// Register top-level commands
-	registry.Register(version.NewVersionCommand())
-	registry.Register(health.NewHealthCommand())
-	registry.Register(helpCmd)
-	registry.Register(user.NewUserCommand(db))
-	registry.Register(serviceCmd)
-
-	// Register service-specific commands
-	registry.Register(autobrr.NewAddCommand(db))
-	registry.Register(autobrr.NewRemoveCommand(db))
-	registry.Register(autobrr.NewListCommand(db))
-
-	// Register omegabrr commands
-	registry.Register(omegabrr.NewAddCommand(db))
-	registry.Register(omegabrr.NewRemoveCommand(db))
-	registry.Register(omegabrr.NewListCommand(db))
-
-	// Set registry on commands that need it
-	serviceCmd.SetRegistry(registry)
-
-	// Extract command name and arguments
-	args := os.Args[2:]
-	cmdName := strings.Join(args[:len(args)-len(args[1:])], " ")
-	cmdArgs := args[1:]
-
-	return registry.Execute(context.Background(), cmdName, cmdArgs)
 }
 
 func startServer() {

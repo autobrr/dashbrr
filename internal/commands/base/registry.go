@@ -1,4 +1,4 @@
-package commands
+package base
 
 import (
 	"context"

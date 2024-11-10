@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 )
 
 const (
@@ -35,14 +35,14 @@ type GitHubRelease struct {
 }
 
 type VersionCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	checkGithub bool
 	jsonOutput  bool
 }
 
 func NewVersionCommand() *VersionCommand {
 	return &VersionCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"version",
 			"Display version information",
 			"[--check-github] [--json]",

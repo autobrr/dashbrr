@@ -2,46 +2,39 @@ package help
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 )
 
+// HelpCommand provides help information for commands
 type HelpCommand struct {
-	commands.BaseCommand
-	registry *commands.Registry
+	*base.BaseCommand
+	registry *base.Registry
 }
 
-func NewHelpCommand(registry *commands.Registry) *HelpCommand {
+func NewHelpCommand(registry *base.Registry) *HelpCommand {
 	return &HelpCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"help",
-			"Show help about available commands",
+			"Show help information for commands",
 			"[command]\n\n"+
-				"Examples:\n"+
-				"  dashbrr run help                  Show available commands\n"+
-				"  dashbrr run help service          Show available service types\n"+
-				"  dashbrr run help service autobrr  Show autobrr service commands",
+				"Example:\n"+
+				"  dashbrr run help\n"+
+				"  dashbrr run help service\n"+
+				"  dashbrr run help service autobrr",
 		),
 		registry: registry,
 	}
 }
 
 func (c *HelpCommand) Execute(ctx context.Context, args []string) error {
-	if len(args) == 0 {
-		fmt.Println(c.registry.ListCommands())
-		return nil
+	var cmdName string
+	if len(args) > 0 {
+		cmdName = strings.Join(args, " ")
 	}
 
-	// Join all arguments to handle multi-part commands (e.g., "service autobrr")
-	cmdName := strings.Join(args, " ")
-	fmt.Println(c.registry.Help(cmdName))
+	// Print help information
+	println(c.registry.Help(cmdName))
 	return nil
-}
-
-// SetRegistry allows setting the registry after command creation
-// This is useful when the help command needs to be registered in the registry itself
-func (c *HelpCommand) SetRegistry(registry *commands.Registry) {
-	c.registry = registry
 }

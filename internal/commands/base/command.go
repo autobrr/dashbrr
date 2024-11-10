@@ -1,4 +1,4 @@
-package commands
+package base
 
 import (
 	"context"
@@ -40,8 +40,8 @@ func (c *BaseCommand) Usage() string {
 }
 
 // NewBaseCommand creates a new base command
-func NewBaseCommand(name, description, usage string) BaseCommand {
-	return BaseCommand{
+func NewBaseCommand(name, description, usage string) *BaseCommand {
+	return &BaseCommand{
 		name:        name,
 		description: description,
 		usage:       usage,

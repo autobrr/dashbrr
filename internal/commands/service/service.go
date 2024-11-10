@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 )
 
 // ServiceCommand is the top-level command for managing services
 type ServiceCommand struct {
-	commands.BaseCommand
-	registry *commands.Registry
+	*base.BaseCommand
+	registry *base.Registry
 }
 
 func NewServiceCommand() *ServiceCommand {
 	return &ServiceCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"service",
 			"Manage service configurations",
 			"<service-type> <action> [arguments]\n\n"+
@@ -29,7 +29,7 @@ func NewServiceCommand() *ServiceCommand {
 }
 
 // SetRegistry allows setting the registry after command creation
-func (c *ServiceCommand) SetRegistry(registry *commands.Registry) {
+func (c *ServiceCommand) SetRegistry(registry *base.Registry) {
 	c.registry = registry
 }
 

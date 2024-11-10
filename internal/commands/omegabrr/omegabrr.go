@@ -7,20 +7,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 )
 
 // AddCommand handles adding a new Omegabrr service
 type AddCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	db *database.DB
 }
 
 func NewAddCommand(db *database.DB) *AddCommand {
 	return &AddCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"service omegabrr add",
 			"Add an Omegabrr service configuration",
 			"<url> <api-key>\n\n"+
@@ -118,13 +118,13 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 
 // RemoveCommand handles removing an Omegabrr service
 type RemoveCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	db *database.DB
 }
 
 func NewRemoveCommand(db *database.DB) *RemoveCommand {
 	return &RemoveCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"service omegabrr remove",
 			"Remove an Omegabrr service configuration",
 			"<url>\n\n"+
@@ -165,13 +165,13 @@ func (c *RemoveCommand) Execute(ctx context.Context, args []string) error {
 
 // ListCommand handles listing Omegabrr services
 type ListCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	db *database.DB
 }
 
 func NewListCommand(db *database.DB) *ListCommand {
 	return &ListCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"service omegabrr list",
 			"List configured Omegabrr services",
 			"",

@@ -10,19 +10,19 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/autobrr/dashbrr/internal/commands"
+	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type UserCommand struct {
-	commands.BaseCommand
+	*base.BaseCommand
 	db *database.DB
 }
 
 func NewUserCommand(db *database.DB) *UserCommand {
 	return &UserCommand{
-		BaseCommand: commands.NewBaseCommand(
+		BaseCommand: base.NewBaseCommand(
 			"user",
 			"Manage users in the system",
 			"<subcommand> [arguments]\n\n  Subcommands:\n    create <username> <password>\n    change-password <username> <new_password>",
