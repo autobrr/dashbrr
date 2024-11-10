@@ -28,6 +28,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 - [Configuration](#configuration)
   - [Configuration File](#configuration-file)
   - [Environment Variables](#environment-variables)
+  - [Command Line Interface](#command-line-interface)
   - [Authentication](#authentication)
 - [Tech Stack](#tech-stack)
 - [Screenshots](#screenshots)
@@ -44,6 +45,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 - Docker support
 - Multiple database support (SQLite & PostgreSQL)
 - Flexible caching system (In-memory or Redis)
+- Comprehensive CLI for service management and system operations
 
 ## Supported Services
 
@@ -157,6 +159,17 @@ Key configuration options include:
 - Cache configuration (Memory/Redis)
 - Database settings (SQLite/PostgreSQL)
 - Authentication (Built-in/OIDC)
+
+### Command Line Interface
+
+Dashbrr provides a CLI for managing services, user, and system operations. For detailed information about available commands and their usage, see our [Command Line Interface Documentation](docs/commands.md).
+
+Key features include:
+
+- Service management (add, remove, list)
+- User management
+- Health checks
+- Version information
 
 ### Authentication
 
