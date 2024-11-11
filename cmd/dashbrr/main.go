@@ -57,7 +57,35 @@ func startServer() {
 		Str("build_date", date).
 		Msg("Starting dashbrr")
 
-	configPath := flag.String("config", "config.toml", "path to config file")
+	// Check environment variable first, then fall back to flag
+	defaultConfigPath := "config.toml"
+	if envPath := os.Getenv(config.EnvConfigPath); envPath != "" {
+		defaultConfigPath = envPath
+	} else {
+		// Check user config directory
+		userConfigDir, err := os.UserConfigDir()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get user config directory")
+		}
+
+		base := []string{filepath.Join(userConfigDir, "dashbrr"), "/config"}
+		configs := []string{"config.toml", "config.yaml", "config.yml"}
+
+		for _, b := range base {
+			for _, c := range configs {
+				p := filepath.Join(b, c)
+				if _, err := os.Stat(p); err == nil {
+					defaultConfigPath = p
+					break
+				}
+			}
+			if defaultConfigPath != "config.toml" {
+				break
+			}
+		}
+	}
+	configPath := flag.String("config", defaultConfigPath, "path to config file")
+
 	var dbPath string
 	flag.StringVar(&dbPath, "db", "", "path to database file")
 	listenAddr := flag.String("listen", ":8080", "address to listen on")

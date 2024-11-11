@@ -7,6 +7,18 @@
   - Format: `<host>:<port>`
   - Default: `0.0.0.0:8080`
 
+## Configuration Path
+
+- `DASHBRR__CONFIG_PATH`
+  - Purpose: Path to the configuration file
+  - Default: `config.toml`
+  - Priority: Environment variable > User config directory > Command line flag > Default value
+  - Note: The application will check the following locations for the configuration file:
+    1. The path specified by the `DASHBRR__CONFIG_PATH` environment variable.
+    2. The user config directory (e.g., `~/.config/dashbrr`).
+    3. The current working directory for `config.toml`, `config.yaml`, or `config.yml`.
+    4. The `-config` command line flag can also be used to specify a different path.
+
 ## Cache Configuration
 
 - `CACHE_TYPE`

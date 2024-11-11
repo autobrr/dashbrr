@@ -11,6 +11,10 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+const (
+	EnvConfigPath = "DASHBRR__CONFIG_PATH"
+)
+
 // Config represents the main configuration structure
 type Config struct {
 	Server   ServerConfig   `toml:"server"`
