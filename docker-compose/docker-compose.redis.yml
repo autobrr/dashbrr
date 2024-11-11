@@ -1,9 +1,7 @@
 services:
   dashbrr:
     container_name: dashbrr
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/autobrr/dashbrr:latest
     ports:
       - "8080:8080"
     environment:

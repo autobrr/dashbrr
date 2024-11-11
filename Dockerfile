@@ -39,9 +39,6 @@ FROM alpine:3.20
 
 LABEL org.opencontainers.image.source="https://github.com/autobrr/dashbrr"
 
-# Install Docker client
-RUN apk add --no-cache docker-cli
-
 ENV HOME="/config" \
     XDG_CONFIG_HOME="/config" \
     XDG_DATA_HOME="/config"
@@ -53,11 +50,8 @@ COPY --from=app-builder /app/dashbrr /usr/local/bin/dashbrr
 
 EXPOSE 8080
 
-# Create dashbrr user and add to docker group
 RUN addgroup -S dashbrr && \
-    adduser -S dashbrr -G dashbrr && \
-    addgroup -S docker && \
-    adduser dashbrr docker
+    adduser -S dashbrr -G dashbrr
 
 USER dashbrr
 

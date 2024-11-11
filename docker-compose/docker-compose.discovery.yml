@@ -1,14 +1,16 @@
 services:
   dashbrr:
     container_name: dashbrr
-    build:
-      context: .
-      dockerfile: Dockerfile.discovery
+    image: ghcr.io/autobrr/dashbrr:latest
     ports:
       - "8080:8080"
     environment:
       # Using memory cache by default
       - CACHE_TYPE=memory
+      # Database configuration - uncomment desired database type
+      # SQLite configuration
+      #- DASHBRR__DB_TYPE=sqlite
+      #- DASHBRR__DB_PATH=/data/dashbrr.db
       # PostgreSQL configuration
       - DASHBRR__DB_TYPE=postgres
       - DASHBRR__DB_HOST=postgres
@@ -21,7 +23,6 @@ services:
       - DASHBRR_RADARR_API_KEY=${DASHBRR_RADARR_API_KEY}
     volumes:
       - ./data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
         condition: service_healthy

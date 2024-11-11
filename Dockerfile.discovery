@@ -40,9 +40,6 @@ FROM alpine:3.20
 LABEL org.opencontainers.image.source="https://github.com/autobrr/dashbrr"
 LABEL org.opencontainers.image.description="Testing image for dashbrr service discovery"
 
-# Install Docker client
-RUN apk add --no-cache docker-cli
-
 ENV HOME="/config" \
     XDG_CONFIG_HOME="/config" \
     XDG_DATA_HOME="/config"
@@ -53,8 +50,5 @@ VOLUME /config
 COPY --from=app-builder /app/dashbrr /usr/local/bin/dashbrr
 
 EXPOSE 8080
-
-# Run as root for Docker socket access
-USER root
 
 ENTRYPOINT ["dashbrr"]
