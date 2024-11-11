@@ -6,7 +6,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"os"
+	"errors"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	ErrKeyNotFound = redis.Nil
+	ErrKeyNotFound = errors.New("cache: key not found")
+	ErrClosed      = errors.New("cache: store is closed")
 )
 
 const (
@@ -62,11 +63,6 @@ type localCacheItem struct {
 
 // NewCache creates a new Redis cache instance with optimized configuration
 func NewCache(addr string) (Store, error) {
-	// Check if memory cache is explicitly requested
-	if os.Getenv("CACHE_TYPE") == "memory" {
-		return NewMemoryStore(), nil
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Development-optimized Redis configuration
@@ -134,7 +130,7 @@ func (s *RedisStore) Get(ctx context.Context, key string, value interface{}) err
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return redis.ErrClosed
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -186,6 +182,9 @@ func (s *RedisStore) Get(ctx context.Context, key string, value interface{}) err
 		}
 	}
 
+	if lastErr == redis.Nil {
+		return ErrKeyNotFound
+	}
 	return lastErr
 }
 
@@ -194,7 +193,7 @@ func (s *RedisStore) Set(ctx context.Context, key string, value interface{}, exp
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return redis.ErrClosed
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -294,7 +293,7 @@ func (s *RedisStore) Delete(ctx context.Context, key string) error {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return redis.ErrClosed
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -332,7 +331,7 @@ func (s *RedisStore) Increment(ctx context.Context, key string, timestamp int64)
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return redis.ErrClosed
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -367,7 +366,7 @@ func (s *RedisStore) CleanAndCount(ctx context.Context, key string, windowStart 
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return redis.ErrClosed
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -399,7 +398,7 @@ func (s *RedisStore) GetCount(ctx context.Context, key string) (int64, error) {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return 0, redis.ErrClosed
+		return 0, ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -430,7 +429,7 @@ func (s *RedisStore) Expire(ctx context.Context, key string, expiration time.Dur
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return redis.ErrClosed
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -466,7 +465,7 @@ func (s *RedisStore) Close() error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return redis.ErrClosed
+		return ErrClosed
 	}
 	s.closed = true
 	s.mu.Unlock()
@@ -484,6 +483,6 @@ func (s *RedisStore) Close() error {
 		s.local.items = make(map[string]*localCacheItem)
 	}()
 
-	// Close Redis client
+	// Close client
 	return s.client.Close()
 }

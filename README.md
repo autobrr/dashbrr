@@ -156,6 +156,17 @@ type = "sqlite"
 path = "./data/dashbrr.db"
 ```
 
+By default, the database file will be created in the same directory as your configuration file. For example:
+
+- If your config is at `/home/user/.config/dashbrr/config.toml`, the database will be at `/home/user/.config/dashbrr/data/dashbrr.db`
+- If your config is at `/etc/dashbrr/config.toml`, the database will be at `/etc/dashbrr/data/dashbrr.db`
+
+You can override this behavior by using the `-db` flag to specify a different database location:
+
+```bash
+dashbrr -config=/etc/dashbrr/config.toml -db=/var/lib/dashbrr/dashbrr.db
+```
+
 ### Environment Variables
 
 For a complete list of available environment variables and their configurations, see our [Environment Variables Documentation](docs/env_vars.md).

@@ -22,6 +22,7 @@ import (
 type DB struct {
 	*sql.DB
 	driver string
+	path   string
 }
 
 // Config holds database configuration
@@ -134,7 +135,11 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 		Str("driver", config.Driver).
 		Msg("Successfully connected to database")
 
-	db := &DB{database, config.Driver}
+	db := &DB{
+		DB:     database,
+		driver: config.Driver,
+		path:   config.Path,
+	}
 
 	// Initialize schema
 	if err := db.initSchema(); err != nil {
@@ -142,6 +147,11 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 	}
 
 	return db, nil
+}
+
+// Path returns the database file path (for SQLite)
+func (db *DB) Path() string {
+	return db.path
 }
 
 // initSchema creates the necessary database tables

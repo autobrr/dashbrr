@@ -2,6 +2,41 @@
 
 This document outlines all available CLI commands in Dashbrr.
 
+## Startup Flags
+
+When starting Dashbrr, you can use the following flags to control its configuration:
+
+```bash
+# Start Dashbrr with default settings
+dashbrr
+
+# Specify a custom config file location
+dashbrr -config=/path/to/config.toml
+
+# Specify a custom database location
+dashbrr -db=/path/to/database.db
+
+# Specify a custom listen address
+dashbrr -listen=:8081
+```
+
+By default:
+
+- The config file is loaded from `./config.toml`
+- The database file is created in the same directory as the config file at `<config_dir>/data/dashbrr.db`
+- The server listens on port 8080
+
+For example:
+
+```bash
+# Using config in /etc/dashbrr
+dashbrr -config=/etc/dashbrr/config.toml
+# Database will be created at /etc/dashbrr/data/dashbrr.db
+
+# Override default database location
+dashbrr -config=/etc/dashbrr/config.toml -db=/var/lib/dashbrr/dashbrr.db
+```
+
 ## Core Commands
 
 ### User Management

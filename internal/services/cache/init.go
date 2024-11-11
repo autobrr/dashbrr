@@ -5,7 +5,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -13,6 +12,15 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 )
+
+// Config holds cache configuration options
+type Config struct {
+	// Redis configuration
+	RedisAddr string
+
+	// Memory cache configuration
+	DataDir string // Directory for persistent storage (derived from DB path)
+}
 
 // CacheType represents the type of cache to use
 type CacheType string
@@ -23,19 +31,8 @@ const (
 )
 
 // getRedisOptions returns Redis configuration optimized for the current environment
-func getRedisOptions() *redis.Options {
+func getRedisOptions(addr string) *redis.Options {
 	isDev := os.Getenv("GIN_MODE") != "release"
-
-	// Get Redis connection details from environment
-	host := os.Getenv("REDIS_HOST")
-	if host == "" {
-		host = "localhost"
-	}
-	port := os.Getenv("REDIS_PORT")
-	if port == "" {
-		port = "6379"
-	}
-	addr := fmt.Sprintf("%s:%s", host, port)
 
 	// Base configuration
 	opts := &redis.Options{
@@ -89,21 +86,21 @@ func getCacheType() CacheType {
 	}
 }
 
-// InitCache initializes a cache instance based on environment configuration.
+// InitCache initializes a cache instance based on configuration.
 // It always returns a valid cache store, falling back to memory cache if Redis fails.
-func InitCache() (Store, error) {
+func InitCache(cfg Config) (Store, error) {
 	cacheType := getCacheType()
 
 	switch cacheType {
 	case CacheTypeRedis:
-		// Only attempt Redis connection if Redis is explicitly configured
-		if os.Getenv("REDIS_HOST") == "" {
-			// Silently fall back to memory cache when Redis host isn't configured
-			return NewMemoryStore(), nil
+		// Only attempt Redis connection if Redis address is configured
+		if cfg.RedisAddr == "" {
+			// Silently fall back to memory cache when Redis isn't configured
+			return NewMemoryStore(cfg.DataDir), nil
 		}
 
 		isDev := os.Getenv("GIN_MODE") != "release"
-		opts := getRedisOptions()
+		opts := getRedisOptions(cfg.RedisAddr)
 
 		// Create context with shorter timeout for development
 		timeout := DefaultTimeout
@@ -125,7 +122,7 @@ func InitCache() (Store, error) {
 				// Only log error if Redis was explicitly requested
 				log.Error().Err(err).Str("addr", opts.Addr).Msg("Failed to connect to explicitly configured Redis, falling back to memory cache")
 			}
-			return NewMemoryStore(), err
+			return NewMemoryStore(cfg.DataDir), err
 		}
 
 		// Initialize Redis cache store
@@ -135,15 +132,15 @@ func InitCache() (Store, error) {
 				// Only log error if Redis was explicitly requested
 				log.Error().Err(err).Msg("Failed to initialize explicitly configured Redis cache, falling back to memory cache")
 			}
-			return NewMemoryStore(), err
+			return NewMemoryStore(cfg.DataDir), err
 		}
 		return store, nil
 
 	case CacheTypeMemory:
-		return NewMemoryStore(), nil
+		return NewMemoryStore(cfg.DataDir), nil
 
 	default:
 		// This shouldn't happen due to getCacheType's default
-		return NewMemoryStore(), nil
+		return NewMemoryStore(cfg.DataDir), nil
 	}
 }

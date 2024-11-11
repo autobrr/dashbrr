@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -56,10 +57,45 @@ func startServer() {
 		Str("build_date", date).
 		Msg("Starting dashbrr")
 
-	configPath := flag.String("config", "config.toml", "path to config file")
-	dbPath := flag.String("db", "./data/dashbrr.db", "path to database file")
+	// Check environment variable first, then fall back to flag
+	defaultConfigPath := "config.toml"
+	if envPath := os.Getenv(config.EnvConfigPath); envPath != "" {
+		defaultConfigPath = envPath
+	} else {
+		// Check user config directory
+		userConfigDir, err := os.UserConfigDir()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get user config directory")
+		}
+
+		base := []string{filepath.Join(userConfigDir, "dashbrr"), "/config"}
+		configs := []string{"config.toml", "config.yaml", "config.yml"}
+
+		for _, b := range base {
+			for _, c := range configs {
+				p := filepath.Join(b, c)
+				if _, err := os.Stat(p); err == nil {
+					defaultConfigPath = p
+					break
+				}
+			}
+			if defaultConfigPath != "config.toml" {
+				break
+			}
+		}
+	}
+	configPath := flag.String("config", defaultConfigPath, "path to config file")
+
+	var dbPath string
+	flag.StringVar(&dbPath, "db", "", "path to database file")
 	listenAddr := flag.String("listen", ":8080", "address to listen on")
 	flag.Parse()
+
+	// If dbPath wasn't set via flag, use config directory
+	if dbPath == "" {
+		configDir := filepath.Dir(*configPath)
+		dbPath = filepath.Join(configDir, "data", "dashbrr.db")
+	}
 
 	var cfg *config.Config
 	var err error
@@ -77,7 +113,7 @@ func startServer() {
 					ListenAddr: *listenAddr,
 				},
 				Database: config.DatabaseConfig{
-					Path: *dbPath,
+					Path: dbPath,
 				},
 			}
 			log.Warn().Err(err).Msg("Failed to load configuration file, using defaults")

@@ -7,6 +7,18 @@
   - Format: `<host>:<port>`
   - Default: `0.0.0.0:8080`
 
+## Configuration Path
+
+- `DASHBRR__CONFIG_PATH`
+  - Purpose: Path to the configuration file
+  - Default: `config.toml`
+  - Priority: Environment variable > User config directory > Command line flag > Default value
+  - Note: The application will check the following locations for the configuration file:
+    1. The path specified by the `DASHBRR__CONFIG_PATH` environment variable.
+    2. The user config directory (e.g., `~/.config/dashbrr`).
+    3. The current working directory for `config.toml`, `config.yaml`, or `config.yml`.
+    4. The `-config` command line flag can also be used to specify a different path.
+
 ## Cache Configuration
 
 - `CACHE_TYPE`
@@ -38,6 +50,11 @@
 - `DASHBRR__DB_PATH`
   - Purpose: Path to SQLite database file
   - Example: `/data/dashbrr.db`
+  - Note: If not set, the database will be created in a 'data' subdirectory of the config file's location. This can be overridden by:
+    1. Using the `-db` flag when starting dashbrr
+    2. Setting this environment variable
+    3. Specifying the path in the config file
+  - Priority: Command line flag > Environment variable > Config file > Default location
 
 ### PostgreSQL Configuration
 
