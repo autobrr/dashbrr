@@ -114,16 +114,29 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 	} else {
 		// SQLite connection
 		dbDir := filepath.Dir(config.Path)
-		if err := os.MkdirAll(dbDir, 0755); err != nil {
+		// Create directory with restricted permissions
+		if err := os.MkdirAll(dbDir, 0750); err != nil {
 			return nil, err
 		}
-		log.Debug().
-			Str("path", config.Path).
-			Msg("Initializing SQLite database")
+
+		// Create or open database
 		database, err = sql.Open("sqlite", config.Path)
 		if err != nil {
 			return nil, fmt.Errorf("error opening database: %w", err)
 		}
+
+		// Force SQLite to create the database file by pinging it
+		if err := database.Ping(); err != nil {
+			return nil, fmt.Errorf("error creating database file: %w", err)
+		}
+
+		// Now that the file exists, set restrictive permissions
+		if err := os.Chmod(config.Path, 0640); err != nil {
+			return nil, fmt.Errorf("error setting database file permissions: %w", err)
+		}
+		log.Debug().
+			Str("path", config.Path).
+			Msg("Initializing SQLite database")
 	}
 
 	// Configure connection pool
