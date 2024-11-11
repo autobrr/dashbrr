@@ -74,9 +74,18 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-color pattern p-2 sm:p-6 flex flex-col">
+    <div
+      className="min-h-screen bg-color pattern flex flex-col"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top), 0.5rem)",
+        paddingRight: "max(env(safe-area-inset-right), 0.5rem)",
+        paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)",
+        paddingLeft: "max(env(safe-area-inset-left), 0.5rem)",
+        paddingInline: "max(env(safe-area-inset-right), 1.5rem)",
+      }}
+    >
       <div className="p-2 flex-1">
-        <header className="mb-4">
+        <header className="mb-4 pt-2">
           {/* Top header section with logo and controls */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-2">
             <div
