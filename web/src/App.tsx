@@ -78,10 +78,8 @@ function AppContent() {
       className="min-h-screen bg-color pattern flex flex-col"
       style={{
         paddingTop: "max(env(safe-area-inset-top), 0.5rem)",
-        paddingRight: "max(env(safe-area-inset-right), 0.5rem)",
+        paddingInline: "max(env(safe-area-inset-right), 0.5rem)",
         paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)",
-        paddingLeft: "max(env(safe-area-inset-left), 0.5rem)",
-        paddingInline: "max(env(safe-area-inset-right), 1.5rem)",
       }}
     >
       <div className="p-2 flex-1">
