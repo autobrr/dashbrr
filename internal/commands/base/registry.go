@@ -86,6 +86,11 @@ func (r *Registry) Help(name string) string {
 		return r.listServiceCommands()
 	}
 
+	// Check if this is a request for config subcommands
+	if name == "config" {
+		return r.listConfigCommands()
+	}
+
 	// Check if this is a request for specific service type commands
 	if strings.HasPrefix(name, "service ") {
 		parts := strings.Split(name, " ")
@@ -98,6 +103,14 @@ func (r *Registry) Help(name string) string {
 			if cmd, ok := r.Get(fullCmd); ok {
 				return fmt.Sprintf("%s\n\n%s\n", cmd.Description(), cmd.Usage())
 			}
+		}
+	}
+
+	// Check if this is a request for specific config subcommands
+	if strings.HasPrefix(name, "config ") {
+		parts := strings.Split(name, " ")
+		if len(parts) == 2 {
+			return r.listConfigSubcommandHelp(parts[1])
 		}
 	}
 
@@ -120,6 +133,59 @@ func (r *Registry) listServiceCommands() string {
 	b.WriteString("  sonarr     - Sonarr service management\n")
 	b.WriteString("  prowlarr   - Prowlarr service management\n")
 	b.WriteString("\nUse 'dashbrr run help service <service-type>' for more information about a service type.")
+	return b.String()
+}
+
+// listConfigCommands returns help for all available config commands
+func (r *Registry) listConfigCommands() string {
+	var b strings.Builder
+	b.WriteString("Usage: dashbrr run config <subcommand> [arguments]\n\n")
+	b.WriteString("Available subcommands:\n\n")
+	b.WriteString("  discover   - Discover services from Docker/Kubernetes labels\n")
+	b.WriteString("  import     - Import services from external config file\n")
+	b.WriteString("  export     - Export current service configurations\n")
+	b.WriteString("\nExamples:\n\n")
+	b.WriteString("  # Discover services from Docker labels\n")
+	b.WriteString("  dashbrr run config discover --docker\n\n")
+	b.WriteString("  # Import services from external config\n")
+	b.WriteString("  dashbrr run config import services.yaml\n\n")
+	b.WriteString("  # Export configurations\n")
+	b.WriteString("  dashbrr run config export --format=yaml --mask-secrets --output=services.yaml\n")
+	b.WriteString("\nUse 'dashbrr run help config <subcommand>' for more information about a subcommand.")
+	return b.String()
+}
+
+// listConfigSubcommandHelp returns detailed help for a specific config subcommand
+func (r *Registry) listConfigSubcommandHelp(subcommand string) string {
+	var b strings.Builder
+
+	switch subcommand {
+	case "discover":
+		b.WriteString("Usage: dashbrr run config discover [--docker] [--k8s]\n\n")
+		b.WriteString("Discover services from Docker labels and/or Kubernetes.\n\n")
+		b.WriteString("Options:\n")
+		b.WriteString("  --docker    Discover services from Docker labels\n")
+		b.WriteString("  --k8s       Discover services from Kubernetes\n\n")
+		b.WriteString("If no options are specified, both Docker and Kubernetes discovery will be attempted.\n")
+
+	case "import":
+		b.WriteString("Usage: dashbrr run config import <file>\n\n")
+		b.WriteString("Import services from an external configuration file.\n\n")
+		b.WriteString("Arguments:\n")
+		b.WriteString("  <file>      Path to the configuration file (YAML or JSON)\n")
+
+	case "export":
+		b.WriteString("Usage: dashbrr run config export [--format=<yaml|json>] [--mask-secrets] [--output=<file>]\n\n")
+		b.WriteString("Export current service configurations to a file.\n\n")
+		b.WriteString("Options:\n")
+		b.WriteString("  --format=<yaml|json>    Output format (default: yaml)\n")
+		b.WriteString("  --mask-secrets          Mask sensitive information like API keys\n")
+		b.WriteString("  --output=<file>         Output file path (default: dashbrr-services.<format>)\n")
+
+	default:
+		return fmt.Sprintf("Unknown config subcommand: %s\n\nRun 'dashbrr run help config' for available subcommands.", subcommand)
+	}
+
 	return b.String()
 }
 

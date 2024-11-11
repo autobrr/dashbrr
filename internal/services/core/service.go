@@ -256,6 +256,12 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 		if responseTime, ok := extras[0]["responseTime"].(int64); ok {
 			response.ResponseTime = responseTime
 		}
+		if stats, ok := extras[0]["stats"].(map[string]interface{}); ok {
+			response.Stats = stats
+		}
+		if details, ok := extras[0]["details"].(map[string]interface{}); ok {
+			response.Details = details
+		}
 	}
 
 	return response

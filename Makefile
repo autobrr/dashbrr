@@ -143,9 +143,9 @@ docker-dev:
 # Docker development mode - run with PostgreSQL and Redis
 docker-dev-redis:
 	@echo "Starting Docker development environment with PostgreSQL and Redis..."
-	$(DOCKER_COMPOSE) -f docker-compose.redis.yml down
-	$(DOCKER_COMPOSE) -f docker-compose.redis.yml build
-	$(DOCKER_COMPOSE) -f docker-compose.redis.yml up --force-recreate
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml down
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml build
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml up --force-recreate
 
 # Docker development mode - quick start with current cache configuration
 docker-dev-quick:
@@ -156,7 +156,7 @@ docker-dev-quick:
 docker-clean:
 	@echo "Cleaning Docker development environment (including volumes)..."
 	$(DOCKER_COMPOSE) down -v
-	$(DOCKER_COMPOSE) -f docker-compose.redis.yml down -v
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml down -v
 
 # Docker commands
 docker-build:
@@ -166,10 +166,10 @@ docker-build:
 # Start PostgreSQL for integration tests
 test-integration-db:
 	@echo "Starting PostgreSQL for integration tests..."
-	$(DOCKER_COMPOSE) -f docker-compose.integration.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.integration.yml up -d
 	@echo "Waiting for PostgreSQL to be ready..."
 	@for i in $$(seq 1 30); do \
-		if docker compose -f docker-compose.integration.yml exec -T postgres pg_isready -U dashbrr > /dev/null 2>&1; then \
+		if docker compose -f docker-compose/docker-compose.integration.yml exec -T postgres pg_isready -U dashbrr > /dev/null 2>&1; then \
 			echo "PostgreSQL is ready!"; \
 			exit 0; \
 		fi; \
@@ -182,7 +182,7 @@ test-integration-db:
 # Stop PostgreSQL for integration tests
 test-integration-db-stop:
 	@echo "Stopping PostgreSQL for integration tests..."
-	$(DOCKER_COMPOSE) -f docker-compose.integration.yml down -v
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.integration.yml down -v
 
 # Run integration tests
 test-integration: test-integration-db

@@ -7,6 +7,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/commands/autobrr"
 	"github.com/autobrr/dashbrr/internal/commands/base"
+	"github.com/autobrr/dashbrr/internal/commands/config"
 	"github.com/autobrr/dashbrr/internal/commands/general"
 	"github.com/autobrr/dashbrr/internal/commands/health"
 	"github.com/autobrr/dashbrr/internal/commands/help"
@@ -64,6 +65,7 @@ func registerCommands(registry *base.Registry, db *database.DB) error {
 	// Create commands that need special handling
 	helpCmd := help.NewHelpCommand(registry)
 	serviceCmd := service.NewServiceCommand()
+	configCmd := config.NewConfigCommand(db)
 
 	// Register top-level commands
 	topLevelCommands := []base.Command{
@@ -72,6 +74,7 @@ func registerCommands(registry *base.Registry, db *database.DB) error {
 		helpCmd,
 		user.NewUserCommand(db),
 		serviceCmd,
+		configCmd, // Add the config command to top-level commands
 	}
 
 	serviceCommands := []base.Command{

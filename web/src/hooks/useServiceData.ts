@@ -76,11 +76,21 @@ export const useServiceData = () => {
       const newServices = new Map(prev);
       const currentService = newServices.get(serviceId);
       if (currentService) {
-        newServices.set(serviceId, {
+        // Deep merge stats and details
+        const mergedService = {
           ...currentService,
           ...data,
-          lastChecked: new Date()
-        } as Service);
+          lastChecked: new Date(),
+          stats: data.stats ? {
+            ...currentService.stats,
+            ...data.stats
+          } : currentService.stats,
+          details: data.details ? {
+            ...currentService.details,
+            ...data.details
+          } : currentService.details
+        };
+        newServices.set(serviceId, mergedService);
       }
       return newServices;
     });
@@ -169,10 +179,12 @@ export const useServiceData = () => {
           break;
         }
         case 'autobrr': {
+          console.log('Fetching autobrr stats for:', service.instanceId);
           const [statsData, ircData] = await Promise.all([
             api.get<AutobrrStats>(`/api/autobrr/stats?instanceId=${service.instanceId}`),
             api.get<AutobrrIRC[]>(`/api/autobrr/irc?instanceId=${service.instanceId}`)
           ]);
+          console.log('Received autobrr stats:', statsData);
           if (statsData && ircData) {
             data = { stats: { autobrr: statsData }, details: { autobrr: { irc: ircData } } };
           }
@@ -196,6 +208,7 @@ export const useServiceData = () => {
       }
 
       if (data) {
+        console.log('Updating service data:', service.instanceId, data);
         cache.set(statsCacheKey, data);
         updateServiceData(service.instanceId, data);
       }
@@ -240,7 +253,9 @@ export const useServiceData = () => {
       apiKey: config.apiKey,
       displayName: config.displayName,
       healthEndpoint: template?.healthEndpoint,
-      message: hasRequiredConfig ? 'Loading service status' : 'Service not configured'
+      message: hasRequiredConfig ? 'Loading service status' : 'Service not configured',
+      stats: {},
+      details: {}
     } as Service;
 
     setServices(prev => {

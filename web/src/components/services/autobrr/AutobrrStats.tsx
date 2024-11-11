@@ -45,7 +45,16 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
     return null;
   }
 
-  const stats = service.stats?.autobrr;
+  // Always show stats section if service is online, even if stats are empty
+  const showStats = service.status === "online";
+  const stats = service.stats?.autobrr || {
+    total_count: 0,
+    filtered_count: 0,
+    filter_rejected_count: 0,
+    push_approved_count: 0,
+    push_rejected_count: 0,
+    push_error_count: 0,
+  };
   const ircStatus = service.details?.autobrr?.irc;
 
   // Only show message component if there's a message or status isn't online
@@ -81,7 +90,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
       )}
 
       {/* Stats */}
-      {stats && (
+      {showStats && (
         <div>
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Stats:
@@ -98,21 +107,21 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium">Approved Pushes:</span>
               </div>
-              <div className="font-bold">{stats.push_approved_count}</div>
+              <div className="font-bold">{stats.push_approved_count || 0}</div>
             </div>
 
             <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium">Rejected Pushes:</span>
               </div>
-              <div className="font-bold">{stats.push_rejected_count}</div>
+              <div className="font-bold">{stats.push_rejected_count || 0}</div>
             </div>
 
             <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium">Errored Pushes:</span>
               </div>
-              <div className="font-bold">{stats.push_error_count}</div>
+              <div className="font-bold">{stats.push_error_count || 0}</div>
             </div>
           </div>
         </div>

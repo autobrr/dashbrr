@@ -28,6 +28,7 @@ services:
       #- OIDC_REDIRECT_URL=optional
     volumes:
       - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock # Add Docker socket mount
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,9 +57,35 @@ services:
       retries: 3
     restart: unless-stopped
 
+  radarr:
+    container_name: radarr
+    image: linuxserver/radarr:latest
+    ports:
+      - "7878:7878"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - DASHBRR_RADARR_API_KEY=${DASHBRR_RADARR_API_KEY}
+    volumes:
+      - radarr_config:/config
+      - movies:/movies
+      - downloads:/downloads
+    networks:
+      - dashbrr-network
+    restart: unless-stopped
+    labels:
+      com.dashbrr.service.type: "radarr"
+      com.dashbrr.service.url: "http://radarr:7878"
+      com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}"
+      com.dashbrr.service.name: "Movies"
+
 volumes:
   postgres_data:
     name: dashbrr_postgres_data
+  radarr_config:
+  movies:
+  downloads:
 
 networks:
   dashbrr-network:

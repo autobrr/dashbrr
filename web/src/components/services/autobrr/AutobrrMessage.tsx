@@ -124,6 +124,7 @@ export const AutobrrMessage: React.FC<Props> = ({ message, status }) => {
       if (
         !trimmedLine ||
         trimmedLine === "Healthy" ||
+        trimmedLine === "Autobrr is running" ||
         trimmedLine === "Status: Healthy"
       )
         return;

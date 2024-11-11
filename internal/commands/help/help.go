@@ -21,6 +21,10 @@ func NewHelpCommand(registry *base.Registry) *HelpCommand {
 			"[command]\n\n"+
 				"Example:\n"+
 				"  dashbrr run help\n"+
+				"  dashbrr run help config\n"+
+				"  dashbrr run help config discover\n"+
+				"  dashbrr run help config import\n"+
+				"  dashbrr run help config export\n"+
 				"  dashbrr run help service\n"+
 				"  dashbrr run help service autobrr\n"+
 				"  dashbrr run help service maintainerr\n"+
