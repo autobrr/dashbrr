@@ -20,18 +20,13 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/routes"
+	"github.com/autobrr/dashbrr/internal/buildinfo"
 	"github.com/autobrr/dashbrr/internal/commands/executor"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/web"
-)
-
-var (
-	version = "dev"
-	commit  = ""
-	date    = ""
 )
 
 func init() {
@@ -52,9 +47,9 @@ func main() {
 
 func startServer() {
 	log.Info().
-		Str("version", version).
-		Str("commit", commit).
-		Str("build_date", date).
+		Str("version", buildinfo.Version).
+		Str("commit", buildinfo.Commit).
+		Str("build_date", buildinfo.Date).
 		Msg("Starting dashbrr")
 
 	// Check environment variable first, then fall back to flag
