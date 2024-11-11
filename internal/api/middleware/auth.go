@@ -61,7 +61,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			sessionKey = fmt.Sprintf("session:%s", sessionToken)
 			err = m.cache.Get(c, sessionKey, &sessionData)
 			if err != nil {
-				log.Error().Err(err).Msg("session not found")
+				log.Debug().Err(err).Msg("session not found")
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session"})
 				c.Abort()
 				return

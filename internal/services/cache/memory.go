@@ -6,7 +6,10 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,11 +27,19 @@ type MemoryStore struct {
 
 	// Additional maps for rate limiting functionality
 	rateLimits sync.Map // map[string]*rateWindow
+
+	// Session persistence
+	persistPath string
 }
 
 type rateWindow struct {
 	sync.RWMutex
 	timestamps map[string]int64
+}
+
+type persistedItem struct {
+	Value      []byte    `json:"value"`
+	Expiration time.Time `json:"expiration"`
 }
 
 // NewMemoryStore creates a new in-memory cache instance
@@ -39,9 +50,25 @@ func NewMemoryStore() Store {
 		local: &LocalCache{
 			items: make(map[string]*localCacheItem),
 		},
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:         ctx,
+		cancel:      cancel,
+		persistPath: filepath.Join("data", "sessions.json"),
 	}
+
+	// Ensure data directory exists with proper permissions
+	if err := os.MkdirAll("data", 0700); err != nil {
+		log.Error().Err(err).Msg("Failed to create data directory")
+	}
+
+	// Set proper permissions on sessions file if it exists
+	if _, err := os.Stat(store.persistPath); err == nil {
+		if err := os.Chmod(store.persistPath, 0600); err != nil {
+			log.Error().Err(err).Msg("Failed to set permissions on sessions file")
+		}
+	}
+
+	// Load persisted sessions
+	store.loadSessions()
 
 	// Start cleanup goroutine
 	store.wg.Add(1)
@@ -53,12 +80,83 @@ func NewMemoryStore() Store {
 	return store
 }
 
+// loadSessions loads persisted sessions from disk
+func (s *MemoryStore) loadSessions() {
+	data, err := os.ReadFile(s.persistPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Error().Err(err).Msg("Failed to read persisted sessions")
+		}
+		return
+	}
+
+	var items map[string]persistedItem
+	if err := json.Unmarshal(data, &items); err != nil {
+		log.Error().Err(err).Msg("Failed to unmarshal persisted sessions")
+		return
+	}
+
+	now := time.Now()
+	s.local.Lock()
+	for key, item := range items {
+		// Only load non-expired sessions
+		if now.Before(item.Expiration) {
+			s.local.items[key] = &localCacheItem{
+				value:      item.Value,
+				expiration: item.Expiration,
+			}
+		}
+	}
+	s.local.Unlock()
+}
+
+// persistSessions saves sessions to disk
+func (s *MemoryStore) persistSessions() {
+	s.local.RLock()
+	items := make(map[string]persistedItem)
+	now := time.Now()
+
+	for key, item := range s.local.items {
+		// Only persist session data (not rate limiting or other cache items)
+		if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+			// Only persist non-expired sessions
+			if now.Before(item.expiration) {
+				items[key] = persistedItem{
+					Value:      item.value,
+					Expiration: item.expiration,
+				}
+			}
+		}
+	}
+	s.local.RUnlock()
+
+	data, err := json.Marshal(items)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal sessions for persistence")
+		return
+	}
+
+	// Write to a temporary file first
+	tempFile := s.persistPath + ".tmp"
+	if err := os.WriteFile(tempFile, data, 0600); err != nil {
+		log.Error().Err(err).Msg("Failed to write temporary sessions file")
+		return
+	}
+
+	// Rename temporary file to actual file (atomic operation)
+	if err := os.Rename(tempFile, s.persistPath); err != nil {
+		log.Error().Err(err).Msg("Failed to rename temporary sessions file")
+		_ = os.Remove(tempFile) // Clean up temp file if rename failed
+		return
+	}
+}
+
 // Get retrieves a value from cache
 func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) error {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return ErrKeyNotFound
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -81,7 +179,7 @@ func (s *MemoryStore) Set(ctx context.Context, key string, value interface{}, ex
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return ErrKeyNotFound
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -102,6 +200,11 @@ func (s *MemoryStore) Set(ctx context.Context, key string, value interface{}, ex
 	}
 	s.local.Unlock()
 
+	// Persist sessions when they're updated
+	if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+		s.persistSessions()
+	}
+
 	return nil
 }
 
@@ -110,13 +213,18 @@ func (s *MemoryStore) Delete(ctx context.Context, key string) error {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return ErrKeyNotFound
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
 	s.local.Lock()
 	delete(s.local.items, key)
 	s.local.Unlock()
+
+	// Persist sessions when they're deleted
+	if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+		s.persistSessions()
+	}
 
 	return nil
 }
@@ -126,7 +234,7 @@ func (s *MemoryStore) Increment(ctx context.Context, key string, timestamp int64
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return ErrKeyNotFound
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -147,7 +255,7 @@ func (s *MemoryStore) CleanAndCount(ctx context.Context, key string, windowStart
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return ErrKeyNotFound
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -170,7 +278,7 @@ func (s *MemoryStore) GetCount(ctx context.Context, key string) (int64, error) {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return 0, ErrKeyNotFound
+		return 0, ErrClosed
 	}
 	s.mu.RUnlock()
 
@@ -190,13 +298,17 @@ func (s *MemoryStore) Expire(ctx context.Context, key string, expiration time.Du
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return ErrKeyNotFound
+		return ErrClosed
 	}
 	s.mu.RUnlock()
 
 	s.local.Lock()
 	if item, exists := s.local.items[key]; exists {
 		item.expiration = time.Now().Add(expiration)
+		// Persist sessions when their expiration is updated
+		if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+			s.persistSessions()
+		}
 	}
 	s.local.Unlock()
 
@@ -208,13 +320,16 @@ func (s *MemoryStore) Close() error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return ErrKeyNotFound
+		return ErrClosed
 	}
 	s.closed = true
 	s.mu.Unlock()
 
 	s.cancel()
 	s.wg.Wait()
+
+	// Persist sessions before clearing the cache
+	s.persistSessions()
 
 	s.local.Lock()
 	s.local.items = make(map[string]*localCacheItem)
@@ -231,15 +346,24 @@ func (s *MemoryStore) localCacheCleanup() {
 		select {
 		case <-ticker.C:
 			now := time.Now()
+			needsPersist := false
 
 			// Cleanup main cache
 			s.local.Lock()
 			for key, item := range s.local.items {
 				if now.After(item.expiration) {
 					delete(s.local.items, key)
+					if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+						needsPersist = true
+					}
 				}
 			}
 			s.local.Unlock()
+
+			// Persist sessions if any were removed
+			if needsPersist {
+				s.persistSessions()
+			}
 
 			// Cleanup rate limiting windows older than 24 hours
 			windowStart := time.Now().Add(-24 * time.Hour).Unix()

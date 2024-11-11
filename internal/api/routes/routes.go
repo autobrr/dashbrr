@@ -34,7 +34,12 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 		store = cache.NewMemoryStore()
 	}
 
-	log.Debug().Str("type", os.Getenv("CACHE_TYPE")).Msg("Cache initialized")
+	// Determine cache type based on environment and Redis configuration
+	cacheType := "memory"
+	if os.Getenv("CACHE_TYPE") == "redis" && os.Getenv("REDIS_HOST") != "" {
+		cacheType = "redis"
+	}
+	log.Debug().Str("type", cacheType).Msg("Cache initialized")
 
 	// Create rate limiters with different configurations
 	apiRateLimiter := middleware.NewRateLimiter(store, time.Minute, 60, "api:")       // 60 requests per minute for API
