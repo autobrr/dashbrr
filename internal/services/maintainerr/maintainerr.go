@@ -130,8 +130,7 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	versionChan := make(chan string, 1)
 	errChan := make(chan error, 1)
@@ -217,8 +216,7 @@ func (s *MaintainerrService) GetCollections(url, apiKey string) ([]Collection, e
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("API key is required")}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	baseURL := strings.TrimRight(url, "/")
 	endpoint := fmt.Sprintf("%s/api/collections", baseURL)
