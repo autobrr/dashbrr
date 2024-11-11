@@ -5,6 +5,7 @@ package routes
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,12 +27,26 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	r.Use(middleware.SetupCORS())
 	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
 
-	// Initialize cache
-	store, err := cache.InitCache()
+	// Initialize cache with database directory for session storage
+	cacheConfig := cache.Config{
+		DataDir: filepath.Dir(os.Getenv("DASHBRR__DB_PATH")), // Use same directory as database
+	}
+
+	// Configure Redis if enabled
+	if os.Getenv("REDIS_HOST") != "" {
+		host := os.Getenv("REDIS_HOST")
+		port := os.Getenv("REDIS_PORT")
+		if port == "" {
+			port = "6379"
+		}
+		cacheConfig.RedisAddr = host + ":" + port
+	}
+
+	store, err := cache.InitCache(cacheConfig)
 	if err != nil {
 		// This should never happen as InitCache always returns a valid store
 		log.Debug().Err(err).Msg("Using memory cache")
-		store = cache.NewMemoryStore()
+		store = cache.NewMemoryStore(cacheConfig.DataDir)
 	}
 
 	// Determine cache type based on environment and Redis configuration

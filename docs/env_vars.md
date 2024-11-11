@@ -38,6 +38,11 @@
 - `DASHBRR__DB_PATH`
   - Purpose: Path to SQLite database file
   - Example: `/data/dashbrr.db`
+  - Note: If not set, the database will be created in a 'data' subdirectory of the config file's location. This can be overridden by:
+    1. Using the `-db` flag when starting dashbrr
+    2. Setting this environment variable
+    3. Specifying the path in the config file
+  - Priority: Command line flag > Environment variable > Config file > Default location
 
 ### PostgreSQL Configuration
 

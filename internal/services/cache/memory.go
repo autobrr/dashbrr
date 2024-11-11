@@ -43,7 +43,7 @@ type persistedItem struct {
 }
 
 // NewMemoryStore creates a new in-memory cache instance
-func NewMemoryStore() Store {
+func NewMemoryStore(dataDir string) Store {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	store := &MemoryStore{
@@ -52,11 +52,11 @@ func NewMemoryStore() Store {
 		},
 		ctx:         ctx,
 		cancel:      cancel,
-		persistPath: filepath.Join("data", "sessions.json"),
+		persistPath: filepath.Join(dataDir, "sessions.json"),
 	}
 
-	// Ensure data directory exists with proper permissions
-	if err := os.MkdirAll("data", 0700); err != nil {
+	// Ensure directory exists with proper permissions
+	if err := os.MkdirAll(dataDir, 0700); err != nil {
 		log.Error().Err(err).Msg("Failed to create data directory")
 	}
 

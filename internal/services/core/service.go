@@ -8,6 +8,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -64,8 +66,28 @@ func (s *ServiceCore) initCache() error {
 		return nil
 	}
 
+	// Get database directory from environment
+	dataDir := filepath.Dir(os.Getenv("DASHBRR__DB_PATH"))
+	if dataDir == "." {
+		dataDir = "./data" // Default to ./data if not set
+	}
+
+	// Initialize cache config
+	cfg := cache.Config{
+		DataDir: dataDir,
+	}
+
+	// Add Redis configuration if available
+	if host := os.Getenv("REDIS_HOST"); host != "" {
+		port := os.Getenv("REDIS_PORT")
+		if port == "" {
+			port = "6379"
+		}
+		cfg.RedisAddr = host + ":" + port
+	}
+
 	// Initialize cache using the cache package's initialization logic
-	store, err := cache.InitCache()
+	store, err := cache.InitCache(cfg)
 	if err != nil {
 		// If initialization fails, we'll still get a memory cache from InitCache
 		// We can continue with the memory cache but should return the error

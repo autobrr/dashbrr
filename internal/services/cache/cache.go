@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -64,11 +63,6 @@ type localCacheItem struct {
 
 // NewCache creates a new Redis cache instance with optimized configuration
 func NewCache(addr string) (Store, error) {
-	// Check if memory cache is explicitly requested
-	if os.Getenv("CACHE_TYPE") == "memory" {
-		return NewMemoryStore(), nil
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Development-optimized Redis configuration
