@@ -29,6 +29,16 @@ func init() {
 	}
 }
 
+func NewOmegabrrService() models.ServiceHealthChecker {
+	service := &OmegabrrService{}
+	service.Type = "omegabrr"
+	service.DisplayName = "Omegabrr"
+	service.Description = "Monitor and manage your Omegabrr instance"
+	service.DefaultURL = "http://localhost:7474"
+	service.HealthEndpoint = "/api/healthz/liveness"
+	return service
+}
+
 func (s *OmegabrrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/api/healthz/liveness", baseURL)
@@ -83,9 +93,7 @@ func (s *OmegabrrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	// Create a context with timeout for the entire health check
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	// Start version check in background
 	versionChan := make(chan string, 1)

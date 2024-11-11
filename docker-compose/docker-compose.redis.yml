@@ -1,12 +1,11 @@
 services:
   dashbrr:
     container_name: dashbrr
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/autobrr/dashbrr:latest
     ports:
       - "8080:8080"
     environment:
+      # Using Redis cache
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       # Database configuration - uncomment desired database type

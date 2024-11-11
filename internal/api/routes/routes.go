@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/api/handlers"
 	"github.com/autobrr/dashbrr/internal/api/middleware"
@@ -17,22 +18,23 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-// SetupRoutes configures all the routes for the application and returns the cache instance for cleanup
+// SetupRoutes configures all the routes for the application
 func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) cache.Store {
-	// Set Gin to release mode in production
-	gin.SetMode(gin.ReleaseMode)
-
 	// Use custom logger instead of default Gin logger
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.SetupCORS())
 	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
 
-	// Initialize Redis cache
+	// Initialize cache
 	store, err := cache.InitCache()
 	if err != nil {
-		panic(err)
+		// This should never happen as InitCache always returns a valid store
+		log.Debug().Err(err).Msg("Using memory cache")
+		store = cache.NewMemoryStore()
 	}
+
+	log.Debug().Str("type", os.Getenv("CACHE_TYPE")).Msg("Cache initialized")
 
 	// Create rate limiters with different configurations
 	apiRateLimiter := middleware.NewRateLimiter(store, time.Minute, 60, "api:")       // 60 requests per minute for API
@@ -46,7 +48,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	cacheMiddleware := middleware.NewCacheMiddleware(store)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(db)
+	settingsHandler := handlers.NewSettingsHandler(db, health)
 	healthHandler := handlers.NewHealthHandler(db, health)
 	eventsHandler := handlers.NewEventsHandler(db, health)
 	autobrrHandler := handlers.NewAutobrrHandler(db, store)
@@ -132,9 +134,8 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	api := r.Group("/api")
 	api.Use(authMiddleware.RequireAuth())
 	{
-		// Settings endpoints
+		// Settings endpoints - no caching to ensure fresh data
 		settings := api.Group("/settings")
-		settings.Use(cacheMiddleware.Cache())
 		{
 			settings.GET("", settingsHandler.GetSettings)
 			settings.POST("/:instance", settingsHandler.SaveSettings)
@@ -161,19 +162,26 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				regularServices.GET("/autobrr/irc", autobrrHandler.GetAutobrrIRCStatus)
 				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
-				regularServices.GET("/overseerr/pending", overseerrHandler.GetPendingRequests)
+
+				// Overseerr endpoints
+				overseerr := regularServices.Group("/overseerr")
+				{
+					overseerr.GET("/requests", overseerrHandler.GetRequests)
+				}
 
 				// Sonarr endpoints
 				sonarr := regularServices.Group("/sonarr")
 				{
 					sonarr.GET("/queue", sonarrHandler.GetQueue)
 					sonarr.GET("/stats", sonarrHandler.GetStats)
+					sonarr.DELETE("/queue/:id", sonarrHandler.DeleteQueueItem)
 				}
 
 				// Radarr endpoints
 				radarr := regularServices.Group("/radarr")
 				{
 					radarr.GET("/queue", radarrHandler.GetQueue)
+					radarr.DELETE("/queue/:id", radarrHandler.DeleteQueueItem)
 				}
 
 				// Prowlarr endpoints
@@ -187,8 +195,6 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 				omegabrr := regularServices.Group("/omegabrr")
 				{
 					omegabrr.GET("/status", omegabrrHandler.GetOmegabrrStatus)
-
-					// Webhook endpoints
 					webhook := omegabrr.Group("/webhook")
 					{
 						webhook.POST("/arrs", omegabrrHandler.TriggerWebhookArrs)
@@ -204,6 +210,17 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 			tailscaleServices.Use(cacheMiddleware.Cache())
 			{
 				tailscaleServices.GET("/tailscale/devices", tailscaleHandler.GetTailscaleDevices)
+			}
+
+			// Service action endpoints that require instanceId
+			serviceActions := services.Group("/services/:instanceId")
+			serviceActions.Use(apiRateLimiter.RateLimit())
+			{
+				// Overseerr action endpoints
+				overseerrActions := serviceActions.Group("/overseerr")
+				{
+					overseerrActions.POST("/request/:requestId/:status", overseerrHandler.UpdateRequestStatus)
+				}
 			}
 		}
 	}

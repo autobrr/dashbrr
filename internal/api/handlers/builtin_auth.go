@@ -168,10 +168,10 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 		AuthType:    "builtin",
 	}
 
-	// Store session in Redis
+	// Store session in cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
 	if err := h.cache.Set(c, sessionKey, sessionData, time.Until(expiresAt)); err != nil {
-		log.Error().Err(err).Msg("failed to store session")
+		log.Error().Err(err).Msg("failed to store session in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
@@ -208,11 +208,15 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 		return
 	}
 
-	// Get session from Redis
+	// Get session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
 	var sessionData types.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
-		log.Error().Err(err).Msg("failed to get session")
+		if err == cache.ErrKeyNotFound {
+			log.Debug().Msg("session not found or expired")
+		} else {
+			log.Error().Err(err).Msg("failed to get session from cache")
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session not found or expired"})
 		return
 	}
@@ -239,10 +243,10 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// Delete session from Redis
+	// Delete session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	if err := h.cache.Delete(c, sessionKey); err != nil {
-		log.Error().Err(err).Msg("failed to delete session")
+	if err := h.cache.Delete(c, sessionKey); err != nil && err != cache.ErrKeyNotFound {
+		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
 
 	// Clear session cookie
@@ -268,11 +272,15 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 		return
 	}
 
-	// Get session from Redis
+	// Get session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
 	var sessionData types.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
-		log.Error().Err(err).Msg("failed to get session")
+		if err == cache.ErrKeyNotFound {
+			log.Debug().Msg("session not found or expired")
+		} else {
+			log.Error().Err(err).Msg("failed to get session from cache")
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session not found"})
 		return
 	}

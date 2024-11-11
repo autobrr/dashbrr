@@ -4,94 +4,146 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"sync"
-	"sync/atomic"
+	"strings"
+	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 )
 
-var (
-	instance     *RedisStore
-	initOnce     sync.Once
-	isInitiating int32
+// CacheType represents the type of cache to use
+type CacheType string
+
+const (
+	CacheTypeRedis  CacheType = "redis"
+	CacheTypeMemory CacheType = "memory"
 )
 
-// GetRedisAddress returns the Redis connection address from environment variables
-func GetRedisAddress() string {
-	host := os.Getenv("REDIS_HOST")
-	port := os.Getenv("REDIS_PORT")
+// getRedisOptions returns Redis configuration optimized for the current environment
+func getRedisOptions() *redis.Options {
+	isDev := os.Getenv("GIN_MODE") != "release"
 
+	// Get Redis connection details from environment
+	host := os.Getenv("REDIS_HOST")
 	if host == "" {
 		host = "localhost"
-		log.Debug().Msg("Using default Redis host: localhost")
 	}
+	port := os.Getenv("REDIS_PORT")
 	if port == "" {
 		port = "6379"
-		log.Debug().Msg("Using default Redis port: 6379")
+	}
+	addr := fmt.Sprintf("%s:%s", host, port)
+
+	// Base configuration
+	opts := &redis.Options{
+		Addr:            addr,
+		MinIdleConns:    2,
+		MaxRetries:      RetryAttempts,
+		MinRetryBackoff: RetryDelay,
+		MaxRetryBackoff: time.Second,
 	}
 
-	addr := fmt.Sprintf("%s:%s", host, port)
-	log.Debug().Str("addr", addr).Msg("Redis address configured")
-	return addr
+	if isDev {
+		// Development-optimized settings
+		opts.PoolSize = 5
+		opts.MaxConnAge = 30 * time.Second
+		opts.ReadTimeout = 2 * time.Second
+		opts.WriteTimeout = 2 * time.Second
+		opts.PoolTimeout = 2 * time.Second
+		opts.IdleTimeout = 30 * time.Second
+	} else {
+		// Production settings
+		opts.PoolSize = 10
+		opts.MaxConnAge = 5 * time.Minute
+		opts.ReadTimeout = DefaultTimeout
+		opts.WriteTimeout = DefaultTimeout
+		opts.PoolTimeout = DefaultTimeout * 2
+		opts.IdleTimeout = time.Minute
+	}
+
+	return opts
 }
 
-// InitCache initializes and returns a new Cache instance
+// getCacheType determines which cache implementation to use based on environment
+func getCacheType() CacheType {
+	cacheType := os.Getenv("CACHE_TYPE")
+	if cacheType == "" {
+		// Default to memory cache unless Redis is explicitly configured
+		if os.Getenv("REDIS_HOST") != "" {
+			return CacheTypeRedis
+		}
+		return CacheTypeMemory
+	}
+
+	switch strings.ToLower(cacheType) {
+	case "redis":
+		return CacheTypeRedis
+	case "memory":
+		return CacheTypeMemory
+	default:
+		log.Warn().Str("type", cacheType).Msg("Unknown cache type specified, using memory cache")
+		return CacheTypeMemory
+	}
+}
+
+// InitCache initializes a cache instance based on environment configuration.
+// It always returns a valid cache store, falling back to memory cache if Redis fails.
 func InitCache() (Store, error) {
-	// If we're already initializing, return the existing instance or wait for initialization
-	if !atomic.CompareAndSwapInt32(&isInitiating, 0, 1) {
-		log.Debug().Msg("Cache initialization already in progress, waiting...")
-		// Wait for initialization to complete and return existing instance
-		for atomic.LoadInt32(&isInitiating) == 1 {
-			if instance != nil {
-				return instance, nil
-			}
-		}
-		return instance, nil
-	}
+	cacheType := getCacheType()
 
-	defer atomic.StoreInt32(&isInitiating, 0)
-
-	var initErr error
-	initOnce.Do(func() {
-		if instance != nil {
-			instance.mu.RLock()
-			closed := instance.closed
-			instance.mu.RUnlock()
-
-			if !closed {
-				return
-			}
-
-			// If the instance is closed, clean it up properly
-			if err := instance.Close(); err != nil {
-				log.Error().Err(err).Msg("Failed to close existing Redis cache instance")
-			}
-			instance = nil
+	switch cacheType {
+	case CacheTypeRedis:
+		// Only attempt Redis connection if Redis is explicitly configured
+		if os.Getenv("REDIS_HOST") == "" {
+			// Silently fall back to memory cache when Redis host isn't configured
+			return NewMemoryStore(), nil
 		}
 
-		// Create new instance
-		log.Debug().Msg("Initializing Redis cache")
-		addr := GetRedisAddress()
-		store, err := NewCache(addr)
+		isDev := os.Getenv("GIN_MODE") != "release"
+		opts := getRedisOptions()
+
+		// Create context with shorter timeout for development
+		timeout := DefaultTimeout
+		if isDev {
+			timeout = 2 * time.Second
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		client := redis.NewClient(opts)
+		err := client.Ping(ctx).Err()
+
 		if err != nil {
-			initErr = err
-			return
+			if client != nil {
+				client.Close()
+			}
+			if os.Getenv("CACHE_TYPE") == "redis" {
+				// Only log error if Redis was explicitly requested
+				log.Error().Err(err).Str("addr", opts.Addr).Msg("Failed to connect to explicitly configured Redis, falling back to memory cache")
+			}
+			return NewMemoryStore(), err
 		}
 
-		// Type assertion since we know it's a RedisStore
-		redisStore, ok := store.(*RedisStore)
-		if !ok {
-			initErr = fmt.Errorf("unexpected store type")
-			return
+		// Initialize Redis cache store
+		store, err := NewCache(opts.Addr)
+		if err != nil {
+			if os.Getenv("CACHE_TYPE") == "redis" {
+				// Only log error if Redis was explicitly requested
+				log.Error().Err(err).Msg("Failed to initialize explicitly configured Redis cache, falling back to memory cache")
+			}
+			return NewMemoryStore(), err
 		}
-		instance = redisStore
-	})
+		return store, nil
 
-	if initErr != nil {
-		return nil, initErr
+	case CacheTypeMemory:
+		return NewMemoryStore(), nil
+
+	default:
+		// This shouldn't happen due to getCacheType's default
+		return NewMemoryStore(), nil
 	}
-
-	return instance, nil
 }

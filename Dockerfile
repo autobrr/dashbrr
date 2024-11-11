@@ -35,7 +35,7 @@ COPY --from=web-builder /app/web/dist ./web/dist
 RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o /app/dashbrr cmd/dashbrr/main.go
 
 # build runner
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM alpine:3.20
 
 LABEL org.opencontainers.image.source="https://github.com/autobrr/dashbrr"
 
@@ -46,10 +46,13 @@ ENV HOME="/config" \
 WORKDIR /config
 VOLUME /config
 
-COPY --from=app-builder /app/dashbrr /dashbrr
+COPY --from=app-builder /app/dashbrr /usr/local/bin/dashbrr
 
 EXPOSE 8080
 
-USER 65532:65532
+RUN addgroup -S dashbrr && \
+    adduser -S dashbrr -G dashbrr
 
-ENTRYPOINT ["/dashbrr"]
+USER dashbrr
+
+ENTRYPOINT ["dashbrr"]

@@ -9,15 +9,16 @@ import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
 interface FormInputProps {
   id: string;
   label: string;
-  type?: "text" | "password";
+  type: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   helpText?: {
-    prefix?: string;
+    prefix: string;
     text: string;
-    link?: string | null;
+    link: string | null;
   };
 }
 
@@ -29,6 +30,7 @@ export const FormInput: React.FC<FormInputProps> = ({
   onChange,
   placeholder,
   required = false,
+  disabled = false,
   helpText,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -51,6 +53,7 @@ export const FormInput: React.FC<FormInputProps> = ({
           className="w-full px-3 pr-10 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           placeholder={placeholder}
           required={required}
+          disabled={disabled}
           data-1p-ignore={isPassword}
         />
         {isPassword && (

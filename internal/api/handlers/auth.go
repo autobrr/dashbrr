@@ -85,7 +85,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Store state and nonce in Redis
+	// Store state and nonce in cache
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
 	nonceKey := fmt.Sprintf("oidc:nonce:%s", nonce)
 
@@ -96,13 +96,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err := h.cache.Set(c, stateKey, stateData, 5*time.Minute); err != nil {
-		log.Error().Err(err).Msg("failed to store state")
+		log.Error().Err(err).Msg("failed to store state in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
 	if err := h.cache.Set(c, nonceKey, time.Now().Unix(), 5*time.Minute); err != nil {
-		log.Error().Err(err).Msg("failed to store nonce")
+		log.Error().Err(err).Msg("failed to store nonce in cache")
 		_ = h.cache.Delete(c, stateKey)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
@@ -133,7 +133,11 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
 	var stateData map[string]interface{}
 	if err := h.cache.Get(c, stateKey, &stateData); err != nil {
-		log.Error().Err(err).Msg("invalid or expired state")
+		if err == cache.ErrKeyNotFound {
+			log.Debug().Msg("state not found or expired")
+		} else {
+			log.Error().Err(err).Msg("failed to get state from cache")
+		}
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_state")
 		return
 	}
@@ -146,8 +150,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// Clean up used state
-	if err := h.cache.Delete(c, stateKey); err != nil {
-		log.Error().Err(err).Msg("failed to delete state")
+	if err := h.cache.Delete(c, stateKey); err != nil && err != cache.ErrKeyNotFound {
+		log.Error().Err(err).Msg("failed to delete state from cache")
 	}
 
 	// Exchange code for token
@@ -178,7 +182,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	sessionKey := fmt.Sprintf("oidc:session:%s", token.AccessToken)
 	if err := h.cache.Set(c, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
-		log.Error().Err(err).Msg("failed to store session")
+		log.Error().Err(err).Msg("failed to store session in cache")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
 		return
 	}
@@ -220,10 +224,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// Delete session from Redis
+	// Delete session from cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	if err := h.cache.Delete(c, sessionKey); err != nil {
-		log.Error().Err(err).Msg("failed to delete session")
+	if err := h.cache.Delete(c, sessionKey); err != nil && err != cache.ErrKeyNotFound {
+		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
 
 	// Clear session cookie
@@ -256,11 +260,15 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 		return
 	}
 
-	// Verify session exists in Redis
+	// Verify session exists in cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	var sessionData types.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
-		log.Error().Err(err).Msg("session not found or expired")
+		if err == cache.ErrKeyNotFound {
+			log.Debug().Msg("session not found or expired")
+		} else {
+			log.Error().Err(err).Msg("failed to get session from cache")
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
 		return
 	}
@@ -280,11 +288,15 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Get session data from Redis
+	// Get session data from cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	var sessionData types.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
-		log.Error().Err(err).Msg("failed to get session data")
+		if err == cache.ErrKeyNotFound {
+			log.Debug().Msg("session not found or expired")
+		} else {
+			log.Error().Err(err).Msg("failed to get session from cache")
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session not found"})
 		return
 	}
@@ -313,7 +325,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	// Store updated session
 	if err := h.cache.Set(c, sessionKey, sessionData, time.Until(newToken.Expiry)); err != nil {
-		log.Error().Err(err).Msg("failed to update session")
+		log.Error().Err(err).Msg("failed to update session in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update session"})
 		return
 	}
@@ -347,11 +359,15 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 		return
 	}
 
-	// Get session data from Redis
+	// Get session data from cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	var sessionData types.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
-		log.Error().Err(err).Msg("failed to get session data")
+		if err == cache.ErrKeyNotFound {
+			log.Debug().Msg("session not found or expired")
+		} else {
+			log.Error().Err(err).Msg("failed to get session from cache")
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session not found"})
 		return
 	}

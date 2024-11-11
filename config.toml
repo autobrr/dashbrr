@@ -1,0 +1,6 @@
+[server]
+listen_addr = ":8080"
+
+[database]
+type = "sqlite"
+path = "./data/dashbrr.db"

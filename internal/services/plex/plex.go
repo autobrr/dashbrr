@@ -14,71 +14,25 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type PlexService struct {
 	core.ServiceCore
 }
 
-type MediaContainer struct {
-	XMLName  xml.Name `xml:"MediaContainer"`
-	Version  string   `xml:"version,attr"`
-	Platform string   `xml:"platform,attr"`
-}
-
-type PlexResponse struct {
-	MediaContainer MediaContainer `json:"MediaContainer"`
-}
-
-type PlexSessionsResponse struct {
-	MediaContainer struct {
-		Size     int           `json:"size"`
-		Metadata []PlexSession `json:"Metadata"`
-	} `json:"MediaContainer"`
-}
-
-type PlexUser struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Thumb string `json:"thumb"`
-}
-
-type PlexPlayer struct {
-	Address             string `json:"address"`
-	Device              string `json:"device"`
-	MachineIdentifier   string `json:"machineIdentifier"`
-	Model               string `json:"model"`
-	Platform            string `json:"platform"`
-	PlatformVersion     string `json:"platformVersion"`
-	Product             string `json:"product"`
-	Profile             string `json:"profile"`
-	State               string `json:"state"`
-	RemotePublicAddress string `json:"remotePublicAddress"`
-	Title               string `json:"title"`
-	Vendor              string `json:"vendor"`
-	Version             string `json:"version"`
-}
-
-type PlexSession struct {
-	Title            string      `json:"title"`
-	GrandparentTitle string      `json:"grandparentTitle"`
-	Type             string      `json:"type"`
-	User             *PlexUser   `json:"User,omitempty"`
-	Player           *PlexPlayer `json:"Player,omitempty"`
-	State            string      `json:"state"`
-	TranscodeSession *struct {
-		VideoDecision string  `json:"videoDecision"`
-		AudioDecision string  `json:"audioDecision"`
-		Progress      float64 `json:"progress"`
-	} `json:"TranscodeSession,omitempty"`
-}
-
-const sessionCacheDuration = 30 * time.Second
-
 func init() {
-	models.NewPlexService = func() models.ServiceHealthChecker {
-		return &PlexService{}
-	}
+	models.NewPlexService = NewPlexService
+}
+
+func NewPlexService() models.ServiceHealthChecker {
+	service := &PlexService{}
+	service.Type = "plex"
+	service.DisplayName = "Plex"
+	service.Description = "Monitor and manage your Plex Media Server"
+	service.DefaultURL = "http://localhost:32400"
+	service.HealthEndpoint = "/identity"
+	return service
 }
 
 func (s *PlexService) GetHealthEndpoint(baseURL string) string {
@@ -98,7 +52,7 @@ func (s *PlexService) getPlexHeaders(apiKey string) map[string]string {
 	}
 }
 
-func (s *PlexService) GetSessions(url, apiKey string) (*PlexSessionsResponse, error) {
+func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsResponse, error) {
 	if url == "" {
 		return nil, fmt.Errorf("URL is required")
 	}
@@ -124,14 +78,36 @@ func (s *PlexService) GetSessions(url, apiKey string) (*PlexSessionsResponse, er
 		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
-	var sessionsResponse PlexSessionsResponse
+	var sessionsResponse types.PlexSessionsResponse
 	if err := json.Unmarshal(body, &sessionsResponse); err != nil {
 		return nil, fmt.Errorf("failed to parse sessions response: %v", err)
 	}
 
 	// Initialize empty slice if Metadata is nil
 	if sessionsResponse.MediaContainer.Metadata == nil {
-		sessionsResponse.MediaContainer.Metadata = []PlexSession{}
+		sessionsResponse.MediaContainer.Metadata = []types.PlexSession{}
+	}
+
+	// Process each session to check for transcoding
+	for i, session := range sessionsResponse.MediaContainer.Metadata {
+		// Check if TranscodeSession exists and copy its details
+		if session.TranscodeSession != nil {
+			continue // Already has transcode info
+		}
+
+		// Initialize TranscodeSession if needed
+		sessionsResponse.MediaContainer.Metadata[i].TranscodeSession = &types.PlexTranscodeSession{}
+
+		for _, media := range session.Media {
+			for _, part := range media.Part {
+				if part.Decision == "transcode" {
+					// Set transcoding details
+					sessionsResponse.MediaContainer.Metadata[i].TranscodeSession.VideoDecision = "transcode"
+					// You might also want to set other transcode details here
+					break
+				}
+			}
+		}
 	}
 
 	return &sessionsResponse, nil
@@ -167,9 +143,9 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Server returned error: %d", resp.StatusCode)), http.StatusOK
 	}
 
-	var plexResponse PlexResponse
+	var plexResponse types.PlexResponse
 	if err := json.Unmarshal(body, &plexResponse); err != nil {
-		var mediaContainer MediaContainer
+		var mediaContainer types.MediaContainer
 		if xmlErr := xml.Unmarshal(body, &mediaContainer); xmlErr != nil {
 			return s.CreateHealthResponse(startTime, "warning", "Failed to parse server response"), http.StatusOK
 		}
@@ -181,9 +157,10 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 		"responseTime": responseTime.Milliseconds(),
 	}
 
-	message := fmt.Sprintf("Running on %s", plexResponse.MediaContainer.Platform)
-	if plexResponse.MediaContainer.Platform == "" {
-		message = "Healthy"
+	// Always set status to "online" when healthy and include a message
+	message := "Healthy"
+	if plexResponse.MediaContainer.Platform != "" {
+		message = fmt.Sprintf("Healthy - Running on %s", plexResponse.MediaContainer.Platform)
 	}
 
 	return s.CreateHealthResponse(startTime, "online", message, extras), http.StatusOK

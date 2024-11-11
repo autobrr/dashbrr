@@ -180,7 +180,7 @@ func (db *DB) initSchema() error {
 		return err
 	}
 
-	log.Debug().Msg("Database schema initialized")
+	//log.Debug().Msg("Database schema initialized")
 	return nil
 }
 
@@ -341,6 +341,28 @@ func (db *DB) GetUserByID(id int64) (*types.User, error) {
 	return &user, nil
 }
 
+// UpdateUserPassword updates a user's password hash and updated_at timestamp
+func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
+	now := time.Now()
+	var placeholder string
+	if db.driver == "postgres" {
+		placeholder = "$1, $2, $3"
+	} else {
+		placeholder = "?, ?, ?"
+	}
+
+	_, err := db.Exec(`
+		UPDATE users 
+		SET password_hash = `+placeholder[0:2]+`, 
+		    updated_at = `+placeholder[4:5]+`
+		WHERE id = `+placeholder[7:8],
+		newPasswordHash,
+		now,
+		userID,
+	)
+	return err
+}
+
 // Service Management Functions
 
 // GetServiceByInstanceID retrieves a service configuration by its instance ID
@@ -357,6 +379,35 @@ func (db *DB) GetServiceByInstanceID(instanceID string) (*models.ServiceConfigur
 		SELECT id, instance_id, display_name, url, api_key 
 		FROM service_configurations 
 		WHERE instance_id = `+placeholder, instanceID).Scan(
+		&service.ID,
+		&service.InstanceID,
+		&service.DisplayName,
+		&service.URL,
+		&service.APIKey,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &service, nil
+}
+
+// GetServiceByURL retrieves a service configuration by its URL
+func (db *DB) GetServiceByURL(url string) (*models.ServiceConfiguration, error) {
+	var service models.ServiceConfiguration
+	var placeholder string
+	if db.driver == "postgres" {
+		placeholder = "$1"
+	} else {
+		placeholder = "?"
+	}
+
+	err := db.QueryRow(`
+		SELECT id, instance_id, display_name, url, api_key 
+		FROM service_configurations 
+		WHERE url = `+placeholder, url).Scan(
 		&service.ID,
 		&service.InstanceID,
 		&service.DisplayName,

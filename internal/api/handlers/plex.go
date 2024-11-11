@@ -15,6 +15,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/plex"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -53,7 +54,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var sessions *plex.PlexSessionsResponse
+	var sessions *types.PlexSessionsResponse
 	err := h.cache.Get(ctx, cacheKey, &sessions)
 	if err == nil && sessions != nil {
 		log.Debug().
@@ -72,9 +73,9 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
-			emptyResponse := &plex.PlexSessionsResponse{}
+			emptyResponse := &types.PlexSessionsResponse{}
 			emptyResponse.MediaContainer.Size = 0
-			emptyResponse.MediaContainer.Metadata = []plex.PlexSession{}
+			emptyResponse.MediaContainer.Metadata = []types.PlexSession{}
 			c.JSON(http.StatusOK, emptyResponse)
 			return
 		}
@@ -104,7 +105,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
-func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*plex.PlexSessionsResponse, error) {
+func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types.PlexSessionsResponse, error) {
 	plexConfig, err := h.db.GetServiceByInstanceID(instanceId)
 	if err != nil {
 		return nil, err
@@ -126,7 +127,7 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*plex.
 
 	// Initialize empty metadata if nil
 	if sessions.MediaContainer.Metadata == nil {
-		sessions.MediaContainer.Metadata = []plex.PlexSession{}
+		sessions.MediaContainer.Metadata = []types.PlexSession{}
 	}
 
 	// Cache the results

@@ -20,7 +20,7 @@ BUILD_DIR=web/dist
 # Main Go file
 MAIN_GO=./cmd/dashbrr/main.go
 
-.PHONY: all clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview
+.PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview
 
 # Default target
 all: clean deps-frontend deps-go frontend backend
@@ -104,37 +104,59 @@ wait-backend:
 	echo "Backend failed to start within 30 seconds"; \
 	exit 1
 
-# Development mode - run frontend and backend with SQLite
+# Development mode - run frontend and backend with SQLite and Redis
 dev: redis-dev
-	@echo "Starting development servers..."
+	@echo "Starting development servers with Redis cache..."
 	@echo "Redis is running on localhost:6379"
-	@echo "Starting backend server with SQLite..."
-	DASHBRR__DB_TYPE=sqlite $(GOCMD) run $(MAIN_GO) --db ./data/dashbrr.db & \
+	@echo "Starting backend server with SQLite in debug mode..."
+	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite $(GOCMD) run $(MAIN_GO) --db ./data/dashbrr.db & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
 	echo "Starting frontend server..."; \
-	cd web && $(PNPM) dev & \
+	cd web && $(PNPM) dev --host & \
 	frontend_pid=$$!; \
 	trap 'kill $$backend_pid $$frontend_pid 2>/dev/null; make redis-stop' EXIT; \
 	wait
 
-# Docker development mode - run with PostgreSQL (with rebuild)
+# Development mode - run frontend and backend with SQLite and memory cache
+dev-memory:
+	@echo "Starting development servers with memory cache..."
+	@echo "Starting backend server with SQLite in debug mode..."
+	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite $(GOCMD) run $(MAIN_GO) --db ./data/dashbrr.db & \
+	backend_pid=$$!; \
+	echo "Waiting for backend to be ready..."; \
+	$(MAKE) wait-backend; \
+	echo "Starting frontend server..."; \
+	cd web && $(PNPM) dev --host & \
+	frontend_pid=$$!; \
+	trap 'kill $$backend_pid $$frontend_pid 2>/dev/null' EXIT; \
+	wait
+
+# Docker development mode - run with PostgreSQL and memory cache
 docker-dev:
-	@echo "Starting Docker development environment with PostgreSQL (rebuilding containers)..."
+	@echo "Starting Docker development environment with PostgreSQL and memory cache..."
 	$(DOCKER_COMPOSE) down
 	$(DOCKER_COMPOSE) build
-	$(DOCKER_COMPOSE) up
+	$(DOCKER_COMPOSE) up --force-recreate
 
-# Docker development mode - run with PostgreSQL (quick start, no rebuild)
+# Docker development mode - run with PostgreSQL and Redis
+docker-dev-redis:
+	@echo "Starting Docker development environment with PostgreSQL and Redis..."
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml down
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml build
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml up --force-recreate
+
+# Docker development mode - quick start with current cache configuration
 docker-dev-quick:
-	@echo "Starting Docker development environment with PostgreSQL (quick start, no rebuild)..."
+	@echo "Starting Docker development environment (quick start)..."
 	$(DOCKER_COMPOSE) up
 
 # Clean Docker development environment (including volumes)
 docker-clean:
 	@echo "Cleaning Docker development environment (including volumes)..."
 	$(DOCKER_COMPOSE) down -v
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml down -v
 
 # Docker commands
 docker-build:
@@ -144,10 +166,10 @@ docker-build:
 # Start PostgreSQL for integration tests
 test-integration-db:
 	@echo "Starting PostgreSQL for integration tests..."
-	$(DOCKER_COMPOSE) -f docker-compose.integration.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.integration.yml up -d
 	@echo "Waiting for PostgreSQL to be ready..."
 	@for i in $$(seq 1 30); do \
-		if docker compose -f docker-compose.integration.yml exec -T postgres pg_isready -U dashbrr > /dev/null 2>&1; then \
+		if docker compose -f docker-compose/docker-compose.integration.yml exec -T postgres pg_isready -U dashbrr > /dev/null 2>&1; then \
 			echo "PostgreSQL is ready!"; \
 			exit 0; \
 		fi; \
@@ -160,7 +182,7 @@ test-integration-db:
 # Stop PostgreSQL for integration tests
 test-integration-db-stop:
 	@echo "Stopping PostgreSQL for integration tests..."
-	$(DOCKER_COMPOSE) -f docker-compose.integration.yml down -v
+	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.integration.yml down -v
 
 # Run integration tests
 test-integration: test-integration-db
@@ -190,11 +212,11 @@ help:
 	@echo "  backend                  - Build the backend Go binary"
 	@echo "  lint                     - Run ESLint on frontend code"
 	@echo "  type-check              - Run TypeScript type checking"
-	@echo "  preview                 - Start frontend preview server"
+	@echo "  preview                  - Start frontend preview server"
 	@echo "  dev                      - Start development environment with SQLite and Redis"
-	@echo "  redis-dev                - Start Redis server for development"
-	@echo "  redis-stop               - Stop Redis development server"
-	@echo "  docker-dev               - Start Docker development environment with PostgreSQL (rebuilds containers)"
+	@echo "  dev-memory               - Start development environment with SQLite and memory cache"
+	@echo "  docker-dev               - Start Docker development environment with memory cache"
+	@echo "  docker-dev-redis         - Start Docker development environment with Redis cache"
 	@echo "  docker-dev-quick         - Start Docker development environment without rebuilding"
 	@echo "  docker-clean             - Clean Docker environment including volumes"
 	@echo "  docker-build             - Build Docker image"

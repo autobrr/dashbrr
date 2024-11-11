@@ -57,8 +57,8 @@ RUN apk --no-cache add ca-certificates curl tzdata jq
 WORKDIR /app
 VOLUME /config
 
-COPY --link --from=app-builder /out/bin/dashbrr /usr/local/bin/
+COPY --link --from=app-builder /out/bin/dashbrr /usr/local/bin/dashbrr
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/dashbrr"]
+ENTRYPOINT ["dashbrr"]

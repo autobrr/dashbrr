@@ -10,6 +10,7 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AuthContextType,
   User,
@@ -56,6 +57,7 @@ function debounce<TArgs extends unknown[], TReturn>(
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -346,11 +348,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log("[AuthProvider] Logout successful");
       clearAuth();
-      window.location.href = "/login";
+      navigate("/login", { replace: true });
     } catch (error) {
       console.error("[AuthProvider] Logout error:", error);
       clearAuth();
-      window.location.href = "/login";
+      navigate("/login", { replace: true });
     }
   };
 

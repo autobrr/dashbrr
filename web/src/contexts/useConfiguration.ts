@@ -12,16 +12,20 @@ export const useConfiguration = () => {
     throw new Error('useConfiguration must be used within a ConfigurationProvider');
   }
 
-  const validateServiceConfig = async (type: string, url: string, apiKey: string) => {
+  const validateServiceConfig = async (type: string, url: string, apiKey?: string) => {
     try {
       // Ensure URL is properly formatted
       const formattedUrl = url.endsWith('/') ? url.slice(0, -1) : url;
       
-      // Encode the API key properly
-      const encodedApiKey = encodeURIComponent(apiKey);
+      // Build query parameters
+      const params = new URLSearchParams();
+      params.append('url', formattedUrl);
+      if (apiKey) {
+        params.append('apiKey', apiKey);
+      }
       
       // Construct the health check URL
-      const healthCheckUrl = `/health/${type.toLowerCase()}?url=${encodeURIComponent(formattedUrl)}&apiKey=${encodedApiKey}`;
+      const healthCheckUrl = `/health/${type.toLowerCase()}?${params.toString()}`;
       
       const response = await fetch(healthCheckUrl, {
         method: 'GET',

@@ -21,9 +21,10 @@ type SettingsHandler struct {
 	health *services.HealthService
 }
 
-func NewSettingsHandler(db *database.DB) *SettingsHandler {
+func NewSettingsHandler(db *database.DB, health *services.HealthService) *SettingsHandler {
 	return &SettingsHandler{
-		db: db,
+		db:     db,
+		health: health,
 	}
 }
 
@@ -74,6 +75,11 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		return
 	}
 
+	// If updating, stop health monitoring first
+	if existing != nil && h.health != nil {
+		h.health.StopMonitoring(instanceID)
+	}
+
 	var saveErr error
 	if existing == nil {
 		// Create new configuration
@@ -114,6 +120,7 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 
 	// Stop health monitoring before deleting
 	if h.health != nil {
+		log.Debug().Str("instance", instanceID).Msg("Stopping health monitoring")
 		h.health.StopMonitoring(instanceID)
 	}
 

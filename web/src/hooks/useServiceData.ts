@@ -18,7 +18,8 @@ import {
   SonarrQueue,
   RadarrQueue,
   ProwlarrStats,
-  ProwlarrIndexer
+  ProwlarrIndexer,
+  ServiceConfig
 } from '../types/service';
 import { useConfiguration } from '../contexts/useConfiguration';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,23 +41,8 @@ interface ServiceData {
 }
 
 // Background polling intervals
-const HEALTH_CHECK_INTERVAL = 300000;  // 5 minutes for health checks
 const STATS_CHECK_INTERVAL = 300000;   // 5 minutes for service stats
 const PLEX_SESSIONS_INTERVAL = 30000;  // 30 seconds for Plex sessions
-
-// Service-specific intervals
-const SERVICE_STATS_INTERVALS: Record<ServiceType, number> = {
-  plex: PLEX_SESSIONS_INTERVAL,
-  autobrr: 300000,   // 5 minutes for autobrr
-  overseerr: 300000, // 5 minutes for overseerr
-  sonarr: 300000,    // 5 minutes for sonarr
-  maintainerr: 300000,// 5 minutes for maintainerr
-  omegabrr: 600000,  // 10 minutes (health check only)
-  radarr: 300000,    // 5 minutes for radarr
-  prowlarr: 300000,  // 5 minutes for prowlarr
-  tailscale: 600000, // 10 minutes (health check only)
-  other: 300000      // 5 minutes default
-};
 
 function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   fn: T,
@@ -77,7 +63,7 @@ export const useServiceData = () => {
   const updateTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const plexTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const clearServiceTimeouts = useCallback((serviceId: string) => {
+  const clearServiceTimeout = useCallback((serviceId: string) => {
     const timeoutId = updateTimeoutsRef.current.get(serviceId);
     if (timeoutId) {
       clearTimeout(timeoutId);
@@ -90,36 +76,25 @@ export const useServiceData = () => {
       const newServices = new Map(prev);
       const currentService = newServices.get(serviceId);
       if (currentService) {
-        newServices.set(serviceId, {
+        // Deep merge stats and details
+        const mergedService = {
           ...currentService,
           ...data,
-          lastChecked: new Date()
-        } as Service);
+          lastChecked: new Date(),
+          stats: data.stats ? {
+            ...currentService.stats,
+            ...data.stats
+          } : currentService.stats,
+          details: data.details ? {
+            ...currentService.details,
+            ...data.details
+          } : currentService.details
+        };
+        newServices.set(serviceId, mergedService);
       }
       return newServices;
     });
   }, []);
-
-  const fetchHealthStatus = useCallback(async (service: Service) => {
-    const healthCacheKey = `${CACHE_PREFIXES.HEALTH}${service.instanceId}`;
-    const { data: cachedHealth, isStale } = cache.get<ServiceHealth>(healthCacheKey);
-
-    // Use cached data if available and not stale
-    if (cachedHealth && !isStale) {
-      updateServiceData(service.instanceId, cachedHealth);
-      return;
-    }
-
-    try {
-      const health = await api.get<ServiceHealth>(`/api/health/${service.instanceId}`);
-      if (health) {
-        cache.set(healthCacheKey, health);
-        updateServiceData(service.instanceId, health);
-      }
-    } catch (error) {
-      console.error(`Error fetching health for ${service.type}:`, error);
-    }
-  }, [updateServiceData]);
 
   const fetchPlexSessions = useCallback(async (service: Service) => {
     try {
@@ -143,7 +118,7 @@ export const useServiceData = () => {
   }, [updateServiceData]);
 
   const fetchServiceStats = useCallback(async (service: Service) => {
-    if (service.type === 'omegabrr' || service.type === 'tailscale') return;
+    if (service.type === 'omegabrr' || service.type === 'tailscale' || service.type === 'general') return;
     if (!service.url || !service.apiKey) return;
 
     // Special handling for Plex sessions
@@ -167,7 +142,7 @@ export const useServiceData = () => {
       switch (service.type) {
         case 'overseerr': {
           const stats = await api.get<OverseerrStats>(
-            `/api/overseerr/pending?instanceId=${service.instanceId}`
+            `/api/overseerr/requests?instanceId=${service.instanceId}`
           );
           data = { stats: { overseerr: stats }, details: {} };
           break;
@@ -204,10 +179,12 @@ export const useServiceData = () => {
           break;
         }
         case 'autobrr': {
+          console.log('Fetching autobrr stats for:', service.instanceId);
           const [statsData, ircData] = await Promise.all([
             api.get<AutobrrStats>(`/api/autobrr/stats?instanceId=${service.instanceId}`),
             api.get<AutobrrIRC[]>(`/api/autobrr/irc?instanceId=${service.instanceId}`)
           ]);
+          console.log('Received autobrr stats:', statsData);
           if (statsData && ircData) {
             data = { stats: { autobrr: statsData }, details: { autobrr: { irc: ircData } } };
           }
@@ -231,6 +208,7 @@ export const useServiceData = () => {
       }
 
       if (data) {
+        console.log('Updating service data:', service.instanceId, data);
         cache.set(statsCacheKey, data);
         updateServiceData(service.instanceId, data);
       }
@@ -239,31 +217,60 @@ export const useServiceData = () => {
     }
   }, [updateServiceData, fetchPlexSessions]);
 
-  const updateService = useCallback((service: Service) => {
-    clearServiceTimeouts(service.instanceId);
+  const fetchHealthStatus = useCallback(async (service: Service) => {
+    const healthCacheKey = `${CACHE_PREFIXES.HEALTH}${service.instanceId}`;
+    const { data: cachedHealth, isStale } = cache.get<ServiceHealth>(healthCacheKey);
 
-    // Special handling for Plex
-    if (service.type === 'plex') {
-      // Initial fetch with a small delay
-      setTimeout(() => {
-        Promise.all([
-          fetchHealthStatus(service),
-          fetchPlexSessions(service)
-        ]).catch(console.error);
-      }, Math.random() * 1000);
-
-      // Set up separate Plex interval
-      if (plexTimeoutRef.current) {
-        clearTimeout(plexTimeoutRef.current);
-      }
-      plexTimeoutRef.current = setInterval(() => {
-        fetchPlexSessions(service);
-      }, PLEX_SESSIONS_INTERVAL);
-
+    // Use cached data if available and not stale
+    if (cachedHealth && !isStale) {
+      updateServiceData(service.instanceId, cachedHealth);
       return;
     }
 
-    // Initial fetch with a small delay for other services
+    try {
+      const health = await api.get<ServiceHealth>(`/api/health/${service.instanceId}`);
+      if (health) {
+        cache.set(healthCacheKey, health);
+        updateServiceData(service.instanceId, health);
+      }
+    } catch (error) {
+      console.error(`Error fetching health for ${service.type}:`, error);
+    }
+  }, [updateServiceData]);
+
+  const initializeService = useCallback((instanceId: string, config: ServiceConfig) => {
+    const [type] = instanceId.split('-');
+    const template = serviceTemplates.find(t => t.type === type);
+    const hasRequiredConfig = Boolean(config.url && (config.apiKey || type === 'general'));
+
+    const service = {
+      id: instanceId,
+      instanceId,
+      name: template?.name || 'Unknown Service',
+      type: (template?.type || 'other') as ServiceType,
+      status: hasRequiredConfig ? 'loading' as ServiceStatus : 'pending' as ServiceStatus,
+      url: config.url,
+      apiKey: config.apiKey,
+      displayName: config.displayName,
+      healthEndpoint: template?.healthEndpoint,
+      message: hasRequiredConfig ? 'Loading service status' : 'Service not configured',
+      stats: {},
+      details: {}
+    } as Service;
+
+    setServices(prev => {
+      const newServices = new Map(prev);
+      newServices.set(instanceId, service);
+      return newServices;
+    });
+
+    return service;
+  }, []);
+
+  const updateService = useCallback((service: Service) => {
+    clearServiceTimeout(service.instanceId);
+
+    // Initial fetch with a small delay
     setTimeout(() => {
       Promise.all([
         fetchHealthStatus(service),
@@ -272,17 +279,36 @@ export const useServiceData = () => {
     }, Math.random() * 1000);
 
     // Schedule background polling
-    const interval = service.type === 'omegabrr' || service.type === 'tailscale' 
-      ? HEALTH_CHECK_INTERVAL 
-      : SERVICE_STATS_INTERVALS[service.type] || STATS_CHECK_INTERVAL;
-
     const timeoutId = setTimeout(() => {
       updateService(service);
-    }, interval);
+    }, service.type === 'plex' ? PLEX_SESSIONS_INTERVAL : STATS_CHECK_INTERVAL);
 
     updateTimeoutsRef.current.set(service.instanceId, timeoutId);
-  }, [clearServiceTimeouts, fetchHealthStatus, fetchServiceStats, fetchPlexSessions]);
+  }, [clearServiceTimeout, fetchHealthStatus, fetchServiceStats]);
 
+  // Handle service removals
+  useEffect(() => {
+    if (!configurations) return;
+
+    const currentServiceIds = new Set(Object.keys(configurations));
+    const existingServiceIds = Array.from(services.keys());
+
+    // Find services that need to be removed
+    const removedServiceIds = existingServiceIds.filter(id => !currentServiceIds.has(id));
+
+    if (removedServiceIds.length > 0) {
+      setServices(prev => {
+        const newServices = new Map(prev);
+        removedServiceIds.forEach(id => {
+          clearServiceTimeout(id);
+          newServices.delete(id);
+        });
+        return newServices;
+      });
+    }
+  }, [configurations, clearServiceTimeout]);
+
+  // Handle authentication state and service updates
   useEffect(() => {
     if (!isAuthenticated || !configurations) {
       setServices(new Map());
@@ -290,45 +316,30 @@ export const useServiceData = () => {
       return;
     }
 
-    const newServices = new Map();
+    // Handle service additions and updates
     Object.entries(configurations).forEach(([instanceId, config]) => {
-      const [type] = instanceId.split('-');
-      const template = serviceTemplates.find(t => t.type === type);
-      const hasRequiredConfig = Boolean(config.url && config.apiKey);
+      const existingService = services.get(instanceId);
+      const configChanged = existingService && (
+        existingService.url !== config.url ||
+        existingService.apiKey !== config.apiKey ||
+        existingService.displayName !== config.displayName
+      );
 
-      const service = {
-        id: instanceId,
-        instanceId,
-        name: template?.name || 'Unknown Service',
-        type: (template?.type || 'other') as ServiceType,
-        status: hasRequiredConfig ? 'loading' as ServiceStatus : 'pending' as ServiceStatus,
-        url: config.url,
-        apiKey: config.apiKey,
-        displayName: config.displayName,
-        healthEndpoint: template?.healthEndpoint,
-        message: hasRequiredConfig ? 'Loading service status' : 'Service not configured'
-      } as Service;
-
-      newServices.set(instanceId, service);
+      if (!existingService || configChanged) {
+        const service = initializeService(instanceId, config);
+        updateService(service);
+      }
     });
 
-    setServices(newServices);
     setIsLoading(false);
 
-    // Initialize all services
-    Array.from(newServices.values()).forEach(service => {
-      updateService(service);
-    });
-
     return () => {
-      Array.from(newServices.keys()).forEach(serviceId => {
-        clearServiceTimeouts(serviceId);
-      });
+      Array.from(services.keys()).forEach(clearServiceTimeout);
       if (plexTimeoutRef.current) {
         clearTimeout(plexTimeoutRef.current);
       }
     };
-  }, [configurations, isAuthenticated, updateService, clearServiceTimeouts]);
+  }, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService]);
 
   const refreshService = useCallback((instanceId: string, refreshType: 'health' | 'stats' | 'all' = 'all'): void => {
     const service = services.get(instanceId);
@@ -346,7 +357,14 @@ export const useServiceData = () => {
     updateService(service);
   }, [services, updateService]);
 
-  const debouncedRefreshService = debounce(refreshService, 1000);
+  const debouncedRefreshService = useCallback((
+    instanceId: string,
+    refreshType: 'health' | 'stats' | 'all' = 'all'
+  ) => {
+    debounce((id: string, type: typeof refreshType) => {
+      refreshService(id, type);
+    }, 1000)(instanceId, refreshType);
+  }, [refreshService]);
 
   return {
     services: Array.from(services.values()),

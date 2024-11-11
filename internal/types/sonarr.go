@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package types
 
 // SonarrQueueResponse represents the queue response from Sonarr API
@@ -8,6 +11,14 @@ type SonarrQueueResponse struct {
 	SortDirection string        `json:"sortDirection"`
 	TotalRecords  int           `json:"totalRecords"`
 	Records       []QueueRecord `json:"records"`
+}
+
+// SonarrQueueDeleteOptions represents the options for deleting a queue item in Sonarr
+type SonarrQueueDeleteOptions struct {
+	RemoveFromClient bool `json:"removeFromClient"`
+	Blocklist        bool `json:"blocklist"`
+	SkipRedownload   bool `json:"skipRedownload"`
+	ChangeCategory   bool `json:"changeCategory"`
 }
 
 // QueueRecord represents a record in the Sonarr queue
@@ -44,4 +55,59 @@ type SonarrStatsResponse struct {
 	Unmonitored      int `json:"unmonitored"`
 	QueuedCount      int `json:"queuedCount"`
 	MissingCount     int `json:"missingCount"`
+}
+
+// SonarrSeriesResponse represents a series from Sonarr's series endpoint
+type SonarrSeriesResponse struct {
+	ID           int              `json:"id"`
+	Title        string           `json:"title"`
+	TitleSlug    string           `json:"titleSlug"`
+	Overview     string           `json:"overview"`
+	Status       string           `json:"status"`
+	Added        string           `json:"added"`
+	Year         int              `json:"year"`
+	Path         string           `json:"path"`
+	TvdbId       int              `json:"tvdbId"`
+	ImdbId       string           `json:"imdbId"`
+	SizeOnDisk   int64            `json:"sizeOnDisk"`
+	Runtime      int              `json:"runtime"`
+	Network      string           `json:"network"`
+	AirTime      string           `json:"airTime"`
+	Monitored    bool             `json:"monitored"`
+	SeasonFolder bool             `json:"seasonFolder"`
+	Seasons      []SonarrSeason   `json:"seasons"`
+	Statistics   SeriesStatistics `json:"statistics"`
+	Ratings      SeriesRatings    `json:"ratings"`
+}
+
+// SonarrSeason represents a season in a series
+type SonarrSeason struct {
+	SeasonNumber int     `json:"seasonNumber"`
+	Monitored    bool    `json:"monitored"`
+	Statistics   *Season `json:"statistics,omitempty"`
+}
+
+// Season represents season statistics
+type Season struct {
+	EpisodeFileCount  int     `json:"episodeFileCount"`
+	EpisodeCount      int     `json:"episodeCount"`
+	TotalEpisodeCount int     `json:"totalEpisodeCount"`
+	SizeOnDisk        int64   `json:"sizeOnDisk"`
+	PercentOfEpisodes float64 `json:"percentOfEpisodes"`
+}
+
+// SeriesStatistics represents series-wide statistics
+type SeriesStatistics struct {
+	SeasonCount       int     `json:"seasonCount"`
+	EpisodeFileCount  int     `json:"episodeFileCount"`
+	EpisodeCount      int     `json:"episodeCount"`
+	TotalEpisodeCount int     `json:"totalEpisodeCount"`
+	SizeOnDisk        int64   `json:"sizeOnDisk"`
+	PercentOfEpisodes float64 `json:"percentOfEpisodes"`
+}
+
+// SeriesRatings represents rating information for a series
+type SeriesRatings struct {
+	Votes int     `json:"votes"`
+	Value float64 `json:"value"`
 }

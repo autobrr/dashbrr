@@ -15,7 +15,7 @@ import Toast from "./components/Toast";
 import { AddServicesMenu } from "./components/AddServicesMenu";
 import { useServiceManagement } from "./hooks/useServiceManagement";
 import { TailscaleStatusBar } from "./components/services/TailscaleStatusBar";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import LoadingSkeleton from "./components/shared/LoadingSkeleton";
 import logo from "./assets/logo.svg";
 import { serviceTemplates } from "./config/serviceTemplates";
@@ -71,8 +71,6 @@ function App() {
 function AppContent() {
   const {
     addServiceInstance,
-    showTailscaleConfig,
-    setShowTailscaleConfig,
     showServiceConfig,
     pendingService,
     confirmServiceAddition,
@@ -82,6 +80,7 @@ function AppContent() {
   const { services } = useServiceHealth();
   const { notificationsEnabled, toggleNotifications, requestPermission } =
     useNotifications();
+  const [showTailscaleConfig, setShowTailscaleConfig] = useState(false);
 
   const handleNotificationToggle = async () => {
     if (!notificationsEnabled) {
@@ -121,7 +120,7 @@ function AppContent() {
             <div className="flex items-center gap-2 ml-auto">
               <TailscaleStatusBar
                 initialConfigOpen={showTailscaleConfig}
-                onConfigClose={() => setShowTailscaleConfig(false)}
+                onConfigOpen={() => setShowTailscaleConfig(true)}
               />
               <button
                 onClick={handleNotificationToggle}
@@ -164,9 +163,7 @@ function AppContent() {
             </div>
             <div className="w-full sm:w-auto">
               <AddServicesMenu
-                serviceTemplates={serviceTemplates.filter(
-                  (t) => t.type !== "tailscale"
-                )}
+                serviceTemplates={serviceTemplates}
                 onAddService={(type: ServiceType, name: string) =>
                   addServiceInstance(type, name)
                 }

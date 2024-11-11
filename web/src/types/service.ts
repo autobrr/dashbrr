@@ -5,7 +5,13 @@
 
 export type ServiceStatus = 'online' | 'offline' | 'warning' | 'error' | 'loading' | 'pending' | 'unknown';
 
-export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'other';
+export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'general' | 'other';
+
+export interface ServiceHealth {
+  status: ServiceStatus;
+  message: string;
+  extras?: Record<string, unknown>;
+}
 
 // Base Service interface
 export interface Service {
@@ -26,6 +32,7 @@ export interface Service {
   retryCount?: number;
   stats?: ServiceStats;
   details?: ServiceDetails;
+  health?: ServiceHealth;
 }
 
 export interface ServiceConfig {
@@ -72,42 +79,182 @@ export interface MaintainerrCollection {
 export interface PlexUser {
   id: string;
   title: string;
+  thumb?: string;
 }
 
 export interface PlexPlayer {
-  remotePublicAddress: string;
+  address: string;
+  device?: string;
+  machineIdentifier: string;
+  model: string;
+  platform: string;
+  platformVersion: string;
   product: string;
-  device: string;
+  profile: string;
+  remotePublicAddress: string;
+  state: string;
+  title: string;
+  version: string;
+  local: boolean;
+  relayed: boolean;
+  secure: boolean;
+  userID: number;
+}
+
+export interface PlexMediaStream {
+  audioChannelLayout?: string;
+  bitDepth?: number;
+  bitrate?: number;
+  channels?: number;
+  codec: string;
+  displayTitle: string;
+  extendedDisplayTitle: string;
+  id: string;
+  samplingRate?: number;
+  selected: boolean;
+  streamType: number;
+  location: string;
+}
+
+export interface PlexMediaPart {
+  container: string;
+  duration: number;
+  file: string;
+  size: number;
+  decision: string;
+  selected: boolean;
+  streams?: PlexMediaStream[];
+}
+
+export interface PlexMedia {
+  audioChannels: number;
+  audioCodec: string;
+  bitrate: number;
+  container: string;
+  duration: number;
+  id: string;
+  selected: boolean;
+  parts?: PlexMediaPart[];
 }
 
 export interface PlexTranscodeSession {
-  videoDecision: string;
-  audioDecision: string;
+  key: string;
+  throttled: boolean;
+  complete: boolean;
   progress: number;
+  speed: number;
+  size: number;
+  videoDecision: 'transcode' | 'copy' | 'direct play';
+  audioDecision: 'transcode' | 'copy' | 'direct play';
+  protocol: string;
+  container: string;
+  videoCodec: string;
+  audioCodec: string;
+  width: number;
+  height: number;
+  transcodeHwRequested: boolean;
+  transcodeHwFullPipeline: boolean;
+  timeStamp: number;
+  maxOffsetAvailable: number;
+  minOffsetAvailable: number;
 }
 
 export interface PlexSession {
-  type: string;
-  title: string;
+  addedAt: number;
+  duration: number;
+  grandparentArt?: string;
+  grandparentGuid?: string;
+  grandparentKey?: string;
   grandparentTitle?: string;
+  guid: string;
+  key: string;
+  parentTitle?: string;
+  title: string;
+  type: string;
+  viewOffset: number;
+  sessionKey: string;
   User?: PlexUser;
   Player?: PlexPlayer;
+  Media?: PlexMedia[];
+  Session?: {
+    id: string;
+    bandwidth: number;
+    location: string;
+  };
   TranscodeSession?: PlexTranscodeSession;
 }
 
 // Overseerr Types
+export interface OverseerrMediaRequest {
+  id: number;
+  status: number;
+  createdAt: string;
+  updatedAt: string;
+  media: {
+    id: number;
+    mediaType: string;
+    tmdbId: number;
+    tvdbId: number;
+    status: number;
+    requests: string[];
+    createdAt: string;
+    updatedAt: string;
+    serviceUrl?: string;
+    title?: string;
+    externalServiceId?: number;
+    externalServiceSlug?: string;
+  };
+  requestedBy: {
+    id: number;
+    email: string;
+    username: string;
+    plexToken: string;
+    plexUsername: string;
+    userType: number;
+    permissions: number;
+    avatar: string;
+    createdAt: string;
+    updatedAt: string;
+    requestCount: number;
+  };
+  modifiedBy: {
+    id: number;
+    email: string;
+    username: string;
+    plexToken: string;
+    plexUsername: string;
+    userType: number;
+    permissions: number;
+    avatar: string;
+    createdAt: string;
+    updatedAt: string;
+    requestCount: number;
+  };
+  is4k: boolean;
+  serverId: number;
+  profileId: number;
+  rootFolder: string;
+}
+
 export interface OverseerrStats {
-  pendingRequests: number;
+  pendingCount: number;
+  requests: OverseerrMediaRequest[];
   version?: string;
   status?: number;
   updateAvailable?: boolean;
 }
 
 // Sonarr Types
+export interface SonarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
 export interface SonarrQueueItem {
   id: number;
   title: string;
   status: string;
+  protocol: string; // "usenet" or "torrent"
   indexer?: string;
   customFormatScore: number;
   downloadClient: string;
@@ -115,6 +262,7 @@ export interface SonarrQueueItem {
   trackedDownloadState?: string;
   trackedDownloadStatus?: string;
   errorMessage?: string;
+  statusMessages?: SonarrStatusMessage[];
 }
 
 export interface SonarrQueue {
@@ -132,25 +280,44 @@ export interface SonarrStats {
 }
 
 // Radarr Types
+export interface RadarrMovie {
+  title: string;
+  originalTitle: string;
+  year: number;
+  folderPath: string;
+  customFormats: RadarrCustomFormat[];
+}
+
+export interface RadarrCustomFormat {
+  id: number;
+  name: string;
+}
+
+export interface RadarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
 export interface RadarrQueueItem {
   id: number;
   title: string;
   status: string;
+  protocol: string; // "usenet" or "torrent"
   indexer?: string;
   customFormatScore: number;
   downloadClient: string;
   timeLeft?: string;
   trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  movie: RadarrMovie;
+  movieId: number;
+  statusMessages?: RadarrStatusMessage[];
 }
 
 export interface RadarrQueue {
   totalRecords: number;
   records: RadarrQueueItem[];
-}
-
-export interface SonarrQueue {
-  totalRecords: number;
-  records: SonarrQueueItem[];
 }
 
 // Prowlarr Types

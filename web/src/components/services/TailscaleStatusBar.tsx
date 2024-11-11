@@ -4,13 +4,14 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { CogIcon } from "@heroicons/react/24/solid";
+import { Cog6ToothIcon } from "@heroicons/react/24/solid";
 import TailscaleDeviceModal from "./TailscaleDeviceModal";
-import { TailscaleConfigModal } from "./TailscaleConfigModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
 import { useAuth } from "../../contexts/AuthContext";
 import { api } from "../../utils/api";
 import tailscaleLogo from "../../assets/tailscale.svg";
+import { useServiceManagement } from "../../hooks/useServiceManagement";
+import AnimatedModal from "../ui/AnimatedModal";
 
 interface Device {
   name: string;
@@ -34,20 +35,18 @@ interface ErrorResponse {
 
 interface TailscaleStatusBarProps {
   initialConfigOpen?: boolean;
-  onConfigClose?: () => void;
+  onConfigOpen?: () => void;
 }
 
-export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
-  initialConfigOpen = false,
-  onConfigClose,
-}) => {
+export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
-  const [isConfigModalOpen, setIsConfigModalOpen] = useState(initialConfigOpen);
   const [devices, setDevices] = useState<Device[]>([]);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { configurations } = useConfiguration();
   const { isAuthenticated, loading } = useAuth();
+  const { removeServiceInstance } = useServiceManagement();
+  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
   const config = useMemo(() => {
     const tailscaleConfig = Object.entries(configurations).find(([id]) =>
@@ -135,15 +134,24 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
         setError("Not configured");
       }
     }
-  }, [config?.url, config?.apiKey, fetchDevices, isAuthenticated, loading]);
+  }, [
+    config?.url,
+    config?.apiKey,
+    fetchDevices,
+    isAuthenticated,
+    loading,
+    config,
+  ]);
 
-  useEffect(() => {
-    setIsConfigModalOpen(initialConfigOpen);
-  }, [initialConfigOpen]);
+  const handleRemoveClick = () => {
+    setIsRemoveModalOpen(true);
+  };
 
-  const handleConfigClose = () => {
-    setIsConfigModalOpen(false);
-    onConfigClose?.();
+  const handleConfirmRemove = async () => {
+    if (config?.id) {
+      await removeServiceInstance(config.id);
+      setIsRemoveModalOpen(false);
+    }
   };
 
   const baseButtonClasses =
@@ -187,52 +195,45 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
     );
   };
 
+  // Only render if Tailscale is configured
+  if (!config) {
+    return null;
+  }
+
   return (
     <>
       <div className="flex align-middle items-center space-x-2">
-        {config ? (
-          <>
-            <button
-              onClick={() => setIsDeviceModalOpen(true)}
-              className={`${baseButtonClasses}`}
-              title={error || undefined}
-              disabled={!isAuthenticated || loading}
-            >
-              <div className="w-6 mr-1 pb-1">
-                <img
-                  src={tailscaleLogo}
-                  alt="Tailscale"
-                  className="w-full h-full text-gray-300"
-                  draggable="false"
-                  style={{
-                    pointerEvents: "none",
-                    userSelect: "none",
-                    WebkitUserSelect: "none",
-                    MozUserSelect: "none",
-                    msUserSelect: "none",
-                  }}
-                  onContextMenu={(e) => e.preventDefault()}
-                />
-              </div>
-              {getStatusDisplay()}
-            </button>
-            <button
-              onClick={() => setIsConfigModalOpen(true)}
-              className="p-1 text-sm rounded-md font-medium text-gray-400 hover:text-gray-600 dark:hover:text-white"
-              disabled={!isAuthenticated || loading}
-            >
-              <CogIcon className="w-5 h-5" />
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={() => setIsConfigModalOpen(true)}
-            className="px-3 py-1 text-sm rounded-md font-medium text-white bg-gray-800 hover:bg-gray-700"
-            disabled={!isAuthenticated || loading}
-          >
-            <CogIcon className="w-5 h-5" />
-          </button>
-        )}
+        <button
+          onClick={() => setIsDeviceModalOpen(true)}
+          className={`${baseButtonClasses}`}
+          title={error || undefined}
+          disabled={!isAuthenticated || loading}
+        >
+          <div className="w-6 mr-1 pb-1">
+            <img
+              src={tailscaleLogo}
+              alt="Tailscale"
+              className="w-full h-full text-gray-300"
+              draggable="false"
+              style={{
+                pointerEvents: "none",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                MozUserSelect: "none",
+                msUserSelect: "none",
+              }}
+              onContextMenu={(e) => e.preventDefault()}
+            />
+          </div>
+          {getStatusDisplay()}
+        </button>
+        <button
+          onClick={handleRemoveClick}
+          className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
+          title="Remove Tailscale"
+        >
+          <Cog6ToothIcon className="w-4 h-4" />
+        </button>
       </div>
 
       <TailscaleDeviceModal
@@ -241,11 +242,32 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
         devices={devices}
       />
 
-      <TailscaleConfigModal
-        isOpen={isConfigModalOpen}
-        onClose={handleConfigClose}
-        configId={config?.id}
-      />
+      <AnimatedModal
+        isOpen={isRemoveModalOpen}
+        onClose={() => setIsRemoveModalOpen(false)}
+        title="Remove Tailscale"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700 dark:text-gray-300">
+            Are you sure you want to remove Tailscale?
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setIsRemoveModalOpen(false)}
+              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmRemove}
+              className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      </AnimatedModal>
     </>
   );
 };

@@ -5,7 +5,7 @@
 
 import React from "react";
 
-type StatusType =
+export type StatusType =
   | "online"
   | "offline"
   | "warning"

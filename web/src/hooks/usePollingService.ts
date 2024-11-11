@@ -13,6 +13,8 @@ interface PollingOptions<T> {
   initialData?: T | null;
   debounce?: boolean;
   debounceDelay?: number;
+  retryAttempts?: number;
+  retryDelay?: number;
 }
 
 interface CacheItem<T> {
@@ -21,6 +23,7 @@ interface CacheItem<T> {
 }
 
 const cache = new Map<string, CacheItem<unknown>>();
+const activeRequests = new Map<string, Promise<unknown>>();
 
 export function usePollingService<T>(
   fetchFn: () => Promise<T>,
@@ -34,6 +37,8 @@ export function usePollingService<T>(
     initialData = null,
     debounce = true,
     debounceDelay = 1000,
+    retryAttempts = 3,
+    retryDelay = 1000,
   } = options;
 
   const [data, setData] = useState<T | null>(initialData);
@@ -43,6 +48,36 @@ export function usePollingService<T>(
 
   const timeoutRef = useRef<NodeJS.Timeout>();
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const retryCountRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  const fetchWithRetry = useCallback(async (attempt: number = 0): Promise<T> => {
+    try {
+      // Check if there's already an active request for this cache key
+      const activeRequest = activeRequests.get(cacheKey);
+      if (activeRequest) {
+        return activeRequest as Promise<T>;
+      }
+
+      // Create new request
+      const request = fetchFn();
+      activeRequests.set(cacheKey, request);
+
+      const result = await request;
+      activeRequests.delete(cacheKey);
+      return result;
+    } catch (err) {
+      activeRequests.delete(cacheKey);
+      
+      if (attempt < retryAttempts) {
+        // Exponential backoff
+        const delay = retryDelay * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return fetchWithRetry(attempt + 1);
+      }
+      throw err;
+    }
+  }, [cacheKey, fetchFn, retryAttempts, retryDelay]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -56,8 +91,10 @@ export function usePollingService<T>(
       }
 
       setIsLoading(true);
-      const result = await fetchFn();
+      const result = await fetchWithRetry();
       
+      if (!mountedRef.current) return;
+
       // Update cache if enabled
       if (enableCache) {
         cache.set(cacheKey, {
@@ -68,12 +105,16 @@ export function usePollingService<T>(
 
       setData(result);
       setError(null);
+      retryCountRef.current = 0;
     } catch (err) {
+      if (!mountedRef.current) return;
       setError(err instanceof Error ? err : new Error('An error occurred'));
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [enableCache, cacheDuration, cacheKey, fetchFn]);
+  }, [enableCache, cacheDuration, cacheKey, fetchWithRetry]);
 
   const debouncedFetchData = useCallback(() => {
     if (debounce) {
@@ -89,6 +130,8 @@ export function usePollingService<T>(
   useEffect(() => {
     if (!configurations) return;
 
+    mountedRef.current = true;
+
     // Initial fetch
     debouncedFetchData();
 
@@ -96,6 +139,7 @@ export function usePollingService<T>(
     timeoutRef.current = setInterval(debouncedFetchData, interval);
 
     return () => {
+      mountedRef.current = false;
       if (timeoutRef.current) {
         clearInterval(timeoutRef.current);
       }
@@ -107,6 +151,7 @@ export function usePollingService<T>(
 
   // Expose a method to force refresh data
   const refresh = useCallback(() => {
+    retryCountRef.current = 0;
     debouncedFetchData();
   }, [debouncedFetchData]);
 

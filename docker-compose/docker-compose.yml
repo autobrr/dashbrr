@@ -1,0 +1,64 @@
+services:
+  dashbrr:
+    container_name: dashbrr
+    image: ghcr.io/autobrr/dashbrr:latest
+    ports:
+      - "8080:8080"
+    environment:
+      # Using memory cache by default
+      - CACHE_TYPE=memory
+      # Database configuration - uncomment desired database type
+      # SQLite configuration
+      #- DASHBRR__DB_TYPE=sqlite
+      #- DASHBRR__DB_PATH=/data/dashbrr.db
+      # PostgreSQL configuration
+      - DASHBRR__DB_TYPE=postgres
+      - DASHBRR__DB_HOST=postgres
+      - DASHBRR__DB_PORT=5432
+      - DASHBRR__DB_USER=dashbrr
+      - DASHBRR__DB_PASSWORD=dashbrr
+      - DASHBRR__DB_NAME=dashbrr
+      - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
+
+      #- OIDC_ISSUER=optional
+      #- OIDC_CLIENT_ID=optional
+      #- OIDC_CLIENT_SECRET=optional
+      #- OIDC_REDIRECT_URL=optional
+    volumes:
+      - ./data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dashbrr-network
+    command: ["/dashbrr"]
+
+  postgres:
+    container_name: dashbrr-postgres
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=dashbrr
+      - POSTGRES_PASSWORD=dashbrr
+      - POSTGRES_DB=dashbrr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dashbrr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashbrr"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: dashbrr_postgres_data
+
+networks:
+  dashbrr-network:
+    name: dashbrr-network
+    driver: bridge

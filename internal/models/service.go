@@ -20,13 +20,15 @@ type Service struct {
 
 // ServiceHealth represents the health status of a service
 type ServiceHealth struct {
-	Status          string    `json:"status"`
-	ResponseTime    int64     `json:"responseTime"`
-	LastChecked     time.Time `json:"lastChecked"`
-	Message         string    `json:"message,omitempty"`
-	Version         string    `json:"version,omitempty"`
-	UpdateAvailable bool      `json:"updateAvailable,omitempty"`
-	ServiceID       string    `json:"serviceId"`
+	Status          string                 `json:"status"`
+	ResponseTime    int64                  `json:"responseTime"`
+	LastChecked     time.Time              `json:"lastChecked"`
+	Message         string                 `json:"message,omitempty"`
+	Version         string                 `json:"version,omitempty"`
+	UpdateAvailable bool                   `json:"updateAvailable,omitempty"`
+	ServiceID       string                 `json:"serviceId"`
+	Stats           map[string]interface{} `json:"stats,omitempty"`
+	Details         map[string]interface{} `json:"details,omitempty"`
 }
 
 // ServiceHealthChecker defines the interface for service health checking
@@ -45,4 +47,5 @@ var (
 	NewOmegabrrService    func() ServiceHealthChecker
 	NewTailscaleService   func() ServiceHealthChecker
 	NewMaintainerrService func() ServiceHealthChecker
+	NewGeneralService     func() ServiceHealthChecker
 )

@@ -313,6 +313,13 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 		updateChan <- hasUpdate
 	}()
 
+	// Get release stats
+	stats, err := s.GetReleaseStats(url, apiKey)
+	if err != nil {
+		fmt.Printf("Failed to get release stats: %v\n", err)
+		// Continue without stats, don't fail the health check
+	}
+
 	// Perform health check
 	livenessURL := s.getEndpoint(url, "/api/healthz/liveness")
 	headers := map[string]string{
@@ -362,16 +369,22 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 		// Continue without update status if it takes too long
 	}
 
-	extras := map[string]interface{}{
-		"version":         version,
-		"responseTime":    responseTime.Milliseconds(),
-		"updateAvailable": hasUpdate,
-	}
-
 	// Get IRC status
 	ircStatus, err := s.GetIRCStatus(url, apiKey)
 	if err != nil {
-		return s.CreateHealthResponse(startTime, "warning", fmt.Sprintf("Autobrr is running but IRC status check failed: %v", err), extras), http.StatusOK
+		return s.CreateHealthResponse(startTime, "warning", fmt.Sprintf("Autobrr is running but IRC status check failed: %v", err), map[string]interface{}{
+			"version":         version,
+			"responseTime":    responseTime.Milliseconds(),
+			"updateAvailable": hasUpdate,
+			"details": map[string]interface{}{
+				"autobrr": map[string]interface{}{
+					"irc": ircStatus,
+				},
+			},
+			"stats": map[string]interface{}{
+				"autobrr": stats,
+			},
+		}), http.StatusOK
 	}
 
 	// Check if any IRC connections are healthy
@@ -389,20 +402,24 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 		}
 	}
 
+	extras := map[string]interface{}{
+		"version":         version,
+		"responseTime":    responseTime.Milliseconds(),
+		"updateAvailable": hasUpdate,
+		"stats": map[string]interface{}{
+			"autobrr": stats,
+		},
+	}
+
+	// Only include IRC status in details if there are unhealthy connections
 	if !ircHealthy {
+		extras["details"] = map[string]interface{}{
+			"autobrr": map[string]interface{}{
+				"irc": ircStatus,
+			},
+		}
 		return s.CreateHealthResponse(startTime, "warning", "Autobrr is running but reports unhealthy IRC connections", extras), http.StatusOK
 	}
 
-	// Get stats
-	stats, err := s.GetReleaseStats(url, apiKey)
-	if err != nil {
-		return s.CreateHealthResponse(startTime, "online", fmt.Sprintf("Autobrr is running but stats check failed: %v", err), extras), http.StatusOK
-	}
-
-	message := fmt.Sprintf("Autobrr is running. Total releases: %d, Filtered: %d, Approved: %d",
-		stats.TotalCount,
-		stats.FilteredCount,
-		stats.PushApprovedCount)
-
-	return s.CreateHealthResponse(startTime, "online", message, extras), http.StatusOK
+	return s.CreateHealthResponse(startTime, "online", "Autobrr is running", extras), http.StatusOK
 }
