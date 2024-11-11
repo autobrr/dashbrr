@@ -46,6 +46,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 - Multiple database support (SQLite & PostgreSQL)
 - Flexible caching system (In-memory or Redis)
 - Comprehensive CLI for service management and system operations
+- Progressive Web App (PWA) support for mobile and desktop
 
 ## Supported Services
 
@@ -246,6 +247,9 @@ OIDC_REDIRECT_URL=http://localhost:3000/auth/callback
 
 ![Main Dashboard](.github/assets/dashboard.png)
 _Main dashboard with service health monitoring and status cards_
+
+![Mobile View](.github/assets/mobile.png)
+_Mobile-friendly interface with PWA support_
 
 ![Built-in Authentication](.github/assets/built-in-login.png)
 _Built-in authentication system_
