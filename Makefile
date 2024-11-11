@@ -20,6 +20,20 @@ BUILD_DIR=web/dist
 # Main Go file
 MAIN_GO=./cmd/dashbrr/main.go
 
+# Version information
+VERSION=$(shell git describe --tags --always --dirty)
+COMMIT=$(shell git rev-parse --short HEAD)
+BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Build flags
+LDFLAGS=-s -w \
+	-X main.version=$(VERSION) \
+	-X main.commit=$(COMMIT) \
+	-X main.date=$(BUILD_DATE) \
+	-X github.com/autobrr/dashbrr/internal/commands/version.version=$(VERSION) \
+	-X github.com/autobrr/dashbrr/internal/commands/version.commit=$(COMMIT) \
+	-X github.com/autobrr/dashbrr/internal/commands/version.date=$(BUILD_DATE)
+
 .PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview
 
 # Default target
@@ -51,7 +65,7 @@ frontend: deps-frontend type-check lint
 # Build backend and create final binary
 backend: deps-go
 	@echo "Building backend..."
-	$(GOBUILD) -o $(BINARY_NAME) $(MAIN_GO)
+	$(GOBUILD) -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) $(MAIN_GO)
 
 # Lint frontend code
 lint:
@@ -109,7 +123,7 @@ dev: redis-dev
 	@echo "Starting development servers with Redis cache..."
 	@echo "Redis is running on localhost:6379"
 	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite $(GOCMD) run $(MAIN_GO) --db ./data/dashbrr.db & \
+	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db ./data/dashbrr.db & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -123,7 +137,7 @@ dev: redis-dev
 dev-memory:
 	@echo "Starting development servers with memory cache..."
 	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite $(GOCMD) run $(MAIN_GO) --db ./data/dashbrr.db & \
+	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db ./data/dashbrr.db & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
