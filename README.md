@@ -30,6 +30,9 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 - [Tech Stack](#tech-stack)
 - [Screenshots](#screenshots)
 
+> [!WARNING]  
+> Dashbrr is in early development. Expect bugs, and please report them ❤️
+
 ## Features
 
 - Real-time service health monitoring
