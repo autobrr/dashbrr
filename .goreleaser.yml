@@ -37,6 +37,9 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
+      - -X github.com/autobrr/dashbrr/internal/commands/version.version={{.Version}}
+      - -X github.com/autobrr/dashbrr/internal/commands/version.commit={{.Commit}}
+      - -X github.com/autobrr/dashbrr/internal/commands/version.date={{.Date}}
 
 archives:
   - id: dashbrr

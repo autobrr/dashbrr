@@ -39,7 +39,14 @@ RUN --network=none --mount=target=. \
     [[ "$GOARCH" == "arm" ]] && [[ "$TARGETVARIANT" == "v6" ]] && export GOARM=6; \
     [[ "$GOARCH" == "arm" ]] && [[ "$TARGETVARIANT" == "v7" ]] && export GOARM=7; \
     echo $GOARCH $GOOS $GOARM$GOAMD64; \
-    go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o /out/bin/dashbrr cmd/dashbrr/main.go
+    go build -ldflags "-s -w \
+    -X main.version=${VERSION} \
+    -X main.commit=${REVISION} \
+    -X main.date=${BUILDTIME} \
+    -X github.com/autobrr/dashbrr/internal/commands/version.version=${VERSION} \
+    -X github.com/autobrr/dashbrr/internal/commands/version.commit=${REVISION} \
+    -X github.com/autobrr/dashbrr/internal/commands/version.date=${BUILDTIME}" \
+    -o /out/bin/dashbrr cmd/dashbrr/main.go
 
 # build runner
 FROM --platform=$TARGETPLATFORM alpine:latest

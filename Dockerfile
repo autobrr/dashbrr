@@ -32,7 +32,14 @@ COPY . ./
 COPY --from=web-builder /app/web/dist ./web/dist
 
 # Build with embedded assets
-RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o /app/dashbrr cmd/dashbrr/main.go
+RUN go build -ldflags "-s -w \
+    -X main.version=${VERSION} \
+    -X main.commit=${REVISION} \
+    -X main.date=${BUILDTIME} \
+    -X github.com/autobrr/dashbrr/internal/commands/version.version=${VERSION} \
+    -X github.com/autobrr/dashbrr/internal/commands/version.commit=${REVISION} \
+    -X github.com/autobrr/dashbrr/internal/commands/version.date=${BUILDTIME}" \
+    -o /app/dashbrr cmd/dashbrr/main.go
 
 # build runner
 FROM alpine:3.20
