@@ -101,6 +101,8 @@ func startServer() {
 			log.Fatal().Err(err).Msg("Failed to load environment variables")
 		}
 	} else {
+		log.Debug().Str("path", *configPath).Msg("Using config file")
+
 		cfg, err = config.LoadConfig(*configPath)
 		if err != nil {
 			cfg = &config.Config{
