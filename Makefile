@@ -61,7 +61,7 @@ lint:
 # Type check frontend code
 type-check:
 	@echo "Type checking frontend code..."
-	cd web && $(PNPM) run tsc -b
+	cd web && $(PNPM) run build --mode=typecheck
 
 # Preview frontend build
 preview:
