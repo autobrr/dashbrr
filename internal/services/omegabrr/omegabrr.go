@@ -93,9 +93,7 @@ func (s *OmegabrrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	// Create a context with timeout for the entire health check
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	// Start version check in background
 	versionChan := make(chan string, 1)
