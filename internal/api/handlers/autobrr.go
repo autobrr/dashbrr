@@ -45,6 +45,10 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
+	log.Debug().
+		Str("instanceId", instanceId).
+		Msg("GetAutobrrReleaseStats called")
+
 	cacheKey := statsPrefix + instanceId
 	ctx := context.Background()
 
@@ -54,7 +58,9 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	if err == nil {
 		log.Debug().
 			Str("instanceId", instanceId).
+			Interface("stats", stats).
 			Msg("Serving Autobrr release stats from cache")
+
 		c.JSON(http.StatusOK, stats)
 
 		// Refresh cache in background without delay
@@ -67,6 +73,9 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
+			log.Debug().
+				Str("instanceId", instanceId).
+				Msg("Service not configured, returning empty stats")
 			c.JSON(http.StatusOK, autobrr.AutobrrStats{})
 			return
 		}
@@ -84,6 +93,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 
 	log.Debug().
 		Str("instanceId", instanceId).
+		Interface("stats", stats).
 		Msg("Successfully retrieved and cached autobrr release stats")
 
 	c.JSON(http.StatusOK, stats)
