@@ -3,11 +3,7 @@
   Dashbrr
 </h1>
 
-<p align="center">
-<a href="https://github.com/autobrr/dashbrr/releases/latest"><img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/autobrr/dashbrr?style=for-the-badge"></a>&nbsp;
-<a href="https://goreportcard.com/report/github.com/autobrr/dashbrr"><img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/autobrr/dashbrr?style=for-the-badge"></a>&nbsp;
-<a href="https://hub.docker.com/r/autobrr/dashbrr"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/autobrr/dashbrr?style=for-the-badge"></a>
-</p>
+<p align="center"><img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/autobrr/dashbrr?style=for-the-badge">&nbsp;<img alt="GitHub all releases" src="https://img.shields.io/github/downloads/autobrr/dashbrr/total?style=for-the-badge">&nbsp;<img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/autobrr/dashbrr/release.yml?style=for-the-badge"></p>
 
 <p align="center">
 A sleek, modern dashboard for monitoring and managing your media stack services.<br>
