@@ -12,11 +12,14 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/autobrr/dashbrr/internal/config"
 )
 
 type defaultFS struct {
@@ -67,8 +70,29 @@ func subFS(currentFs fs.FS, root string) (fs.FS, error) {
 	return fs.Sub(currentFs, root)
 }
 
+// BuildFrontend builds the frontend
+func BuildFrontend(cfg *config.Config) error {
+	// Run pnpm install
+	installCmd := exec.Command("pnpm", "install")
+	installCmd.Dir = "web"
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install dependencies: %w", err)
+	}
+
+	// Run pnpm build
+	buildCmd := exec.Command("pnpm", "build")
+	buildCmd.Dir = "web"
+	if err := buildCmd.Run(); err != nil {
+		return fmt.Errorf("failed to build frontend: %w", err)
+	}
+
+	return nil
+}
+
 // ServeStatic registers static file handlers with Gin
-func ServeStatic(r *gin.Engine) {
+func ServeStatic(r *gin.Engine, cfg *config.Config) {
+	baseURL := strings.TrimSuffix(cfg.Server.BaseURL, "/")
+
 	// Helper function to serve static files with proper headers
 	serveStaticFile := func(c *gin.Context, filepath string, contentType string) {
 		file, err := DistDirFS.Open(filepath)
@@ -90,11 +114,20 @@ func ServeStatic(r *gin.Engine) {
 			return
 		}
 
+		// If this is index.html, inject the base URL
+		if filepath == "index.html" {
+			htmlStr := string(data)
+			// Add base tag to head
+			baseTag := fmt.Sprintf(`<base href="%s/">`, baseURL)
+			htmlStr = strings.Replace(htmlStr, "<head>", "<head>"+baseTag, 1)
+			data = []byte(htmlStr)
+		}
+
 		c.Header("Content-Type", contentType)
 		if strings.Contains(filepath, "sw.js") || strings.Contains(filepath, "manifest.json") {
 			c.Header("Cache-Control", "no-cache")
 			if strings.Contains(filepath, "sw.js") {
-				c.Header("Service-Worker-Allowed", "/")
+				c.Header("Service-Worker-Allowed", baseURL)
 			}
 		} else {
 			c.Header("Cache-Control", "public, max-age=31536000")
@@ -105,75 +138,41 @@ func ServeStatic(r *gin.Engine) {
 		http.ServeContent(c.Writer, c.Request, filepath, stat.ModTime(), reader)
 	}
 
-	// Serve static files from root path
-	r.GET("/logo.svg", func(c *gin.Context) {
-		serveStaticFile(c, "logo.svg", "image/svg+xml")
-	})
+	// Handle static files and SPA routes
+	r.NoRoute(func(c *gin.Context) {
+		// Don't handle API routes
+		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+			return
+		}
 
-	r.GET("/masked-icon.svg", func(c *gin.Context) {
-		serveStaticFile(c, "masked-icon.svg", "image/svg+xml")
-	})
+		// Check if the request path starts with the base URL
+		if !strings.HasPrefix(c.Request.URL.Path, baseURL) {
+			c.AbortWithStatus(404)
+			return
+		}
 
-	r.GET("/favicon.ico", func(c *gin.Context) {
-		serveStaticFile(c, "favicon.ico", "image/x-icon")
-	})
+		// Remove base URL from path to get the actual file path
+		filepath := strings.TrimPrefix(c.Request.URL.Path, baseURL+"/")
+		if filepath == "" {
+			filepath = "index.html"
+		}
 
-	r.GET("/apple-touch-icon.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-iphone-60x60.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-iphone-60x60.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-ipad-76x76.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-ipad-76x76.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-iphone-retina-120x120.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-iphone-retina-120x120.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-ipad-retina-152x152.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-ipad-retina-152x152.png", "image/png")
-	})
-
-	r.GET("/pwa-192x192.png", func(c *gin.Context) {
-		serveStaticFile(c, "pwa-192x192.png", "image/png")
-	})
-
-	r.GET("/pwa-512x512.png", func(c *gin.Context) {
-		serveStaticFile(c, "pwa-512x512.png", "image/png")
-	})
-
-	// Serve manifest.json
-	r.GET("/manifest.json", func(c *gin.Context) {
-		serveStaticFile(c, "manifest.json", "application/manifest+json; charset=utf-8")
-	})
-
-	// Serve service worker
-	r.GET("/sw.js", func(c *gin.Context) {
-		serveStaticFile(c, "sw.js", "text/javascript; charset=utf-8")
-	})
-
-	// Serve workbox files
-	r.GET("/workbox-:hash.js", func(c *gin.Context) {
-		serveStaticFile(c, c.Request.URL.Path[1:], "text/javascript; charset=utf-8")
-	})
-
-	// Serve assets directory
-	r.GET("/assets/*filepath", func(c *gin.Context) {
-		filepath := strings.TrimPrefix(c.Param("filepath"), "/")
-		fullPath := path.Join("assets", filepath)
+		// Check if the file exists in our embedded filesystem
+		if _, err := DistDirFS.Open(filepath); err != nil {
+			// If file doesn't exist, serve index.html for client-side routing
+			filepath = "index.html"
+		}
 
 		// Set content type based on file extension
 		ext := strings.ToLower(path.Ext(filepath))
 		var contentType string
 		switch ext {
+		case ".html":
+			contentType = "text/html; charset=utf-8"
 		case ".css":
 			contentType = "text/css; charset=utf-8"
-		case ".js", ".mjs", ".tsx", ".ts":
-			contentType = "text/javascript; charset=utf-8"
+		case ".js", ".mjs":
+			contentType = "application/javascript; charset=utf-8"
 		case ".svg":
 			contentType = "image/svg+xml"
 		case ".png":
@@ -187,26 +186,10 @@ func ServeStatic(r *gin.Engine) {
 		case ".woff2":
 			contentType = "font/woff2"
 		default:
-			contentType = "text/javascript; charset=utf-8"
+			contentType = "application/octet-stream"
 		}
 
-		serveStaticFile(c, fullPath, contentType)
-	})
-
-	// Serve index.html for root path and direct requests
-	r.GET("/", serveIndex)
-	r.GET("/index.html", serveIndex)
-
-	// Handle all other routes
-	r.NoRoute(func(c *gin.Context) {
-		// Don't serve index.html for API routes
-		if strings.HasPrefix(c.Request.URL.Path, "/api") {
-			c.AbortWithStatus(404)
-			return
-		}
-
-		// For all other routes, serve index.html for client-side routing
-		serveIndex(c)
+		serveStaticFile(c, filepath, contentType)
 	})
 }
 
@@ -224,5 +207,18 @@ func serveIndex(c *gin.Context) {
 	c.Header("Pragma", "no-cache")
 	c.Header("Expires", "0")
 
-	io.Copy(c.Writer, file)
+	// Read the file
+	data, err := io.ReadAll(file)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	// Add base tag to head
+	htmlStr := string(data)
+	baseURL := strings.TrimSuffix(c.MustGet("config").(*config.Config).Server.BaseURL, "/")
+	baseTag := fmt.Sprintf(`<base href="%s/">`, baseURL)
+	htmlStr = strings.Replace(htmlStr, "<head>", "<head>"+baseTag, 1)
+
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(htmlStr))
 }

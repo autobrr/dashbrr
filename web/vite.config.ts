@@ -5,7 +5,7 @@ import tailwindcss from 'tailwindcss'
 import autoprefixer from 'autoprefixer'
 
 export default defineConfig(({ mode }) => ({
-  base: "/",
+  base: './',  // Use relative paths to support any base URL
   build: {
     outDir: 'dist',
     manifest: true,
@@ -73,46 +73,46 @@ export default defineConfig(({ mode }) => ({
         display: 'standalone',
         icons: [
           {
-            src: '/pwa-192x192.png',
+            src: 'pwa-192x192.png',  // Remove leading slash for relative paths
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/pwa-512x512.png',
+            src: 'pwa-512x512.png',  // Remove leading slash for relative paths
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
           },
           {
-            src: '/apple-touch-icon-iphone-60x60.png',
+            src: 'apple-touch-icon-iphone-60x60.png',  // Remove leading slash for relative paths
             sizes: '60x60',
             type: 'image/png'
           },
           {
-            src: '/apple-touch-icon-ipad-76x76.png',
+            src: 'apple-touch-icon-ipad-76x76.png',  // Remove leading slash for relative paths
             sizes: '76x76',
             type: 'image/png'
           },
           {
-            src: '/apple-touch-icon-iphone-retina-120x120.png',
+            src: 'apple-touch-icon-iphone-retina-120x120.png',  // Remove leading slash for relative paths
             sizes: '120x120',
             type: 'image/png'
           },
           {
-            src: '/apple-touch-icon-ipad-retina-152x152.png',
+            src: 'apple-touch-icon-ipad-retina-152x152.png',  // Remove leading slash for relative paths
             sizes: '152x152',
             type: 'image/png'
           }
         ],
-        start_url: '/',
-        scope: '/'
+        start_url: './',  // Use relative path
+        scope: './'       // Use relative path
       },
       workbox: mode === 'production' ? {
         globDirectory: 'dist',
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg}'
         ],
-        navigateFallback: '/index.html',
+        navigateFallback: 'index.html',  // Remove leading slash
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
@@ -152,7 +152,7 @@ export default defineConfig(({ mode }) => ({
       devOptions: {
         enabled: true,
         type: 'module',
-        navigateFallback: '/index.html',
+        navigateFallback: 'index.html',  // Remove leading slash
         suppressWarnings: true
       }
     })

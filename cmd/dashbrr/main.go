@@ -149,7 +149,7 @@ func startServer() {
 
 	r.Use(middleware.SetupCORS())
 
-	cacheStore := routes.SetupRoutes(r, db, healthService)
+	cacheStore := routes.SetupRoutes(r, db, healthService, cfg)
 	defer func() {
 		if err := cacheStore.Close(); err != nil {
 			cacheType := strings.ToLower(os.Getenv("CACHE_TYPE"))
@@ -161,7 +161,7 @@ func startServer() {
 		}
 	}()
 
-	web.ServeStatic(r)
+	web.ServeStatic(r, cfg)
 
 	srv := &http.Server{
 		Addr:         cfg.Server.ListenAddr,

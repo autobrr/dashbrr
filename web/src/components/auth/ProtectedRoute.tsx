@@ -25,7 +25,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     // Redirect to login page with the return url
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Use relative path for basename compatibility
+    return <Navigate to="login" state={{ from: location.pathname }} replace />;
   }
 
   return <>{children}</>;

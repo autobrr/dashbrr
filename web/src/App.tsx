@@ -4,18 +4,27 @@
  */
 
 import { ServiceHealthMonitor } from "./components/services/ServiceHealthMonitor";
-import { ConfigurationProvider } from "./contexts/ConfigurationContext";
+import {
+  ConfigurationProvider,
+  useConfiguration,
+} from "./contexts/ConfigurationContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Toaster } from "react-hot-toast";
 import Toast from "./components/Toast";
 import { AddServicesMenu } from "./components/AddServicesMenu";
 import { useServiceManagement } from "./hooks/useServiceManagement";
 import { TailscaleStatusBar } from "./components/services/TailscaleStatusBar";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import LoadingSkeleton from "./components/shared/LoadingSkeleton";
 import logo from "./assets/logo.svg";
 import { serviceTemplates } from "./config/serviceTemplates";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+} from "react-router-dom";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { LoginPage } from "./components/auth/LoginPage";
 import { CallbackPage } from "./components/auth/CallbackPage";
@@ -31,30 +40,66 @@ preloadLogo.src = logo;
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <ConfigurationProvider>
-          <Suspense fallback={<LoadingSkeleton />}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/auth/callback" element={<CallbackPage />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <AppContent />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/auth/login"
-                element={<Navigate to="/login" replace />}
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </ConfigurationProvider>
-      </AuthProvider>
+      <ConfigurationProvider>
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
+      </ConfigurationProvider>
     </BrowserRouter>
+  );
+}
+
+function AppRouter() {
+  const { baseUrl } = useConfiguration();
+  const navigate = useNavigate();
+
+  // Redirect to the correct base URL if needed
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    if (baseUrl && baseUrl !== "/" && !currentPath.startsWith(baseUrl)) {
+      const newPath = `${baseUrl}${currentPath === "/" ? "" : currentPath}`;
+      navigate(newPath, { replace: true });
+    }
+  }, [baseUrl, navigate]);
+
+  // Ensure baseUrl is properly formatted for route paths
+  const routeBase = baseUrl === "/" ? "" : baseUrl;
+
+  return (
+    <Suspense fallback={<LoadingSkeleton />}>
+      <Routes>
+        <Route path={`${routeBase}/login`} element={<LoginPage />} />
+        <Route path={`${routeBase}/auth/callback`} element={<CallbackPage />} />
+        <Route
+          path={routeBase || "/"}
+          element={
+            <ProtectedRoute>
+              <AppContent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={`${routeBase}/auth/login`}
+          element={<Navigate to="../login" replace />}
+        />
+        <Route path="*" element={<Navigate to={routeBase || "/"} replace />} />
+      </Routes>
+      <Toaster position="top-right">
+        {(t) => (
+          <Toast
+            type={
+              t.type === "success"
+                ? "success"
+                : t.type === "error"
+                ? "error"
+                : "info"
+            }
+            body={t.message as string}
+            t={t}
+          />
+        )}
+      </Toaster>
+    </Suspense>
   );
 }
 
@@ -146,21 +191,6 @@ function AppContent() {
           </div>
           <ServiceHealthMonitor />
         </main>
-        <Toaster position="top-right">
-          {(t) => (
-            <Toast
-              type={
-                t.type === "success"
-                  ? "success"
-                  : t.type === "error"
-                  ? "error"
-                  : "info"
-              }
-              body={t.message as string}
-              t={t}
-            />
-          )}
-        </Toaster>
       </div>
     </div>
   );

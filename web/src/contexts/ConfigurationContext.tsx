@@ -4,24 +4,55 @@
  */
 
 import { useState, useEffect, ReactNode, useCallback } from "react";
-import { API_BASE_URL, API_PREFIX } from "../config/api";
 import { ServiceConfig } from "../types/service";
-import { useAuth } from "./AuthContext";
 import { ConfigurationContext } from "./context";
 import { ConfigurationContextType } from "./types";
+import { useContext } from "react";
+
+export function useConfiguration() {
+  const context = useContext(ConfigurationContext);
+  if (!context) {
+    throw new Error(
+      "useConfiguration must be used within a ConfigurationProvider"
+    );
+  }
+  return context;
+}
 
 export function ConfigurationProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
   const [configurations, setConfigurations] = useState<{
     [instanceId: string]: ServiceConfig;
   }>({});
+  const [baseUrl, setBaseUrl] = useState<string>("/");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const buildUrl = useCallback((path: string) => {
-    const apiPath = path.startsWith("/api") ? path : `${API_PREFIX}${path}`;
-    return `${API_BASE_URL}${apiPath}`;
-  }, []);
+  const buildUrl = useCallback(
+    (path: string) => {
+      // Remove any leading/trailing slashes from path
+      const cleanPath = path.replace(/^\/+|\/+$/g, "");
+
+      // Ensure path starts with api/
+      const apiPath = cleanPath.startsWith("api/")
+        ? cleanPath
+        : `api/${cleanPath}`;
+
+      // In development, return just the path to use Vite proxy
+      if (import.meta.env.DEV) {
+        return `/${apiPath}`;
+      }
+
+      // In production, use the origin and configured base URL
+      const origin = window.location.origin;
+
+      // Combine all parts ensuring no double slashes
+      if (baseUrl && baseUrl !== "/") {
+        return `${origin}${baseUrl}/${apiPath}`;
+      }
+      return `${origin}/${apiPath}`;
+    },
+    [baseUrl]
+  );
 
   const getAuthHeaders = useCallback(() => {
     const accessToken = localStorage.getItem("access_token");
@@ -31,8 +62,34 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const fetchBaseUrl = useCallback(async () => {
+    try {
+      // Use a direct path for the initial baseUrl fetch
+      const response = await fetch("/api/settings/baseurl");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch base URL: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const newBaseUrl = data.base_url || "/";
+      setBaseUrl(newBaseUrl);
+
+      // Set the global base URL for use in other parts of the application
+      window.__BASE_URL__ = newBaseUrl;
+
+      // Log the base URL for debugging
+      console.log("Base URL set to:", newBaseUrl);
+    } catch (err) {
+      console.error("Error fetching base URL:", err);
+      // Default to "/" if we can't fetch the base URL
+      setBaseUrl("/");
+      window.__BASE_URL__ = "/";
+    }
+  }, []);
+
   const fetchConfigurations = useCallback(async () => {
-    if (!isAuthenticated) {
+    const accessToken = localStorage.getItem("access_token");
+    if (!accessToken) {
       setConfigurations({});
       setIsLoading(false);
       return;
@@ -42,7 +99,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const response = await fetch(buildUrl("/settings"), {
+      const response = await fetch(buildUrl("settings"), {
         headers: getAuthHeaders(),
         cache: "no-store",
       });
@@ -61,11 +118,11 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, buildUrl, getAuthHeaders]);
+  }, [buildUrl, getAuthHeaders]);
 
   useEffect(() => {
-    fetchConfigurations();
-  }, [fetchConfigurations]);
+    fetchBaseUrl();
+  }, [fetchBaseUrl]);
 
   const updateConfiguration = async (
     instanceId: string,
@@ -73,7 +130,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   ) => {
     try {
       setError(null);
-      const response = await fetch(buildUrl(`/settings/${instanceId}`), {
+      const response = await fetch(buildUrl(`settings/${instanceId}`), {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(config),
@@ -104,7 +161,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   const deleteConfiguration = async (instanceId: string) => {
     try {
       setError(null);
-      const response = await fetch(buildUrl(`/settings/${instanceId}`), {
+      const response = await fetch(buildUrl(`settings/${instanceId}`), {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -133,6 +190,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
 
   const contextValue: ConfigurationContextType = {
     configurations,
+    baseUrl,
     updateConfiguration,
     deleteConfiguration,
     fetchConfigurations,

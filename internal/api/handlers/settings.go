@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
@@ -19,13 +20,21 @@ import (
 type SettingsHandler struct {
 	db     *database.DB
 	health *services.HealthService
+	config *config.Config
 }
 
-func NewSettingsHandler(db *database.DB, health *services.HealthService) *SettingsHandler {
+func NewSettingsHandler(db *database.DB, health *services.HealthService, cfg *config.Config) *SettingsHandler {
 	return &SettingsHandler{
 		db:     db,
 		health: health,
+		config: cfg,
 	}
+}
+
+func (h *SettingsHandler) GetBaseURL(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"base_url": h.config.Server.BaseURL,
+	})
 }
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {

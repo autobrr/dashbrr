@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -26,6 +27,7 @@ type Config struct {
 // ServerConfig holds server-related configuration
 type ServerConfig struct {
 	ListenAddr string `toml:"listen_addr" env:"DASHBRR__LISTEN_ADDR"`
+	BaseURL    string `toml:"base_url" env:"DASHBRR__BASE_URL"`
 }
 
 // CacheConfig holds cache-related configuration
@@ -129,6 +131,20 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("error loading environment variables: %w", err)
 	}
 
+	// Ensure BaseURL starts with / and doesn't end with /
+	if config.Server.BaseURL != "" {
+		baseURL := config.Server.BaseURL
+		if !strings.HasPrefix(baseURL, "/") {
+			baseURL = "/" + baseURL
+		}
+		if strings.HasSuffix(baseURL, "/") {
+			baseURL = baseURL[:len(baseURL)-1]
+		}
+		config.Server.BaseURL = baseURL
+	} else {
+		config.Server.BaseURL = "/"
+	}
+
 	return config, nil
 }
 
@@ -137,6 +153,9 @@ func LoadEnvOverrides(config *Config) error {
 	// Server
 	if env := os.Getenv("DASHBRR__LISTEN_ADDR"); env != "" {
 		config.Server.ListenAddr = env
+	}
+	if env := os.Getenv("DASHBRR__BASE_URL"); env != "" {
+		config.Server.BaseURL = env
 	}
 
 	// Cache

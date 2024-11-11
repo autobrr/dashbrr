@@ -14,6 +14,7 @@ import { faCheck, faTimes } from "@fortawesome/free-solid-svg-icons";
 import Toast from "../Toast";
 import logo from "../../assets/logo.svg";
 import { Footer } from "../shared/Footer";
+import { buildAuthUrl, AUTH_URLS } from "../../config/auth";
 
 export function LoginPage() {
   const {
@@ -64,7 +65,14 @@ export function LoginPage() {
       }
 
       try {
-        const response = await fetch("/api/auth/registration-status");
+        const response = await fetch(
+          buildAuthUrl(AUTH_URLS.builtin.registrationStatus)
+        );
+        if (!response.ok) {
+          throw new Error(
+            `Failed to check registration status: ${response.status}`
+          );
+        }
         const data = await response.json();
         setRegistrationEnabled(data.registrationEnabled);
         if (data.registrationEnabled && !data.hasUsers) {

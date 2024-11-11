@@ -10,14 +10,19 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   AuthContextType,
   User,
   LoginCredentials,
   RegisterCredentials,
 } from "../types/auth";
-import { AUTH_URLS, getAuthConfig, AuthConfig } from "../config/auth";
+import {
+  AUTH_URLS,
+  getAuthConfig,
+  AuthConfig,
+  buildAuthUrl,
+} from "../config/auth";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -56,13 +61,38 @@ function debounce<TArgs extends unknown[], TReturn>(
   };
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+function AuthProviderComponent({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Helper function to build relative paths
+  const buildRelativePath = useCallback(
+    (path: string) => {
+      // Remove leading slash if present
+      const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+      // Calculate relative path based on current location
+      const currentPath = location.pathname;
+      const depth = currentPath.split("/").filter(Boolean).length;
+      const prefix = depth > 0 ? "../".repeat(depth) : "./";
+      return `${prefix}${cleanPath}`;
+    },
+    [location.pathname]
+  );
+
+  const clearAuth = useCallback(() => {
+    console.log("[AuthProvider] Clearing authentication state");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("id_token");
+    localStorage.removeItem("auth_type");
+    setIsAuthenticated(false);
+    setUser(null);
+    setRetryCount(0);
+  }, []);
 
   const checkAuthStatus = useCallback(async () => {
     console.log("[AuthProvider] Checking auth status");
@@ -84,10 +114,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
 
       // First verify the token
-      const verifyUrl =
+      const verifyUrl = buildAuthUrl(
         currentAuthType === "oidc"
           ? AUTH_URLS.oidc.verify
-          : AUTH_URLS.builtin.verify;
+          : AUTH_URLS.builtin.verify
+      );
 
       console.log("[AuthProvider] Verifying token at:", verifyUrl);
 
@@ -124,10 +155,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("[AuthProvider] Token verified successfully");
 
       // Then get user info using the appropriate endpoint
-      const userInfoUrl =
+      const userInfoUrl = buildAuthUrl(
         currentAuthType === "oidc"
           ? AUTH_URLS.oidc.userInfo
-          : AUTH_URLS.userInfo;
+          : AUTH_URLS.userInfo
+      );
 
       console.log("[AuthProvider] Fetching user info from:", userInfoUrl);
 
@@ -176,7 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [retryCount]);
+  }, [retryCount, clearAuth]);
 
   // Debounce the auth check to prevent too frequent calls
   const debouncedCheckAuth = useCallback(
@@ -227,103 +259,100 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [debouncedCheckAuth]);
 
-  const clearAuth = () => {
-    console.log("[AuthProvider] Clearing authentication state");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("id_token");
-    localStorage.removeItem("auth_type");
-    setIsAuthenticated(false);
-    setUser(null);
-    setRetryCount(0);
-  };
-
-  const loginWithOIDC = () => {
+  const loginWithOIDC = useCallback(() => {
     console.log("[AuthProvider] Initiating OIDC login");
     if (!authConfig?.methods.oidc) {
       throw new Error("OIDC authentication is not configured");
     }
     clearAuth();
-    window.location.href = AUTH_URLS.oidc.login;
-  };
+    window.location.href = buildAuthUrl(AUTH_URLS.oidc.login);
+  }, [authConfig?.methods.oidc, clearAuth]);
 
-  const login = async (credentials?: LoginCredentials) => {
-    console.log(
-      "[AuthProvider] Login attempt",
-      credentials ? "with credentials" : "with OIDC"
-    );
-    if (!credentials) {
-      return loginWithOIDC();
-    }
-
-    try {
-      const response = await fetch(AUTH_URLS.builtin.login, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error("[AuthProvider] Login failed:", error);
-        throw new Error(error.message || "Login failed");
-      }
-
-      const data = await response.json();
-      console.log("[AuthProvider] Login successful");
-      localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("auth_type", "builtin");
-      await debouncedCheckAuth();
-    } catch (error) {
-      console.error("[AuthProvider] Login error:", error);
-      throw error;
-    }
-  };
-
-  const register = async (credentials: RegisterCredentials) => {
-    console.log("[AuthProvider] Registration attempt");
-    try {
-      const response = await fetch(AUTH_URLS.builtin.register, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error("[AuthProvider] Registration failed:", error);
-        throw new Error(error.message || "Registration failed");
-      }
-
+  const login = useCallback(
+    async (credentials?: LoginCredentials) => {
       console.log(
-        "[AuthProvider] Registration successful, proceeding to login"
+        "[AuthProvider] Login attempt",
+        credentials ? "with credentials" : "with OIDC"
       );
-      // After successful registration, log in with the same credentials
-      await login({
-        username: credentials.username,
-        password: credentials.password,
-      });
-    } catch (error) {
-      console.error("[AuthProvider] Registration error:", error);
-      throw error;
-    }
-  };
+      if (!credentials) {
+        return loginWithOIDC();
+      }
 
-  const logout = async () => {
+      try {
+        const response = await fetch(buildAuthUrl(AUTH_URLS.builtin.login), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(credentials),
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          console.error("[AuthProvider] Login failed:", error);
+          throw new Error(error.message || "Login failed");
+        }
+
+        const data = await response.json();
+        console.log("[AuthProvider] Login successful");
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("auth_type", "builtin");
+        await debouncedCheckAuth();
+      } catch (error) {
+        console.error("[AuthProvider] Login error:", error);
+        throw error;
+      }
+    },
+    [debouncedCheckAuth, loginWithOIDC]
+  );
+
+  const register = useCallback(
+    async (credentials: RegisterCredentials) => {
+      console.log("[AuthProvider] Registration attempt");
+      try {
+        const response = await fetch(buildAuthUrl(AUTH_URLS.builtin.register), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(credentials),
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          console.error("[AuthProvider] Registration failed:", error);
+          throw new Error(error.message || "Registration failed");
+        }
+
+        console.log(
+          "[AuthProvider] Registration successful, proceeding to login"
+        );
+        // After successful registration, log in with the same credentials
+        await login({
+          username: credentials.username,
+          password: credentials.password,
+        });
+      } catch (error) {
+        console.error("[AuthProvider] Registration error:", error);
+        throw error;
+      }
+    },
+    [login]
+  );
+
+  const logout = useCallback(async () => {
     console.log("[AuthProvider] Initiating logout");
     try {
       const currentAuthType = localStorage.getItem("auth_type") as
         | "oidc"
         | "builtin";
-      const logoutUrl =
+      const logoutUrl = buildAuthUrl(
         currentAuthType === "oidc"
           ? AUTH_URLS.oidc.logout
-          : AUTH_URLS.builtin.logout;
+          : AUTH_URLS.builtin.logout
+      );
       const accessToken = localStorage.getItem("access_token");
 
       console.log(
@@ -348,13 +377,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log("[AuthProvider] Logout successful");
       clearAuth();
-      navigate("/login", { replace: true });
+      // Use buildRelativePath to ensure correct navigation
+      const loginPath = buildRelativePath("login");
+      navigate(loginPath, { replace: true });
     } catch (error) {
       console.error("[AuthProvider] Logout error:", error);
       clearAuth();
-      navigate("/login", { replace: true });
+      // Use buildRelativePath to ensure correct navigation
+      const loginPath = buildRelativePath("login");
+      navigate(loginPath, { replace: true });
     }
-  };
+  }, [clearAuth, navigate, buildRelativePath]);
 
   const value: AuthContextType = {
     isAuthenticated,
@@ -370,10 +403,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+// Export the hook
+function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
+
+// Export the provider and hook separately
+export { AuthProviderComponent as AuthProvider, useAuth };

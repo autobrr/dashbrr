@@ -13,6 +13,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/handlers"
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -20,12 +21,13 @@ import (
 )
 
 // SetupRoutes configures all the routes for the application
-func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) cache.Store {
+func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService, cfg *config.Config) cache.Store {
 	// Use custom logger instead of default Gin logger
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.SetupCORS())
 	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
+	r.Use(middleware.Config(cfg)) // Add config middleware
 
 	// Initialize cache with database directory for session storage
 	cacheConfig := cache.Config{
@@ -68,7 +70,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	cacheMiddleware := middleware.NewCacheMiddleware(store)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(db, health)
+	settingsHandler := handlers.NewSettingsHandler(db, health, cfg)
 	healthHandler := handlers.NewHealthHandler(db, health)
 	eventsHandler := handlers.NewEventsHandler(db, health)
 	autobrrHandler := handlers.NewAutobrrHandler(db, store)
@@ -110,6 +112,9 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 
 		// Auth configuration endpoint
 		public.GET("/api/auth/config", handlers.GetAuthConfig)
+
+		// Base URL configuration endpoint
+		public.GET("/api/settings/baseurl", settingsHandler.GetBaseURL)
 
 		// OIDC auth endpoints (only if OIDC is configured)
 		if oidcAuthHandler != nil {
