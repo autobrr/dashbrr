@@ -15,6 +15,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/buildinfo"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 )
@@ -128,7 +129,7 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 	}
 
 	// Set default headers
-	req.Header.Set("User-Agent", "dashbrr/1.0")
+	buildinfo.AttachUserAgentHeader(req)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Connection", "keep-alive")
 

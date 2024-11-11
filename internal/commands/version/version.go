@@ -9,16 +9,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/buildinfo"
 	"github.com/autobrr/dashbrr/internal/commands/base"
 )
 
-var (
-	version = "dev"
-	commit  = ""
-	date    = ""
-
-	githubAPIURL = "https://api.github.com/repos/autobrr/dashbrr/releases/latest"
-)
+const githubAPIURL = "https://api.github.com/repos/autobrr/dashbrr/releases/latest"
 
 type VersionInfo struct {
 	Version string `json:"version"`
@@ -62,9 +57,9 @@ func (c *VersionCommand) Execute(ctx context.Context, args []string) error {
 
 	// Get current version info
 	current := VersionInfo{
-		Version: version,
-		Commit:  commit,
-		Date:    date,
+		Version: buildinfo.Version,
+		Commit:  buildinfo.Commit,
+		Date:    buildinfo.Date,
 	}
 
 	if c.jsonOutput {
@@ -104,7 +99,7 @@ func (c *VersionCommand) getLatestRelease(ctx context.Context) (*GitHubRelease, 
 	}
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "dashbrr/"+version)
+	buildinfo.AttachUserAgentHeader(req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
