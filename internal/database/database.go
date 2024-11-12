@@ -112,6 +112,11 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 				Msg("Retrying database connection")
 			time.Sleep(delay)
 		}
+
+		// Configure connection pool
+		database.SetMaxOpenConns(25)
+		database.SetMaxIdleConns(25)
+		database.SetConnMaxLifetime(5 * time.Minute)
 	} else {
 		// SQLite connection
 		dbDir := filepath.Dir(config.Path)
@@ -176,11 +181,6 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 			Str("path", config.Path).
 			Msg("Initializing SQLite database")
 	}
-
-	// Configure connection pool
-	database.SetMaxOpenConns(25)
-	database.SetMaxIdleConns(25)
-	database.SetConnMaxLifetime(5 * time.Minute)
 
 	log.Info().
 		Str("driver", config.Driver).
