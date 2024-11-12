@@ -7,6 +7,11 @@ import React from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { ProwlarrIndexer } from "../../../types/service";
 import { ProwlarrMessage } from "./ProwlarrMessage";
+import {
+  ClockIcon,
+  ArrowDownTrayIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/solid";
 
 interface ProwlarrStatsProps {
   instanceId: string;
@@ -45,7 +50,6 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
     return null;
   }
 
-  const stats = service.stats?.prowlarr?.stats;
   const indexers = service.stats?.prowlarr?.indexers;
 
   return (
@@ -53,61 +57,78 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
       {/* Status and Messages */}
       <ProwlarrMessage status={service.status} message={service.message} />
 
-      {/* Stats Display */}
-      {stats && stats.grabCount + stats.failCount + stats.indexerCount > 0 && (
-        <div>
-          <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
-            Statistics:
-          </div>
-          <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="flex flex-col">
-                <span className="font-medium text-gray-600 dark:text-gray-300">
-                  Grabs
-                </span>
-                <span className="text-sm">{stats.grabCount}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium text-gray-600 dark:text-gray-300">
-                  Failures
-                </span>
-                <span className="text-sm">{stats.failCount}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium text-gray-600 dark:text-gray-300">
-                  Indexers
-                </span>
-                <span className="text-sm">{stats.indexerCount}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Active Indexers Display */}
       {indexers && indexers.length > 0 && (
         <div>
           <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
             Active Indexers:
           </div>
-          <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
+          <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2.5">
             {indexers
               .filter((indexer: ProwlarrIndexer) => indexer.enable)
               .sort(
                 (a: ProwlarrIndexer, b: ProwlarrIndexer) =>
                   a.priority - b.priority
               )
-              .slice(0, 5)
+              .slice(0, 10)
               .map((indexer: ProwlarrIndexer) => (
                 <div
                   key={indexer.id}
-                  className="flex justify-between items-center"
+                  className="flex justify-between items-center cursor-pointer py-1.5 px-2 rounded-md hover:bg-gray-800/50 transition-colors"
                 >
-                  <span className="font-medium">{indexer.name}</span>
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs opacity-75">
-                      Priority: {indexer.priority}
+                    <span className="font-medium text-gray-300">
+                      {indexer.name}
                     </span>
+                    <span
+                      title="Indexer Priority - Lower values have higher priority (1: Highest, 25: Default, 50: Lowest)"
+                      className={`px-1.5 py-0.5 text-[10px] rounded-full ${
+                        indexer.priority === 1
+                          ? "bg-green-500/10 text-green-400/80"
+                          : indexer.priority <= 3
+                          ? "bg-blue-500/10 text-blue-400/80"
+                          : indexer.priority <= 5
+                          ? "bg-indigo-500/10 text-indigo-400/80"
+                          : indexer.priority <= 7
+                          ? "bg-purple-500/10 text-purple-400/80"
+                          : indexer.priority <= 10
+                          ? "bg-yellow-500/10 text-yellow-400/80"
+                          : "bg-red-500/10 text-red-400/80"
+                      }`}
+                    >
+                      P{indexer.priority}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-[10px]">
+                    <div
+                      title="Number of successful grabs"
+                      className="flex items-center space-x-1"
+                    >
+                      <ArrowDownTrayIcon className="w-3 h-3 text-gray-500" />
+                      <span className="text-gray-400">
+                        {indexer.numberOfGrabs || 0}
+                      </span>
+                    </div>
+                    {indexer.numberOfQueries > 0 && (
+                      <div
+                        title="Number of search queries"
+                        className="flex items-center space-x-1"
+                      >
+                        <MagnifyingGlassIcon className="w-3 h-3 text-gray-500" />
+                        <span className="text-gray-400">
+                          {indexer.numberOfQueries}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      title="Average response time in milliseconds"
+                      className="flex items-center space-x-1"
+                    >
+                      <ClockIcon className="w-3 h-3 text-gray-500" />
+                      <span className="text-gray-400">
+                        {indexer.averageResponseTime}ms
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}

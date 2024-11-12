@@ -327,6 +327,7 @@ export interface ProwlarrIndexer {
   id: number;
   name: string;
   label: string;
+  label: string;
   enable: boolean;
   priority: number;
   averageResponseTime: number;

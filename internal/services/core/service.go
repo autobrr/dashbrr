@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -27,6 +28,7 @@ var (
 	// Common errors
 	ErrServiceNotConfigured = errors.New("service is not configured")
 	ErrNilResponse          = errors.New("received nil response from server")
+	ErrContextCanceled      = errors.New("context canceled")
 )
 
 type ServiceCore struct {
@@ -191,35 +193,61 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
+	// Read the entire body at once
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to read response body")
-		return nil, err
+		if errors.Is(err, context.Canceled) {
+			if len(body) > 0 {
+				log.Debug().
+					Str("body", string(body)).
+					Msg("Context canceled but partial response received")
+				return body, nil
+			}
+			return nil, ErrContextCanceled
+		}
+
+		log.Error().
+			Err(err).
+			Str("body", string(body)).
+			Msg("Failed to read response body")
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	contentType := resp.Header.Get("Content-Type")
 	if resp.StatusCode != http.StatusOK {
+		// Create error message with response body if available
+		errMsg := fmt.Sprintf("status: %d", resp.StatusCode)
+		if len(body) > 0 {
+			errMsg = fmt.Sprintf("%s, body: %s", errMsg, string(body))
+		}
+
 		var err error
 		switch resp.StatusCode {
 		case http.StatusBadGateway:
-			err = errors.New("service unavailable (502 bad gateway)")
+			err = fmt.Errorf("service unavailable (502 bad gateway): %s", errMsg)
 		case http.StatusServiceUnavailable:
-			err = errors.New("service unavailable (503)")
+			err = fmt.Errorf("service unavailable (503): %s", errMsg)
 		case http.StatusGatewayTimeout:
-			err = errors.New("service timeout (504)")
+			err = fmt.Errorf("service timeout (504): %s", errMsg)
 		case http.StatusUnauthorized:
-			err = errors.New("unauthorized access (401)")
+			err = fmt.Errorf("unauthorized access (401): %s", errMsg)
 		case http.StatusForbidden:
-			err = errors.New("access forbidden (403)")
+			err = fmt.Errorf("access forbidden (403): %s", errMsg)
 		case http.StatusNotFound:
-			err = errors.New("endpoint not found (404)")
+			err = fmt.Errorf("endpoint not found (404): %s", errMsg)
 		default:
+			// Only create error if content type is not JSON
 			if contentType != "application/json" {
-				err = errors.New("service error")
+				err = fmt.Errorf("service error: %s", errMsg)
 			}
 		}
 		if err != nil {
-			log.Error().Err(err).Int("status", resp.StatusCode).Str("content_type", contentType).Msg("Service error")
+			log.Error().
+				Err(err).
+				Int("status", resp.StatusCode).
+				Str("content_type", contentType).
+				Str("body", string(body)).
+				Msg("Service error")
 			return nil, err
 		}
 	}

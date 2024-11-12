@@ -87,7 +87,10 @@ func (s *AutobrrService) GetReleaseStats(url, apiKey string) (AutobrrStats, erro
 	}
 
 	var stats AutobrrStats
-	if err := json.Unmarshal(body, &stats); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder.UseNumber()
+
+	if err := decoder.Decode(&stats); err != nil {
 		return AutobrrStats{}, fmt.Errorf("failed to decode response: %v, body: %s", err, string(body))
 	}
 
