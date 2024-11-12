@@ -132,6 +132,18 @@ const unregisterServiceWorker = async (): Promise<void> => {
   }
 };
 
+// Check if the path is an authentication-related endpoint
+const isAuthEndpoint = (path: string): boolean => {
+  const authPaths = [
+    '/api/auth',
+    '/api/login',
+    '/api/verify',
+    '/api/userinfo',
+    '/api/token'
+  ];
+  return authPaths.some(authPath => path.includes(authPath));
+};
+
 const handleRequest = async <T>(
   path: string,
   options: RequestOptions,
@@ -156,13 +168,19 @@ const handleRequest = async <T>(
     clearTimeout(timeoutId);
 
     if (response.status === 401) {
-      // Clear auth tokens and unregister service worker before redirecting
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('id_token');
-      localStorage.removeItem('auth_type');
-      await unregisterServiceWorker();
-      window.location.href = '/login';
-      throw new Error('Authentication required');
+      // Only trigger logout for authentication-related 401s
+      if (isAuthEndpoint(path)) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('id_token');
+        localStorage.removeItem('auth_type');
+        await unregisterServiceWorker();
+        window.location.href = '/login';
+        throw new Error('Authentication required');
+      } else {
+        // For service-related 401s (like invalid API keys), just throw an error
+        const errorData = await response.json().catch(() => ({ error: 'Unauthorized' }));
+        throw new Error(errorData.error || 'Service authentication failed');
+      }
     }
 
     if (!response.ok) {
@@ -172,7 +190,8 @@ const handleRequest = async <T>(
         await new Promise(resolve => setTimeout(resolve, waitTime));
         return handleRequest<T>(path, options, retryCount + 1, customTimeout);
       }
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: `HTTP error! status: ${response.status}` }));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
     const text = await response.text();
@@ -186,7 +205,7 @@ const handleRequest = async <T>(
       if (error.name === 'AbortError') {
         throw new Error(`Request timed out after ${timeout}ms`);
       }
-      throw new Error(`Request failed: ${error.message}`);
+      throw error;
     }
     throw error;
   }
