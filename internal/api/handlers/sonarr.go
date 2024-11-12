@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -14,7 +13,9 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -59,10 +60,12 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	}
 
 	// Get delete options from query parameters
-	removeFromClient := c.Query("removeFromClient") == "true"
-	blocklist := c.Query("blocklist") == "true"
-	skipRedownload := c.Query("skipRedownload") == "true"
-	changeCategory := c.Query("changeCategory") == "true"
+	options := types.SonarrQueueDeleteOptions{
+		RemoveFromClient: c.Query("removeFromClient") == "true",
+		Blocklist:        c.Query("blocklist") == "true",
+		SkipRedownload:   c.Query("skipRedownload") == "true",
+		ChangeCategory:   c.Query("changeCategory") == "true",
+	}
 
 	// Get Sonarr configuration
 	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
@@ -78,55 +81,24 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	// Build delete URL with query parameters
-	deleteURL := fmt.Sprintf("%s/api/v3/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
-		sonarrConfig.URL,
-		queueId,
-		removeFromClient,
-		blocklist,
-		skipRedownload)
+	// Create Sonarr service instance
+	service := &sonarr.SonarrService{}
 
-	if changeCategory {
-		deleteURL += "&changeCategory=true"
-	}
-
-	// Create DELETE request
-	req, err := http.NewRequest(http.MethodDelete, deleteURL, nil)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to create delete request")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create delete request"})
-		return
-	}
-
-	// Add API key header
-	req.Header.Add("X-Api-Key", sonarrConfig.APIKey)
-
-	// Execute request
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to execute delete request")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to execute delete request"})
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var errorResponse struct {
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err == nil && errorResponse.Message != "" {
+	// Call the service method to delete the queue item
+	if err := service.DeleteQueueItem(sonarrConfig.URL, sonarrConfig.APIKey, queueId, options); err != nil {
+		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
-				Str("message", errorResponse.Message).
-				Int("statusCode", resp.StatusCode).
-				Msg("Sonarr API returned error")
-			c.JSON(resp.StatusCode, gin.H{"error": errorResponse.Message})
-			return
+				Err(arrErr).
+				Str("instanceId", instanceId).
+				Str("queueId", queueId).
+				Msg("Failed to delete queue item")
+
+			if arrErr.HttpCode > 0 {
+				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				return
+			}
 		}
-		log.Error().
-			Int("statusCode", resp.StatusCode).
-			Msg("Sonarr API returned non-200 status")
-		c.JSON(resp.StatusCode, gin.H{"error": fmt.Sprintf("Sonarr API returned status: %d", resp.StatusCode)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete queue item: %v", err)})
 		return
 	}
 
@@ -142,10 +114,10 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	log.Info().
 		Str("instanceId", instanceId).
 		Str("queueId", queueId).
-		Bool("removeFromClient", removeFromClient).
-		Bool("blocklist", blocklist).
-		Bool("skipRedownload", skipRedownload).
-		Bool("changeCategory", changeCategory).
+		Bool("removeFromClient", options.RemoveFromClient).
+		Bool("blocklist", options.Blocklist).
+		Bool("skipRedownload", options.SkipRedownload).
+		Bool("changeCategory", options.ChangeCategory).
 		Msg("Successfully deleted queue item")
 
 	c.Status(http.StatusOK)
@@ -195,39 +167,31 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	// Build Sonarr API URL
-	apiURL := fmt.Sprintf("%s/api/v3/queue?apikey=%s", sonarrConfig.URL, sonarrConfig.APIKey)
+	// Create Sonarr service instance
+	service := &sonarr.SonarrService{}
 
-	// Make request to Sonarr
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(apiURL)
+	// Get queue records using the service
+	records, err := service.GetQueueForHealth(sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Sonarr queue")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Sonarr queue"})
+		if arrErr, ok := err.(*arr.ErrArr); ok {
+			log.Error().
+				Err(arrErr).
+				Str("instanceId", instanceId).
+				Msg("Failed to fetch Sonarr queue")
+
+			if arrErr.HttpCode > 0 {
+				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				return
+			}
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch queue: %v", err)})
 		return
 	}
 
-	if resp == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Sonarr")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Sonarr"})
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Error().
-			Str("instanceId", instanceId).
-			Int("statusCode", resp.StatusCode).
-			Msg("Sonarr API returned non-200 status")
-		c.JSON(resp.StatusCode, gin.H{"error": fmt.Sprintf("Sonarr API returned status: %d", resp.StatusCode)})
-		return
-	}
-
-	// Parse response
-	if err := json.NewDecoder(resp.Body).Decode(&queueResp); err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to parse Sonarr response")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse Sonarr response"})
-		return
+	// Create response
+	queueResp = types.SonarrQueueResponse{
+		Records:      records,
+		TotalRecords: len(records),
 	}
 
 	// Cache the results
@@ -272,7 +236,10 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 			Str("instanceId", instanceId).
 			Int("monitored", statsResp.Monitored).
 			Msg("Serving Sonarr stats from cache")
-		c.JSON(http.StatusOK, statsResp)
+		c.JSON(http.StatusOK, gin.H{
+			"stats":   statsResp,
+			"version": "", // Version will be added by the frontend if needed
+		})
 		return
 	}
 
@@ -290,53 +257,30 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	// Build Sonarr API URL
-	apiURL := fmt.Sprintf("%s/api/v3/system/status?apikey=%s", sonarrConfig.URL, sonarrConfig.APIKey)
+	// Create Sonarr service instance
+	service := &sonarr.SonarrService{}
 
-	// Make request to Sonarr
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(apiURL)
+	// Get system status using the service
+	version, err := service.GetSystemStatus(sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Sonarr stats")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Sonarr stats"})
+		if arrErr, ok := err.(*arr.ErrArr); ok {
+			log.Error().
+				Err(arrErr).
+				Str("instanceId", instanceId).
+				Msg("Failed to fetch Sonarr stats")
+
+			if arrErr.HttpCode > 0 {
+				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				return
+			}
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch stats: %v", err)})
 		return
 	}
 
-	if resp == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Received nil response from Sonarr")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Received nil response from Sonarr"})
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Error().
-			Str("instanceId", instanceId).
-			Int("statusCode", resp.StatusCode).
-			Msg("Sonarr API returned non-200 status")
-		c.JSON(resp.StatusCode, gin.H{"error": fmt.Sprintf("Sonarr API returned status: %d", resp.StatusCode)})
-		return
-	}
-
-	// Parse response
-	if err := json.NewDecoder(resp.Body).Decode(&statsResp); err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to parse Sonarr response")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse Sonarr response"})
-		return
-	}
-
-	// Cache the results
-	if err := h.cache.Set(ctx, cacheKey, statsResp, sonarrCacheDuration); err != nil {
-		log.Warn().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("Failed to cache Sonarr stats")
-	}
-
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("monitored", statsResp.Monitored).
-		Msg("Successfully retrieved and cached Sonarr stats")
-
-	c.JSON(http.StatusOK, statsResp)
+	// Create response with stats and version
+	c.JSON(http.StatusOK, gin.H{
+		"stats":   statsResp,
+		"version": version,
+	})
 }

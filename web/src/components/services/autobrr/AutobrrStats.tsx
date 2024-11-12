@@ -46,7 +46,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   }
 
   // Always show stats section if service is online, even if stats are empty
-  const showStats = service.status === "online";
+  const showStats = true;
   const stats = service.stats?.autobrr || {
     total_count: 0,
     filtered_count: 0,
@@ -73,7 +73,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
             IRC Status:
           </div>
-          <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-1">
+          <div className="text-sm rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-1">
             {ircStatus.map((irc, index) => (
               <div key={index} className="flex justify-between items-center">
                 <span className="font-medium">{irc.name}</span>
@@ -98,28 +98,28 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
           <div className="grid grid-cols-2 gap-2">
             <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium">Filtered Releases:</span>
+                <span className="text-sm font-medium">Filtered Releases:</span>
               </div>
               <div className="font-bold">{stats.filtered_count || 0}</div>
             </div>
 
             <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium">Approved Pushes:</span>
+                <span className="text-sm font-medium">Approved Pushes:</span>
               </div>
               <div className="font-bold">{stats.push_approved_count || 0}</div>
             </div>
 
             <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium">Rejected Pushes:</span>
+                <span className="text-sm font-medium">Rejected Pushes:</span>
               </div>
               <div className="font-bold">{stats.push_rejected_count || 0}</div>
             </div>
 
             <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium">Errored Pushes:</span>
+                <span className="text-sm font-medium">Errored Pushes:</span>
               </div>
               <div className="font-bold">{stats.push_error_count || 0}</div>
             </div>

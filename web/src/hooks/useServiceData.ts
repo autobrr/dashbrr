@@ -172,8 +172,22 @@ export const useServiceData = () => {
           ]);
           if (statsData && indexersData) {
             data = {
-              stats: { prowlarr: { stats: statsData, indexers: indexersData } },
-              details: { prowlarr: { activeIndexers: indexersData.filter(i => i.enable).length, totalGrabs: statsData.grabCount } }
+              stats: { 
+                prowlarr: { 
+                  stats: statsData, 
+                  indexers: indexersData,
+                  prowlarrIndexerStats: {
+                    id: 1,
+                    indexers: []
+                  }
+                } 
+              },
+              details: { 
+                prowlarr: { 
+                  activeIndexers: indexersData.filter(i => i.enable).length, 
+                  totalGrabs: statsData.grabCount 
+                } 
+              }
             };
           }
           break;
