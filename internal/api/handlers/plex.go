@@ -106,7 +106,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 }
 
 func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types.PlexSessionsResponse, error) {
-	plexConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	plexConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}

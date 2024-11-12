@@ -67,7 +67,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from service
-	radarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	radarrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Radarr configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Radarr configuration"})
@@ -145,7 +145,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 		ChangeCategory:   c.Query("changeCategory") == "true",
 	}
 
-	radarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	radarrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Radarr configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Radarr configuration"})

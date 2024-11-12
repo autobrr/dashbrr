@@ -4,6 +4,7 @@
 package database
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -87,7 +88,7 @@ func TestUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by username
-	retrieved, err := db.GetUserByUsername("testuser")
+	retrieved, err := db.FindUser(context.Background(), FindUserParams{Username: "testuser"})
 	if err != nil {
 		t.Fatalf("Failed to get user by username: %v", err)
 	}
@@ -101,7 +102,7 @@ func TestUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by email
-	retrieved, err = db.GetUserByEmail("test@example.com")
+	retrieved, err = db.FindUser(context.Background(), FindUserParams{Email: "test@example.com"})
 	if err != nil {
 		t.Fatalf("Failed to get user by email: %v", err)
 	}
@@ -147,7 +148,7 @@ func TestServiceOperations(t *testing.T) {
 	}
 
 	// Test service retrieval by instance ID
-	retrieved, err := db.GetServiceByInstanceID("test-service-1")
+	retrieved, err := db.FindServiceBy(context.Background(), FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get service by instance ID: %v", err)
 	}
@@ -167,7 +168,7 @@ func TestServiceOperations(t *testing.T) {
 		t.Fatalf("Failed to update service: %v", err)
 	}
 
-	retrieved, err = db.GetServiceByInstanceID("test-service-1")
+	retrieved, err = db.FindServiceBy(context.Background(), FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get updated service: %v", err)
 	}
@@ -196,7 +197,7 @@ func TestServiceOperations(t *testing.T) {
 		t.Fatalf("Failed to delete service: %v", err)
 	}
 
-	retrieved, err = db.GetServiceByInstanceID("test-service-1")
+	retrieved, err = db.FindServiceBy(context.Background(), FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to check deleted service: %v", err)
 	}

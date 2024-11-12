@@ -67,7 +67,7 @@ func (c *UserCommand) createUser(username, password, email string) error {
 	}
 
 	// Check if username or email already exists
-	existingUser, err := c.db.GetUserByUsername(username)
+	existingUser, err := c.db.FindUser(context.Background(), database.FindUserParams{Username: username, Email: email})
 	if err != nil {
 		return fmt.Errorf("error checking username: %v", err)
 	}
@@ -75,13 +75,14 @@ func (c *UserCommand) createUser(username, password, email string) error {
 		return fmt.Errorf("username %s already exists", username)
 	}
 
-	existingUser, err = c.db.GetUserByEmail(email)
-	if err != nil {
-		return fmt.Errorf("error checking email: %v", err)
-	}
-	if existingUser != nil {
-		return fmt.Errorf("email %s already exists", email)
-	}
+	////existingUser, err = c.db.GetUserByEmail(email)
+	//existingUser, err = c.db.FindUser(context.Background(), database.FindUserParams{Email: email})
+	//if err != nil {
+	//	return fmt.Errorf("error checking email: %v", err)
+	//}
+	//if existingUser != nil {
+	//	return fmt.Errorf("email %s already exists", email)
+	//}
 
 	// Hash the password
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -111,7 +112,7 @@ func (c *UserCommand) changePassword(username, newPassword string) error {
 	}
 
 	// Retrieve user
-	user, err := c.db.GetUserByUsername(username)
+	user, err := c.db.FindUser(context.Background(), database.FindUserParams{Username: username})
 	if err != nil {
 		return fmt.Errorf("failed to find user: %v", err)
 	}

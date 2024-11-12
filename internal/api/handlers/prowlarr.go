@@ -69,7 +69,7 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from service
-	prowlarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	prowlarrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Prowlarr configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Prowlarr configuration"})
@@ -164,7 +164,7 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from service
-	prowlarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	prowlarrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Prowlarr configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Prowlarr configuration"})
@@ -279,7 +279,7 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from service
-	prowlarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	prowlarrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Prowlarr configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Prowlarr configuration"})

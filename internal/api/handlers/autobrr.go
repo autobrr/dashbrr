@@ -152,7 +152,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 }
 
 func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobrr.AutobrrStats, error) {
-	autobrrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	autobrrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return autobrr.AutobrrStats{}, err
 	}
@@ -183,7 +183,7 @@ func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobr
 }
 
 func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobrr.IRCStatus, error) {
-	autobrrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	autobrrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}

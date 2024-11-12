@@ -144,7 +144,7 @@ func (h *TailscaleHandler) fetchAndCacheDevices(instanceId, apiKey, cacheKey str
 	if apiKey != "" {
 		devices, err = service.GetDevices("", apiKey)
 	} else {
-		tailscaleConfig, err := h.db.GetServiceByInstanceID(instanceId)
+		tailscaleConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tailscale configuration: %v", err)
 		}
