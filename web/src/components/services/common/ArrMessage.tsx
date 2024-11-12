@@ -22,7 +22,7 @@ interface Props {
     | "pending";
 }
 
-export const AutobrrMessage: React.FC<Props> = ({ message, status }) => {
+export const ArrMessage: React.FC<Props> = ({ message, status }) => {
   const getMessageStyle = () => {
     const baseStyles =
       "text-xs p-2 rounded-lg transition-all duration-200 backdrop-blur-sm";
@@ -32,7 +32,7 @@ export const AutobrrMessage: React.FC<Props> = ({ message, status }) => {
       case "offline":
         return `${baseStyles} text-red-600 dark:text-red-400 bg-red-50/90 dark:bg-red-900/30 border border-red-100 dark:border-red-900/50`;
       case "warning":
-        return `${baseStyles} text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40`;
+        return `${baseStyles} text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800/40`;
       case "online":
       case "healthy":
         return `${baseStyles} text-green-600 dark:text-green-400 bg-green-50/90 dark:bg-green-900/30 border border-green-100 dark:border-green-900/50`;
@@ -120,20 +120,17 @@ export const AutobrrMessage: React.FC<Props> = ({ message, status }) => {
 
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
-      // Skip empty lines and status messages
       if (
         !trimmedLine ||
         trimmedLine === "Healthy" ||
-        trimmedLine === "Autobrr is running" ||
+        trimmedLine === "healthy" ||
         trimmedLine === "Status: Healthy"
       )
         return;
 
       if (trimmedLine.endsWith(":")) {
-        // Skip status headers
         if (trimmedLine === "Status:") return;
 
-        // Section header
         addListItems();
         if (currentSection) {
           formattedContent.push(
@@ -147,10 +144,8 @@ export const AutobrrMessage: React.FC<Props> = ({ message, status }) => {
           </div>
         );
       } else if (trimmedLine.startsWith("- ")) {
-        // List item
         listItems.push(trimmedLine.substring(2));
       } else {
-        // Regular text
         addListItems();
         formattedContent.push(
           <div key={index} className="opacity-90">
@@ -166,30 +161,22 @@ export const AutobrrMessage: React.FC<Props> = ({ message, status }) => {
   };
 
   const statusDisplay = getStatusDisplay();
-
-  // Show status text without background
-  const statusText = (
-    <div className="flex items-center gap-1.5 select-none pb-2">
-      <div className="flex items-center gap-1">
-        <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
-          Status:
-        </span>
-        <span className={`text-xs ${statusDisplay.color}`}>
-          {statusDisplay.text}
-        </span>
-        {statusDisplay.icon}
-      </div>
-    </div>
-  );
-
   const formattedMessage = formatMessage();
 
   return (
     <div className="space-y-2">
-      {/* Status Display */}
-      {statusText}
+      <div className="flex items-center gap-1.5 select-none pb-2">
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
+            Status:
+          </span>
+          <span className={`text-xs ${statusDisplay.color}`}>
+            {statusDisplay.text}
+          </span>
+          {statusDisplay.icon}
+        </div>
+      </div>
 
-      {/* Message Content */}
       {formattedMessage && (
         <div className={getMessageStyle()}>
           <div className="flex items-start space-x-2">

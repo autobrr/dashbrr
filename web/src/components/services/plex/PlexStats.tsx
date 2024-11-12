@@ -168,8 +168,8 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
 
       {activeStreams > 0 && (
         <div>
-          <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-            Active Streams
+          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-3">
+            Active Streams:
           </div>
 
           <div className="rounded-lg bg-white dark:bg-gray-800">

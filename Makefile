@@ -27,12 +27,9 @@ BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Build flags
 LDFLAGS=-s -w \
-	-X main.version=$(VERSION) \
-	-X main.commit=$(COMMIT) \
-	-X main.date=$(BUILD_DATE) \
-	-X github.com/autobrr/dashbrr/internal/commands/version.version=$(VERSION) \
-	-X github.com/autobrr/dashbrr/internal/commands/version.commit=$(COMMIT) \
-	-X github.com/autobrr/dashbrr/internal/commands/version.date=$(BUILD_DATE)
+	-X github.com/autobrr/dashbrr/internal/buildinfo.Version=$(VERSION) \
+	-X github.com/autobrr/dashbrr/internal/buildinfo.Commit=$(COMMIT) \
+	-X github.com/autobrr/dashbrr/internal/buildinfo.Date=$(BUILD_DATE)
 
 .PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview
 

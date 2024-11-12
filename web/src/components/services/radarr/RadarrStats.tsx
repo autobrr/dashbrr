@@ -162,10 +162,10 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
       {service.stats?.radarr?.queue &&
         service.stats.radarr.queue.totalRecords > 0 && (
           <div>
-            <div className="text-sm pb-2 font-semibold text-gray-700 dark:text-gray-300">
+            <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
               Queue ({service.stats.radarr.queue.totalRecords}):
             </div>
-            <div className="text-sm rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
+            <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
               {service.stats.radarr.queue.records
                 .slice(0, 3)
                 .map(
@@ -184,13 +184,13 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                     >
                       <div className="flex justify-between items-center w-full">
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm opacity-75 flex items-center justify-between w-full">
+                          <div className="text-xs opacity-75 flex items-center justify-between w-full">
                             <div className="flex items-center min-w-0 flex-1">
-                              <span className="flex-shrink-0 font-medium text-sm text-gray-600 dark:text-gray-300">
+                              <span className="flex-shrink-0 font-medium text-xs text-gray-600 dark:text-gray-300">
                                 Release:{" "}
                               </span>
                               <span
-                                className="truncate text-sm ml-1 cursor-help"
+                                className="truncate text-xs ml-1 cursor-help"
                                 title={record.title}
                               >
                                 {record.title}
@@ -204,7 +204,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                                 className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
                                 title="View in Radarr"
                               >
-                                <ArrowTopRightOnSquareIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                <ArrowTopRightOnSquareIcon className="h-4 text-gray-500 dark:text-gray-400" />
                               </a>
                               <button
                                 onClick={() => {
@@ -228,40 +228,40 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                                     : "Can only remove items that are import blocked"
                                 }
                               >
-                                <Cog6ToothIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                <Cog6ToothIcon className="h-4 text-gray-500 dark:text-gray-400" />
                               </button>
                             </div>
                           </div>
-                          <div className="text-sm opacity-75">
-                            <span className="truncate flex-1 font-medium text-sm text-gray-600 dark:text-gray-300">
+                          <div className="text-xs opacity-75">
+                            <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
                               State:{" "}
                             </span>
                             {record.trackedDownloadState}
                           </div>
                           {record.indexer && (
-                            <div className="text-sm opacity-75">
-                              <span className="truncate flex-1 font-medium text-sm text-gray-600 dark:text-gray-300">
+                            <div className="text-xs opacity-75">
+                              <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
                                 Indexer:{" "}
                               </span>
                               {record.indexer}
                             </div>
                           )}
                           {record.customFormatScore != null && (
-                            <div className="text-sm opacity-75">
-                              <span className="font-medium text-sm text-gray-600 dark:text-gray-300">
+                            <div className="text-xs opacity-75">
+                              <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
                                 Custom Format Score:{" "}
                               </span>
                               {record.customFormatScore}
                             </div>
                           )}
-                          <div className="text-sm opacity-75">
-                            <span className="font-medium text-sm text-gray-600 dark:text-gray-300">
+                          <div className="text-xs opacity-75">
+                            <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
                               Client:{" "}
                             </span>
                             {record.downloadClient}
                           </div>
-                          <div className="text-sm opacity-75">
-                            <span className="font-medium text-sm text-gray-600 dark:text-gray-300">
+                          <div className="text-xs opacity-75">
+                            <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
                               Protocol:{" "}
                             </span>
                             {record.protocol}
@@ -282,7 +282,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                                           return (
                                             <div
                                               key={msgIdx}
-                                              className="text-xs space-y-1"
+                                              className="text-xs space-y-1 p-2 rounded-lg transition-all duration-200 backdrop-blur-sm text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40"
                                             >
                                               <div className="font-normal">
                                                 {firstPart}.
@@ -323,7 +323,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
           <p className="text-md font-medium text-gray-600 dark:text-gray-400">
             Are you sure you want to remove this release from the queue?
           </p>
-          <p className="text-sm">
+          <p className="text-xs">
             <a
               href={`${service.url}/activity/queue`}
               target="_blank"
@@ -338,7 +338,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
             selectedItem.statusMessages.length > 0 && (
               <div className="space-y-1">
                 {selectedItem.statusMessages.map((msg, idx) => (
-                  <div key={idx} className="text-sm break-all text-amber-300">
+                  <div key={idx} className="text-xs break-all text-amber-300">
                     {msg.messages &&
                       msg.messages.map((message, msgIdx) => (
                         <p key={msgIdx}>{message}</p>
@@ -351,7 +351,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
           <div className="space-y-4">
             <div className="space-y-2 max-w-full">
               <div className="flex flex-col space-y-1">
-                <label className="text-sm text-gray-700 dark:text-gray-300">
+                <label className="text-xs text-gray-700 dark:text-gray-300">
                   Removal Method
                 </label>
                 <Listbox
@@ -366,7 +366,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                 >
                   {({ open }) => (
                     <div className="relative">
-                      <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-sm">
+                      <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-xs">
                         <span className="block truncate">
                           {getRemovalMethodText(deleteOptions.removeFromClient)}
                         </span>
@@ -385,7 +385,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                         leaveFrom="opacity-100"
                         leaveTo="opacity-0"
                       >
-                        <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                        <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-xs">
                           <Listbox.Option
                             value="remove"
                             className={({ active }) =>
@@ -432,7 +432,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
               </div>
 
               <div className="flex flex-col space-y-1">
-                <label className="text-sm text-gray-700 dark:text-gray-300">
+                <label className="text-xs text-gray-700 dark:text-gray-300">
                   Blocklist Release
                 </label>
                 <Listbox
@@ -446,7 +446,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                 >
                   {({ open }) => (
                     <div className="relative">
-                      <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-sm">
+                      <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-xs">
                         <span className="block truncate">
                           {getBlocklistText(deleteOptions.blocklist)}
                         </span>
@@ -465,7 +465,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                         leaveFrom="opacity-100"
                         leaveTo="opacity-0"
                       >
-                        <Listbox.Options className="absolute z-10 bottom-full mb-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                        <Listbox.Options className="absolute z-10 bottom-full mb-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-xs">
                           <Listbox.Option
                             value="none"
                             className={({ active }) =>
@@ -517,13 +517,13 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                 setShowDeleteModal(false);
                 setSelectedItem(null);
               }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-md transition-colors"
+              className="px-4 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-md transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleDelete}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+              className="px-4 py-2 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
             >
               Remove
             </button>
