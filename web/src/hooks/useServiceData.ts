@@ -172,8 +172,22 @@ export const useServiceData = () => {
           ]);
           if (statsData && indexersData) {
             data = {
-              stats: { prowlarr: { stats: statsData, indexers: indexersData } },
-              details: { prowlarr: { activeIndexers: indexersData.filter(i => i.enable).length, totalGrabs: statsData.grabCount } }
+              stats: { 
+                prowlarr: { 
+                  stats: statsData, 
+                  indexers: indexersData,
+                  prowlarrIndexerStats: {
+                    id: 1,
+                    indexers: []
+                  }
+                } 
+              },
+              details: { 
+                prowlarr: { 
+                  activeIndexers: indexersData.filter(i => i.enable).length, 
+                  totalGrabs: statsData.grabCount 
+                } 
+              }
             };
           }
           break;
@@ -250,6 +264,7 @@ export const useServiceData = () => {
       type: (template?.type || 'other') as ServiceType,
       status: hasRequiredConfig ? 'loading' as ServiceStatus : 'pending' as ServiceStatus,
       url: config.url,
+      accessUrl: config.accessUrl,
       apiKey: config.apiKey,
       displayName: config.displayName,
       healthEndpoint: template?.healthEndpoint,

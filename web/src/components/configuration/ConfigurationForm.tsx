@@ -30,6 +30,7 @@ export const ConfigurationForm = ({
   const serviceType = instanceId.split("-")[0];
 
   const [url, setUrl] = useState(currentConfig?.url || "");
+  const [accessUrl, setAccessUrl] = useState(currentConfig?.accessUrl || "");
   const [apiKey, setApiKey] = useState(currentConfig?.apiKey || "");
   const [displayName, setDisplayName] = useState(
     currentConfig?.displayName || initialDisplayName
@@ -71,6 +72,11 @@ export const ConfigurationForm = ({
     try {
       const config: ServiceConfig = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
+        accessUrl: accessUrl
+          ? accessUrl.endsWith("/")
+            ? accessUrl.slice(0, -1)
+            : accessUrl
+          : undefined,
         displayName,
         ...(serviceType !== "general" ? { apiKey } : {}),
       };
@@ -193,6 +199,21 @@ export const ConfigurationForm = ({
         onChange={(e) => setUrl(e.target.value)}
         placeholder={getUrlPlaceholder()}
         required
+        data-1p-ignore
+      />
+
+      <FormInput
+        id="accessUrl"
+        label="Access URL"
+        type="text"
+        value={accessUrl}
+        onChange={(e) => setAccessUrl(e.target.value)}
+        placeholder="Enter external access URL (optional)"
+        helpText={{
+          prefix: "Used for ",
+          text: "opening the service in browser",
+          link: null,
+        }}
         data-1p-ignore
       />
 

@@ -151,6 +151,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
               <ServiceHeader
                 displayName={service.displayName}
                 url={service.url}
+                accessUrl={service.accessUrl}
                 version={service.version}
                 updateAvailable={service.updateAvailable}
                 healthEndpoint={service.healthEndpoint}

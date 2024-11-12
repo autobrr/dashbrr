@@ -153,6 +153,9 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
     return null;
   }
 
+  // Use accessUrl if available, otherwise fall back to url
+  const openUrl = service.accessUrl || service.url;
+
   return (
     <div className="space-y-4">
       {/* Status and Messages */}
@@ -198,7 +201,7 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
                             </div>
                             <div className="flex space-x-2 flex-shrink-0 ml-2">
                               <a
-                                href={`${service.url}/activity/queue`}
+                                href={`${openUrl}/activity/queue`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
@@ -325,7 +328,7 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
           </p>
           <p className="text-sm">
             <a
-              href={`${service.url}/activity/queue`}
+              href={`${openUrl}/activity/queue`}
               target="_blank"
               rel="noopener noreferrer"
               className="font-bold px-2 py-1 rounded-md bg-gray-750 text-gray-700 dark:text-gray-300 break-all inline-block hover:bg-gray-700 transition-colors"
