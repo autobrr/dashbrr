@@ -15,13 +15,15 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
-	prowlarrCacheDuration = 60 * time.Second
-	prowlarrStatsPrefix   = "prowlarr:stats:"
-	prowlarrIndexerPrefix = "prowlarr:indexers:"
+	prowlarrCacheDuration      = 60 * time.Second
+	prowlarrStatsPrefix        = "prowlarr:stats:"
+	prowlarrIndexerPrefix      = "prowlarr:indexers:"
+	prowlarrIndexerStatsPrefix = "prowlarr:indexerstats:"
 )
 
 type ProwlarrHandler struct {
@@ -210,6 +212,26 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 		return
 	}
 
+	// Get indexer stats
+	prowlarrService := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
+	statsResp, err := prowlarrService.GetIndexerStats(prowlarrConfig.URL, prowlarrConfig.APIKey)
+	if err == nil && statsResp != nil {
+		// Create a map for quick lookup
+		statsMap := make(map[int]types.ProwlarrIndexerStats)
+		for _, stat := range statsResp.Indexers {
+			statsMap[stat.IndexerID] = stat
+		}
+
+		// Enrich indexers with stats
+		for i := range indexers {
+			if stats, ok := statsMap[indexers[i].ID]; ok {
+				indexers[i].AverageResponseTime = stats.AverageResponseTime
+				indexers[i].NumberOfGrabs = stats.NumberOfGrabs
+				indexers[i].NumberOfQueries = stats.NumberOfQueries
+			}
+		}
+	}
+
 	// Cache the results
 	if err := h.cache.Set(ctx, cacheKey, indexers, prowlarrCacheDuration); err != nil {
 		log.Warn().
@@ -224,4 +246,73 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 		Msg("Successfully retrieved and cached Prowlarr indexers")
 
 	c.JSON(http.StatusOK, indexers)
+}
+
+func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
+	instanceId := c.Query("instanceId")
+	if instanceId == "" {
+		log.Error().Msg("No instanceId provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
+		return
+	}
+
+	// Verify this is a Prowlarr instance
+	if instanceId[:8] != "prowlarr" {
+		log.Error().Str("instanceId", instanceId).Msg("Invalid Prowlarr instance ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
+		return
+	}
+
+	cacheKey := prowlarrIndexerStatsPrefix + instanceId
+	ctx := context.Background()
+
+	// Try to get from cache first
+	var statsResp types.ProwlarrIndexerStatsResponse
+	err := h.cache.Get(ctx, cacheKey, &statsResp)
+	if err == nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("indexerCount", len(statsResp.Indexers)).
+			Msg("Serving Prowlarr indexer stats from cache")
+		c.JSON(http.StatusOK, statsResp)
+		return
+	}
+
+	// If not in cache, fetch from service
+	prowlarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	if err != nil {
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Prowlarr configuration")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Prowlarr configuration"})
+		return
+	}
+
+	if prowlarrConfig == nil {
+		log.Error().Str("instanceId", instanceId).Msg("Prowlarr is not configured")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Prowlarr is not configured"})
+		return
+	}
+
+	// Get indexer stats
+	prowlarrService := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
+	stats, err := prowlarrService.GetIndexerStats(prowlarrConfig.URL, prowlarrConfig.APIKey)
+	if err != nil {
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Prowlarr indexer stats")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Prowlarr indexer stats"})
+		return
+	}
+
+	// Cache the results
+	if err := h.cache.Set(ctx, cacheKey, stats, prowlarrCacheDuration); err != nil {
+		log.Warn().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("Failed to cache Prowlarr indexer stats")
+	}
+
+	log.Debug().
+		Str("instanceId", instanceId).
+		Int("indexerCount", len(stats.Indexers)).
+		Msg("Successfully retrieved and cached Prowlarr indexer stats")
+
+	c.JSON(http.StatusOK, stats)
 }

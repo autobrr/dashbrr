@@ -324,15 +324,37 @@ export interface RadarrQueue {
 export interface ProwlarrIndexer {
   id: number;
   name: string;
+  label: string;
   enable: boolean;
   priority: number;
+  averageResponseTime: number;
+  numberOfGrabs: number;
+  numberOfQueries: number;
 }
 
 export interface ProwlarrStats {
   grabCount: number;
   failCount: number;
   indexerCount: number;
+  numberOfGrabs: number;
+  numberOfQueries: number;
 }
+
+export interface ProwlarrIndexerStats {
+  id: number;
+  indexerId: number;
+  indexerName: string;
+  averageResponseTime: number;
+  numberOfQueries: number;
+  numberOfGrabs: number;
+  numberOfRssQueries: number;
+  numberOfAuthQueries: number;
+  numberOfFailedQueries: number;
+  numberOfFailedGrabs: number;
+  numberOfFailedRssQueries: number;
+  numberOfFailedAuthQueries: number;
+}
+
 
 // Omegabrr Types
 export interface OmegabrrWebhookStatus {
@@ -359,7 +381,11 @@ export interface ServiceStats {
   prowlarr?: {
     stats: ProwlarrStats;
     indexers: ProwlarrIndexer[];
-  };
+    prowlarrIndexerStats: {
+      id: number;
+      indexers: ProwlarrIndexerStats[];
+    };
+  }
   omegabrr?: {
     webhookStatus: OmegabrrWebhookStatus;
   };
