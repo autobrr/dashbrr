@@ -108,7 +108,7 @@ jobs:
   goreleaserbuild:
     name: Build distribution binaries
     runs-on: ubuntu-latest
-    needs: [web, test]
+    needs: [test]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -172,20 +172,13 @@ jobs:
   docker:
     name: Build Docker images
     runs-on: ubuntu-latest
+    # Skip docker builds for fork PRs since they can't push images anyway
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
     strategy:
       fail-fast: true
       matrix:
-        platform:
-          - linux/386
-          - linux/amd64
-          - linux/amd64/v2
-          - linux/amd64/v3
-          - linux/arm/v6
-          - linux/arm/v7
-          - linux/arm64
-          - linux/ppc64le
-          - linux/s390x
-    needs: [web, test]
+        platform: ${{ github.event_name == 'pull_request' && fromJSON('["linux/amd64", "linux/arm64"]') || fromJSON('["linux/386", "linux/amd64", "linux/amd64/v2", "linux/amd64/v3", "linux/arm/v6", "linux/arm/v7", "linux/arm64", "linux/ppc64le", "linux/s390x"]') }}
+    needs: [test]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -234,7 +227,7 @@ jobs:
           context: .
           file: ./ci.Dockerfile
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request') && 'true' || 'false' }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
@@ -264,7 +257,7 @@ jobs:
     name: Publish Docker multi-arch manifest
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
-    needs: [docker, test]
+    needs: [docker]
     steps:
       - name: Download image digests
         uses: actions/download-artifact@v4
