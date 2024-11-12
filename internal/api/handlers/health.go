@@ -19,7 +19,6 @@ import (
 
 // DatabaseService defines the database operations needed by HealthHandler
 type DatabaseService interface {
-	GetServiceByInstanceID(id string) (*models.ServiceConfiguration, error)
 	FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
 }
 
