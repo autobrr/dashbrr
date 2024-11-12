@@ -24,7 +24,8 @@ export const ConfigurationForm = ({
   displayName: initialDisplayName,
   onClose,
 }: ConfigurationFormProps) => {
-  const { configurations, updateConfiguration } = useConfiguration();
+  const { configurations, updateConfiguration, fetchConfigurations } =
+    useConfiguration();
   const { refreshServiceHealth } = useServiceHealth();
   const currentConfig = configurations[instanceId];
   const serviceType = instanceId.split("-")[0];
@@ -92,6 +93,9 @@ export const ConfigurationForm = ({
       // Immediately refresh the health status
       await refreshServiceHealth(instanceId);
 
+      // Force a refresh of all configurations to ensure UI is up to date
+      await fetchConfigurations();
+
       toast.success("Configuration saved successfully");
       onClose();
     } catch (err) {
@@ -123,13 +127,19 @@ export const ConfigurationForm = ({
     }
   };
 
+  const getSettingsUrl = (path: string): string | null => {
+    if (!url) return null;
+    const baseUrl = accessUrl || url;
+    return `${baseUrl}${path}`;
+  };
+
   const getApiKeyHelp = () => {
     switch (serviceType) {
       case "autobrr":
         return {
           prefix: "Found in ",
           text: "Settings > API",
-          link: url ? `${url}/settings/api` : null,
+          link: getSettingsUrl("/settings/api"),
         };
       case "omegabrr":
         return {
@@ -149,13 +159,13 @@ export const ConfigurationForm = ({
         return {
           prefix: "Found in ",
           text: "Settings > General",
-          link: url ? `${url}/settings/general` : null,
+          link: getSettingsUrl("/settings/general"),
         };
       case "overseerr":
         return {
           prefix: "Found in ",
           text: "Settings",
-          link: url ? `${url}/settings/main` : null,
+          link: getSettingsUrl("/settings/main"),
         };
       default:
         return {
@@ -198,20 +208,25 @@ export const ConfigurationForm = ({
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder={getUrlPlaceholder()}
+        helpText={{
+          prefix: "Used for ",
+          text: "API communication and health checks",
+          link: null,
+        }}
         required
         data-1p-ignore
       />
 
       <FormInput
         id="accessUrl"
-        label="Access URL"
+        label="Access URL (Optional)"
         type="text"
         value={accessUrl}
         onChange={(e) => setAccessUrl(e.target.value)}
-        placeholder="Enter external access URL (optional)"
+        placeholder="Leave empty to use main URL"
         helpText={{
-          prefix: "Used for ",
-          text: "opening the service in browser",
+          prefix: "Override ",
+          text: "URL used when opening service in browser. Useful for internal/external URL differences.",
           link: null,
         }}
         data-1p-ignore
