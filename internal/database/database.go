@@ -262,14 +262,8 @@ func (db *DB) CreateUser(user *types.User) error {
 	return nil
 }
 
-type FindUserParams struct {
-	ID       int64
-	Username string
-	Email    string
-}
-
 // FindUser retrieves a user by FindUserParams
-func (db *DB) FindUser(ctx context.Context, params FindUserParams) (*types.User, error) {
+func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types.User, error) {
 	queryBuilder := sq.Select("id", "username", "email", "password_hash", "created_at", "updated_at").From("users")
 
 	or := sq.Or{}
@@ -331,14 +325,8 @@ func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
 
 // Service Management Functions
 
-type FindServiceParams struct {
-	InstanceID     string
-	InstancePrefix string
-	URL            string
-}
-
 // FindServiceBy retrieves a service configuration by FindServiceParams
-func (db *DB) FindServiceBy(ctx context.Context, params FindServiceParams) (*models.ServiceConfiguration, error) {
+func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
 	queryBuilder := sq.Select("id", "instance_id", "display_name", "url", "api_key").From("service_configurations")
 
 	if params.InstanceID != "" {

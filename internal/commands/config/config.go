@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/types"
 	"path/filepath"
 	"strings"
 
@@ -205,7 +206,7 @@ func (c *ConfigCommand) handleDiscoveredServices(services []models.ServiceConfig
 	// Add services to database
 	for _, service := range services {
 		// Check if service already exists
-		existing, err := c.db.FindServiceBy(context.Background(), database.FindServiceParams{URL: service.URL})
+		existing, err := c.db.FindServiceBy(context.Background(), types.FindServiceParams{URL: service.URL})
 		if err != nil {
 			fmt.Printf("Warning: Failed to check for existing service %s: %v\n", service.URL, err)
 			continue

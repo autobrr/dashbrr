@@ -67,7 +67,7 @@ func (c *UserCommand) createUser(username, password, email string) error {
 	}
 
 	// Check if username or email already exists
-	existingUser, err := c.db.FindUser(context.Background(), database.FindUserParams{Username: username, Email: email})
+	existingUser, err := c.db.FindUser(context.Background(), types.FindUserParams{Username: username, Email: email})
 	if err != nil {
 		return fmt.Errorf("error checking username: %v", err)
 	}
@@ -112,7 +112,7 @@ func (c *UserCommand) changePassword(username, newPassword string) error {
 	}
 
 	// Retrieve user
-	user, err := c.db.FindUser(context.Background(), database.FindUserParams{Username: username})
+	user, err := c.db.FindUser(context.Background(), types.FindUserParams{Username: username})
 	if err != nil {
 		return fmt.Errorf("failed to find user: %v", err)
 	}

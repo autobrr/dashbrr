@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"time"
 
@@ -95,7 +96,7 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 }
 
 func (h *OmegabrrHandler) fetchAndCacheStatus(instanceId, cacheKey string) (models.ServiceHealth, error) {
-	omegabrrConfig, err := h.db.FindServiceBy(context.Background(), database.FindServiceParams{InstanceID: instanceId})
+	omegabrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return models.ServiceHealth{}, err
 	}
