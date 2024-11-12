@@ -224,7 +224,7 @@ func getEnv(key, fallback string) string {
 
 // HasUsers checks if any users exist in the database
 func (db *DB) HasUsers() (bool, error) {
-	qb := sq.Select("COUNT(*)").From("users")
+	qb := db.squirrel.Select("COUNT(*)").From("users")
 
 	query, args, err := qb.ToSql()
 	if err != nil {
@@ -247,7 +247,7 @@ func (db *DB) CreateUser(user *types.User) error {
 
 	now := time.Now()
 
-	queryBuilder := sq.Insert("users").
+	queryBuilder := db.squirrel.Insert("users").
 		Columns("username", "email", "password_hash", "created_at", "updated_at").
 		Values(user.Username, user.Email, user.PasswordHash, now, now).
 		Suffix("RETURNING id").RunWith(db.DB)
@@ -264,7 +264,7 @@ func (db *DB) CreateUser(user *types.User) error {
 
 // FindUser retrieves a user by FindUserParams
 func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types.User, error) {
-	queryBuilder := sq.Select("id", "username", "email", "password_hash", "created_at", "updated_at").From("users")
+	queryBuilder := db.squirrel.Select("id", "username", "email", "password_hash", "created_at", "updated_at").From("users")
 
 	or := sq.Or{}
 
@@ -305,7 +305,7 @@ func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types
 func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
 	now := time.Now()
 
-	queryBuilder := sq.Update("users").
+	queryBuilder := db.squirrel.Update("users").
 		Set("password_hash", newPasswordHash).
 		Set("updated_at", now).
 		Where(sq.Eq{"id": userID})
@@ -327,7 +327,7 @@ func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
 
 // FindServiceBy retrieves a service configuration by FindServiceParams
 func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
-	queryBuilder := sq.Select("id", "instance_id", "display_name", "url", "api_key").From("service_configurations")
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key").From("service_configurations")
 
 	if params.InstanceID != "" {
 		queryBuilder = queryBuilder.Where(sq.Eq{"instance_id": params.InstanceID})
@@ -399,7 +399,7 @@ func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfigur
 
 // GetAllServices retrieves all service configurations
 func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
-	queryBuilder := sq.Select("id", "instance_id", "display_name", "url", "api_key").From("service_configurations")
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key").From("service_configurations")
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
@@ -437,7 +437,7 @@ func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 func (db *DB) CreateService(service *models.ServiceConfiguration) error {
 	ctx := context.Background()
 
-	queryBuilder := sq.Insert("service_configurations").
+	queryBuilder := db.squirrel.Insert("service_configurations").
 		Columns("instance_id", "display_name", "url", "api_key").
 		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey).
 		Suffix("RETURNING id").RunWith(db.DB)
@@ -451,7 +451,7 @@ func (db *DB) CreateService(service *models.ServiceConfiguration) error {
 
 // UpdateService updates an existing service configuration
 func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
-	queryBuilder := sq.Update("service_configurations").
+	queryBuilder := db.squirrel.Update("service_configurations").
 		Set("display_name", service.DisplayName).
 		Set("url", service.URL).
 		Set("api_key", service.APIKey).
@@ -472,7 +472,7 @@ func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
 
 // DeleteService deletes a service configuration by its instance ID
 func (db *DB) DeleteService(instanceID string) error {
-	queryBuilder := sq.Delete("service_configurations").Where(sq.Eq{"instance_id": instanceID})
+	queryBuilder := db.squirrel.Delete("service_configurations").Where(sq.Eq{"instance_id": instanceID})
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
