@@ -60,6 +60,7 @@ export const useServiceData = () => {
   const plexTimeoutRef = useRef<NodeJS.Timeout>();
   const configHashRef = useRef<string>('');
   const isInitialLoadRef = useRef(true);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   const clearServiceTimeout = useCallback((serviceId: string) => {
     const timeoutId = updateTimeoutsRef.current.get(serviceId);
@@ -227,7 +228,6 @@ const fetchServiceStats = useCallback(async (service: Service) => {
 
   try {
     switch (service.type) {
-
       case 'prowlarr': {
         const [statsData, indexersData] = await Promise.all([
           api.get<ProwlarrStats>(`/api/prowlarr/stats?instanceId=${service.instanceId}`),
@@ -255,139 +255,135 @@ const fetchServiceStats = useCallback(async (service: Service) => {
         }
         break;
       }
-
-// ... [previous code remains the same until the prowlarr health events] ...
-
-case 'autobrr': {
-  const [statsData, ircData] = await Promise.all([
-    api.get<AutobrrStats>(`/api/autobrr/stats?instanceId=${service.instanceId}`),
-    api.get<AutobrrIRC[]>(`/api/autobrr/irc?instanceId=${service.instanceId}`)
-  ]);
-  if (statsData && ircData) {
-    data = { stats: { autobrr: statsData }, details: { autobrr: { irc: ircData } } };
-  }
-  break;
-}
-case 'maintainerr': {
-  const collections = await api.get<MaintainerrCollection[]>(
-    `/api/maintainerr/collections?instanceId=${service.instanceId}`
-  );
-  data = {
-    stats: { maintainerr: { collections } },
-    details: {
-      maintainerr: {
-        activeCollections: collections.filter(c => c.isActive).length,
-        totalMedia: collections.reduce((acc, c) => acc + c.media.length, 0)
+      case 'autobrr': {
+        const [statsData, ircData] = await Promise.all([
+          api.get<AutobrrStats>(`/api/autobrr/stats?instanceId=${service.instanceId}`),
+          api.get<AutobrrIRC[]>(`/api/autobrr/irc?instanceId=${service.instanceId}`)
+        ]);
+        if (statsData && ircData) {
+          data = { stats: { autobrr: statsData }, details: { autobrr: { irc: ircData } } };
+        }
+        break;
+      }
+      case 'maintainerr': {
+        const collections = await api.get<MaintainerrCollection[]>(
+          `/api/maintainerr/collections?instanceId=${service.instanceId}`
+        );
+        data = {
+          stats: { maintainerr: { collections } },
+          details: {
+            maintainerr: {
+              activeCollections: collections.filter(c => c.isActive).length,
+              totalMedia: collections.reduce((acc, c) => acc + c.media.length, 0)
+            }
+          }
+        };
+        break;
       }
     }
-  };
-  break;
-}
-}
 
-if (data) {
-cache.set(statsCacheKey, data);
-updateServiceData(service.instanceId, data);
-}
-} catch (error) {
-console.error(`Error fetching stats for ${service.type}:`, error);
-}
+    if (data) {
+      cache.set(statsCacheKey, data);
+      updateServiceData(service.instanceId, data);
+    }
+  } catch (error) {
+    console.error(`Error fetching stats for ${service.type}:`, error);
+  }
 }, [updateServiceData, fetchPlexSessions, fetchOverseerrRequests, fetchRadarrQueue, fetchSonarrQueue]);
 
-
 const fetchHealthStatus = useCallback(async (service: Service) => {
-const healthCacheKey = `${CACHE_PREFIXES.HEALTH}${service.instanceId}`;
-const { data: cachedHealth, isStale } = cache.get<ServiceHealth>(healthCacheKey);
+  const healthCacheKey = `${CACHE_PREFIXES.HEALTH}${service.instanceId}`;
+  const { data: cachedHealth, isStale } = cache.get<ServiceHealth>(healthCacheKey);
 
-// Use cached data if available and not stale
-if (cachedHealth && !isStale) {
-updateServiceData(service.instanceId, cachedHealth);
-return;
-}
+  // Use cached data if available and not stale
+  if (cachedHealth && !isStale) {
+    updateServiceData(service.instanceId, cachedHealth);
+    return;
+  }
 
-try {
-const health = await api.get<ServiceHealth>(`/api/health/${service.instanceId}`);
-if (health) {
-// Handle service-specific SSE health events
-if (service.type === 'plex' && health.message === 'plex_sessions' && health.stats?.plex?.sessions) {
-  const sessions = health.stats.plex.sessions;
-  updateServiceData(service.instanceId, {
-    stats: { plex: { sessions } },
-    details: {
-      plex: {
-        activeStreams: sessions.length,
-        transcoding: sessions.filter((s: PlexSession) => s.TranscodeSession).length
-      }
-    }
-  });
-} else if (service.type === 'overseerr' && health.message === 'overseerr_requests' && health.stats?.overseerr) {
-  const requests = health.stats.overseerr;
-  updateServiceData(service.instanceId, {
-    stats: { overseerr: requests },
-    details: {
-      overseerr: {
-        pendingCount: requests.pendingCount,
-        totalRequests: requests.requests.length
-      }
-    }
-  });
-} else if (service.type === 'radarr' && health.message === 'radarr_queue' && health.stats?.radarr?.queue) {
-  const queue = health.stats.radarr.queue;
-  const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
-  const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
-  
-  updateServiceData(service.instanceId, {
-    stats: { radarr: { queue } },
-    details: {
-      radarr: {
-        queueCount: queue.totalRecords, // Required field
-        totalRecords: queue.totalRecords,
-        downloadingCount,
-        totalSize
-      }
-    }
-  });
-} else if (service.type === 'sonarr' && health.message === 'sonarr_queue' && health.stats?.sonarr?.queue) {
-  const queue = health.stats.sonarr.queue;
-  const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
-  const episodeCount = queue.records.reduce((acc, r) => acc + r.episodes.length, 0);
-  const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
-  
-  updateServiceData(service.instanceId, {
-    stats: { sonarr: { queue } },
-    details: {
-      sonarr: {
-        queueCount: queue.totalRecords, // Required field
-        monitored: 0, // Required field, will be updated by stats
-        totalRecords: queue.totalRecords,
-        downloadingCount,
-        episodeCount,
-        totalSize
-      }
-    }
-  });
-} else if (service.type === 'sonarr' && health.message === 'sonarr_stats' && health.stats?.sonarr) {
-  const currentService = services.get(service.instanceId);
-  const sonarrStats = health.stats.sonarr;
-  const currentQueue = currentService?.stats?.sonarr?.queue || { totalRecords: 0, records: [] };
-  
-  updateServiceData(service.instanceId, {
-    stats: { 
-      sonarr: {
-        queue: currentQueue,
-        stats: sonarrStats.stats,
-        version: sonarrStats.version
-      }
-    },
-    details: {
-      sonarr: {
-        queueCount: currentService?.details?.sonarr?.queueCount || 0,
-        monitored: sonarrStats.stats?.monitored || 0,
-        version: sonarrStats.version
-      }
-    }
-  });
-} else if (service.type === 'prowlarr' && health.message === 'prowlarr_stats' && health.stats?.prowlarr?.stats) {
+  try {
+    const health = await api.get<ServiceHealth>(`/api/health/${service.instanceId}`);
+    if (health) {
+      // Handle service-specific health events
+      if (service.type === 'plex' && health.message === 'plex_sessions' && health.stats?.plex?.sessions) {
+        const sessions = health.stats.plex.sessions;
+        updateServiceData(service.instanceId, {
+          stats: { plex: { sessions } },
+          details: {
+            plex: {
+              activeStreams: sessions.length,
+              transcoding: sessions.filter((s: PlexSession) => s.TranscodeSession).length
+            }
+          }
+        });
+      } else if (service.type === 'overseerr' && health.message === 'overseerr_requests' && health.stats?.overseerr) {
+        const requests = health.stats.overseerr;
+        updateServiceData(service.instanceId, {
+          stats: { overseerr: requests },
+          details: {
+            overseerr: {
+              pendingCount: requests.pendingCount,
+              totalRequests: requests.requests.length
+            }
+          }
+        });
+      } else if (service.type === 'radarr' && health.message === 'radarr_queue' && health.stats?.radarr?.queue) {
+        const queue = health.stats.radarr.queue;
+        const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
+        const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
+        
+        updateServiceData(service.instanceId, {
+          stats: { radarr: { queue } },
+          details: {
+            radarr: {
+              queueCount: queue.totalRecords,
+              totalRecords: queue.totalRecords,
+              downloadingCount,
+              totalSize
+            }
+          }
+        });
+      } else if (service.type === 'sonarr' && health.message === 'sonarr_queue' && health.stats?.sonarr?.queue) {
+        const queue = health.stats.sonarr.queue;
+        const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
+        const episodeCount = queue.records.reduce((acc, r) => acc + r.episodes.length, 0);
+        const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
+        
+        updateServiceData(service.instanceId, {
+          stats: { sonarr: { queue } },
+          details: {
+            sonarr: {
+              queueCount: queue.totalRecords,
+              monitored: 0,
+              totalRecords: queue.totalRecords,
+              downloadingCount,
+              episodeCount,
+              totalSize
+            }
+          }
+        });
+      } else if (service.type === 'sonarr' && health.message === 'sonarr_stats' && health.stats?.sonarr) {
+        const currentService = services.get(service.instanceId);
+        const sonarrStats = health.stats.sonarr;
+        const currentQueue = currentService?.stats?.sonarr?.queue || { totalRecords: 0, records: [] };
+        
+        updateServiceData(service.instanceId, {
+          stats: { 
+            sonarr: {
+              queue: currentQueue,
+              stats: sonarrStats.stats,
+              version: sonarrStats.version
+            }
+          },
+          details: {
+            sonarr: {
+              queueCount: currentService?.details?.sonarr?.queueCount || 0,
+              monitored: sonarrStats.stats?.monitored || 0,
+              version: sonarrStats.version
+            }
+          }
+        });
+      } else if (service.type === 'prowlarr' && health.message === 'prowlarr_stats' && health.stats?.prowlarr?.stats) {
         const currentService = services.get(service.instanceId);
         const prowlarrStats = health.stats.prowlarr.stats as ProwlarrStats;
         const currentIndexers = currentService?.stats?.prowlarr?.indexers || [];
@@ -499,6 +495,161 @@ const updateService = useCallback((service: Service) => {
   updateTimeoutsRef.current.set(service.instanceId, timeoutId);
 }, [clearServiceTimeout, fetchHealthStatus, fetchServiceStats]);
 
+// Initialize SSE connection
+const initializeSSE = useCallback(() => {
+  if (eventSourceRef.current) {
+    eventSourceRef.current.close();
+  }
+
+  const eventSource = new EventSource('/api/events');
+
+  eventSource.onmessage = (event) => {
+    try {
+      const health = JSON.parse(event.data) as ServiceHealth;
+      
+      // Handle service-specific updates
+      if (health.message === 'plex_sessions' && health.stats?.plex?.sessions) {
+        const sessions = health.stats.plex.sessions;
+        updateServiceData(health.serviceId, {
+          stats: { plex: { sessions } },
+          details: {
+            plex: {
+              activeStreams: sessions.length,
+              transcoding: sessions.filter((s: PlexSession) => s.TranscodeSession).length
+            }
+          }
+        });
+      } else if (health.message === 'overseerr_requests' && health.stats?.overseerr) {
+        const stats = health.stats.overseerr;
+        updateServiceData(health.serviceId, {
+          stats: { overseerr: stats },
+          details: {
+            overseerr: {
+              pendingCount: stats.pendingCount,
+              totalRequests: stats.requests.length
+            }
+          }
+        });
+      } else if (health.message === 'radarr_queue' && health.stats?.radarr?.queue) {
+        const queue = health.stats.radarr.queue;
+        const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
+        const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
+        
+        updateServiceData(health.serviceId, {
+          stats: { radarr: { queue } },
+          details: {
+            radarr: {
+              queueCount: queue.totalRecords,
+              totalRecords: queue.totalRecords,
+              downloadingCount,
+              totalSize
+            }
+          }
+        });
+      } else if (health.message === 'sonarr_queue' && health.stats?.sonarr?.queue) {
+        const queue = health.stats.sonarr.queue;
+        const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
+        const episodeCount = queue.records.reduce((acc, r) => acc + r.episodes.length, 0);
+        const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
+        
+        updateServiceData(health.serviceId, {
+          stats: { sonarr: { queue } },
+          details: {
+            sonarr: {
+              queueCount: queue.totalRecords,
+              monitored: 0,
+              totalRecords: queue.totalRecords,
+              downloadingCount,
+              episodeCount,
+              totalSize
+            }
+          }
+        });
+      } else if (health.message === 'sonarr_stats' && health.stats?.sonarr) {
+        const currentService = services.get(health.serviceId);
+        const sonarrStats = health.stats.sonarr;
+        const currentQueue = currentService?.stats?.sonarr?.queue || { totalRecords: 0, records: [] };
+        
+        updateServiceData(health.serviceId, {
+          stats: { 
+            sonarr: {
+              queue: currentQueue,
+              stats: sonarrStats.stats,
+              version: sonarrStats.version
+            }
+          },
+          details: {
+            sonarr: {
+              queueCount: currentService?.details?.sonarr?.queueCount || 0,
+              monitored: sonarrStats.stats?.monitored || 0,
+              version: sonarrStats.version
+            }
+          }
+        });
+      } else if (health.message === 'prowlarr_stats' && health.stats?.prowlarr?.stats) {
+        const currentService = services.get(health.serviceId);
+        const prowlarrStats = health.stats.prowlarr.stats as ProwlarrStats;
+        const currentIndexers = currentService?.stats?.prowlarr?.indexers || [];
+        const currentIndexerStats = currentService?.stats?.prowlarr?.prowlarrIndexerStats || {
+          id: 1,
+          indexers: []
+        };
+        
+        updateServiceData(health.serviceId, {
+          stats: { 
+            prowlarr: {
+              stats: prowlarrStats,
+              indexers: currentIndexers,
+              prowlarrIndexerStats: currentIndexerStats
+            }
+          },
+          details: {
+            prowlarr: {
+              activeIndexers: currentIndexers.filter(i => i.enable).length,
+              totalGrabs: prowlarrStats.grabCount
+            }
+          }
+        });
+      } else if (health.message === 'prowlarr_indexers' && health.stats?.prowlarr?.indexers) {
+        const currentService = services.get(health.serviceId);
+        const prowlarrIndexers = health.stats.prowlarr.indexers;
+        const currentStats = currentService?.stats?.prowlarr?.stats as ProwlarrStats;
+        const currentIndexerStats = currentService?.stats?.prowlarr?.prowlarrIndexerStats || {
+          id: 1,
+          indexers: []
+        };
+        
+        updateServiceData(health.serviceId, {
+          stats: { 
+            prowlarr: {
+              stats: currentStats,
+              indexers: prowlarrIndexers,
+              prowlarrIndexerStats: currentIndexerStats
+            }
+          },
+          details: {
+            prowlarr: {
+              activeIndexers: prowlarrIndexers.filter(i => i.enable).length,
+              totalGrabs: currentStats?.grabCount || 0
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error processing SSE message:', error);
+    }
+  };
+
+  eventSource.onerror = (error) => {
+    console.error('SSE connection error:', error);
+    eventSource.close();
+    // Attempt to reconnect after a delay
+    setTimeout(initializeSSE, 5000);
+  };
+
+  eventSourceRef.current = eventSource;
+}, [updateServiceData, services]);
+
 // Handle configuration changes
 useEffect(() => {
   if (!isAuthenticated || !configurations) {
@@ -519,6 +670,9 @@ useEffect(() => {
   }
   
   configHashRef.current = configHash;
+
+  // Initialize SSE connection
+  initializeSSE();
 
   // Handle service additions and updates
   Object.entries(configurations).forEach(([instanceId, config]) => {
@@ -559,8 +713,11 @@ useEffect(() => {
     if (currentPlexTimeout) {
       clearTimeout(currentPlexTimeout);
     }
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
   };
-}, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService, services]);
+}, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService, services, initializeSSE]);
 
 const refreshService = useCallback((instanceId: string, refreshType: 'health' | 'stats' | 'all' = 'all'): void => {
   const service = services.get(instanceId);
@@ -593,4 +750,3 @@ return {
   refreshService: debouncedRefreshService
 };
 };
-

@@ -36,7 +36,7 @@ var CacheDurations = struct {
 	ProwlarrStatus   time.Duration
 }{
 	Default:           30 * time.Second,
-	HealthCheck:       5 * time.Minute,
+	HealthCheck:       10 * time.Minute,
 	Statistics:        5 * time.Minute,
 	PlexSessions:      5 * time.Second,  // Frequent updates for active sessions
 	OverseerrRequests: 30 * time.Second, // Frequent updates for pending requests
