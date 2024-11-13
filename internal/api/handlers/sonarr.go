@@ -69,7 +69,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	}
 
 	// Get Sonarr configuration
-	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Sonarr configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Sonarr configuration"})
@@ -199,7 +199,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 }
 
 func (h *SonarrHandler) fetchAndCacheQueue(instanceId, cacheKey string) (types.SonarrQueueResponse, error) {
-	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.SonarrQueueResponse{}, err
 	}
@@ -371,7 +371,7 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 }
 
 func (h *SonarrHandler) fetchAndCacheStats(instanceId, cacheKey string) (types.SonarrStatsResponse, string, error) {
-	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.SonarrStatsResponse{}, "", err
 	}

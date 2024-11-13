@@ -190,11 +190,11 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		}
 
 		if data, ok := healthResult.data.(struct {
-			body       []byte
-			statusCode int
-			respTime   time.Duration
+			body         []byte
+			statusCode   int
+			responseTime int64
 		}); ok {
-			extras["responseTime"] = data.respTime.Milliseconds()
+			extras["responseTime"] = data.responseTime
 
 			if data.statusCode >= 400 {
 				statusText := http.StatusText(data.statusCode)

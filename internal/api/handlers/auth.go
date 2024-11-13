@@ -259,7 +259,7 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	// Get session cookie
 	sessionID, err := c.Cookie("session")
 	if err != nil {
-		log.Error().Err(err).Msg("no session cookie found")
+		log.Trace().Msg("no session cookie found")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
 		return
 	}
@@ -269,7 +269,7 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	var sessionData types.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
 		if err == cache.ErrKeyNotFound {
-			log.Debug().Msg("session not found or expired")
+			log.Trace().Msg("session not found or expired") // Changed to Trace level for expected scenario
 		} else {
 			log.Error().Err(err).Msg("failed to get session from cache")
 		}

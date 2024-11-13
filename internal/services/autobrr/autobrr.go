@@ -343,8 +343,8 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	}
 	defer resp.Body.Close()
 
-	// Get response time from header
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	if resp.StatusCode != http.StatusOK {
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Unexpected status code: %d", resp.StatusCode)), http.StatusOK
@@ -386,7 +386,7 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	ircStatus, err := s.GetIRCStatus(url, apiKey)
 	if err != nil {
 		extras := map[string]interface{}{
-			"responseTime": responseTime.Milliseconds(),
+			"responseTime": responseTime,
 			"stats": map[string]interface{}{
 				"autobrr": stats,
 			},
@@ -427,7 +427,7 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	}
 
 	extras := map[string]interface{}{
-		"responseTime": responseTime.Milliseconds(),
+		"responseTime": responseTime,
 		"stats": map[string]interface{}{
 			"autobrr": stats,
 		},

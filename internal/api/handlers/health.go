@@ -4,6 +4,8 @@
 package handlers
 
 import (
+	"context"
+	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
@@ -17,7 +19,7 @@ import (
 
 // DatabaseService defines the database operations needed by HealthHandler
 type DatabaseService interface {
-	GetServiceByInstanceID(id string) (*models.ServiceConfiguration, error)
+	FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
 }
 
 type HealthHandler struct {
@@ -62,7 +64,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 			APIKey:     apiKey,
 		}
 	} else {
-		service, err = h.db.GetServiceByInstanceID(serviceID)
+		service, err = h.db.FindServiceBy(c, types.FindServiceParams{InstanceID: serviceID})
 		if err != nil {
 			log.Error().Err(err).Str("service", serviceID).Msg("Failed to fetch service configuration")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service configuration"})

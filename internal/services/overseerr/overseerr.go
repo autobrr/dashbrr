@@ -257,8 +257,8 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	}
 	defer resp.Body.Close()
 
-	// Get response time from header
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -287,7 +287,7 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	extras := map[string]interface{}{
 		"version":         statusResponse.Version,
 		"updateAvailable": statusResponse.UpdateAvailable,
-		"responseTime":    responseTime.Milliseconds(),
+		"responseTime":    responseTime,
 	}
 
 	status := "online"

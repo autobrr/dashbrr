@@ -136,7 +136,8 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 	}
 	defer resp.Body.Close()
 
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -158,7 +159,7 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 
 	extras := map[string]interface{}{
 		"version":      plexResponse.MediaContainer.Version,
-		"responseTime": responseTime.Milliseconds(),
+		"responseTime": responseTime,
 	}
 
 	// Always set status to "online" when healthy and include a message
