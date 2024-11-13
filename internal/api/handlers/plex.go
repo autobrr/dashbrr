@@ -13,13 +13,14 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
-	plexCacheDuration = 5 * time.Second // Reduced from 30s to 5s for more frequent updates
+	plexCacheDuration = 2 * time.Second // Reduced for more frequent updates
 	plexCachePrefix   = "plex:sessions:"
 )
 
@@ -96,6 +97,9 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 			Str("instanceId", instanceId).
 			Int("size", sessions.MediaContainer.Size).
 			Msg("Successfully retrieved and cached Plex sessions")
+
+		// Broadcast sessions update via SSE
+		h.broadcastPlexSessions(instanceId, sessions)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
@@ -157,9 +161,45 @@ func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
 			Str("instanceId", instanceId).
 			Int("size", sessions.MediaContainer.Size).
 			Msg("Successfully refreshed Plex sessions cache")
+
+		// Broadcast sessions update via SSE
+		h.broadcastPlexSessions(instanceId, sessions)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Msg("Refreshed cache with empty Plex sessions")
 	}
+}
+
+// broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
+func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.PlexSessionsResponse) {
+	// Use the existing BroadcastHealth function with a special message type
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      "ok",
+		Message:     "plex_sessions",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"plex": map[string]interface{}{
+				"sessions": sessions.MediaContainer.Metadata,
+			},
+		},
+		Details: map[string]interface{}{
+			"plex": map[string]interface{}{
+				"activeStreams": len(sessions.MediaContainer.Metadata),
+				"transcoding":   len(filterTranscodingSessions(sessions.MediaContainer.Metadata)),
+			},
+		},
+	})
+}
+
+// filterTranscodingSessions returns sessions that are being transcoded
+func filterTranscodingSessions(sessions []types.PlexSession) []types.PlexSession {
+	transcoding := make([]types.PlexSession, 0)
+	for _, session := range sessions {
+		if session.TranscodeSession != nil {
+			transcoding = append(transcoding, session)
+		}
+	}
+	return transcoding
 }

@@ -19,21 +19,13 @@ import {
   RadarrQueue,
   ProwlarrStats,
   ProwlarrIndexer,
-  ServiceConfig
-} from '../types/service';
+  ServiceConfig,
+  ServiceHealth} from '../types/service';
 import { useConfiguration } from '../contexts/useConfiguration';
 import { useAuth } from '../contexts/AuthContext';
 import serviceTemplates from '../config/serviceTemplates';
 import { api } from '../utils/api';
 import { cache, CACHE_PREFIXES } from '../utils/cache';
-
-interface ServiceHealth {
-  status: ServiceStatus;
-  responseTime: number;
-  message?: string;
-  version?: string;
-  updateAvailable?: boolean;
-}
 
 interface ServiceData {
   stats?: ServiceStats;
@@ -42,7 +34,7 @@ interface ServiceData {
 
 // Background polling intervals
 const STATS_CHECK_INTERVAL = 300000;   // 5 minutes for service stats
-const PLEX_SESSIONS_INTERVAL = 30000;  // 30 seconds for Plex sessions
+const PLEX_SESSIONS_INTERVAL = 5000;   // 5 seconds for Plex sessions (fallback)
 
 function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   fn: T,
@@ -243,8 +235,22 @@ export const useServiceData = () => {
     try {
       const health = await api.get<ServiceHealth>(`/api/health/${service.instanceId}`);
       if (health) {
-        cache.set(healthCacheKey, health);
-        updateServiceData(service.instanceId, health);
+        // Handle Plex sessions from SSE health events
+        if (service.type === 'plex' && health.message === 'plex_sessions' && health.stats?.plex?.sessions) {
+          const sessions = health.stats.plex.sessions;
+          updateServiceData(service.instanceId, {
+            stats: { plex: { sessions } },
+            details: {
+              plex: {
+                activeStreams: sessions.length,
+                transcoding: sessions.filter((s: PlexSession) => s.TranscodeSession).length
+              }
+            }
+          });
+        } else {
+          cache.set(healthCacheKey, health);
+          updateServiceData(service.instanceId, health);
+        }
       }
     } catch (error) {
       console.error(`Error fetching health for ${service.type}:`, error);

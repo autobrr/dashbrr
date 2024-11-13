@@ -10,6 +10,13 @@ export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowla
 export interface ServiceHealth {
   status: ServiceStatus;
   message: string;
+  serviceId: string;
+  lastChecked?: Date;
+  responseTime?: number;
+  version?: string;
+  updateAvailable?: boolean;
+  stats?: ServiceStats;
+  details?: ServiceDetails;
   extras?: Record<string, unknown>;
 }
 
