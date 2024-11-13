@@ -153,7 +153,8 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 	}
 	defer resp.Body.Close()
 
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -197,7 +198,7 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 	extras := map[string]interface{}{
 		"version":         version,
 		"updateAvailable": statusResponse.UpdateAvailable,
-		"responseTime":    responseTime.Milliseconds(),
+		"responseTime":    responseTime,
 	}
 
 	if versionErr != nil {

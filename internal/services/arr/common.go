@@ -84,6 +84,9 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 		timeout = time.Until(deadline)
 	}
 
+	// Track request start time
+	startTime := time.Now()
+
 	// Get client with appropriate timeout
 	client := getHTTPClient(timeout)
 	resp, err := client.Do(req)
@@ -97,6 +100,9 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	if resp == nil {
 		return nil, fmt.Errorf("received nil response from server")
 	}
+
+	// Store the response time in milliseconds
+	resp.Header.Set("X-Response-Time", fmt.Sprintf("%d", time.Since(startTime).Milliseconds()))
 
 	return resp, nil
 }

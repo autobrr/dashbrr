@@ -53,7 +53,8 @@ func (s *GeneralService) CheckHealth(url, apiKey string) (models.ServiceHealth, 
 	}
 	defer resp.Body.Close()
 
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -85,7 +86,7 @@ func (s *GeneralService) CheckHealth(url, apiKey string) (models.ServiceHealth, 
 		}
 
 		extras := map[string]interface{}{
-			"responseTime": responseTime.Milliseconds(),
+			"responseTime": responseTime,
 		}
 
 		return s.CreateHealthResponse(startTime, status, message, extras), resp.StatusCode
@@ -94,7 +95,7 @@ func (s *GeneralService) CheckHealth(url, apiKey string) (models.ServiceHealth, 
 	// If JSON parsing fails, treat as plain text
 	textResponse := strings.TrimSpace(string(body))
 	extras := map[string]interface{}{
-		"responseTime": responseTime.Milliseconds(),
+		"responseTime": responseTime,
 	}
 
 	if strings.EqualFold(textResponse, "ok") {
