@@ -35,16 +35,6 @@ func SQLiteMigrator(db *sql.DB) error {
 				return nil
 			},
 		},
-		&migrator.Migration{
-			Name: "002_add_service_other_url",
-			RunTx: func(db *sql.Tx) error {
-				_, err := db.Exec("ALTER TABLE service_configurations ADD COLUMN other_url TEXT")
-				if err != nil {
-					return err
-				}
-				return nil
-			},
-		},
 	)
 
 	err := migrate.Migrate()
