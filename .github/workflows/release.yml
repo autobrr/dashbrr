@@ -160,6 +160,7 @@ jobs:
 
   docker:
     name: Build Docker images
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
