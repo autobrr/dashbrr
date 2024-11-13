@@ -61,7 +61,10 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			sessionKey = fmt.Sprintf("session:%s", sessionToken)
 			err = m.cache.Get(c, sessionKey, &sessionData)
 			if err != nil {
-				log.Debug().Err(err).Msg("session not found")
+				// Only log if it's not a "key not found" error, as that's expected
+				if err != cache.ErrKeyNotFound {
+					log.Error().Err(err).Msg("error checking session in cache")
+				}
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session"})
 				c.Abort()
 				return
@@ -99,6 +102,7 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 			sessionKey = fmt.Sprintf("session:%s", sessionToken)
 			err = m.cache.Get(c, sessionKey, &sessionData)
 			if err != nil {
+				// Don't log anything for optional auth failures
 				c.Next()
 				return
 			}
