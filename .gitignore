@@ -1,38 +1,48 @@
-# Logs
-logs
+# Logs and databases #
+######################
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+*.sql
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+*.db*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# OS generated files #
+######################
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-*.tsbuildinfo
-
-backend/data/dashbrr.db
-backend/dashbrr.db
-dashbrr.db
-/dashbrr
-data/
-dump.rdb
+# Other
+.idea
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+node_modules/
+web/build
+bin/
+log/
+web/dev-dist/
+web/dist/assets/
+web/dist/*
+!web/dist/.gitkeep
+# If needed, package-lock.json shall be added
+# manually using an explicit git add command.
+package-lock.json
+# Ditto for yarn, except we're using npm.
+yarn.lock
 .env
-main
-backend/test.db
-dev-dist/
+dashbrr
 license.sh
+web/tsconfig.app.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+data/

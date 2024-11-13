@@ -2,8 +2,6 @@ version: 2
 
 before:
   hooks:
-    # Only build web if SKIP_WEB is not set
-    - sh -c '[ -n "$SKIP_WEB" ] || (cd web && pnpm install --frozen-lockfile && pnpm run build)'
     - go mod tidy
 
 builds:
@@ -32,13 +30,8 @@ builds:
         goarch: arm
       - goos: freebsd
         goarch: arm64
-    main: cmd/dashbrr/main.go
+    main: ./cmd/dashbrr/main.go
     binary: dashbrr
-    ldflags:
-      - -s -w
-      - -X github.com/autobrr/dashbrr/internal/buildinfo.Version={{.Version}}
-      - -X github.com/autobrr/dashbrr/internal/buildinfo.Commit={{.Commit}}
-      - -X github.com/autobrr/dashbrr/internal/buildinfo.Date={{.Date}}
 
 archives:
   - id: dashbrr

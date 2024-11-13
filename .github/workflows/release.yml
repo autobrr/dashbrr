@@ -57,11 +57,9 @@ jobs:
         with:
           name: web-dist
           path: web/dist
-          retention-days: 1
 
   test:
     name: Test
-    needs: [web]
     runs-on: ubuntu-latest
     services:
       test_postgres:
@@ -79,12 +77,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download web production build
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: web/dist
-
+      # 1.20 is the last version to support Windows < 10, Server < 2016, and MacOS < 1.15.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -92,12 +85,6 @@ jobs:
           cache: true
 
       - name: Test
-        env:
-          DASHBRR__DB_HOST: localhost
-          DASHBRR__DB_PORT: 5432
-          DASHBRR__DB_USER: dashbrr
-          DASHBRR__DB_PASSWORD: dashbrr
-          DASHBRR__DB_NAME: dashbrr_test
         run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- ./... -tags=integration
 
       - name: Test Summary
@@ -109,7 +96,7 @@ jobs:
   goreleaserbuild:
     name: Build distribution binaries
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [web, test]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,21 +109,12 @@ jobs:
           name: web-dist
           path: web/dist
 
+      #     1.20 is the last version to support Windows < 10, Server < 2016, and MacOS < 1.15.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      # Ensure web/dist exists and is populated before goreleaser runs
-      - name: Verify web dist
-        run: |
-          if [ ! -d "web/dist" ] || [ -z "$(ls -A web/dist)" ]; then
-            echo "web/dist directory is missing or empty"
-            exit 1
-          fi
-          echo "web/dist contents:"
-          ls -la web/dist
 
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'
@@ -144,11 +122,9 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --snapshot --skip=validate --skip=publish --parallelism 5
+          args: release --clean --skip=validate --skip=publish --parallelism 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip web build in goreleaser since we already have it
-          SKIP_WEB: "true"
 
       - name: Run GoReleaser build and publish tags
         if: startsWith(github.ref, 'refs/tags/')
@@ -159,8 +135,6 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip web build in goreleaser since we already have it
-          SKIP_WEB: "true"
 
       - name: Create web-dist artifact
         if: startsWith(github.ref, 'refs/tags/')
@@ -187,13 +161,23 @@ jobs:
   docker:
     name: Build Docker images
     runs-on: ubuntu-latest
-    # Skip docker builds for fork PRs since they can't push images anyway
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
     strategy:
       fail-fast: true
       matrix:
-        platform: ${{ github.event_name == 'pull_request' && fromJSON('["linux/amd64", "linux/arm64"]') || fromJSON('["linux/386", "linux/amd64", "linux/amd64/v2", "linux/amd64/v3", "linux/arm/v6", "linux/arm/v7", "linux/arm64", "linux/ppc64le", "linux/s390x"]') }}
-    needs: [test]
+        platform:
+          - linux/386
+          - linux/amd64
+          - linux/amd64/v2
+          - linux/amd64/v3
+          - linux/arm/v6
+          - linux/arm/v7
+          - linux/arm64
+          #       - linux/mips64le
+          #       - linux/mips64
+          - linux/ppc64le
+          #       - linux/riscv64
+          - linux/s390x
+    needs: [web, test]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -242,7 +226,7 @@ jobs:
           context: .
           file: ./ci.Dockerfile
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request') && 'true' || 'false' }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
@@ -272,7 +256,7 @@ jobs:
     name: Publish Docker multi-arch manifest
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
-    needs: [docker]
+    needs: [docker, test]
     steps:
       - name: Download image digests
         uses: actions/download-artifact@v4
