@@ -12,7 +12,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "autobrr",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/autobrr",
   },
   {
@@ -21,7 +20,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "omegabrr",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/omegabrr",
   },
   {
@@ -30,7 +28,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "radarr",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/radarr",
   },
   {
@@ -39,7 +36,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "sonarr",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/sonarr",
   },
   {
@@ -48,7 +44,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "prowlarr",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/prowlarr",
   },
   {
@@ -57,7 +52,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "overseerr",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/overseerr",
   },
   {
@@ -66,7 +60,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "plex",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/plex",
   },
   {
@@ -83,7 +76,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "maintainerr",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "/api/health/maintainerr",
   },
   {
@@ -92,7 +84,6 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "general",
     status: "offline",
     url: "",
-    accessUrl: "",
     healthEndpoint: "", // The URL itself is the health endpoint
     apiKey: undefined, // Make API key optional
   },

@@ -221,41 +221,8 @@ func (db *DB) initSchema() error {
 			instance_id TEXT UNIQUE NOT NULL,
 			display_name TEXT NOT NULL,
 			url TEXT,
-			access_url TEXT,
 			api_key TEXT
 		)`, autoIncrement))
-	if err != nil {
-		return err
-	}
-
-	// Add access_url column if it doesn't exist
-	if db.driver == "postgres" {
-		_, err = db.Exec(`
-			DO $$ 
-			BEGIN 
-				BEGIN
-					ALTER TABLE service_configurations ADD COLUMN access_url TEXT;
-				EXCEPTION 
-					WHEN duplicate_column THEN 
-						NULL;
-				END;
-			END $$;
-		`)
-	} else {
-		// For SQLite, check if column exists first
-		var count int
-		err = db.QueryRow(`
-			SELECT COUNT(*) 
-			FROM pragma_table_info('service_configurations') 
-			WHERE name='access_url'
-		`).Scan(&count)
-		if err != nil {
-			return err
-		}
-		if count == 0 {
-			_, err = db.Exec(`ALTER TABLE service_configurations ADD COLUMN access_url TEXT`)
-		}
-	}
 	if err != nil {
 		return err
 	}
@@ -274,6 +241,7 @@ func (db *DB) initSchema() error {
 		return err
 	}
 
+	//log.Debug().Msg("Database schema initialized")
 	return nil
 }
 
@@ -458,17 +426,24 @@ func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
 
 // Service Management Functions
 
-// scanService scans a service row into a ServiceConfiguration struct
-func scanService(row *sql.Row) (*models.ServiceConfiguration, error) {
+// GetServiceByInstanceID retrieves a service configuration by its instance ID
+func (db *DB) GetServiceByInstanceID(instanceID string) (*models.ServiceConfiguration, error) {
 	var service models.ServiceConfiguration
-	var accessUrl sql.NullString // Use sql.NullString for nullable column
+	var placeholder string
+	if db.driver == "postgres" {
+		placeholder = "$1"
+	} else {
+		placeholder = "?"
+	}
 
-	err := row.Scan(
+	err := db.QueryRow(`
+		SELECT id, instance_id, display_name, url, api_key 
+		FROM service_configurations 
+		WHERE instance_id = `+placeholder, instanceID).Scan(
 		&service.ID,
 		&service.InstanceID,
 		&service.DisplayName,
 		&service.URL,
-		&accessUrl,
 		&service.APIKey,
 	)
 	if err == sql.ErrNoRows {
@@ -477,63 +452,12 @@ func scanService(row *sql.Row) (*models.ServiceConfiguration, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Convert sql.NullString to string
-	if accessUrl.Valid {
-		service.AccessURL = accessUrl.String
-	}
-
 	return &service, nil
-}
-
-// scanServiceRows scans service rows into ServiceConfiguration structs
-func scanServiceRows(rows *sql.Rows) ([]models.ServiceConfiguration, error) {
-	var services []models.ServiceConfiguration
-	for rows.Next() {
-		var service models.ServiceConfiguration
-		var accessUrl sql.NullString // Use sql.NullString for nullable column
-
-		err := rows.Scan(
-			&service.ID,
-			&service.InstanceID,
-			&service.DisplayName,
-			&service.URL,
-			&accessUrl,
-			&service.APIKey,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		// Convert sql.NullString to string
-		if accessUrl.Valid {
-			service.AccessURL = accessUrl.String
-		}
-
-		services = append(services, service)
-	}
-	return services, nil
-}
-
-// GetServiceByInstanceID retrieves a service configuration by its instance ID
-func (db *DB) GetServiceByInstanceID(instanceID string) (*models.ServiceConfiguration, error) {
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1"
-	} else {
-		placeholder = "?"
-	}
-
-	row := db.QueryRow(`
-		SELECT id, instance_id, display_name, url, access_url, api_key 
-		FROM service_configurations 
-		WHERE instance_id = `+placeholder, instanceID)
-
-	return scanService(row)
 }
 
 // GetServiceByURL retrieves a service configuration by its URL
 func (db *DB) GetServiceByURL(url string) (*models.ServiceConfiguration, error) {
+	var service models.ServiceConfiguration
 	var placeholder string
 	if db.driver == "postgres" {
 		placeholder = "$1"
@@ -541,39 +465,63 @@ func (db *DB) GetServiceByURL(url string) (*models.ServiceConfiguration, error) 
 		placeholder = "?"
 	}
 
-	row := db.QueryRow(`
-		SELECT id, instance_id, display_name, url, access_url, api_key 
+	err := db.QueryRow(`
+		SELECT id, instance_id, display_name, url, api_key 
 		FROM service_configurations 
-		WHERE url = `+placeholder, url)
-
-	return scanService(row)
+		WHERE url = `+placeholder, url).Scan(
+		&service.ID,
+		&service.InstanceID,
+		&service.DisplayName,
+		&service.URL,
+		&service.APIKey,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &service, nil
 }
 
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
 func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfiguration, error) {
+	var service models.ServiceConfiguration
 	var query string
 	if db.driver == "postgres" {
 		query = `
-			SELECT id, instance_id, display_name, url, access_url, api_key 
+			SELECT id, instance_id, display_name, url, api_key 
 			FROM service_configurations 
 			WHERE instance_id LIKE $1 || '%'
 			LIMIT 1`
 	} else {
 		query = `
-			SELECT id, instance_id, display_name, url, access_url, api_key 
+			SELECT id, instance_id, display_name, url, api_key 
 			FROM service_configurations 
 			WHERE instance_id LIKE ? || '%'
 			LIMIT 1`
 	}
 
-	row := db.QueryRow(query, prefix)
-	return scanService(row)
+	err := db.QueryRow(query, prefix).Scan(
+		&service.ID,
+		&service.InstanceID,
+		&service.DisplayName,
+		&service.URL,
+		&service.APIKey,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &service, nil
 }
 
 // GetAllServices retrieves all service configurations
 func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 	rows, err := db.Query(`
-		SELECT id, instance_id, display_name, url, access_url, api_key 
+		SELECT id, instance_id, display_name, url, api_key 
 		FROM service_configurations
 	`)
 	if err != nil {
@@ -581,32 +529,45 @@ func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 	}
 	defer rows.Close()
 
-	return scanServiceRows(rows)
+	var services []models.ServiceConfiguration
+	for rows.Next() {
+		var service models.ServiceConfiguration
+		err := rows.Scan(
+			&service.ID,
+			&service.InstanceID,
+			&service.DisplayName,
+			&service.URL,
+			&service.APIKey,
+		)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, service)
+	}
+	return services, nil
 }
 
 // CreateService creates a new service configuration
 func (db *DB) CreateService(service *models.ServiceConfiguration) error {
 	if db.driver == "postgres" {
 		err := db.QueryRow(`
-			INSERT INTO service_configurations (instance_id, display_name, url, access_url, api_key)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO service_configurations (instance_id, display_name, url, api_key)
+			VALUES ($1, $2, $3, $4)
 			RETURNING id`,
 			service.InstanceID,
 			service.DisplayName,
 			service.URL,
-			service.AccessURL,
 			service.APIKey,
 		).Scan(&service.ID)
 		return err
 	}
 
 	result, err := db.Exec(`
-		INSERT INTO service_configurations (instance_id, display_name, url, access_url, api_key)
-		VALUES (?, ?, ?, ?, ?)`,
+		INSERT INTO service_configurations (instance_id, display_name, url, api_key)
+		VALUES (?, ?, ?, ?)`,
 		service.InstanceID,
 		service.DisplayName,
 		service.URL,
-		service.AccessURL,
 		service.APIKey,
 	)
 	if err != nil {
@@ -628,19 +589,18 @@ func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
 	if db.driver == "postgres" {
 		query = `
 			UPDATE service_configurations 
-			SET display_name = $1, url = $2, access_url = $3, api_key = $4
-			WHERE instance_id = $5`
+			SET display_name = $1, url = $2, api_key = $3
+			WHERE instance_id = $4`
 	} else {
 		query = `
 			UPDATE service_configurations 
-			SET display_name = ?, url = ?, access_url = ?, api_key = ?
+			SET display_name = ?, url = ?, api_key = ?
 			WHERE instance_id = ?`
 	}
 
 	_, err := db.Exec(query,
 		service.DisplayName,
 		service.URL,
-		service.AccessURL,
 		service.APIKey,
 		service.InstanceID,
 	)

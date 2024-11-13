@@ -24,14 +24,12 @@ export const ConfigurationForm = ({
   displayName: initialDisplayName,
   onClose,
 }: ConfigurationFormProps) => {
-  const { configurations, updateConfiguration, fetchConfigurations } =
-    useConfiguration();
+  const { configurations, updateConfiguration } = useConfiguration();
   const { refreshServiceHealth } = useServiceHealth();
   const currentConfig = configurations[instanceId];
   const serviceType = instanceId.split("-")[0];
 
   const [url, setUrl] = useState(currentConfig?.url || "");
-  const [accessUrl, setAccessUrl] = useState(currentConfig?.accessUrl || "");
   const [apiKey, setApiKey] = useState(currentConfig?.apiKey || "");
   const [displayName, setDisplayName] = useState(
     currentConfig?.displayName || initialDisplayName
@@ -73,11 +71,6 @@ export const ConfigurationForm = ({
     try {
       const config: ServiceConfig = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
-        accessUrl: accessUrl
-          ? accessUrl.endsWith("/")
-            ? accessUrl.slice(0, -1)
-            : accessUrl
-          : undefined,
         displayName,
         ...(serviceType !== "general" ? { apiKey } : {}),
       };
@@ -92,9 +85,6 @@ export const ConfigurationForm = ({
 
       // Immediately refresh the health status
       await refreshServiceHealth(instanceId);
-
-      // Force a refresh of all configurations to ensure UI is up to date
-      await fetchConfigurations();
 
       toast.success("Configuration saved successfully");
       onClose();
@@ -127,19 +117,13 @@ export const ConfigurationForm = ({
     }
   };
 
-  const getSettingsUrl = (path: string): string | null => {
-    if (!url) return null;
-    const baseUrl = accessUrl || url;
-    return `${baseUrl}${path}`;
-  };
-
   const getApiKeyHelp = () => {
     switch (serviceType) {
       case "autobrr":
         return {
           prefix: "Found in ",
           text: "Settings > API",
-          link: getSettingsUrl("/settings/api"),
+          link: url ? `${url}/settings/api` : null,
         };
       case "omegabrr":
         return {
@@ -159,13 +143,13 @@ export const ConfigurationForm = ({
         return {
           prefix: "Found in ",
           text: "Settings > General",
-          link: getSettingsUrl("/settings/general"),
+          link: url ? `${url}/settings/general` : null,
         };
       case "overseerr":
         return {
           prefix: "Found in ",
           text: "Settings",
-          link: getSettingsUrl("/settings/main"),
+          link: url ? `${url}/settings/main` : null,
         };
       default:
         return {
@@ -208,27 +192,7 @@ export const ConfigurationForm = ({
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder={getUrlPlaceholder()}
-        helpText={{
-          prefix: "Used for ",
-          text: "API communication and health checks",
-          link: null,
-        }}
         required
-        data-1p-ignore
-      />
-
-      <FormInput
-        id="accessUrl"
-        label="Access URL (Optional)"
-        type="text"
-        value={accessUrl}
-        onChange={(e) => setAccessUrl(e.target.value)}
-        placeholder="Leave empty to use main URL"
-        helpText={{
-          prefix: "Override ",
-          text: "URL used when opening service in browser. Useful for internal/external URL differences.",
-          link: null,
-        }}
         data-1p-ignore
       />
 

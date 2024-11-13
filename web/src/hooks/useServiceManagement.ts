@@ -19,7 +19,6 @@ interface ServiceConfig {
   url: string;
   apiKey: string;
   displayName: string;
-  accessUrl?: string;
 }
 
 export const useServiceManagement = () => {
@@ -48,15 +47,15 @@ export const useServiceManagement = () => {
     setShowServiceConfig(true);
   }, [configurations]);
 
-  const confirmServiceAddition = useCallback(async (url: string, apiKey: string, displayName: string, accessUrl?: string) => {
+  const confirmServiceAddition = useCallback(async (url: string, apiKey: string, displayName: string) => {
     if (!pendingService) return;
 
     try {
       await updateConfiguration(pendingService.instanceId, {
         url,
         apiKey,
-        displayName: displayName || pendingService.displayName,
-        accessUrl
+        // Use the provided display name from the form
+        displayName: displayName || pendingService.displayName
       } as ServiceConfig);
       
       toast.success(`Added new service instance`);

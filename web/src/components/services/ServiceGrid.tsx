@@ -104,18 +104,6 @@ export const ServiceGrid = ({
     }
   };
 
-  // Helper function to check if two services have different content
-  const hasServiceContentChanged = (a: Service, b: Service): boolean => {
-    return (
-      a.url !== b.url ||
-      a.accessUrl !== b.accessUrl ||
-      a.displayName !== b.displayName ||
-      a.version !== b.version ||
-      a.updateAvailable !== b.updateAvailable ||
-      a.status !== b.status
-    );
-  };
-
   // Initialize and update items
   useEffect(() => {
     if (services.length === 0) {
@@ -123,14 +111,10 @@ export const ServiceGrid = ({
       return;
     }
 
-    // Check if services have changed (either order or content)
+    // Check if services have actually changed
     const servicesChanged = services.some((service, index) => {
       const prevService = prevServicesRef.current[index];
-      return (
-        !prevService ||
-        prevService.instanceId !== service.instanceId ||
-        hasServiceContentChanged(service, prevService)
-      );
+      return !prevService || prevService.instanceId !== service.instanceId;
     });
 
     if (!servicesChanged && items.length > 0) {
@@ -179,14 +163,6 @@ export const ServiceGrid = ({
         return newItems;
       });
     }
-  };
-
-  const handleRemoveService = async (instanceId: string) => {
-    // Immediately update local state
-    setItems((prev) => prev.filter((item) => item.instanceId !== instanceId));
-
-    // Call the parent's onRemoveService
-    await onRemoveService(instanceId);
   };
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -252,7 +228,7 @@ export const ServiceGrid = ({
                 <DraggableServiceCard
                   key={service.instanceId}
                   service={service}
-                  onRemove={() => handleRemoveService(service.instanceId)}
+                  onRemove={() => onRemoveService(service.instanceId)}
                   isConnected={isConnected}
                 />
               ))}

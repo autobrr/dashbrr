@@ -264,7 +264,6 @@ export const useServiceData = () => {
       type: (template?.type || 'other') as ServiceType,
       status: hasRequiredConfig ? 'loading' as ServiceStatus : 'pending' as ServiceStatus,
       url: config.url,
-      accessUrl: config.accessUrl,
       apiKey: config.apiKey,
       displayName: config.displayName,
       healthEndpoint: template?.healthEndpoint,

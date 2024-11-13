@@ -17,7 +17,6 @@ import { ServiceStatus } from "../../types/service";
 interface ServiceHeaderProps {
   displayName: string;
   url?: string;
-  accessUrl?: string;
   version?: string;
   updateAvailable?: boolean;
   healthEndpoint?: string;
@@ -30,7 +29,6 @@ interface ServiceHeaderProps {
 export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   displayName,
   url,
-  accessUrl,
   version,
   updateAvailable,
   onConfigure,
@@ -62,9 +60,6 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
     return repoUrls[serviceKey];
   };
 
-  // Use accessUrl if available, otherwise fall back to url
-  const openUrl = accessUrl || url;
-
   return (
     <>
       <div className="flex justify-between items-center">
@@ -72,14 +67,14 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
           <div className="flex items-center gap-2 overflow-hidden">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white truncate">
               <a
-                href={openUrl}
+                href={url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-inherit hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
                 onClick={(e) => e.stopPropagation()}
               >
                 {displayName}
-                {openUrl && (
+                {url && (
                   <ArrowTopRightOnSquareIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 transition-transform duration-200 hover:scale-110" />
                 )}
               </a>
