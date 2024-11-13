@@ -2,6 +2,8 @@ version: 2
 
 before:
   hooks:
+    # Only build web if SKIP_WEB is not set
+    - sh -c '[ -n "$SKIP_WEB" ] || (cd web && pnpm install --frozen-lockfile && pnpm run build)'
     - go mod tidy
 
 builds:
@@ -63,7 +65,7 @@ release:
 
     ## What to do next?
 
-    - Read the [documentation](https://autobrr.com)
+    - Read the [documentation](https://github.com/autobrr/dashbrr/blob/main/README.md)
     - Join our [Discord server](https://discord.gg/WQ2eUycxyT)
 
 checksum:
