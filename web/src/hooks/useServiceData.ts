@@ -43,7 +43,6 @@ interface ServiceData {
 // Background polling intervals
 const STATS_CHECK_INTERVAL = 300000;   // 5 minutes for service stats
 const PLEX_SESSIONS_INTERVAL = 30000;  // 30 seconds for Plex sessions
-const INITIAL_FETCH_DELAY = 100;       // 100ms initial fetch delay
 
 function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   fn: T,
@@ -64,6 +63,7 @@ export const useServiceData = () => {
   const updateTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const plexTimeoutRef = useRef<NodeJS.Timeout>();
   const configHashRef = useRef<string>('');
+  const isInitialLoadRef = useRef(true);
 
   const clearServiceTimeout = useCallback((serviceId: string) => {
     const timeoutId = updateTimeoutsRef.current.get(serviceId);
@@ -284,13 +284,11 @@ export const useServiceData = () => {
   const updateService = useCallback((service: Service) => {
     clearServiceTimeout(service.instanceId);
 
-    // Initial fetch with minimal delay
-    setTimeout(() => {
-      Promise.all([
-        fetchHealthStatus(service),
-        fetchServiceStats(service)
-      ]).catch(console.error);
-    }, INITIAL_FETCH_DELAY);
+    // Fetch health and stats
+    Promise.all([
+      fetchHealthStatus(service),
+      fetchServiceStats(service)
+    ]).catch(console.error);
 
     // Schedule background polling
     const timeoutId = setTimeout(() => {
@@ -310,9 +308,12 @@ export const useServiceData = () => {
 
     // Generate hash of current configurations
     const configHash = JSON.stringify(configurations);
-    if (configHash === configHashRef.current) {
-      return; // No changes in configurations
+    
+    // Skip if no changes and not initial load
+    if (configHash === configHashRef.current && !isInitialLoadRef.current) {
+      return;
     }
+    
     configHashRef.current = configHash;
 
     // Handle service additions and updates
@@ -347,6 +348,7 @@ export const useServiceData = () => {
     }
 
     setIsLoading(false);
+    isInitialLoadRef.current = false;
 
     return () => {
       Array.from(services.keys()).forEach(clearServiceTimeout);
@@ -354,7 +356,7 @@ export const useServiceData = () => {
         clearTimeout(plexTimeoutRef.current);
       }
     };
-  }, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService]);
+  }, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService, services]);
 
   const refreshService = useCallback((instanceId: string, refreshType: 'health' | 'stats' | 'all' = 'all'): void => {
     const service = services.get(instanceId);

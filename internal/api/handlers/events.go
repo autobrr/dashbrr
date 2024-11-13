@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,11 +35,16 @@ func NewEventsHandler(db *database.DB, health *services.HealthService) *EventsHa
 type client struct {
 	send chan models.ServiceHealth
 	done chan struct{}
+	// Add connection time for monitoring
+	connectedAt time.Time
 }
 
 var (
 	clients   = make(map[*client]bool)
 	clientsMu sync.RWMutex
+
+	// Track active client count
+	activeClients int64
 
 	// Increased concurrent checks from 5 to 10
 	healthCheckSemaphore = make(chan struct{}, 10)
@@ -46,12 +52,18 @@ var (
 	// Track last check time per service
 	lastChecks   = make(map[string]time.Time)
 	lastChecksMu sync.RWMutex
+
+	// Client cleanup ticker
+	cleanupTicker *time.Ticker
 )
 
 const (
 	minCheckInterval  = 30 * time.Second
 	checkTimeout      = 15 * time.Second
 	keepAliveInterval = 15 * time.Second
+	broadcastTimeout  = 5 * time.Second // Increased from 2s to 5s
+	clientBufferSize  = 100             // Increased from 20 to 100
+	cleanupInterval   = 5 * time.Minute
 )
 
 // safeClose safely closes a channel if it's not already closed
@@ -67,6 +79,53 @@ func safeClose(ch chan struct{}) {
 		return
 	default:
 		close(ch)
+	}
+}
+
+// startClientCleanup starts periodic cleanup of disconnected clients
+func startClientCleanup() {
+	if cleanupTicker != nil {
+		return
+	}
+
+	cleanupTicker = time.NewTicker(cleanupInterval)
+	go func() {
+		for range cleanupTicker.C {
+			cleanupClients()
+		}
+	}()
+}
+
+// cleanupClients removes disconnected clients and logs metrics
+func cleanupClients() {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+
+	before := len(clients)
+	now := time.Now()
+
+	for client := range clients {
+		select {
+		case <-client.done:
+			delete(clients, client)
+			atomic.AddInt64(&activeClients, -1)
+		default:
+			// Log clients that haven't received messages for too long
+			if now.Sub(client.connectedAt) > 30*time.Minute {
+				log.Warn().
+					Time("connected_at", client.connectedAt).
+					Msg("Long-running SSE connection detected")
+			}
+		}
+	}
+
+	after := len(clients)
+	if before != after {
+		log.Info().
+			Int("before", before).
+			Int("after", after).
+			Int("cleaned", before-after).
+			Msg("Cleaned up disconnected SSE clients")
 	}
 }
 
@@ -211,13 +270,22 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 
 	// Create new client with buffered channel and done signal
 	client := &client{
-		send: make(chan models.ServiceHealth, 20),
-		done: make(chan struct{}),
+		send:        make(chan models.ServiceHealth, clientBufferSize),
+		done:        make(chan struct{}),
+		connectedAt: time.Now(),
 	}
 
 	clientsMu.Lock()
 	clients[client] = true
+	atomic.AddInt64(&activeClients, 1)
+	currentClients := len(clients)
 	clientsMu.Unlock()
+
+	// Log new connection
+	log.Info().
+		Time("connected_at", client.connectedAt).
+		Int("total_clients", currentClients).
+		Msg("New SSE client connected")
 
 	ctx := c.Request.Context()
 
@@ -226,9 +294,18 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 		<-ctx.Done()
 		clientsMu.Lock()
 		delete(clients, client)
+		currentClients := len(clients)
 		clientsMu.Unlock()
+		atomic.AddInt64(&activeClients, -1)
 		safeClose(client.done)
 		close(client.send)
+
+		// Log disconnection
+		log.Info().
+			Time("connected_at", client.connectedAt).
+			Time("disconnected_at", time.Now()).
+			Int("total_clients", currentClients).
+			Msg("SSE client disconnected")
 	}()
 
 	// Perform immediate health check for new connection
@@ -253,6 +330,7 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 			if lastUpdateTime, exists := lastUpdate[msg.ServiceID]; !exists || now.Sub(lastUpdateTime) >= 5*time.Second {
 				data, err := json.Marshal(msg)
 				if err != nil {
+					log.Error().Err(err).Msg("Failed to marshal health message")
 					continue
 				}
 				lastUpdate[msg.ServiceID] = now
@@ -283,9 +361,10 @@ func BroadcastHealth(health models.ServiceHealth) {
 			continue
 		case client.send <- health:
 			// Message sent successfully
-		case <-time.After(2 * time.Second):
+		case <-time.After(broadcastTimeout):
 			log.Debug().
 				Str("service", health.ServiceID).
+				Time("client_connected_at", client.connectedAt).
 				Msg("Skipped broadcast due to slow client")
 		}
 	}
@@ -303,6 +382,9 @@ func (h *EventsHandler) StartHealthMonitor() {
 	healthMonitorOnce.Do(func() {
 		monitorCtx, monitorCancel = context.WithCancel(context.Background())
 
+		// Start client cleanup
+		startClientCleanup()
+
 		go h.checkAndBroadcastHealth(monitorCtx)
 
 		healthMonitor = time.NewTicker(30 * time.Second)
@@ -316,6 +398,8 @@ func (h *EventsHandler) StartHealthMonitor() {
 				}
 			}
 		}()
+
+		log.Info().Msg("Health monitor started with client cleanup")
 	})
 }
 
@@ -324,7 +408,12 @@ func (h *EventsHandler) StopHealthMonitor() {
 	if healthMonitor != nil {
 		healthMonitor.Stop()
 	}
+	if cleanupTicker != nil {
+		cleanupTicker.Stop()
+		cleanupTicker = nil
+	}
 	if monitorCancel != nil {
 		monitorCancel()
 	}
+	log.Info().Msg("Health monitor and client cleanup stopped")
 }
