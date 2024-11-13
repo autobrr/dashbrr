@@ -1,4 +1,37 @@
-# Logs and databases #
+# Binaries and Executables
+######################
+dashbrr
+bin/
+dist/
+
+# Dependencies
+######################
+node_modules/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Package Manager Files
+######################
+# If needed, package-lock.json shall be added manually using an explicit git add command
+package-lock.json
+# Using npm, not yarn
+yarn.lock
+
+# Build and Development
+######################
+web/build
+web/dev-dist/
+web/dist/*
+!web/dist/.gitkeep
+web/tsconfig.app.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+
+# Database Files
 ######################
 *.log
 *.sql
@@ -7,8 +40,19 @@
 *.db-shm
 *.db-wal
 *.db*
+data/
 
-# OS generated files #
+# IDE and Editor Files
+######################
+.idea
+.vscode
+
+# Environment Files
+######################
+.env
+license.sh
+
+# OS Generated Files
 ######################
 .DS_Store
 .DS_Store?
@@ -17,32 +61,3 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Other
-.idea
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
-node_modules/
-web/build
-bin/
-log/
-web/dev-dist/
-web/dist/assets/
-web/dist/*
-!web/dist/.gitkeep
-# If needed, package-lock.json shall be added
-# manually using an explicit git add command.
-package-lock.json
-# Ditto for yarn, except we're using npm.
-yarn.lock
-.env
-dashbrr
-license.sh
-web/tsconfig.app.tsbuildinfo
-web/tsconfig.node.tsbuildinfo
-data/
