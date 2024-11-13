@@ -187,6 +187,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Set secure cookie with session ID
 	c.SetCookie(
 		"session",
@@ -194,8 +196,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		int(time.Until(token.Expiry).Seconds()),
 		"/",
 		"",
-		true, // Secure
-		true, // HttpOnly
+		isSecure, // Secure
+		true,     // HttpOnly
 	)
 
 	// Redirect to frontend with tokens
@@ -230,6 +232,8 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
 
+	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Clear session cookie
 	c.SetCookie(
 		"session",
@@ -237,7 +241,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		-1,
 		"/",
 		"",
-		true,
+		isSecure,
 		true,
 	)
 
@@ -330,6 +334,8 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Update session cookie
 	c.SetCookie(
 		"session",
@@ -337,7 +343,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		int(time.Until(newToken.Expiry).Seconds()),
 		"/",
 		"",
-		true,
+		isSecure,
 		true,
 	)
 

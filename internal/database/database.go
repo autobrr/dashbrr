@@ -116,6 +116,11 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 				Msg("Retrying database connection")
 			time.Sleep(delay)
 		}
+
+		// Configure connection pool
+		database.SetMaxOpenConns(25)
+		database.SetMaxIdleConns(25)
+		database.SetConnMaxLifetime(5 * time.Minute)
 	} else {
 		// SQLite connection
 		dbDir := filepath.Dir(config.Path)
@@ -135,6 +140,43 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 			return nil, fmt.Errorf("error creating database file: %w", err)
 		}
 
+		// Set busy timeout
+		if _, err = database.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+			return nil, errors.Wrap(err, "busy timeout pragma")
+		}
+
+		// Enable WAL. SQLite performs better with the WAL  because it allows
+		// multiple readers to operate while data is being written.
+		if _, err = database.Exec(`PRAGMA journal_mode = wal;`); err != nil {
+			return nil, errors.Wrap(err, "enable wal")
+		}
+
+		// SQLite has a query planner that uses lifecycle stats to fund optimizations.
+		// This restricts the SQLite query planner optimizer to only run if sufficient
+		// information has been gathered over the lifecycle of the connection.
+		// The SQLite documentation is inconsistent in this regard,
+		// suggestions of 400 and 1000 are both "recommended", so lets use the lower bound.
+		if _, err = database.Exec(`PRAGMA analysis_limit = 400;`); err != nil {
+			return nil, errors.Wrap(err, "analysis_limit")
+		}
+
+		// When the application does not cleanly shut down, the WAL will still be present and not committed.
+		// This is a no-op if the WAL is empty, and a commit when the WAL is not to start fresh.
+		// When commits hit 1000, PRAGMA wal_checkpoint(PASSIVE); is invoked which tries its best
+		// to commit from the WAL (and can fail to commit all pending operations).
+		// Forcing a PRAGMA wal_checkpoint(RESTART); in the future on a "quiet period" could be
+		// considered.
+		if _, err = database.Exec(`PRAGMA wal_checkpoint(TRUNCATE);`); err != nil {
+			return nil, errors.Wrap(err, "commit wal")
+		}
+
+		// Enable foreign key checks. For historical reasons, SQLite does not check
+		// foreign key constraints by default. There's some overhead on inserts to
+		// verify foreign key integrity, but it's definitely worth it.
+		if _, err = database.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
+			return nil, errors.New("foreign keys pragma")
+		}
+
 		// Now that the file exists, set restrictive permissions
 		if err := os.Chmod(config.Path, 0640); err != nil {
 			return nil, fmt.Errorf("error setting database file permissions: %w", err)
@@ -143,11 +185,6 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 			Str("path", config.Path).
 			Msg("Initializing SQLite database")
 	}
-
-	// Configure connection pool
-	database.SetMaxOpenConns(25)
-	database.SetMaxIdleConns(25)
-	database.SetConnMaxLifetime(5 * time.Minute)
 
 	log.Info().
 		Str("driver", config.Driver).
@@ -190,8 +227,41 @@ func (db *DB) initSchema() error {
 			instance_id TEXT UNIQUE NOT NULL,
 			display_name TEXT NOT NULL,
 			url TEXT,
+			access_url TEXT,
 			api_key TEXT
 		)`, autoIncrement))
+	if err != nil {
+		return err
+	}
+
+	// Add access_url column if it doesn't exist
+	if db.driver == "postgres" {
+		_, err = db.Exec(`
+			DO $$ 
+			BEGIN 
+				BEGIN
+					ALTER TABLE service_configurations ADD COLUMN access_url TEXT;
+				EXCEPTION 
+					WHEN duplicate_column THEN 
+						NULL;
+				END;
+			END $$;
+		`)
+	} else {
+		// For SQLite, check if column exists first
+		var count int
+		err = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM pragma_table_info('service_configurations') 
+			WHERE name='access_url'
+		`).Scan(&count)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			_, err = db.Exec(`ALTER TABLE service_configurations ADD COLUMN access_url TEXT`)
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -210,7 +280,6 @@ func (db *DB) initSchema() error {
 		return err
 	}
 
-	//log.Debug().Msg("Database schema initialized")
 	return nil
 }
 
@@ -352,7 +421,7 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 	}
 
 	var service models.ServiceConfiguration
-	if err := row.Scan(&service.ID, &service.InstanceID, &service.DisplayName, &service.URL, &service.APIKey); err != nil {
+	if err := row.Scan(&service.ID, &service.InstanceID, &service.DisplayName, &service.URL, &service.AccessURL, &service.APIKey); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -369,23 +438,23 @@ func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfigur
 	var query string
 	if db.driver == "postgres" {
 		query = `
-			SELECT id, instance_id, display_name, url, api_key 
+			SELECT id, instance_id, display_name, url, access_url, api_key 
 			FROM service_configurations 
 			WHERE instance_id LIKE $1 || '%'
 			LIMIT 1`
 	} else {
 		query = `
-			SELECT id, instance_id, display_name, url, api_key 
+			SELECT id, instance_id, display_name, url, access_url, api_key 
 			FROM service_configurations 
 			WHERE instance_id LIKE ? || '%'
 			LIMIT 1`
 	}
-
 	err := db.QueryRow(query, prefix).Scan(
 		&service.ID,
 		&service.InstanceID,
 		&service.DisplayName,
 		&service.URL,
+		&service.AccessURL,
 		&service.APIKey,
 	)
 	if err == sql.ErrNoRows {
@@ -399,7 +468,7 @@ func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfigur
 
 // GetAllServices retrieves all service configurations
 func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
-	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key").From("service_configurations")
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "access_url", "api_key").From("service_configurations")
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
@@ -421,6 +490,7 @@ func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 			&service.InstanceID,
 			&service.DisplayName,
 			&service.URL,
+			&service.AccessURL,
 			&service.APIKey,
 		)
 		if err != nil {

@@ -55,7 +55,7 @@ var knownWarnings = []WarningPattern{
 	{Pattern: "indexers are enabled", Category: IndexerCategory},
 	{Pattern: "Indexers are unavailable", Category: IndexerCategory},
 	{Pattern: "Jackett All Endpoint", Category: IndexerCategory},
-	{Pattern: "unavailable due to failures", Category: IndexerCategory},
+	{Pattern: "indexer unavailable due to failures", Category: IndexerCategory},
 	{Pattern: "RSS sync enabled", Category: IndexerCategory},
 	{Pattern: "automatic search enabled", Category: IndexerCategory},
 	{Pattern: "interactive search enabled", Category: IndexerCategory},

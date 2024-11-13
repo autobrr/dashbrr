@@ -9,5 +9,6 @@ type ServiceConfiguration struct {
 	InstanceID  string `json:"instanceId" gorm:"uniqueIndex"`
 	DisplayName string `json:"displayName"`
 	URL         string `json:"url"`
+	AccessURL   string `json:"accessUrl"`
 	APIKey      string `json:"apiKey,omitempty"`
 }

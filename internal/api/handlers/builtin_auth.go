@@ -177,6 +177,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Set session cookie
 	c.SetCookie(
 		"session",
@@ -184,8 +186,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 		int(time.Until(expiresAt).Seconds()),
 		"/",
 		"",
-		true, // Secure
-		true, // HttpOnly
+		isSecure, // Secure
+		true,     // HttpOnly
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -250,6 +252,8 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
 
+	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Clear session cookie
 	c.SetCookie(
 		"session",
@@ -257,7 +261,7 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 		-1,
 		"/",
 		"",
-		true,
+		isSecure,
 		true,
 	)
 

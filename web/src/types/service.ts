@@ -22,6 +22,7 @@ export interface Service {
   type: ServiceType;
   status: ServiceStatus;
   url: string;
+  accessUrl?: string;
   apiKey?: string;
   lastChecked?: Date;
   responseTime?: number;
@@ -37,6 +38,7 @@ export interface Service {
 
 export interface ServiceConfig {
   url: string;
+  accessUrl?: string;
   apiKey?: string;
   displayName: string;
 }
@@ -354,7 +356,6 @@ export interface ProwlarrIndexerStats {
   numberOfFailedRssQueries: number;
   numberOfFailedAuthQueries: number;
 }
-
 
 // Omegabrr Types
 export interface OmegabrrWebhookStatus {
