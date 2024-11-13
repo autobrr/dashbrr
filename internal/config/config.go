@@ -6,9 +6,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -64,6 +67,28 @@ type OIDCConfig struct {
 	RedirectURL  string `toml:"redirect_url" env:"OIDC_REDIRECT_URL"`
 }
 
+// DefaultConfig returns a configuration with default values
+func DefaultConfig() *Config {
+	return &Config{
+		Server: ServerConfig{
+			ListenAddr: ":8080",
+		},
+		Database: DatabaseConfig{
+			Type: "sqlite",
+			Path: "./data/dashbrr.db",
+		},
+	}
+}
+
+// shortenPath replaces the user's home directory with ~ for display purposes
+func shortenPath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return strings.Replace(filepath.Clean(path), home, "~", 1)
+}
+
 // HasRequiredEnvVars checks if all required environment variables are set
 func HasRequiredEnvVars() bool {
 	// Check server config
@@ -115,13 +140,46 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// Otherwise try to load from config file
-	data, err := os.ReadFile(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+		return nil, fmt.Errorf("error resolving config path: %w", err)
 	}
 
-	if err := toml.Unmarshal(data, config); err != nil {
-		return nil, fmt.Errorf("error decoding config file: %w", err)
+	displayPath := shortenPath(absPath)
+
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Create default config
+			config = DefaultConfig()
+
+			// Ensure directory exists
+			if dir := filepath.Dir(absPath); dir != "" {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return nil, fmt.Errorf("error creating config directory %s: %w", shortenPath(dir), err)
+				}
+			}
+
+			// Marshal config to TOML
+			data, err := toml.Marshal(config)
+			if err != nil {
+				return nil, fmt.Errorf("error encoding default config: %w", err)
+			}
+
+			// Write config file
+			if err := os.WriteFile(absPath, data, 0644); err != nil {
+				return nil, fmt.Errorf("error writing default config to %s: %w", displayPath, err)
+			}
+			log.Info().Str("path", displayPath).Msg("Configuration file not found, creating with default values")
+		} else {
+			return nil, fmt.Errorf("error reading config file %s: %w", displayPath, err)
+		}
+	} else {
+		// Parse existing config file
+		if err := toml.Unmarshal(data, config); err != nil {
+			return nil, fmt.Errorf("error decoding config file %s: %w", displayPath, err)
+		}
+		log.Debug().Str("path", displayPath).Msg("Loaded existing configuration file")
 	}
 
 	// Override with any environment variables that are set
