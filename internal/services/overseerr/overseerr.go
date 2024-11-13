@@ -97,12 +97,6 @@ func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Int("requestID", requestID).
-			Str("status", status).
-			Msg("Failed to update Overseerr request status")
 		return &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
 	}
 	defer resp.Body.Close()
@@ -179,41 +173,23 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 	baseURL := strings.TrimRight(url, "/")
 	requestEndpoint := fmt.Sprintf("%s/api/v1/request?take=10", baseURL)
 
-	log.Debug().
-		Str("url", url).
-		Str("endpoint", requestEndpoint).
-		Msg("Fetching Overseerr requests")
-
 	headers := map[string]string{
 		"X-Api-Key": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, requestEndpoint, "", headers)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to connect to Overseerr")
 		return nil, &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
 	}
 	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to read Overseerr response body")
 		return nil, &ErrOverseerr{Message: "Service error", Errors: []string{err.Error()}}
 	}
 
 	var requestsResponse types.RequestsResponse
 	if err := json.Unmarshal(body, &requestsResponse); err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Str("body", string(body)).
-			Msg("Failed to parse Overseerr response")
 		return nil, &ErrOverseerr{Message: "Response error", Errors: []string{"Failed to parse requests response"}}
 	}
 
@@ -224,19 +200,11 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 	for _, result := range requestsResponse.Results {
 		resultBytes, err := json.Marshal(result)
 		if err != nil {
-			log.Warn().
-				Err(err).
-				Interface("result", result).
-				Msg("Failed to marshal request result")
 			continue
 		}
 
 		var mediaRequest types.MediaRequest
 		if err := json.Unmarshal(resultBytes, &mediaRequest); err != nil {
-			log.Warn().
-				Err(err).
-				Str("resultBytes", string(resultBytes)).
-				Msg("Failed to unmarshal media request")
 			continue
 		}
 
@@ -246,24 +214,12 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 
 		// Try to fetch the title using the appropriate lookup method
 		title, err := s.fetchMediaTitle(mediaRequest)
-		if err != nil {
-			log.Warn().
-				Err(err).
-				Str("mediaType", mediaRequest.Media.MediaType).
-				Int("tmdbId", mediaRequest.Media.TmdbID).
-				Int("tvdbId", mediaRequest.Media.TvdbID).
-				Msg("Failed to fetch media title")
-		} else {
+		if err == nil {
 			mediaRequest.Media.Title = title
 		}
 
 		mediaRequests = append(mediaRequests, mediaRequest)
 	}
-
-	log.Debug().
-		Int("totalRequests", len(mediaRequests)).
-		Int("pendingCount", pendingCount).
-		Msg("Successfully processed Overseerr requests")
 
 	return &types.RequestsStats{
 		PendingCount: pendingCount,
@@ -293,10 +249,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to connect to Overseerr health endpoint")
 		return s.CreateHealthResponse(startTime, "offline", (&ErrOverseerr{
 			Message: "Connection error",
 			Errors:  []string{err.Error()},
@@ -314,11 +266,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 			Errors:  []string{err.Error()},
 		}).Error()
 
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to read Overseerr health response")
-
 		// Align error status with request failures
 		if resp.StatusCode >= 500 {
 			return s.CreateHealthResponse(startTime, "error", errMsg), http.StatusOK
@@ -329,11 +276,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	// Parse the response
 	var statusResponse types.StatusResponse
 	if err := json.Unmarshal(body, &statusResponse); err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Str("body", string(body)).
-			Msg("Failed to parse Overseerr health response")
 		return s.CreateHealthResponse(startTime, "warning", (&ErrOverseerr{
 			Message: "Response error",
 			Errors:  []string{"Failed to parse status response"},

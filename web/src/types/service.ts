@@ -418,6 +418,7 @@ export interface ServiceDetails {
   overseerr?: {
     lastRequestDate?: Date;
     totalRequests?: number;
+    pendingCount?: number;
   };
   sonarr?: {
     queueCount: number;

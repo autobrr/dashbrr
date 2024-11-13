@@ -35,6 +35,7 @@ interface ServiceData {
 // Background polling intervals
 const STATS_CHECK_INTERVAL = 300000;   // 5 minutes for service stats
 const PLEX_SESSIONS_INTERVAL = 5000;   // 5 seconds for Plex sessions (fallback)
+const OVERSEERR_REQUESTS_INTERVAL = 5000; // 5 seconds for Overseerr requests (fallback)
 
 function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   fn: T,
@@ -111,13 +112,37 @@ export const useServiceData = () => {
     }
   }, [updateServiceData]);
 
+  const fetchOverseerrRequests = useCallback(async (service: Service) => {
+    try {
+      const stats = await api.get<OverseerrStats>(
+        `/api/overseerr/requests?instanceId=${service.instanceId}`
+      );
+      const data = {
+        stats: { overseerr: stats },
+        details: {
+          overseerr: {
+            pendingCount: stats.pendingCount,
+            totalRequests: stats.requests.length
+          }
+        }
+      };
+      updateServiceData(service.instanceId, data);
+    } catch (error) {
+      console.error('Error fetching Overseerr requests:', error);
+    }
+  }, [updateServiceData]);
+
   const fetchServiceStats = useCallback(async (service: Service) => {
     if (service.type === 'omegabrr' || service.type === 'tailscale' || service.type === 'general') return;
     if (!service.url || !service.apiKey) return;
 
-    // Special handling for Plex sessions
+    // Special handling for real-time services
     if (service.type === 'plex') {
       await fetchPlexSessions(service);
+      return;
+    }
+    if (service.type === 'overseerr') {
+      await fetchOverseerrRequests(service);
       return;
     }
 
@@ -134,13 +159,6 @@ export const useServiceData = () => {
 
     try {
       switch (service.type) {
-        case 'overseerr': {
-          const stats = await api.get<OverseerrStats>(
-            `/api/overseerr/requests?instanceId=${service.instanceId}`
-          );
-          data = { stats: { overseerr: stats }, details: {} };
-          break;
-        }
         case 'sonarr': {
           const queueData = await api.get<SonarrQueue>(`/api/sonarr/queue?instanceId=${service.instanceId}`);
           if (queueData) {
@@ -220,7 +238,7 @@ export const useServiceData = () => {
     } catch (error) {
       console.error(`Error fetching stats for ${service.type}:`, error);
     }
-  }, [updateServiceData, fetchPlexSessions]);
+  }, [updateServiceData, fetchPlexSessions, fetchOverseerrRequests]);
 
   const fetchHealthStatus = useCallback(async (service: Service) => {
     const healthCacheKey = `${CACHE_PREFIXES.HEALTH}${service.instanceId}`;
@@ -235,7 +253,7 @@ export const useServiceData = () => {
     try {
       const health = await api.get<ServiceHealth>(`/api/health/${service.instanceId}`);
       if (health) {
-        // Handle Plex sessions from SSE health events
+        // Handle service-specific SSE health events
         if (service.type === 'plex' && health.message === 'plex_sessions' && health.stats?.plex?.sessions) {
           const sessions = health.stats.plex.sessions;
           updateServiceData(service.instanceId, {
@@ -244,6 +262,17 @@ export const useServiceData = () => {
               plex: {
                 activeStreams: sessions.length,
                 transcoding: sessions.filter((s: PlexSession) => s.TranscodeSession).length
+              }
+            }
+          });
+        } else if (service.type === 'overseerr' && health.message === 'overseerr_requests' && health.stats?.overseerr) {
+          const requests = health.stats.overseerr;
+          updateServiceData(service.instanceId, {
+            stats: { overseerr: requests },
+            details: {
+              overseerr: {
+                pendingCount: requests.pendingCount,
+                totalRequests: requests.requests.length
               }
             }
           });
@@ -296,10 +325,14 @@ export const useServiceData = () => {
       fetchServiceStats(service)
     ]).catch(console.error);
 
-    // Schedule background polling
+    // Schedule background polling with service-specific intervals
+    const interval = service.type === 'plex' ? PLEX_SESSIONS_INTERVAL :
+                    service.type === 'overseerr' ? OVERSEERR_REQUESTS_INTERVAL :
+                    STATS_CHECK_INTERVAL;
+
     const timeoutId = setTimeout(() => {
       updateService(service);
-    }, service.type === 'plex' ? PLEX_SESSIONS_INTERVAL : STATS_CHECK_INTERVAL);
+    }, interval);
 
     updateTimeoutsRef.current.set(service.instanceId, timeoutId);
   }, [clearServiceTimeout, fetchHealthStatus, fetchServiceStats]);

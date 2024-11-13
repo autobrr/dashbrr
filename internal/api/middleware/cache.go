@@ -119,10 +119,10 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 	switch {
 	case strings.Contains(path, "/plex/sessions"):
 		return 10 * time.Second
+	case strings.Contains(path, "/overseerr/requests"):
+		return 10 * time.Second //
 	case strings.Contains(path, "/autobrr"):
 		return 30 * time.Second
-	case strings.Contains(path, "/overseerr"):
-		return 1 * time.Minute
 	case strings.Contains(path, "/maintainerr"):
 		return 1 * time.Minute
 	case strings.Contains(path, "/sonarr"):
