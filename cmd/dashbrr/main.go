@@ -79,17 +79,20 @@ func startServer() {
 			}
 		}
 	}
-	configPath := flag.String("config", defaultConfigPath, "path to config file")
 
-	var dbPath string
-	flag.StringVar(&dbPath, "db", "", "path to database file")
-	listenAddr := flag.String("listen", ":8080", "address to listen on")
+	// Store original flag values to detect changes
+	origListenAddr := ":8080"
+	var origDBPath string
+
+	configPath := flag.String("config", defaultConfigPath, "path to config file")
+	listenAddr := flag.String("listen", origListenAddr, "address to listen on")
+	flag.StringVar(&origDBPath, "db", "", "path to database file")
 	flag.Parse()
 
 	// If dbPath wasn't set via flag, use config directory
-	if dbPath == "" {
+	if origDBPath == "" {
 		configDir := filepath.Dir(*configPath)
-		dbPath = filepath.Join(configDir, "data", "dashbrr.db")
+		origDBPath = filepath.Join(configDir, "data", "dashbrr.db")
 	}
 
 	var cfg *config.Config
@@ -101,19 +104,19 @@ func startServer() {
 			log.Fatal().Err(err).Msg("Failed to load environment variables")
 		}
 	} else {
-		log.Debug().Str("path", *configPath).Msg("Using config file")
+		log.Debug().Str("path", *configPath).Msg("Loading config file")
 
 		cfg, err = config.LoadConfig(*configPath)
 		if err != nil {
-			cfg = &config.Config{
-				Server: config.ServerConfig{
-					ListenAddr: *listenAddr,
-				},
-				Database: config.DatabaseConfig{
-					Path: dbPath,
-				},
-			}
-			log.Warn().Err(err).Msg("Failed to load configuration file, using defaults")
+			log.Fatal().Err(err).Msg("Failed to load or create configuration")
+		}
+
+		// Override with command line flags if they differ from defaults
+		if *listenAddr != origListenAddr {
+			cfg.Server.ListenAddr = *listenAddr
+		}
+		if flag.Lookup("db") != nil && origDBPath != "" {
+			cfg.Database.Path = origDBPath
 		}
 	}
 
