@@ -231,6 +231,7 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		if versionResult.err == nil {
 			if version, ok := versionResult.data.(string); ok && version != "" {
 				extras["version"] = version
+				allWarnings = append(allWarnings, fmt.Sprintf("[System] Version %s is available", version))
 			}
 		} else if versionResult.err != context.DeadlineExceeded {
 			extras["versionError"] = versionResult.err.Error()
