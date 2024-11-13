@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
+	github.com/dcarbone/zadapters/zstdlog v1.0.0
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
