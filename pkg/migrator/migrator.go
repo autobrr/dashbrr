@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -142,24 +143,13 @@ func (m *Migrator) BeginTx() (*sql.Tx, error) {
 }
 
 func (m *Migrator) CountApplied() (int, error) {
+	row := m.db.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s", m.tableName))
+	if row.Err() != nil {
+		return 0, row.Err()
+	}
+
 	var count int
-
-	rows, err := m.db.Query(fmt.Sprintf("SELECT count(*) FROM %s", m.tableName))
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	for rows.Next() {
-		if err := rows.Scan(&count); err != nil {
-			return 0, err
-		}
-	}
-
-	if err := rows.Err(); err != nil {
+	if err := row.Scan(&count); err != nil {
 		return 0, err
 	}
 
@@ -177,8 +167,9 @@ func (m *Migrator) Pending() ([]*Migration, error) {
 
 func (m *Migrator) Migrate() error {
 	migrationsTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-    id      INT8 NOT NULL,
-	version VARCHAR(255) NOT NULL,
+    id       INT8 NOT NULL,
+	version  VARCHAR(255) NOT NULL,
+    datetime VARCHAR(255) NOT NULL,
 	PRIMARY KEY(id)
 );`, m.tableName)
 
@@ -194,12 +185,19 @@ func (m *Migrator) Migrate() error {
 
 	if appliedCount == 0 {
 		m.logger.Printf("preparing to apply base schema migration")
-		//err = m.migrateInitialSchema()
-		//if err != nil {
-		//	return errors.Wrap(err, "migrator: could not apply base schema")
-		//}
-		//
-		//return nil
+
+		if len(m.migrations) == 0 {
+			return errors.New("migrator: no migrations defined")
+		}
+
+		err = m.migrateInitialSchema(m.migrations[0])
+		if err != nil {
+			return errors.Wrap(err, "migrator: could not apply base schema")
+		}
+
+		m.logger.Printf("successfully applied all migrations!")
+
+		return nil
 	}
 
 	// TODO check base schema migrations++
@@ -212,6 +210,8 @@ func (m *Migrator) Migrate() error {
 		m.logger.Printf("database schema up to date")
 		return nil
 	}
+
+	// TODO count new pending?
 
 	//for idx, migration := range m.migrations[appliedCount-1 : len(m.migrations)] {
 	for idx, migration := range m.migrations[appliedCount:len(m.migrations)] {
@@ -226,7 +226,7 @@ func (m *Migrator) Migrate() error {
 }
 
 func (m *Migrator) updateSchemaVersion(tx *sql.Tx, id int, version string) error {
-	updateVersion := fmt.Sprintf("INSERT INTO %s (id, version) VALUES (%d, '%s')", m.tableName, id, version)
+	updateVersion := fmt.Sprintf("INSERT INTO %s (id, version, datetime) VALUES (%d, '%s', '%s')", m.tableName, id, version, time.Now().String())
 	_, err := tx.Exec(updateVersion)
 	if err != nil {
 		return errors.Wrapf(err, "error updating migration versions: %s", version)
@@ -254,7 +254,80 @@ func (m *Migrator) readFile(filename string) ([]byte, error) {
 	return data, nil
 }
 
-func (m *Migrator) migrateInitialSchema() error {
+func (m *Migrator) migrateInitialSchema(migration *Migration) error {
+	if migration.Name == "" {
+		return errors.New("migration must have a name")
+	}
+
+	if migration.Run == nil && migration.RunTx == nil && migration.File == "" {
+		return errors.New("migration must have a Run/RunTx function or a valid File path")
+	}
+
+	if migration.Run != nil && migration.File != "" {
+		return errors.New("migration cannot have both Run function and File path")
+	} else if migration.RunTx != nil && migration.File != "" {
+		return errors.New("migration cannot have both RunTx function and File path")
+	}
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return errors.Wrap(err, "error could not begin transaction")
+	}
+
+	defer func() {
+		if err != nil {
+			if errRb := tx.Rollback(); errRb != nil {
+				err = errors.Wrapf(errRb, "error rolling back: %q", err)
+			}
+			return
+		}
+		err = tx.Commit()
+	}()
+
+	m.logger.Printf("applying base schema migration...")
+
+	if migration.Run != nil {
+		m.logger.Printf("applying base migration from Run: %q ...", migration.Name)
+
+		if err = migration.Run(m.db); err != nil {
+			return errors.Wrapf(err, "error executing migration: %s", migration.Name)
+		}
+
+	} else if migration.RunTx != nil {
+		m.logger.Printf("applying base migration from RunTx: %q ...", migration.Name)
+
+		if err = migration.RunTx(tx); err != nil {
+			return errors.Wrapf(err, "error executing migration: %s", migration.Name)
+		}
+
+	} else if migration.File != "" {
+		m.logger.Printf("applying base migration from file: %q %q ...", migration.Name, migration.File)
+
+		// handle file based migration
+		data, err := m.readFile(migration.File)
+		if err != nil {
+			return errors.Wrapf(err, "could not read migration from file: %q", migration.File)
+		}
+
+		if _, err = tx.Exec(string(data)); err != nil {
+			return errors.Wrapf(err, "error applying schema migration from file: %q", migration.File)
+		}
+	}
+
+	m.logger.Printf("applied base schema migration")
+
+	for i, migrationItem := range m.migrations {
+		if err = m.updateSchemaVersion(tx, i, migrationItem.Name); err != nil {
+			return errors.Wrapf(err, "error updating migration versions: %s", "initial schema")
+		}
+	}
+
+	m.logger.Printf("applied all schema migrations")
+
+	return err
+}
+
+func (m *Migrator) migrateInitialSchemaOpt() error {
 	if m.initialSchema == "" && m.initialSchemaFile != "" {
 		data, err := m.readFile(m.initialSchemaFile)
 		if err != nil {
