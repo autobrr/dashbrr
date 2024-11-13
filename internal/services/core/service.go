@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/buildinfo"
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 )
@@ -39,6 +40,12 @@ type ServiceCore struct {
 	ApiKey         string
 	HealthEndpoint string
 	cache          cache.Store
+	db             *database.DB
+}
+
+// SetDB sets the database instance for the service
+func (s *ServiceCore) SetDB(db *database.DB) {
+	s.db = db
 }
 
 // getHTTPClient returns a client with the specified timeout

@@ -68,7 +68,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	cacheMiddleware := middleware.NewCacheMiddleware(store)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(db, health)
+	settingsHandler := handlers.NewSettingsHandler(db, health, store)
 	healthHandler := handlers.NewHealthHandler(db, health)
 	eventsHandler := handlers.NewEventsHandler(db, health)
 	autobrrHandler := handlers.NewAutobrrHandler(db, store)

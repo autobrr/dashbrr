@@ -43,6 +43,7 @@ interface ServiceData {
 // Background polling intervals
 const STATS_CHECK_INTERVAL = 300000;   // 5 minutes for service stats
 const PLEX_SESSIONS_INTERVAL = 30000;  // 30 seconds for Plex sessions
+const INITIAL_FETCH_DELAY = 100;       // 100ms initial fetch delay
 
 function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   fn: T,
@@ -62,6 +63,7 @@ export const useServiceData = () => {
   const [isLoading, setIsLoading] = useState(true);
   const updateTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const plexTimeoutRef = useRef<NodeJS.Timeout>();
+  const configHashRef = useRef<string>('');
 
   const clearServiceTimeout = useCallback((serviceId: string) => {
     const timeoutId = updateTimeoutsRef.current.get(serviceId);
@@ -193,12 +195,10 @@ export const useServiceData = () => {
           break;
         }
         case 'autobrr': {
-          console.log('Fetching autobrr stats for:', service.instanceId);
           const [statsData, ircData] = await Promise.all([
             api.get<AutobrrStats>(`/api/autobrr/stats?instanceId=${service.instanceId}`),
             api.get<AutobrrIRC[]>(`/api/autobrr/irc?instanceId=${service.instanceId}`)
           ]);
-          console.log('Received autobrr stats:', statsData);
           if (statsData && ircData) {
             data = { stats: { autobrr: statsData }, details: { autobrr: { irc: ircData } } };
           }
@@ -222,7 +222,6 @@ export const useServiceData = () => {
       }
 
       if (data) {
-        console.log('Updating service data:', service.instanceId, data);
         cache.set(statsCacheKey, data);
         updateServiceData(service.instanceId, data);
       }
@@ -285,13 +284,13 @@ export const useServiceData = () => {
   const updateService = useCallback((service: Service) => {
     clearServiceTimeout(service.instanceId);
 
-    // Initial fetch with a small delay
+    // Initial fetch with minimal delay
     setTimeout(() => {
       Promise.all([
         fetchHealthStatus(service),
         fetchServiceStats(service)
       ]).catch(console.error);
-    }, Math.random() * 1000);
+    }, INITIAL_FETCH_DELAY);
 
     // Schedule background polling
     const timeoutId = setTimeout(() => {
@@ -301,35 +300,20 @@ export const useServiceData = () => {
     updateTimeoutsRef.current.set(service.instanceId, timeoutId);
   }, [clearServiceTimeout, fetchHealthStatus, fetchServiceStats]);
 
-  // Handle service removals
-  useEffect(() => {
-    if (!configurations) return;
-
-    const currentServiceIds = new Set(Object.keys(configurations));
-    const existingServiceIds = Array.from(services.keys());
-
-    // Find services that need to be removed
-    const removedServiceIds = existingServiceIds.filter(id => !currentServiceIds.has(id));
-
-    if (removedServiceIds.length > 0) {
-      setServices(prev => {
-        const newServices = new Map(prev);
-        removedServiceIds.forEach(id => {
-          clearServiceTimeout(id);
-          newServices.delete(id);
-        });
-        return newServices;
-      });
-    }
-  }, [configurations, clearServiceTimeout]);
-
-  // Handle authentication state and service updates
+  // Handle configuration changes
   useEffect(() => {
     if (!isAuthenticated || !configurations) {
       setServices(new Map());
       setIsLoading(false);
       return;
     }
+
+    // Generate hash of current configurations
+    const configHash = JSON.stringify(configurations);
+    if (configHash === configHashRef.current) {
+      return; // No changes in configurations
+    }
+    configHashRef.current = configHash;
 
     // Handle service additions and updates
     Object.entries(configurations).forEach(([instanceId, config]) => {
@@ -345,6 +329,22 @@ export const useServiceData = () => {
         updateService(service);
       }
     });
+
+    // Handle service removals
+    const currentServiceIds = new Set(Object.keys(configurations));
+    const existingServiceIds = Array.from(services.keys());
+    const removedServiceIds = existingServiceIds.filter(id => !currentServiceIds.has(id));
+
+    if (removedServiceIds.length > 0) {
+      setServices(prev => {
+        const newServices = new Map(prev);
+        removedServiceIds.forEach(id => {
+          clearServiceTimeout(id);
+          newServices.delete(id);
+        });
+        return newServices;
+      });
+    }
 
     setIsLoading(false);
 
