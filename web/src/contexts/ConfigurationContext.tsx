@@ -73,6 +73,13 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   ) => {
     try {
       setError(null);
+
+      // Update local state immediately for instant UI feedback
+      setConfigurations((prev) => ({
+        ...prev,
+        [instanceId]: config,
+      }));
+
       const response = await fetch(buildUrl(`/settings/${instanceId}`), {
         method: "POST",
         headers: getAuthHeaders(),
@@ -81,10 +88,17 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         const errorData = await response.json();
+        // Revert local state on error
+        setConfigurations((prev) => ({
+          ...prev,
+          [instanceId]: prev[instanceId],
+        }));
         throw new Error(errorData.error || "Failed to update configuration");
       }
 
       const updatedConfig = await response.json();
+
+      // Update with the server response
       setConfigurations((prev) => ({
         ...prev,
         [instanceId]: updatedConfig,
@@ -92,6 +106,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
 
       // Fetch fresh data to ensure consistency
       await fetchConfigurations();
+
       return updatedConfig;
     } catch (err) {
       const errorMessage =
