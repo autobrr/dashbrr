@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 // Global HTTP client pool
@@ -79,7 +81,7 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	req.Header.Set("Content-Type", "application/json")
 
 	// Get timeout from context or use default
-	timeout := 15 * time.Second
+	timeout := core.DefaultTimeout
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = time.Until(deadline)
 	}
@@ -113,7 +115,7 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 	}
 
 	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, statusURL, apiKey, nil)
@@ -147,7 +149,7 @@ func CheckArrForUpdates(service, url, apiKey string) (bool, error) {
 	}
 
 	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, updateURL, apiKey, nil)

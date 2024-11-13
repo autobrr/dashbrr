@@ -12,7 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
@@ -20,9 +22,8 @@ import (
 )
 
 const (
-	sonarrCacheDuration = 5 * time.Second
-	sonarrQueuePrefix   = "sonarr:queue:"
-	sonarrStatsPrefix   = "sonarr:stats:"
+	sonarrQueuePrefix = "sonarr:queue:"
+	sonarrStatsPrefix = "sonarr:stats:"
 )
 
 type SonarrHandler struct {
@@ -111,6 +112,12 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 			Msg("Failed to clear Sonarr queue cache")
 	}
 
+	// Fetch fresh data and broadcast update
+	queueResp, err := h.fetchAndCacheQueue(instanceId, cacheKey)
+	if err == nil {
+		h.broadcastSonarrQueue(instanceId, &queueResp)
+	}
+
 	log.Info().
 		Str("instanceId", instanceId).
 		Str("queueId", queueId).
@@ -150,28 +157,14 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 			Int("totalRecords", queueResp.TotalRecords).
 			Msg("Serving Sonarr queue from cache")
 		c.JSON(http.StatusOK, queueResp)
+
+		// Refresh cache in background without delay
+		go h.refreshQueueCache(instanceId, cacheKey)
 		return
 	}
 
 	// If not in cache, fetch from service
-	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
-	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Sonarr configuration")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Sonarr configuration"})
-		return
-	}
-
-	if sonarrConfig == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Sonarr is not configured")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Sonarr is not configured"})
-		return
-	}
-
-	// Create Sonarr service instance
-	service := &sonarr.SonarrService{}
-
-	// Get queue records using the service
-	records, err := service.GetQueueForHealth(sonarrConfig.URL, sonarrConfig.APIKey)
+	queueResp, err = h.fetchAndCacheQueue(instanceId, cacheKey)
 	if err != nil {
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
@@ -188,26 +181,129 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
+	if queueResp.Records != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("totalRecords", queueResp.TotalRecords).
+			Msg("Successfully retrieved and cached Sonarr queue")
+
+		// Broadcast queue update via SSE
+		h.broadcastSonarrQueue(instanceId, &queueResp)
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Retrieved empty Sonarr queue")
+	}
+
+	c.JSON(http.StatusOK, queueResp)
+}
+
+func (h *SonarrHandler) fetchAndCacheQueue(instanceId, cacheKey string) (types.SonarrQueueResponse, error) {
+	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	if err != nil {
+		return types.SonarrQueueResponse{}, err
+	}
+
+	if sonarrConfig == nil {
+		return types.SonarrQueueResponse{}, fmt.Errorf("sonarr is not configured")
+	}
+
+	// Create Sonarr service instance
+	service := &sonarr.SonarrService{}
+
+	// Get queue records using the service
+	records, err := service.GetQueueForHealth(sonarrConfig.URL, sonarrConfig.APIKey)
+	if err != nil {
+		return types.SonarrQueueResponse{}, err
+	}
+
+	// Ensure Episodes array is populated for each record
+	for i := range records {
+		if records[i].Episode != (types.Episode{}) {
+			records[i].Episodes = []types.EpisodeBasic{{
+				ID:            records[i].Episode.ID,
+				EpisodeNumber: records[i].Episode.EpisodeNumber,
+				SeasonNumber:  records[i].Episode.SeasonNumber,
+			}}
+		}
+	}
+
 	// Create response
-	queueResp = types.SonarrQueueResponse{
+	queueResp := types.SonarrQueueResponse{
 		Records:      records,
 		TotalRecords: len(records),
 	}
 
-	// Cache the results
-	if err := h.cache.Set(ctx, cacheKey, queueResp, sonarrCacheDuration); err != nil {
+	// Cache the results using the centralized cache duration
+	ctx := context.Background()
+	if err := h.cache.Set(ctx, cacheKey, queueResp, middleware.CacheDurations.SonarrStatus); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
 			Msg("Failed to cache Sonarr queue")
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("totalRecords", queueResp.TotalRecords).
-		Msg("Successfully retrieved and cached Sonarr queue")
+	return queueResp, nil
+}
 
-	c.JSON(http.StatusOK, queueResp)
+func (h *SonarrHandler) refreshQueueCache(instanceId, cacheKey string) {
+	queueResp, err := h.fetchAndCacheQueue(instanceId, cacheKey)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("Failed to refresh Sonarr queue cache")
+		return
+	}
+
+	if queueResp.Records != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("totalRecords", queueResp.TotalRecords).
+			Msg("Successfully refreshed Sonarr queue cache")
+
+		// Broadcast queue update via SSE
+		h.broadcastSonarrQueue(instanceId, &queueResp)
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Refreshed cache with empty Sonarr queue")
+	}
+}
+
+// broadcastSonarrQueue broadcasts Sonarr queue updates to all connected SSE clients
+func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types.SonarrQueueResponse) {
+	// Calculate additional statistics
+	var totalSize int64
+	var downloading int
+	var episodeCount int
+	for _, record := range queueResp.Records {
+		totalSize += record.Size
+		if record.Status == "downloading" {
+			downloading++
+		}
+		episodeCount += len(record.Episodes)
+	}
+
+	// Use the existing BroadcastHealth function with a special message type
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      "ok",
+		Message:     "sonarr_queue",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"sonarr": queueResp,
+		},
+		Details: map[string]interface{}{
+			"sonarr": map[string]interface{}{
+				"queueCount":       queueResp.TotalRecords,
+				"totalRecords":     queueResp.TotalRecords,
+				"downloadingCount": downloading,
+				"episodeCount":     episodeCount,
+				"totalSize":        totalSize,
+			},
+		},
+	})
 }
 
 func (h *SonarrHandler) GetStats(c *gin.Context) {
@@ -240,28 +336,14 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 			"stats":   statsResp,
 			"version": "", // Version will be added by the frontend if needed
 		})
+
+		// Refresh cache in background without delay
+		go h.refreshStatsCache(instanceId, cacheKey)
 		return
 	}
 
 	// If not in cache, fetch from service
-	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
-	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Sonarr configuration")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Sonarr configuration"})
-		return
-	}
-
-	if sonarrConfig == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Sonarr is not configured")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Sonarr is not configured"})
-		return
-	}
-
-	// Create Sonarr service instance
-	service := &sonarr.SonarrService{}
-
-	// Get system status using the service
-	version, err := service.GetSystemStatus(sonarrConfig.URL, sonarrConfig.APIKey)
+	statsResp, version, err := h.fetchAndCacheStats(instanceId, cacheKey)
 	if err != nil {
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
@@ -278,9 +360,85 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
+	// Broadcast stats update via SSE
+	h.broadcastSonarrStats(instanceId, &statsResp, version)
+
 	// Create response with stats and version
 	c.JSON(http.StatusOK, gin.H{
 		"stats":   statsResp,
 		"version": version,
+	})
+}
+
+func (h *SonarrHandler) fetchAndCacheStats(instanceId, cacheKey string) (types.SonarrStatsResponse, string, error) {
+	sonarrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	if err != nil {
+		return types.SonarrStatsResponse{}, "", err
+	}
+
+	if sonarrConfig == nil {
+		return types.SonarrStatsResponse{}, "", fmt.Errorf("sonarr is not configured")
+	}
+
+	// Create Sonarr service instance
+	service := &sonarr.SonarrService{}
+
+	// Get system status using the service
+	version, err := service.GetSystemStatus(sonarrConfig.URL, sonarrConfig.APIKey)
+	if err != nil {
+		return types.SonarrStatsResponse{}, "", err
+	}
+
+	// Cache the results using the centralized cache duration
+	ctx := context.Background()
+	if err := h.cache.Set(ctx, cacheKey, version, middleware.CacheDurations.SonarrStatus); err != nil {
+		log.Warn().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("Failed to cache Sonarr stats")
+	}
+
+	return types.SonarrStatsResponse{}, version, nil
+}
+
+func (h *SonarrHandler) refreshStatsCache(instanceId, cacheKey string) {
+	statsResp, version, err := h.fetchAndCacheStats(instanceId, cacheKey)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("Failed to refresh Sonarr stats cache")
+		return
+	}
+
+	log.Debug().
+		Str("instanceId", instanceId).
+		Int("monitored", statsResp.Monitored).
+		Msg("Successfully refreshed Sonarr stats cache")
+
+	// Broadcast stats update via SSE
+	h.broadcastSonarrStats(instanceId, &statsResp, version)
+}
+
+// broadcastSonarrStats broadcasts Sonarr stats updates to all connected SSE clients
+func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types.SonarrStatsResponse, version string) {
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      "ok",
+		Message:     "sonarr_stats",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"sonarr": map[string]interface{}{
+				"stats":   statsResp,
+				"version": version,
+			},
+		},
+		Details: map[string]interface{}{
+			"sonarr": map[string]interface{}{
+				"monitored":  statsResp.Monitored,
+				"version":    version,
+				"queueCount": statsResp.QueuedCount,
+			},
+		},
 	})
 }

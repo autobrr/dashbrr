@@ -61,6 +61,7 @@ func NewTailscaleService() models.ServiceHealthChecker {
 	service.Description = "Manage and monitor your Tailscale network"
 	service.DefaultURL = "https://api.tailscale.com"
 	service.HealthEndpoint = "/api/v2/tailnet/-/devices"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -111,13 +112,15 @@ func (s *TailscaleService) CheckHealth(_ string, apiKey string) (models.ServiceH
 		return s.CreateHealthResponse(startTime, "error", "Service not configured: missing API key"), http.StatusBadRequest
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	versionChan := make(chan string, 1)
+	errChan := make(chan error, 1)
 	go func() {
 		apiResponse, _, err := s.getDevicesWithContext(ctx, apiKey)
 		if err != nil {
+			errChan <- err
 			versionChan <- ""
 			return
 		}
@@ -127,6 +130,7 @@ func (s *TailscaleService) CheckHealth(_ string, apiKey string) (models.ServiceH
 			version = apiResponse.Devices[0].ClientVersion
 		}
 		versionChan <- version
+		errChan <- nil
 	}()
 
 	apiResponse, responseTime, err := s.getDevicesWithContext(ctx, apiKey)
@@ -135,10 +139,12 @@ func (s *TailscaleService) CheckHealth(_ string, apiKey string) (models.ServiceH
 	}
 
 	var version string
+	var versionErr error
 	select {
-	case v := <-versionChan:
-		version = v
-	case <-time.After(500 * time.Millisecond):
+	case version = <-versionChan:
+		versionErr = <-errChan
+	case <-ctx.Done():
+		versionErr = ctx.Err()
 	}
 
 	onlineCount := 0
@@ -149,8 +155,14 @@ func (s *TailscaleService) CheckHealth(_ string, apiKey string) (models.ServiceH
 	}
 
 	extras := map[string]interface{}{
-		"version":      version,
 		"responseTime": responseTime.Milliseconds(),
+	}
+
+	if version != "" {
+		extras["version"] = version
+	}
+	if versionErr != nil {
+		extras["versionError"] = versionErr.Error()
 	}
 
 	return s.CreateHealthResponse(startTime, "online", fmt.Sprintf("%d devices online", onlineCount), extras), http.StatusOK
@@ -167,7 +179,7 @@ func isDeviceOnline(lastSeen string) bool {
 }
 
 func (s *TailscaleService) GetDevices(_ string, apiKey string) ([]Device, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	apiResponse, _, err := s.getDevicesWithContext(ctx, apiKey)

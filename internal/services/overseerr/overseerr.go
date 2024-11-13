@@ -54,6 +54,7 @@ func NewOverseerrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Overseerr instance"
 	service.DefaultURL = "http://localhost:5055"
 	service.HealthEndpoint = "/api/v1/status"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -73,7 +74,7 @@ func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int
 		return &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
@@ -167,7 +168,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
@@ -238,7 +239,7 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	}
 
 	// Create a context with timeout for the health check
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	healthEndpoint := s.GetHealthEndpoint(url)

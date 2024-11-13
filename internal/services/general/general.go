@@ -25,6 +25,7 @@ func NewGeneralService() models.ServiceHealthChecker {
 	service.Type = "general"
 	service.DisplayName = "" // Allow display name to be set via configuration
 	service.Description = "Generic health check service for any URL endpoint"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -39,7 +40,7 @@ func (s *GeneralService) CheckHealth(url, apiKey string) (models.ServiceHealth, 
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	headers := make(map[string]string)

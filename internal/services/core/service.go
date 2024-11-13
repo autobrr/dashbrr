@@ -30,6 +30,10 @@ var (
 	ErrServiceNotConfigured = errors.New("service is not configured")
 	ErrNilResponse          = errors.New("received nil response from server")
 	ErrContextCanceled      = errors.New("context canceled")
+
+	// Default timeouts
+	DefaultTimeout     = 30 * time.Second // Increased from 15s to 30s
+	DefaultLongTimeout = 60 * time.Second // Added for services that need longer timeouts
 )
 
 type ServiceCore struct {
@@ -39,6 +43,7 @@ type ServiceCore struct {
 	DefaultURL     string
 	ApiKey         string
 	HealthEndpoint string
+	Timeout        time.Duration // Added configurable timeout
 	cache          cache.Store
 	db             *database.DB
 }
@@ -46,6 +51,11 @@ type ServiceCore struct {
 // SetDB sets the database instance for the service
 func (s *ServiceCore) SetDB(db *database.DB) {
 	s.db = db
+}
+
+// SetTimeout sets a custom timeout for the service
+func (s *ServiceCore) SetTimeout(timeout time.Duration) {
+	s.Timeout = timeout
 }
 
 // getHTTPClient returns a client with the specified timeout
@@ -118,8 +128,11 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 		return nil, ErrServiceNotConfigured
 	}
 
-	// Default timeout of 15 seconds if not specified in context
-	timeout := 15 * time.Second
+	// Use service-specific timeout if set, otherwise use context deadline or default
+	timeout := DefaultTimeout
+	if s.Timeout > 0 {
+		timeout = s.Timeout
+	}
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = time.Until(deadline)
 	}
@@ -164,7 +177,10 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 	client := getHTTPClient(timeout)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error().Err(err).Str("url", url).Msg("Request failed")
+		log.Error().Err(err).
+			Str("url", url).
+			Dur("timeout", timeout).
+			Msg("Request failed")
 		return nil, err
 	}
 
@@ -188,7 +204,13 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 }
 
 func (s *ServiceCore) MakeRequest(url string, apiKey string, headers map[string]string) (*http.Response, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// Use service-specific timeout if set, otherwise use default
+	timeout := DefaultTimeout
+	if s.Timeout > 0 {
+		timeout = s.Timeout
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return s.MakeRequestWithContext(ctx, url, apiKey, headers)
 }

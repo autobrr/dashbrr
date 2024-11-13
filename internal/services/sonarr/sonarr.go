@@ -60,6 +60,7 @@ func NewSonarrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Sonarr instance"
 	service.DefaultURL = "http://localhost:8989"
 	service.HealthEndpoint = "/api/v3/health"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -94,7 +95,7 @@ func (s *SonarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, 
 		return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	// Build delete URL with query parameters
@@ -167,10 +168,10 @@ func (s *SonarrService) GetQueue(url, apiKey string) (interface{}, error) {
 		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("API key is required")}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
-	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=false",
+	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
 		strings.TrimRight(url, "/"))
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
@@ -209,7 +210,7 @@ func (s *SonarrService) GetQueueForHealth(url, apiKey string) ([]types.QueueReco
 }
 
 // LookupByTvdbId fetches series details from Sonarr by TVDB ID
-func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*types.SonarrSeriesResponse, error) {
+func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*types.Series, error) {
 	if baseURL == "" {
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("URL is required")}
 	}
@@ -219,7 +220,7 @@ func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*typ
 	}
 
 	lookupURL := fmt.Sprintf("%s/api/v3/series/lookup?term=tvdb%%3A%d", strings.TrimRight(baseURL, "/"), tvdbId)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
@@ -237,7 +238,7 @@ func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*typ
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var series []types.SonarrSeriesResponse
+	var series []types.Series
 	if err := json.Unmarshal(body, &series); err != nil {
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -251,7 +252,7 @@ func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*typ
 }
 
 // GetSeries fetches series details from Sonarr by ID
-func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.SonarrSeriesResponse, error) {
+func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.Series, error) {
 	if baseURL == "" {
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("URL is required")}
 	}
@@ -261,7 +262,7 @@ func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.
 	}
 
 	seriesURL := fmt.Sprintf("%s/api/v3/series/%d", strings.TrimRight(baseURL, "/"), seriesID)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, seriesURL, apiKey, nil)
@@ -279,7 +280,7 @@ func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var series types.SonarrSeriesResponse
+	var series types.Series
 	if err := json.Unmarshal(body, &series); err != nil {
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -299,7 +300,7 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 	}
 
 	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, statusURL, apiKey, nil)
@@ -338,7 +339,7 @@ func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 	}
 
 	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, updateURL, apiKey, nil)
@@ -356,7 +357,7 @@ func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var updates []types.UpdateResponse
+	var updates []types.SonarrUpdateResponse
 	if err := json.Unmarshal(body, &updates); err != nil {
 		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}

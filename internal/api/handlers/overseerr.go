@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -20,10 +21,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const (
-	overseerrCacheDuration = 2 * time.Second // Reduced for more frequent updates
-	overseerrCachePrefix   = "overseerr:requests:"
-)
+const overseerrCachePrefix = "overseerr:requests:"
 
 type OverseerrHandler struct {
 	db    *database.DB
@@ -220,9 +218,9 @@ func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*
 		stats.Requests = []types.MediaRequest{}
 	}
 
-	// Cache the results
+	// Cache the results using the centralized cache duration
 	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, stats, overseerrCacheDuration); err != nil {
+	if err := h.cache.Set(ctx, cacheKey, stats, middleware.CacheDurations.OverseerrRequests); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).

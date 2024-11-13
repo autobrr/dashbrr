@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -19,10 +20,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const (
-	plexCacheDuration = 2 * time.Second // Reduced for more frequent updates
-	plexCachePrefix   = "plex:sessions:"
-)
+const plexCachePrefix = "plex:sessions:"
 
 type PlexHandler struct {
 	db    *database.DB
@@ -134,9 +132,9 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types
 		sessions.MediaContainer.Metadata = []types.PlexSession{}
 	}
 
-	// Cache the results
+	// Cache the results using the centralized cache duration
 	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, sessions, plexCacheDuration); err != nil {
+	if err := h.cache.Set(ctx, cacheKey, sessions, middleware.CacheDurations.PlexSessions); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).

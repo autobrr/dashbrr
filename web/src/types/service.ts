@@ -272,11 +272,15 @@ export interface SonarrQueueItem {
   trackedDownloadStatus?: string;
   errorMessage?: string;
   statusMessages?: SonarrStatusMessage[];
+  size: number;
+  episodes: { id: number; episodeNumber: number; seasonNumber: number }[];
 }
 
 export interface SonarrQueue {
   totalRecords: number;
   records: SonarrQueueItem[];
+  stats?: SonarrStats;
+  version?: string;
 }
 
 export interface SonarrStats {
@@ -322,8 +326,8 @@ export interface RadarrQueueItem {
   movie: RadarrMovie;
   movieId: number;
   statusMessages?: RadarrStatusMessage[];
+  size: number;
 }
-
 export interface RadarrQueue {
   totalRecords: number;
   records: RadarrQueueItem[];
@@ -382,6 +386,8 @@ export interface ServiceStats {
   overseerr?: OverseerrStats;
   sonarr?: {
     queue: SonarrQueue;
+    stats?: SonarrStats;
+    version?: string;
   };
   radarr?: {
     queue: RadarrQueue;
@@ -423,9 +429,17 @@ export interface ServiceDetails {
   sonarr?: {
     queueCount: number;
     monitored: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    episodeCount?: number;
+    totalSize?: number;
+    version?: string;
   };
   radarr?: {
     queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    totalSize?: number;
   };
   prowlarr?: {
     activeIndexers: number;

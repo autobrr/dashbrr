@@ -36,6 +36,7 @@ func NewOmegabrrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Omegabrr instance"
 	service.DefaultURL = "http://localhost:7474"
 	service.HealthEndpoint = "/api/healthz/liveness"
+	service.SetTimeout(core.DefaultLongTimeout) // Set longer timeout for Omegabrr
 	return service
 }
 
@@ -93,14 +94,17 @@ func (s *OmegabrrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	ctx := context.Background()
+	// Create context with longer timeout
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultLongTimeout)
+	defer cancel()
 
 	// Start version check in background
 	versionChan := make(chan string, 1)
+	versionErrChan := make(chan error, 1)
 	go func() {
 		version, err := s.getVersion(ctx, url, apiKey)
 		if err != nil {
-			versionChan <- ""
+			versionErrChan <- err
 			return
 		}
 		versionChan <- version
@@ -137,16 +141,24 @@ func (s *OmegabrrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 
 	// Wait for version with timeout
 	var version string
+	var versionErr error
 	select {
 	case v := <-versionChan:
 		version = v
-	case <-time.After(500 * time.Millisecond):
-		// Continue without version if it takes too long
+	case err := <-versionErrChan:
+		versionErr = err
+	case <-ctx.Done():
+		versionErr = ctx.Err()
 	}
 
 	extras := map[string]interface{}{
-		"version":      version,
 		"responseTime": responseTime.Milliseconds(),
+	}
+
+	if version != "" {
+		extras["version"] = version
+	} else if versionErr != nil {
+		extras["versionError"] = versionErr.Error()
 	}
 
 	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK

@@ -35,6 +35,7 @@ func NewPlexService() models.ServiceHealthChecker {
 			HealthEndpoint: "/identity",
 		},
 	}
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -64,7 +65,7 @@ func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsRespon
 		return nil, fmt.Errorf("API key is required")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
@@ -123,7 +124,7 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	healthEndpoint := s.GetHealthEndpoint(url)

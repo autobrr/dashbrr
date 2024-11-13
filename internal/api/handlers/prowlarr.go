@@ -14,13 +14,14 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
-	prowlarrCacheDuration      = 60 * time.Second
+	prowlarrCacheDuration      = 2 * time.Second // Updated to 2s to match other services
 	prowlarrStatsPrefix        = "prowlarr:stats:"
 	prowlarrIndexerPrefix      = "prowlarr:indexers:"
 	prowlarrIndexerStatsPrefix = "prowlarr:indexerstats:"
@@ -65,6 +66,18 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 			Int("grabCount", statsResp.GrabCount).
 			Msg("Serving Prowlarr stats from cache")
 		c.JSON(http.StatusOK, statsResp)
+
+		// Broadcast stats update via SSE
+		BroadcastHealth(models.ServiceHealth{
+			ServiceID: instanceId,
+			Status:    "ok",
+			Message:   "prowlarr_stats",
+			Stats: map[string]interface{}{
+				"prowlarr": map[string]interface{}{
+					"stats": statsResp,
+				},
+			},
+		})
 		return
 	}
 
@@ -130,6 +143,18 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 		Int("grabCount", statsResp.GrabCount).
 		Msg("Successfully retrieved and cached Prowlarr stats")
 
+	// Broadcast stats update via SSE
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "ok",
+		Message:   "prowlarr_stats",
+		Stats: map[string]interface{}{
+			"prowlarr": map[string]interface{}{
+				"stats": statsResp,
+			},
+		},
+	})
+
 	c.JSON(http.StatusOK, statsResp)
 }
 
@@ -159,6 +184,19 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 			Str("instanceId", instanceId).
 			Int("indexerCount", len(indexers)).
 			Msg("Serving Prowlarr indexers from cache")
+
+		// Broadcast indexers update via SSE
+		BroadcastHealth(models.ServiceHealth{
+			ServiceID: instanceId,
+			Status:    "ok",
+			Message:   "prowlarr_indexers",
+			Stats: map[string]interface{}{
+				"prowlarr": map[string]interface{}{
+					"indexers": indexers,
+				},
+			},
+		})
+
 		c.JSON(http.StatusOK, indexers)
 		return
 	}
@@ -244,6 +282,18 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 		Str("instanceId", instanceId).
 		Int("indexerCount", len(indexers)).
 		Msg("Successfully retrieved and cached Prowlarr indexers")
+
+	// Broadcast indexers update via SSE
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "ok",
+		Message:   "prowlarr_indexers",
+		Stats: map[string]interface{}{
+			"prowlarr": map[string]interface{}{
+				"indexers": indexers,
+			},
+		},
+	})
 
 	c.JSON(http.StatusOK, indexers)
 }

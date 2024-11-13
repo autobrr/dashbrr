@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -34,6 +33,7 @@ func NewRadarrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Radarr instance"
 	service.DefaultURL = "http://localhost:7878"
 	service.HealthEndpoint = "/api/v3/health"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -52,7 +52,7 @@ func (s *RadarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, 
 		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	// Build delete URL with query parameters
@@ -125,7 +125,7 @@ func (s *RadarrService) GetQueue(url, apiKey string) (interface{}, error) {
 		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	// Build queue URL with query parameters
@@ -178,7 +178,7 @@ func (s *RadarrService) LookupByTmdbId(baseURL, apiKey string, tmdbId int) (*typ
 	}
 
 	lookupURL := fmt.Sprintf("%s/api/v3/movie/lookup/tmdb?tmdbId=%d", strings.TrimRight(baseURL, "/"), tmdbId)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
@@ -215,7 +215,7 @@ func (s *RadarrService) GetMovie(baseURL, apiKey string, movieID int) (*types.Ra
 	}
 
 	movieURL := fmt.Sprintf("%s/api/v3/movie/%d", strings.TrimRight(baseURL, "/"), movieID)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, movieURL, apiKey, nil)

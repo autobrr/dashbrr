@@ -57,6 +57,7 @@ func NewProwlarrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Prowlarr instance"
 	service.DefaultURL = "http://localhost:9696"
 	service.HealthEndpoint = "/api/v1/health"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -86,7 +87,7 @@ func (s *ProwlarrService) GetSystemStatus(baseURL, apiKey string) (string, error
 	}
 
 	statusURL := fmt.Sprintf("%s/api/v1/system/status", strings.TrimRight(baseURL, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, statusURL, apiKey)
@@ -125,7 +126,7 @@ func (s *ProwlarrService) GetIndexerStats(baseURL, apiKey string) (*types.Prowla
 	}
 
 	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, apiKey)

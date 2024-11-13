@@ -49,6 +49,7 @@ func NewAutobrrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Autobrr instance"
 	service.DefaultURL = "http://localhost:7474"
 	service.HealthEndpoint = "/api/healthz/liveness"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -62,7 +63,7 @@ func (s *AutobrrService) GetReleaseStats(url, apiKey string) (AutobrrStats, erro
 		return AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	statsURL := s.getEndpoint(url, "/api/release/stats")
@@ -123,7 +124,7 @@ func (s *AutobrrService) GetIRCStatus(url, apiKey string) ([]IRCStatus, error) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	ircURL := s.getEndpoint(url, "/api/irc")
@@ -195,7 +196,7 @@ func (s *AutobrrService) GetVersion(url, apiKey string) (string, error) {
 		return version, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	versionURL := s.getEndpoint(url, "/api/config")
@@ -252,7 +253,7 @@ func (s *AutobrrService) CheckUpdate(url, apiKey string) (bool, error) {
 		return status == "true", nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	updateURL := s.getEndpoint(url, "/api/updates/latest")
@@ -291,29 +292,35 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	}
 
 	// Create a context with timeout for the entire health check
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	// Start version check in background
 	versionChan := make(chan string, 1)
+	versionErrChan := make(chan error, 1)
 	go func() {
 		version, err := s.GetVersion(url, apiKey)
 		if err != nil {
+			versionErrChan <- err
 			versionChan <- ""
 			return
 		}
 		versionChan <- version
+		versionErrChan <- nil
 	}()
 
 	// Start update check in background
 	updateChan := make(chan bool, 1)
+	updateErrChan := make(chan error, 1)
 	go func() {
 		hasUpdate, err := s.CheckUpdate(url, apiKey)
 		if err != nil {
+			updateErrChan <- err
 			updateChan <- false
 			return
 		}
 		updateChan <- hasUpdate
+		updateErrChan <- nil
 	}()
 
 	// Get release stats
@@ -357,37 +364,51 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 
 	// Wait for version and update status with timeout
 	var version string
+	var versionErr error
 	var hasUpdate bool
+	var updateErr error
+
 	select {
-	case v := <-versionChan:
-		version = v
-	case <-time.After(2 * time.Second):
-		// Continue without version if it takes too long
+	case version = <-versionChan:
+		versionErr = <-versionErrChan
+	case <-ctx.Done():
+		versionErr = ctx.Err()
 	}
 
 	select {
-	case u := <-updateChan:
-		hasUpdate = u
-	case <-time.After(2 * time.Second):
-		// Continue without update status if it takes too long
+	case hasUpdate = <-updateChan:
+		updateErr = <-updateErrChan
+	case <-ctx.Done():
+		updateErr = ctx.Err()
 	}
 
 	// Get IRC status
 	ircStatus, err := s.GetIRCStatus(url, apiKey)
 	if err != nil {
-		return s.CreateHealthResponse(startTime, "warning", fmt.Sprintf("Autobrr is running but IRC status check failed: %v", err), map[string]interface{}{
-			"version":         version,
-			"responseTime":    responseTime.Milliseconds(),
-			"updateAvailable": hasUpdate,
+		extras := map[string]interface{}{
+			"responseTime": responseTime.Milliseconds(),
+			"stats": map[string]interface{}{
+				"autobrr": stats,
+			},
 			"details": map[string]interface{}{
 				"autobrr": map[string]interface{}{
 					"irc": ircStatus,
 				},
 			},
-			"stats": map[string]interface{}{
-				"autobrr": stats,
-			},
-		}), http.StatusOK
+		}
+		if version != "" {
+			extras["version"] = version
+		}
+		if versionErr != nil {
+			extras["versionError"] = versionErr.Error()
+		}
+		if !hasUpdate && updateErr != nil {
+			extras["updateError"] = updateErr.Error()
+		} else {
+			extras["updateAvailable"] = hasUpdate
+		}
+
+		return s.CreateHealthResponse(startTime, "warning", fmt.Sprintf("Autobrr is running but IRC status check failed: %v", err), extras), http.StatusOK
 	}
 
 	// Check if any IRC connections are healthy
@@ -406,12 +427,22 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	}
 
 	extras := map[string]interface{}{
-		"version":         version,
-		"responseTime":    responseTime.Milliseconds(),
-		"updateAvailable": hasUpdate,
+		"responseTime": responseTime.Milliseconds(),
 		"stats": map[string]interface{}{
 			"autobrr": stats,
 		},
+	}
+
+	if version != "" {
+		extras["version"] = version
+	}
+	if versionErr != nil {
+		extras["versionError"] = versionErr.Error()
+	}
+	if !hasUpdate && updateErr != nil {
+		extras["updateError"] = updateErr.Error()
+	} else {
+		extras["updateAvailable"] = hasUpdate
 	}
 
 	// Only include IRC status in details if there are unhealthy connections

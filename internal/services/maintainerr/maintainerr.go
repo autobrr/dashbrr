@@ -85,6 +85,7 @@ func NewMaintainerrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Maintainerr instance"
 	service.DefaultURL = "http://localhost:6246"
 	service.HealthEndpoint = "/api/app/status"
+	service.SetTimeout(core.DefaultLongTimeout)
 	return service
 }
 
@@ -130,7 +131,9 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	ctx := context.Background()
+	// Create context with longer timeout
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultLongTimeout)
+	defer cancel()
 
 	versionChan := make(chan string, 1)
 	errChan := make(chan error, 1)
@@ -190,16 +193,18 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 	select {
 	case version = <-versionChan:
 		versionErr = <-errChan
-	case <-time.After(2 * time.Second):
-		versionErr = fmt.Errorf("version check timed out")
+	case <-ctx.Done():
+		versionErr = ctx.Err()
 	}
 
 	extras := map[string]interface{}{
-		"version":         version,
 		"updateAvailable": statusResponse.UpdateAvailable,
 		"responseTime":    responseTime.Milliseconds(),
 	}
 
+	if version != "" {
+		extras["version"] = version
+	}
 	if versionErr != nil {
 		extras["versionError"] = versionErr.Error()
 	}
@@ -216,7 +221,9 @@ func (s *MaintainerrService) GetCollections(url, apiKey string) ([]Collection, e
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("API key is required")}
 	}
 
-	ctx := context.Background()
+	// Create context with longer timeout
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultLongTimeout)
+	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
 	endpoint := fmt.Sprintf("%s/api/collections", baseURL)
