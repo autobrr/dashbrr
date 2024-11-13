@@ -174,8 +174,8 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 		return nil, err
 	}
 
-	// Store the response time in the response header
-	resp.Header.Set("X-Response-Time", time.Since(start).String())
+	// Store the response time in milliseconds
+	resp.Header.Set("X-Response-Time", fmt.Sprintf("%d", time.Since(start).Milliseconds()))
 
 	return resp, nil
 }

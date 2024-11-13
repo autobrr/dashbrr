@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -109,21 +110,23 @@ func (ihc *instanceHealthCheck) runChecks() {
 		defer resp.Body.Close()
 		body, err := ihc.core.ReadBody(resp)
 
-		// Parse response time from header
-		respTimeStr := resp.Header.Get("X-Response-Time")
-		var respTime time.Duration
-		if respTimeStr != "" {
-			respTime, _ = time.ParseDuration(respTimeStr)
+		// Parse response time from header (now stored as milliseconds)
+		responseTimeStr := resp.Header.Get("X-Response-Time")
+		var responseTime int64
+		if responseTimeStr != "" {
+			if rt, err := strconv.ParseInt(responseTimeStr, 10, 64); err == nil {
+				responseTime = rt
+			}
 		}
 
 		ihc.health <- healthCheckResult{data: struct {
-			body       []byte
-			statusCode int
-			respTime   time.Duration
+			body         []byte
+			statusCode   int
+			responseTime int64
 		}{
-			body:       body,
-			statusCode: resp.StatusCode,
-			respTime:   respTime,
+			body:         body,
+			statusCode:   resp.StatusCode,
+			responseTime: responseTime,
 		}, err: err}
 	}()
 
@@ -168,11 +171,11 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		}
 
 		if data, ok := healthResult.data.(struct {
-			body       []byte
-			statusCode int
-			respTime   time.Duration
+			body         []byte
+			statusCode   int
+			responseTime int64
 		}); ok {
-			extras["responseTime"] = data.respTime.Milliseconds()
+			extras["responseTime"] = data.responseTime
 
 			if data.statusCode >= 400 {
 				statusText := http.StatusText(data.statusCode)
