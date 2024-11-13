@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
@@ -144,7 +145,7 @@ func (h *TailscaleHandler) fetchAndCacheDevices(instanceId, apiKey, cacheKey str
 	if apiKey != "" {
 		devices, err = service.GetDevices("", apiKey)
 	} else {
-		tailscaleConfig, err := h.db.GetServiceByInstanceID(instanceId)
+		tailscaleConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tailscale configuration: %v", err)
 		}

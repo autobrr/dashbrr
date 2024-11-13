@@ -3,6 +3,7 @@ package autobrr
 import (
 	"context"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/types"
 	"net/url"
 	"strconv"
 	"strings"
@@ -72,7 +73,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	}
 
 	// Check if service already exists
-	existing, err := c.db.GetServiceByURL(serviceURL)
+	existing, err := c.db.FindServiceBy(context.Background(), types.FindServiceParams{URL: serviceURL})
 	if err != nil {
 		return fmt.Errorf("failed to check for existing service: %v", err)
 	}
@@ -144,7 +145,7 @@ func (c *RemoveCommand) Execute(ctx context.Context, args []string) error {
 	serviceURL := args[0]
 
 	// Find service by URL
-	service, err := c.db.GetServiceByURL(serviceURL)
+	service, err := c.db.FindServiceBy(context.Background(), types.FindServiceParams{URL: serviceURL})
 	if err != nil {
 		return fmt.Errorf("failed to find service: %v", err)
 	}

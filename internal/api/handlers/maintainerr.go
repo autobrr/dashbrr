@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
@@ -144,7 +145,7 @@ func (h *MaintainerrHandler) fetchAndCacheCollections(instanceId, cacheKey strin
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	maintainerrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	maintainerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service config: %w", err)
 	}

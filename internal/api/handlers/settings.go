@@ -4,7 +4,9 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
+	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 
@@ -68,7 +70,7 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		Msg("Saving configuration")
 
 	// Check if configuration exists
-	existing, err := h.db.GetServiceByInstanceID(instanceID)
+	existing, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceID})
 	if err != nil && err != sql.ErrNoRows {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})
@@ -105,7 +107,7 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
 
 	// Check if configuration exists before deleting
-	existing, err := h.db.GetServiceByInstanceID(instanceID)
+	existing, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceID})
 	if err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})

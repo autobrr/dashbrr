@@ -77,7 +77,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	}
 
 	// Get service configuration
-	overseerrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get service configuration")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
@@ -173,7 +173,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 }
 
 func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*types.RequestsStats, error) {
-	overseerrConfig, err := h.db.GetServiceByInstanceID(instanceId)
+	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
