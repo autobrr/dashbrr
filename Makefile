@@ -40,14 +40,13 @@ all: clean deps-frontend deps-go frontend backend
 clean:
 	@echo "Cleaning..."
 	$(GOCLEAN)
-	rm -rf $(BUILD_DIR)
+	find $(BUILD_DIR) -mindepth 1 -not -name '.gitkeep' -delete
 	rm -f $(BINARY_NAME)
 
 # Install Go dependencies
 deps-go:
 	@echo "Installing Go dependencies..."
 	$(GOMOD) tidy
-	$(GOGET) github.com/gin-gonic/gin
 
 # Install frontend dependencies
 deps-frontend:
