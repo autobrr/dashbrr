@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	_ "modernc.org/sqlite"
 
@@ -111,6 +112,11 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 				Msg("Retrying database connection")
 			time.Sleep(delay)
 		}
+
+		// Configure connection pool
+		database.SetMaxOpenConns(25)
+		database.SetMaxIdleConns(25)
+		database.SetConnMaxLifetime(5 * time.Minute)
 	} else {
 		// SQLite connection
 		dbDir := filepath.Dir(config.Path)
@@ -130,6 +136,43 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 			return nil, fmt.Errorf("error creating database file: %w", err)
 		}
 
+		// Set busy timeout
+		if _, err = database.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+			return nil, errors.Wrap(err, "busy timeout pragma")
+		}
+
+		// Enable WAL. SQLite performs better with the WAL  because it allows
+		// multiple readers to operate while data is being written.
+		if _, err = database.Exec(`PRAGMA journal_mode = wal;`); err != nil {
+			return nil, errors.Wrap(err, "enable wal")
+		}
+
+		// SQLite has a query planner that uses lifecycle stats to fund optimizations.
+		// This restricts the SQLite query planner optimizer to only run if sufficient
+		// information has been gathered over the lifecycle of the connection.
+		// The SQLite documentation is inconsistent in this regard,
+		// suggestions of 400 and 1000 are both "recommended", so lets use the lower bound.
+		if _, err = database.Exec(`PRAGMA analysis_limit = 400;`); err != nil {
+			return nil, errors.Wrap(err, "analysis_limit")
+		}
+
+		// When the application does not cleanly shut down, the WAL will still be present and not committed.
+		// This is a no-op if the WAL is empty, and a commit when the WAL is not to start fresh.
+		// When commits hit 1000, PRAGMA wal_checkpoint(PASSIVE); is invoked which tries its best
+		// to commit from the WAL (and can fail to commit all pending operations).
+		// Forcing a PRAGMA wal_checkpoint(RESTART); in the future on a "quiet period" could be
+		// considered.
+		if _, err = database.Exec(`PRAGMA wal_checkpoint(TRUNCATE);`); err != nil {
+			return nil, errors.Wrap(err, "commit wal")
+		}
+
+		// Enable foreign key checks. For historical reasons, SQLite does not check
+		// foreign key constraints by default. There's some overhead on inserts to
+		// verify foreign key integrity, but it's definitely worth it.
+		if _, err = database.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
+			return nil, errors.New("foreign keys pragma")
+		}
+
 		// Now that the file exists, set restrictive permissions
 		if err := os.Chmod(config.Path, 0640); err != nil {
 			return nil, fmt.Errorf("error setting database file permissions: %w", err)
@@ -138,11 +181,6 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 			Str("path", config.Path).
 			Msg("Initializing SQLite database")
 	}
-
-	// Configure connection pool
-	database.SetMaxOpenConns(25)
-	database.SetMaxIdleConns(25)
-	database.SetConnMaxLifetime(5 * time.Minute)
 
 	log.Info().
 		Str("driver", config.Driver).
