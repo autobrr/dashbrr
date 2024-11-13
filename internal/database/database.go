@@ -227,8 +227,8 @@ func (db *DB) initSchema() error {
 			instance_id TEXT UNIQUE NOT NULL,
 			display_name TEXT NOT NULL,
 			url TEXT,
-			access_url TEXT,
-			api_key TEXT
+			api_key TEXT,
+			access_url TEXT
 		)`, autoIncrement))
 	if err != nil {
 		return err
@@ -396,18 +396,23 @@ func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
 
 // FindServiceBy retrieves a service configuration by FindServiceParams
 func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
-	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key").From("service_configurations")
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
+		From("service_configurations")
 
 	if params.InstanceID != "" {
 		queryBuilder = queryBuilder.Where(sq.Eq{"instance_id": params.InstanceID})
 	}
 
 	if params.InstancePrefix != "" {
-		queryBuilder = queryBuilder.Where(sq.Eq{"instance_id": params.InstancePrefix + "%"})
+		queryBuilder = queryBuilder.Where(sq.Like{"instance_id": params.InstancePrefix + "%"})
 	}
 
 	if params.URL != "" {
 		queryBuilder = queryBuilder.Where(sq.Eq{"url": params.URL})
+	}
+
+	if params.AccessURL != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"access_url": params.AccessURL})
 	}
 
 	query, args, err := queryBuilder.ToSql()
@@ -415,18 +420,34 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 		return nil, err
 	}
 
-	row := db.QueryRowContext(ctx, query, args...)
-	if row.Err() != nil {
-		return nil, row.Err()
-	}
-
 	var service models.ServiceConfiguration
-	if err := row.Scan(&service.ID, &service.InstanceID, &service.DisplayName, &service.URL, &service.AccessURL, &service.APIKey); err != nil {
+	var url, apiKey, accessURL sql.NullString
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(
+		&service.ID,
+		&service.InstanceID,
+		&service.DisplayName,
+		&url,
+		&apiKey,
+		&accessURL,
+	)
+
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-
 		return nil, err
+	}
+
+	// Only set optional fields if they're not NULL
+	if url.Valid {
+		service.URL = url.String
+	}
+	if apiKey.Valid {
+		service.APIKey = apiKey.String
+	}
+	if accessURL.Valid {
+		service.AccessURL = accessURL.String
 	}
 
 	return &service, nil
@@ -435,40 +456,57 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
 func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfiguration, error) {
 	var service models.ServiceConfiguration
+	var url, apiKey, accessURL sql.NullString
+
 	var query string
 	if db.driver == "postgres" {
 		query = `
-			SELECT id, instance_id, display_name, url, access_url, api_key 
+			SELECT id, instance_id, display_name, url, api_key, access_url
 			FROM service_configurations 
 			WHERE instance_id LIKE $1 || '%'
 			LIMIT 1`
 	} else {
 		query = `
-			SELECT id, instance_id, display_name, url, access_url, api_key 
+			SELECT id, instance_id, display_name, url, api_key, access_url
 			FROM service_configurations 
 			WHERE instance_id LIKE ? || '%'
 			LIMIT 1`
 	}
+
 	err := db.QueryRow(query, prefix).Scan(
 		&service.ID,
 		&service.InstanceID,
 		&service.DisplayName,
-		&service.URL,
-		&service.AccessURL,
-		&service.APIKey,
+		&url,
+		&apiKey,
+		&accessURL,
 	)
+
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+
+	// Only set optional fields if they're not NULL
+	if url.Valid {
+		service.URL = url.String
+	}
+	if apiKey.Valid {
+		service.APIKey = apiKey.String
+	}
+	if accessURL.Valid {
+		service.AccessURL = accessURL.String
+	}
+
 	return &service, nil
 }
 
 // GetAllServices retrieves all service configurations
 func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
-	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "access_url", "api_key").From("service_configurations")
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
+		From("service_configurations")
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
@@ -484,17 +522,28 @@ func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 	var services []models.ServiceConfiguration
 	for rows.Next() {
 		var service models.ServiceConfiguration
+		var url, apiKey, accessURL sql.NullString
 
 		err := rows.Scan(
 			&service.ID,
 			&service.InstanceID,
 			&service.DisplayName,
-			&service.URL,
-			&service.AccessURL,
-			&service.APIKey,
+			&url,
+			&apiKey,
+			&accessURL,
 		)
 		if err != nil {
 			return nil, err
+		}
+
+		if url.Valid {
+			service.URL = url.String
+		}
+		if apiKey.Valid {
+			service.APIKey = apiKey.String
+		}
+		if accessURL.Valid {
+			service.AccessURL = accessURL.String
 		}
 
 		services = append(services, service)
@@ -508,8 +557,8 @@ func (db *DB) CreateService(service *models.ServiceConfiguration) error {
 	ctx := context.Background()
 
 	queryBuilder := db.squirrel.Insert("service_configurations").
-		Columns("instance_id", "display_name", "url", "api_key").
-		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey).
+		Columns("instance_id", "display_name", "url", "api_key", "access_url").
+		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL).
 		Suffix("RETURNING id").RunWith(db.DB)
 
 	if err := queryBuilder.QueryRowContext(ctx).Scan(&service.ID); err != nil {
@@ -523,8 +572,9 @@ func (db *DB) CreateService(service *models.ServiceConfiguration) error {
 func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
 	queryBuilder := db.squirrel.Update("service_configurations").
 		Set("display_name", service.DisplayName).
-		Set("url", service.URL).
-		Set("api_key", service.APIKey).
+		Set("url", sql.NullString{String: service.URL, Valid: service.URL != ""}).
+		Set("api_key", sql.NullString{String: service.APIKey, Valid: service.APIKey != ""}).
+		Set("access_url", sql.NullString{String: service.AccessURL, Valid: service.AccessURL != ""}).
 		Where(sq.Eq{"instance_id": service.InstanceID})
 
 	query, args, err := queryBuilder.ToSql()
@@ -533,11 +583,7 @@ func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
 	}
 
 	_, err = db.ExecContext(context.Background(), query, args...)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // DeleteService deletes a service configuration by its instance ID

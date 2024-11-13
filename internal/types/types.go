@@ -55,4 +55,5 @@ type FindServiceParams struct {
 	InstanceID     string
 	InstancePrefix string
 	URL            string
+	AccessURL      string
 }
