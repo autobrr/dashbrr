@@ -256,6 +256,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-400 hover:text-blue-300 flex-shrink-0"
+                      title={`Download torrentfile`}
                     >
                       <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                     </a>
@@ -266,6 +267,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-400 hover:text-blue-300 flex-shrink-0"
+                      title={`View this release on ${release.indexer.name}`}
                     >
                       <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
                     </a>
