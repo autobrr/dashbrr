@@ -11,8 +11,14 @@ import {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
   LinkIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ExclamationCircleIcon,
+  NoSymbolIcon,
+  ClockIcon,
 } from "@heroicons/react/24/solid";
 import { AutobrrRelease } from "../../../types/service";
+import { getMediaType, getMediaTypeIcon } from "../../../utils/mediaTypes";
 
 interface AutobrrStatsProps {
   instanceId: string;
@@ -207,18 +213,18 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                     <div className="mt-1 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
                       <div className="flex items-center gap-1.5">
                         {release.filter_status === "FILTER_REJECTED" ? (
-                          <div className="w-2 h-2 rounded-full bg-red-500" />
+                          <NoSymbolIcon className="w-4 h-4 text-red-500" />
                         ) : release.action_status?.[0]?.status ===
                           "PUSH_APPROVED" ? (
-                          <div className="w-2 h-2 rounded-full bg-green-500" />
+                          <CheckCircleIcon className="w-4 h-4 text-green-500" />
                         ) : release.action_status?.[0]?.status ===
                           "PUSH_REJECTED" ? (
-                          <div className="w-2 h-2 rounded-full bg-blue-400" />
+                          <XCircleIcon className="w-4 h-4 text-blue-400" />
                         ) : release.action_status?.[0]?.status ===
                           "PUSH_ERROR" ? (
-                          <div className="w-2 h-2 rounded-full bg-red-500" />
+                          <ExclamationCircleIcon className="w-4 h-4 text-red-500" />
                         ) : (
-                          <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                          <ClockIcon className="w-4 h-4 text-yellow-500" />
                         )}
                         <span>{release.indexer.name}</span>
                       </div>
@@ -245,7 +251,18 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                       {release.source && (
                         <>
                           <span className="text-gray-500">•</span>
-                          <span>{release.source}</span>
+                          <span className="flex items-center gap-1">
+                            {(() => {
+                              const mediaType = getMediaType(release.category);
+                              const IconComponent = getMediaTypeIcon(mediaType);
+                              return (
+                                <>
+                                  <IconComponent className="w-4 h-4" />
+                                  {mediaType}
+                                </>
+                              );
+                            })()}
+                          </span>
                         </>
                       )}
                     </div>
