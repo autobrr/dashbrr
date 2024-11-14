@@ -64,6 +64,8 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   const ircStatus = service.details?.autobrr?.irc;
   const releases = service.releases?.data || [];
 
+  console.log("Service releases:", service.instanceId, service.releases?.data);
+
   // Only show message component if there's a message or status isn't online
   const showMessage = service.message || service.status !== "online";
 
@@ -86,7 +88,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
       )}
 
       {/* IRC Status */}
-      {ircStatus && (
+      {ircStatus && ircStatus.some((irc) => !irc.healthy) && (
         <div>
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
             IRC Status:
