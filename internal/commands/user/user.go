@@ -97,7 +97,7 @@ func (c *UserCommand) createUser(username, password, email string) error {
 		PasswordHash: string(passwordHash),
 	}
 
-	if err := c.db.CreateUser(user); err != nil {
+	if err := c.db.CreateUser(context.Background(), user); err != nil {
 		return fmt.Errorf("failed to create user: %v", err)
 	}
 
@@ -127,7 +127,7 @@ func (c *UserCommand) changePassword(username, newPassword string) error {
 	}
 
 	// Update password
-	if err := c.db.UpdateUserPassword(user.ID, string(passwordHash)); err != nil {
+	if err := c.db.UpdateUserPassword(context.Background(), user.ID, string(passwordHash)); err != nil {
 		return fmt.Errorf("failed to update password: %v", err)
 	}
 

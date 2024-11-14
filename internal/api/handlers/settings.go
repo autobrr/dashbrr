@@ -6,7 +6,6 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/manager"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -71,7 +71,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from database
-	configurations, err = h.db.GetAllServices()
+	configurations, err = h.db.GetAllServices(context.Background())
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching configurations")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch settings"})
@@ -137,11 +137,11 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	if existing == nil {
 		// Create new configuration
 		log.Debug().Str("instance", instanceID).Msg("Creating new configuration")
-		saveErr = h.db.CreateService(&config)
+		saveErr = h.db.CreateService(c.Request.Context(), &config)
 	} else {
 		// Update existing configuration
 		log.Debug().Str("instance", instanceID).Msg("Updating existing configuration")
-		saveErr = h.db.UpdateService(&config)
+		saveErr = h.db.UpdateService(c.Request.Context(), &config)
 	}
 
 	if saveErr != nil {
@@ -184,7 +184,7 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	}
 
 	// Delete the configuration
-	if err := h.db.DeleteService(instanceID); err != nil {
+	if err := h.db.DeleteService(c.Request.Context(), instanceID); err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error deleting configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete settings"})
 		return

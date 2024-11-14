@@ -292,7 +292,7 @@ func getEnv(key, fallback string) string {
 }
 
 // HasUsers checks if any users exist in the database
-func (db *DB) HasUsers() (bool, error) {
+func (db *DB) HasUsers(ctx context.Context) (bool, error) {
 	qb := db.squirrel.Select("COUNT(*)").From("users")
 
 	query, args, err := qb.ToSql()
@@ -301,7 +301,7 @@ func (db *DB) HasUsers() (bool, error) {
 	}
 
 	var count int
-	err = db.QueryRow(query, args...).Scan(&count)
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -311,9 +311,7 @@ func (db *DB) HasUsers() (bool, error) {
 // User Management Functions
 
 // CreateUser creates a new user in the database
-func (db *DB) CreateUser(user *types.User) error {
-	ctx := context.Background()
-
+func (db *DB) CreateUser(ctx context.Context, user *types.User) error {
 	now := time.Now()
 
 	queryBuilder := db.squirrel.Insert("users").
@@ -339,15 +337,12 @@ func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types
 
 	if params.ID != 0 {
 		or = append(or, sq.Eq{"id": params.ID})
-		//queryBuilder = queryBuilder.Where(sq.Eq{"ud": params.ID})
 	}
 	if params.Username != "" {
 		or = append(or, sq.Eq{"username": params.Username})
-		//queryBuilder = queryBuilder.Where(sq.Eq{"username": params.Username})
 	}
 	if params.Email != "" {
 		or = append(or, sq.Eq{"email": params.Email})
-		//queryBuilder = queryBuilder.Where(sq.Eq{"email": params.Email})
 	}
 
 	queryBuilder = queryBuilder.Where(or)
@@ -371,7 +366,7 @@ func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types
 }
 
 // UpdateUserPassword updates a user's password hash and updated_at timestamp
-func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
+func (db *DB) UpdateUserPassword(ctx context.Context, userID int64, newPasswordHash string) error {
 	now := time.Now()
 
 	queryBuilder := db.squirrel.Update("users").
@@ -384,7 +379,7 @@ func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
 		return err
 	}
 
-	_, err = db.ExecContext(context.Background(), query, args...)
+	_, err = db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -454,7 +449,7 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 }
 
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
-func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfiguration, error) {
+func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*models.ServiceConfiguration, error) {
 	var service models.ServiceConfiguration
 	var url, apiKey, accessURL sql.NullString
 
@@ -473,7 +468,7 @@ func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfigur
 			LIMIT 1`
 	}
 
-	err := db.QueryRow(query, prefix).Scan(
+	err := db.QueryRowContext(ctx, query, prefix).Scan(
 		&service.ID,
 		&service.InstanceID,
 		&service.DisplayName,
@@ -504,7 +499,7 @@ func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfigur
 }
 
 // GetAllServices retrieves all service configurations
-func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
+func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration, error) {
 	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
 		From("service_configurations")
 
@@ -513,7 +508,7 @@ func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 		return nil, err
 	}
 
-	rows, err := db.QueryContext(context.Background(), query, args...)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -553,9 +548,7 @@ func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 }
 
 // CreateService creates a new service configuration
-func (db *DB) CreateService(service *models.ServiceConfiguration) error {
-	ctx := context.Background()
-
+func (db *DB) CreateService(ctx context.Context, service *models.ServiceConfiguration) error {
 	queryBuilder := db.squirrel.Insert("service_configurations").
 		Columns("instance_id", "display_name", "url", "api_key", "access_url").
 		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL).
@@ -569,7 +562,7 @@ func (db *DB) CreateService(service *models.ServiceConfiguration) error {
 }
 
 // UpdateService updates an existing service configuration
-func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
+func (db *DB) UpdateService(ctx context.Context, service *models.ServiceConfiguration) error {
 	queryBuilder := db.squirrel.Update("service_configurations").
 		Set("display_name", service.DisplayName).
 		Set("url", sql.NullString{String: service.URL, Valid: service.URL != ""}).
@@ -582,12 +575,12 @@ func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
 		return err
 	}
 
-	_, err = db.ExecContext(context.Background(), query, args...)
+	_, err = db.ExecContext(ctx, query, args...)
 	return err
 }
 
 // DeleteService deletes a service configuration by its instance ID
-func (db *DB) DeleteService(instanceID string) error {
+func (db *DB) DeleteService(ctx context.Context, instanceID string) error {
 	queryBuilder := db.squirrel.Delete("service_configurations").Where(sq.Eq{"instance_id": instanceID})
 
 	query, args, err := queryBuilder.ToSql()
@@ -595,7 +588,7 @@ func (db *DB) DeleteService(instanceID string) error {
 		return err
 	}
 
-	res, err := db.ExecContext(context.Background(), query, args...)
+	res, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}

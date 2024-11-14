@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -71,6 +72,8 @@ func TestUserOperations(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	// Test user creation
 	user := &types.User{
 		Username:     "testuser",
@@ -78,7 +81,7 @@ func TestUserOperations(t *testing.T) {
 		PasswordHash: "hashedpassword",
 	}
 
-	err := db.CreateUser(user)
+	err := db.CreateUser(ctx, user)
 	if err != nil {
 		t.Fatalf("Failed to create user: %v", err)
 	}
@@ -88,7 +91,7 @@ func TestUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by username
-	retrieved, err := db.FindUser(context.Background(), types.FindUserParams{Username: "testuser"})
+	retrieved, err := db.FindUser(ctx, types.FindUserParams{Username: "testuser"})
 	if err != nil {
 		t.Fatalf("Failed to get user by username: %v", err)
 	}
@@ -102,7 +105,7 @@ func TestUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by email
-	retrieved, err = db.FindUser(context.Background(), types.FindUserParams{Email: "test@example.com"})
+	retrieved, err = db.FindUser(ctx, types.FindUserParams{Email: "test@example.com"})
 	if err != nil {
 		t.Fatalf("Failed to get user by email: %v", err)
 	}
@@ -116,7 +119,7 @@ func TestUserOperations(t *testing.T) {
 	}
 
 	// Test HasUsers
-	hasUsers, err := db.HasUsers()
+	hasUsers, err := db.HasUsers(ctx)
 	if err != nil {
 		t.Fatalf("Failed to check if has users: %v", err)
 	}
@@ -124,11 +127,29 @@ func TestUserOperations(t *testing.T) {
 	if !hasUsers {
 		t.Error("Expected HasUsers to return true after creating a user")
 	}
+
+	// Test UpdateUserPassword
+	err = db.UpdateUserPassword(ctx, user.ID, "newhashedpassword")
+	if err != nil {
+		t.Fatalf("Failed to update user password: %v", err)
+	}
+
+	// Verify password update
+	updated, err := db.FindUser(ctx, types.FindUserParams{ID: user.ID})
+	if err != nil {
+		t.Fatalf("Failed to get user after password update: %v", err)
+	}
+
+	if updated.PasswordHash != "newhashedpassword" {
+		t.Error("Password hash was not updated")
+	}
 }
 
 func TestServiceOperations(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
+
+	ctx := context.Background()
 
 	// Test service creation
 	service := &models.ServiceConfiguration{
@@ -138,7 +159,7 @@ func TestServiceOperations(t *testing.T) {
 		APIKey:      "test-api-key",
 	}
 
-	err := db.CreateService(service)
+	err := db.CreateService(ctx, service)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -148,7 +169,7 @@ func TestServiceOperations(t *testing.T) {
 	}
 
 	// Test service retrieval by instance ID
-	retrieved, err := db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get service by instance ID: %v", err)
 	}
@@ -163,12 +184,12 @@ func TestServiceOperations(t *testing.T) {
 
 	// Test service update
 	service.DisplayName = "Updated Test Service"
-	err = db.UpdateService(service)
+	err = db.UpdateService(ctx, service)
 	if err != nil {
 		t.Fatalf("Failed to update service: %v", err)
 	}
 
-	retrieved, err = db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err = db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get updated service: %v", err)
 	}
@@ -182,7 +203,7 @@ func TestServiceOperations(t *testing.T) {
 	}
 
 	// Test GetAllServices
-	services, err := db.GetAllServices()
+	services, err := db.GetAllServices(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get all services: %v", err)
 	}
@@ -191,13 +212,27 @@ func TestServiceOperations(t *testing.T) {
 		t.Errorf("Expected 1 service, got %d", len(services))
 	}
 
+	// Test GetServiceByInstancePrefix
+	prefixService, err := db.GetServiceByInstancePrefix(ctx, "test-")
+	if err != nil {
+		t.Fatalf("Failed to get service by prefix: %v", err)
+	}
+
+	if prefixService == nil {
+		t.Fatal("Expected to find service by prefix, got nil")
+	}
+
+	if prefixService.InstanceID != service.InstanceID {
+		t.Errorf("Expected instance ID %s, got %s", service.InstanceID, prefixService.InstanceID)
+	}
+
 	// Test service deletion
-	err = db.DeleteService("test-service-1")
+	err = db.DeleteService(ctx, "test-service-1")
 	if err != nil {
 		t.Fatalf("Failed to delete service: %v", err)
 	}
 
-	retrieved, err = db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err = db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to check deleted service: %v", err)
 	}
@@ -211,6 +246,8 @@ func TestErrorHandling(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	// Test duplicate user creation
 	user1 := &types.User{
 		Username:     "duplicate",
@@ -218,7 +255,7 @@ func TestErrorHandling(t *testing.T) {
 		PasswordHash: "hashedpassword",
 	}
 
-	err := db.CreateUser(user1)
+	err := db.CreateUser(ctx, user1)
 	if err != nil {
 		t.Fatalf("Failed to create first user: %v", err)
 	}
@@ -229,7 +266,7 @@ func TestErrorHandling(t *testing.T) {
 		PasswordHash: "hashedpassword",
 	}
 
-	err = db.CreateUser(user2)
+	err = db.CreateUser(ctx, user2)
 	if err == nil {
 		t.Error("Expected error when creating duplicate user, got nil")
 	}
@@ -242,7 +279,7 @@ func TestErrorHandling(t *testing.T) {
 		APIKey:      "test-api-key",
 	}
 
-	err = db.CreateService(service1)
+	err = db.CreateService(ctx, service1)
 	if err != nil {
 		t.Fatalf("Failed to create first service: %v", err)
 	}
@@ -254,8 +291,18 @@ func TestErrorHandling(t *testing.T) {
 		APIKey:      "test-api-key",
 	}
 
-	err = db.CreateService(service2)
+	err = db.CreateService(ctx, service2)
 	if err == nil {
 		t.Error("Expected error when creating duplicate service, got nil")
+	}
+
+	// Test context cancellation
+	cancelCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
+	defer cancel()
+
+	time.Sleep(time.Millisecond) // Ensure context is cancelled
+	_, err = db.GetAllServices(cancelCtx)
+	if err == nil {
+		t.Error("Expected error when using cancelled context, got nil")
 	}
 }

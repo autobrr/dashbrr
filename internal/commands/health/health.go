@@ -96,7 +96,7 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 	// Service health checks
 	if c.checkServices {
 		// Get all configured services
-		services, err := c.db.GetAllServices()
+		services, err := c.db.GetAllServices(context.Background())
 		if err != nil {
 			// Log error but continue with empty services map
 			fmt.Printf("Failed to retrieve services: %v\n", err)

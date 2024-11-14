@@ -131,7 +131,7 @@ func cleanupClients() {
 
 // checkAndBroadcastHealth performs health checks for all services and broadcasts results
 func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []models.ServiceHealth {
-	services, err := h.db.GetAllServices()
+	services, err := h.db.GetAllServices(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching services")
 		return nil

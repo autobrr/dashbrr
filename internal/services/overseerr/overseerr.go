@@ -121,7 +121,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 	switch request.Media.MediaType {
 	case "movie":
 		// Find Radarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix("radarr")
+		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "radarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Radarr service: %w", err)
 		}
@@ -139,7 +139,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 
 	case "tv":
 		// Find Sonarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix("sonarr")
+		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "sonarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Sonarr service: %w", err)
 		}

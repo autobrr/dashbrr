@@ -48,7 +48,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		cacheKey = devicesCachePrefix + instanceId
 	} else {
 		// Try to get the first tailscale instance if no specific instance is requested
-		services, err := h.db.GetAllServices()
+		services, err := h.db.GetAllServices(c.Request.Context())
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to fetch services")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})

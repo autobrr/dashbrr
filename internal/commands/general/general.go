@@ -34,7 +34,7 @@ func NewAddCommand(db *database.DB) *AddCommand {
 }
 
 func (c *AddCommand) getNextInstanceID() (string, error) {
-	services, err := c.db.GetAllServices()
+	services, err := c.db.GetAllServices(context.Background())
 	if err != nil {
 		return "", fmt.Errorf("failed to get services: %v", err)
 	}
@@ -115,7 +115,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 		APIKey:      apiKey,
 	}
 
-	if err := c.db.CreateService(service); err != nil {
+	if err := c.db.CreateService(context.Background(), service); err != nil {
 		return fmt.Errorf("failed to save service configuration: %v", err)
 	}
 
@@ -164,7 +164,7 @@ func (c *RemoveCommand) Execute(ctx context.Context, args []string) error {
 	}
 
 	// Delete service
-	if err := c.db.DeleteService(service.InstanceID); err != nil {
+	if err := c.db.DeleteService(context.Background(), service.InstanceID); err != nil {
 		return fmt.Errorf("failed to remove service: %v", err)
 	}
 
@@ -194,7 +194,7 @@ func NewListCommand(db *database.DB) *ListCommand {
 
 func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 	// Get all configured services
-	services, err := c.db.GetAllServices()
+	services, err := c.db.GetAllServices(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to retrieve services: %v", err)
 	}
