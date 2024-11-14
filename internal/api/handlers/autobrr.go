@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -33,12 +34,14 @@ const (
 type AutobrrHandler struct {
 	db    *database.DB
 	store cache.Store
+	sf    *singleflight.Group
 }
 
 func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
 	return &AutobrrHandler{
 		db:    db,
 		store: store,
+		sf:    &singleflight.Group{},
 	}
 }
 
@@ -77,8 +80,12 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		return
 	}
 
-	// If not in cache, fetch from service
-	releases, err = h.fetchAndCacheReleases(ctx, instanceId, cacheKey)
+	// Use singleflight to deduplicate concurrent requests
+	sfKey := fmt.Sprintf("releases:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheReleases(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			c.JSON(http.StatusOK, autobrr.ReleasesResponse{})
@@ -95,6 +102,8 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
+
+	releases = result.(autobrr.ReleasesResponse)
 
 	log.Debug().
 		Str("instanceId", instanceId).
@@ -143,8 +152,12 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
-	// If not in cache, fetch from service
-	stats, err = h.fetchAndCacheStats(ctx, instanceId, cacheKey)
+	// Use singleflight to deduplicate concurrent requests
+	sfKey := fmt.Sprintf("stats:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheStats(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			c.JSON(http.StatusOK, autobrr.AutobrrStats{})
@@ -161,6 +174,8 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
+
+	stats = result.(autobrr.AutobrrStats)
 
 	log.Debug().
 		Str("instanceId", instanceId).
@@ -204,8 +219,12 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		return
 	}
 
-	// If not in cache, fetch from service
-	status, err = h.fetchAndCacheIRC(ctx, instanceId, cacheKey)
+	// Use singleflight to deduplicate concurrent requests
+	sfKey := fmt.Sprintf("irc:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheIRC(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			c.JSON(http.StatusOK, []autobrr.IRCStatus{})
@@ -222,6 +241,8 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		c.JSON(httpStatus, gin.H{"error": err.Error()})
 		return
 	}
+
+	status = result.([]autobrr.IRCStatus)
 
 	log.Debug().
 		Str("instanceId", instanceId).
@@ -377,8 +398,13 @@ func (h *AutobrrHandler) fetchAndCacheIRC(ctx context.Context, instanceId, cache
 }
 
 func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
-	ctx := context.Background()
-	stats, err := h.fetchAndCacheStats(ctx, instanceId, cacheKey)
+	// Use singleflight for refresh operations
+	sfKey := fmt.Sprintf("stats_refresh:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		ctx := context.Background()
+		return h.fetchAndCacheStats(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
@@ -387,17 +413,25 @@ func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Msg("Successfully refreshed Autobrr release stats cache")
+	if err == nil {
+		stats := result.(autobrr.AutobrrStats)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Successfully refreshed Autobrr release stats cache")
 
-	// Broadcast stats update via SSE
-	h.broadcastStats(instanceId, stats)
+		// Broadcast stats update via SSE
+		h.broadcastStats(instanceId, stats)
+	}
 }
 
 func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
-	ctx := context.Background()
-	status, err := h.fetchAndCacheIRC(ctx, instanceId, cacheKey)
+	// Use singleflight for refresh operations
+	sfKey := fmt.Sprintf("irc_refresh:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		ctx := context.Background()
+		return h.fetchAndCacheIRC(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
@@ -406,17 +440,25 @@ func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Msg("Successfully refreshed autobrr IRC status cache")
+	if err == nil {
+		status := result.([]autobrr.IRCStatus)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Successfully refreshed autobrr IRC status cache")
 
-	// Broadcast IRC status update via SSE
-	h.broadcastIRCStatus(instanceId, status)
+		// Broadcast IRC status update via SSE
+		h.broadcastIRCStatus(instanceId, status)
+	}
 }
 
 func (h *AutobrrHandler) refreshReleasesCache(instanceId, cacheKey string) {
-	ctx := context.Background()
-	releases, err := h.fetchAndCacheReleases(ctx, instanceId, cacheKey)
+	// Use singleflight for refresh operations
+	sfKey := fmt.Sprintf("releases_refresh:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		ctx := context.Background()
+		return h.fetchAndCacheReleases(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
@@ -425,10 +467,13 @@ func (h *AutobrrHandler) refreshReleasesCache(instanceId, cacheKey string) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Msg("Successfully refreshed autobrr releases cache")
+	if err == nil {
+		releases := result.(autobrr.ReleasesResponse)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Successfully refreshed autobrr releases cache")
 
-	// Broadcast releases update via SSE
-	h.broadcastReleases(instanceId, releases)
+		// Broadcast releases update via SSE
+		h.broadcastReleases(instanceId, releases)
+	}
 }

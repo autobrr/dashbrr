@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -26,6 +27,7 @@ const radarrQueuePrefix = "radarr:queue:"
 type RadarrHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
@@ -63,13 +65,23 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 			Msg("Serving Radarr queue from cache")
 		c.JSON(http.StatusOK, queueResp)
 
-		// Refresh cache in background without delay
-		go h.refreshQueueCache(instanceId, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("queue_refresh:%s", instanceId)
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshQueueCache(instanceId, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache, fetch from service
-	queueResp, err = h.fetchAndCacheQueue(instanceId, cacheKey)
+	// If not in cache, fetch from service using singleflight
+	sfKey := fmt.Sprintf("queue:%s", instanceId)
+	queueRespI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheQueue(instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
@@ -85,6 +97,8 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch queue: %v", err)})
 		return
 	}
+
+	queueResp = queueRespI.(types.RadarrQueueResponse)
 
 	if queueResp.Records != nil {
 		log.Debug().
@@ -258,9 +272,14 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after queue item deletion")
 	}
 
-	// Fetch fresh data and broadcast update
-	queueResp, err := h.fetchAndCacheQueue(instanceId, cacheKey)
+	// Fetch fresh data and broadcast update using singleflight
+	sfKey := fmt.Sprintf("queue:%s", instanceId)
+	queueRespI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheQueue(instanceId, cacheKey)
+	})
+
 	if err == nil {
+		queueResp := queueRespI.(types.RadarrQueueResponse)
 		h.broadcastRadarrQueue(instanceId, &queueResp)
 	}
 

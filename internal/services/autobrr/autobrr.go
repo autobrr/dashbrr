@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +45,27 @@ type ReleasesResponse struct {
 	NextCursor int       `json:"next_cursor"`
 }
 
+// ReleaseType is a custom type that can handle both string and number types
+type ReleaseType string
+
+func (rt *ReleaseType) UnmarshalJSON(data []byte) error {
+	// Try string first
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*rt = ReleaseType(s)
+		return nil
+	}
+
+	// Try number
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		*rt = ReleaseType(strconv.Itoa(n))
+		return nil
+	}
+
+	return fmt.Errorf("type must be string or number")
+}
+
 type Release struct {
 	ID           int            `json:"id"`
 	FilterStatus string         `json:"filter_status"`
@@ -67,7 +89,7 @@ type Release struct {
 	Container    string         `json:"container"`
 	HDR          []string       `json:"hdr"`
 	Group        string         `json:"group"`
-	Type         string         `json:"type"`
+	Type         ReleaseType    `json:"type"`
 	Origin       string         `json:"origin"`
 	ActionStatus []ActionStatus `json:"action_status"`
 }

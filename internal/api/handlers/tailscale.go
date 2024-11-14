@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -27,6 +28,7 @@ const (
 type TailscaleHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 func NewTailscaleHandler(db *database.DB, cache cache.Store) *TailscaleHandler {
@@ -84,13 +86,23 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 			Msg("Serving Tailscale devices from cache")
 		c.JSON(http.StatusOK, response)
 
-		// Refresh cache in background if needed
-		go h.refreshDevicesCache(instanceId, apiKey, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("devices_refresh:%s", strings.TrimPrefix(cacheKey, devicesCachePrefix))
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshDevicesCache(instanceId, apiKey, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache, fetch from service
-	devices, err := h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
+	// If not in cache, fetch from service using singleflight
+	sfKey := fmt.Sprintf("devices:%s", strings.TrimPrefix(cacheKey, devicesCachePrefix))
+	devicesI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
+	})
+
 	if err != nil {
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
@@ -102,6 +114,8 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
+
+	devices := devicesI.([]tailscale.Device)
 
 	if devices == nil {
 		// Return empty array instead of null

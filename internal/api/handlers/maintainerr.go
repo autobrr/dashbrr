@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -29,12 +30,14 @@ const (
 type MaintainerrHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    *singleflight.Group
 }
 
 func NewMaintainerrHandler(db *database.DB, cache cache.Store) *MaintainerrHandler {
 	return &MaintainerrHandler{
 		db:    db,
 		cache: cache,
+		sf:    &singleflight.Group{},
 	}
 }
 
@@ -115,8 +118,12 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 		return
 	}
 
-	// If not in cache, fetch from service
-	collections, err = h.fetchAndCacheCollections(ctx, instanceId, cacheKey)
+	// Use singleflight to deduplicate concurrent requests
+	sfKey := fmt.Sprintf("collections:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheCollections(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
@@ -138,6 +145,8 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 		})
 		return
 	}
+
+	collections = result.([]maintainerr.Collection)
 
 	log.Debug().
 		Int("count", len(collections)).
@@ -182,8 +191,12 @@ func (h *MaintainerrHandler) refreshCollectionsCache(instanceId, cacheKey string
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	ctx := context.Background()
-	collections, err := h.fetchAndCacheCollections(ctx, instanceId, cacheKey)
+	// Use singleflight for refresh operations as well
+	sfKey := fmt.Sprintf("collections_refresh:%s", instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheCollections(context.Background(), instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() != "service not configured" {
 			status, message := determineErrorResponse(err)
@@ -197,6 +210,7 @@ func (h *MaintainerrHandler) refreshCollectionsCache(instanceId, cacheKey string
 		return
 	}
 
+	collections := result.([]maintainerr.Collection)
 	log.Debug().
 		Str("instanceId", instanceId).
 		Int("count", len(collections)).

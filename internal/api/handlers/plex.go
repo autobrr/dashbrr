@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -25,6 +26,7 @@ const plexCachePrefix = "plex:sessions:"
 type PlexHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 func NewPlexHandler(db *database.DB, cache cache.Store) *PlexHandler {
@@ -62,13 +64,23 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 			Msg("Serving Plex sessions from cache")
 		c.JSON(http.StatusOK, sessions)
 
-		// Refresh cache in background without delay
-		go h.refreshSessionsCache(instanceId, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("sessions_refresh:%s", instanceId)
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshSessionsCache(instanceId, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache or invalid cache data, fetch from service
-	sessions, err = h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
+	// If not in cache or invalid cache data, fetch from service using singleflight
+	sfKey := fmt.Sprintf("sessions:%s", instanceId)
+	sessionsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
@@ -89,6 +101,8 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
+
+	sessions = sessionsI.(*types.PlexSessionsResponse)
 
 	if sessions != nil {
 		log.Debug().

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -26,6 +27,7 @@ const overseerrCachePrefix = "overseerr:requests:"
 type OverseerrHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
@@ -92,8 +94,13 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	service := &overseerr.OverseerrService{}
 	service.SetDB(h.db)
 
-	// Update request status
-	if err := service.UpdateRequestStatus(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve); err != nil {
+	// Update request status using singleflight
+	sfKey := fmt.Sprintf("update_status:%s:%s", instanceId, requestId)
+	_, err, _ = h.sf.Do(sfKey, func() (interface{}, error) {
+		return nil, service.UpdateRequestStatus(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve)
+	})
+
+	if err != nil {
 		log.Error().Err(err).
 			Str("instanceId", instanceId).
 			Int("requestId", reqID).
@@ -109,9 +116,14 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after status update")
 	}
 
-	// Fetch fresh data and broadcast update
-	stats, err := h.fetchAndCacheRequests(instanceId, cacheKey)
-	if err == nil && stats != nil {
+	// Fetch fresh data and broadcast update using singleflight
+	sfKey = fmt.Sprintf("requests:%s", instanceId)
+	statsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheRequests(instanceId, cacheKey)
+	})
+
+	if err == nil && statsI != nil {
+		stats := statsI.(*types.RequestsStats)
 		h.broadcastOverseerrRequests(instanceId, stats)
 	}
 
@@ -146,13 +158,23 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 			Msg("Serving Overseerr requests from cache")
 		c.JSON(http.StatusOK, response)
 
-		// Refresh cache in background without delay
-		go h.refreshRequestsCache(instanceId, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("requests_refresh:%s", instanceId)
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshRequestsCache(instanceId, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache, fetch from service
-	stats, err := h.fetchAndCacheRequests(instanceId, cacheKey)
+	// If not in cache, fetch from service using singleflight
+	sfKey := fmt.Sprintf("requests:%s", instanceId)
+	statsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheRequests(instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
@@ -173,6 +195,8 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
+
+	stats := statsI.(*types.RequestsStats)
 
 	if stats != nil {
 		log.Debug().
