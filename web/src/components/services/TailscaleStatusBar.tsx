@@ -7,7 +7,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Cog6ToothIcon } from "@heroicons/react/24/solid";
 import TailscaleDeviceModal from "./TailscaleDeviceModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
-import { useAuth } from "../../contexts/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../utils/api";
 import tailscaleLogo from "../../assets/tailscale.svg";
 import { useServiceManagement } from "../../hooks/useServiceManagement";

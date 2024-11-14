@@ -23,7 +23,7 @@ import {
   ServiceConfig,
   ServiceHealth} from '../types/service';
 import { useConfiguration } from '../contexts/useConfiguration';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from './useAuth';
 import serviceTemplates from '../config/serviceTemplates';
 import { api } from '../utils/api';
 import { cache, CACHE_PREFIXES } from '../utils/cache';

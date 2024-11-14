@@ -3,13 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+import React, { createContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AuthContextType,
@@ -180,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Debounce the auth check to prevent too frequent calls
   const debouncedCheckAuth = useCallback(
-    debounce(checkAuthStatus, 5000), // 5 second debounce
+    (...args: []) => debounce(checkAuthStatus, 5000)(...args),
     [checkAuthStatus]
   );
 
@@ -370,10 +364,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-}
+export { AuthContext };

@@ -6,7 +6,7 @@
 import { useState, useEffect, ReactNode, useCallback } from "react";
 import { API_BASE_URL, API_PREFIX } from "../config/api";
 import { ServiceConfig } from "../types/service";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { ConfigurationContext } from "./context";
 import { ConfigurationContextType } from "./types";
 

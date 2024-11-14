@@ -174,7 +174,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [sessions]);
+  }, [sessions, playbackStates]);
 
   const getCurrentOffset = (session: PlexSession): number => {
     const sessionKey = `${session.User?.title}-${session.title}`;
