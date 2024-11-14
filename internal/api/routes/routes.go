@@ -4,6 +4,7 @@
 package routes
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"time"
@@ -27,6 +28,9 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 	r.Use(middleware.SetupCORS())
 	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
 
+	// Create a root context for cache initialization
+	ctx := context.Background()
+
 	// Initialize cache with database directory for session storage
 	cacheConfig := cache.Config{
 		DataDir: filepath.Dir(os.Getenv("DASHBRR__DB_PATH")), // Use same directory as database
@@ -42,11 +46,11 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 		cacheConfig.RedisAddr = host + ":" + port
 	}
 
-	store, err := cache.InitCache(cacheConfig)
+	store, err := cache.InitCache(ctx, cacheConfig)
 	if err != nil {
 		// This should never happen as InitCache always returns a valid store
 		log.Debug().Err(err).Msg("Using memory cache")
-		store = cache.NewMemoryStore(cacheConfig.DataDir)
+		store = cache.NewMemoryStore(ctx, cacheConfig.DataDir)
 	}
 
 	// Determine cache type based on environment and Redis configuration

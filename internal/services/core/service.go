@@ -107,7 +107,7 @@ func (s *ServiceCore) initCache() error {
 	}
 
 	// Initialize cache using the cache package's initialization logic
-	store, err := cache.InitCache(cfg)
+	store, err := cache.InitCache(context.Background(), cfg)
 	if err != nil {
 		// If initialization fails, we'll still get a memory cache from InitCache
 		// We can continue with the memory cache but should return the error

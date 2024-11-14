@@ -13,7 +13,7 @@ func TestMemoryStore(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 
-	store := NewMemoryStore(tempDir)
+	store := NewMemoryStore(context.Background(), tempDir)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -153,7 +153,7 @@ func TestMemoryStoreClose(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 
-	store := NewMemoryStore(tempDir)
+	store := NewMemoryStore(context.Background(), tempDir)
 
 	// Test normal operations
 	ctx := context.Background()
@@ -186,7 +186,7 @@ func TestMemoryStorePersistence(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create a store and add some data
-	store := NewMemoryStore(tempDir)
+	store := NewMemoryStore(context.Background(), tempDir)
 	ctx := context.Background()
 
 	err := store.Set(ctx, "session:test", "test_value", time.Hour)
@@ -201,7 +201,7 @@ func TestMemoryStorePersistence(t *testing.T) {
 	}
 
 	// Create a new store with the same directory
-	store2 := NewMemoryStore(tempDir)
+	store2 := NewMemoryStore(context.Background(), tempDir)
 	defer store2.Close()
 
 	// Try to get the persisted value

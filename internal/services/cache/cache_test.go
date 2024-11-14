@@ -19,7 +19,7 @@ type testStruct struct {
 }
 
 func setupTestCache(t *testing.T) *RedisStore {
-	store, err := NewCache("localhost:6379")
+	store, err := NewCache(context.Background(), "localhost:6379")
 	if err != nil {
 		t.Skip("Redis not available, skipping test:", err)
 	}
@@ -57,7 +57,7 @@ func TestNewCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store, err := NewCache(tt.addr)
+			store, err := NewCache(context.Background(), tt.addr)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, store)

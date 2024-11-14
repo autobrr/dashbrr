@@ -88,7 +88,7 @@ func getCacheType() CacheType {
 
 // InitCache initializes a cache instance based on configuration.
 // It always returns a valid cache store, falling back to memory cache if Redis fails.
-func InitCache(cfg Config) (Store, error) {
+func InitCache(ctx context.Context, cfg Config) (Store, error) {
 	cacheType := getCacheType()
 
 	switch cacheType {
@@ -96,7 +96,7 @@ func InitCache(cfg Config) (Store, error) {
 		// Only attempt Redis connection if Redis address is configured
 		if cfg.RedisAddr == "" {
 			// Silently fall back to memory cache when Redis isn't configured
-			return NewMemoryStore(cfg.DataDir), nil
+			return NewMemoryStore(ctx, cfg.DataDir), nil
 		}
 
 		isDev := os.Getenv("GIN_MODE") != "release"
@@ -108,11 +108,11 @@ func InitCache(cfg Config) (Store, error) {
 			timeout = 2 * time.Second
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
 		client := redis.NewClient(opts)
-		err := client.Ping(ctx).Err()
+		err := client.Ping(timeoutCtx).Err()
 
 		if err != nil {
 			if client != nil {
@@ -122,25 +122,25 @@ func InitCache(cfg Config) (Store, error) {
 				// Only log error if Redis was explicitly requested
 				log.Error().Err(err).Str("addr", opts.Addr).Msg("Failed to connect to explicitly configured Redis, falling back to memory cache")
 			}
-			return NewMemoryStore(cfg.DataDir), err
+			return NewMemoryStore(ctx, cfg.DataDir), err
 		}
 
 		// Initialize Redis cache store
-		store, err := NewCache(opts.Addr)
+		store, err := NewCache(ctx, opts.Addr)
 		if err != nil {
 			if os.Getenv("CACHE_TYPE") == "redis" {
 				// Only log error if Redis was explicitly requested
 				log.Error().Err(err).Msg("Failed to initialize explicitly configured Redis cache, falling back to memory cache")
 			}
-			return NewMemoryStore(cfg.DataDir), err
+			return NewMemoryStore(ctx, cfg.DataDir), err
 		}
 		return store, nil
 
 	case CacheTypeMemory:
-		return NewMemoryStore(cfg.DataDir), nil
+		return NewMemoryStore(ctx, cfg.DataDir), nil
 
 	default:
 		// This shouldn't happen due to getCacheType's default
-		return NewMemoryStore(cfg.DataDir), nil
+		return NewMemoryStore(ctx, cfg.DataDir), nil
 	}
 }

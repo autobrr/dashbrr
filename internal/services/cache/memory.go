@@ -44,8 +44,8 @@ type persistedItem struct {
 }
 
 // NewMemoryStore creates a new in-memory cache instance
-func NewMemoryStore(dataDir string) Store {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewMemoryStore(ctx context.Context, dataDir string) Store {
+	ctx, cancel := context.WithCancel(ctx)
 
 	store := &MemoryStore{
 		local: &LocalCache{
