@@ -33,10 +33,10 @@ func NewEventsHandler(db *database.DB, health *services.HealthService) *EventsHa
 }
 
 type client struct {
-	send chan models.ServiceHealth
-	done chan struct{}
-	// Add connection time for monitoring
+	send        chan models.ServiceHealth
+	done        chan struct{}
 	connectedAt time.Time
+	lastActive  time.Time // Track last successful message send
 }
 
 var (
@@ -44,10 +44,10 @@ var (
 	clientsMu sync.RWMutex
 
 	// Track active client count
-	activeClients int64
+	activeClients atomic.Int64
 
-	// Increased concurrent checks from 5 to 10
-	healthCheckSemaphore = make(chan struct{}, 10)
+	// Reduced concurrent checks from 10 to 5 to prevent overwhelming
+	healthCheckSemaphore = make(chan struct{}, 5)
 
 	// Track last check time per service
 	lastChecks   = make(map[string]time.Time)
@@ -59,11 +59,13 @@ var (
 
 const (
 	minCheckInterval  = 30 * time.Second
-	checkTimeout      = 15 * time.Second
+	checkTimeout      = 10 * time.Second // Reduced from 15s to 10s
 	keepAliveInterval = 15 * time.Second
-	broadcastTimeout  = 5 * time.Second // Increased from 2s to 5s
-	clientBufferSize  = 100             // Increased from 20 to 100
-	cleanupInterval   = 5 * time.Minute
+	broadcastTimeout  = 2 * time.Second  // Reduced from 5s to 2s
+	clientBufferSize  = 50               // Reduced from 100 to 50
+	cleanupInterval   = 2 * time.Minute  // More frequent cleanup
+	maxClientAge      = 10 * time.Minute // Max time before forcing reconnect
+	maxInactiveTime   = 30 * time.Second // Max time without successful message
 )
 
 // safeClose safely closes a channel if it's not already closed
@@ -96,7 +98,7 @@ func startClientCleanup() {
 	}()
 }
 
-// cleanupClients removes disconnected clients and logs metrics
+// cleanupClients removes disconnected and stale clients
 func cleanupClients() {
 	clientsMu.Lock()
 	defer clientsMu.Unlock()
@@ -108,13 +110,28 @@ func cleanupClients() {
 		select {
 		case <-client.done:
 			delete(clients, client)
-			atomic.AddInt64(&activeClients, -1)
+			activeClients.Add(-1)
 		default:
-			// Log clients that haven't received messages for too long
-			if now.Sub(client.connectedAt) > 30*time.Minute {
-				log.Warn().
+			// Force reconnect for old connections
+			if now.Sub(client.connectedAt) > maxClientAge {
+				log.Info().
 					Time("connected_at", client.connectedAt).
-					Msg("Long-running SSE connection detected")
+					Msg("Forcing reconnect for old SSE connection")
+				safeClose(client.done)
+				delete(clients, client)
+				activeClients.Add(-1)
+				continue
+			}
+
+			// Remove inactive clients
+			if now.Sub(client.lastActive) > maxInactiveTime {
+				log.Info().
+					Time("connected_at", client.connectedAt).
+					Time("last_active", client.lastActive).
+					Msg("Removing inactive SSE client")
+				safeClose(client.done)
+				delete(clients, client)
+				activeClients.Add(-1)
 			}
 		}
 	}
@@ -125,7 +142,104 @@ func cleanupClients() {
 			Int("before", before).
 			Int("after", after).
 			Int("cleaned", before-after).
-			Msg("Cleaned up disconnected SSE clients")
+			Msg("Cleaned up SSE clients")
+	}
+}
+
+// processServiceBatch handles health checks for a batch of services
+func (h *EventsHandler) processServiceBatch(ctx context.Context, services []models.ServiceConfiguration, results chan<- models.ServiceHealth, wg *sync.WaitGroup) {
+	for _, service := range services {
+		if service.URL == "" {
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			wg.Add(1)
+			go h.checkSingleService(ctx, service, results, wg)
+		}
+	}
+}
+
+// checkSingleService performs health check for a single service
+func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.ServiceConfiguration, results chan<- models.ServiceHealth, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	// Create timeout context for health check
+	checkCtx, cancel := context.WithTimeout(ctx, checkTimeout)
+	defer cancel()
+
+	select {
+	case healthCheckSemaphore <- struct{}{}:
+		defer func() { <-healthCheckSemaphore }()
+
+		serviceType := strings.Split(svc.InstanceID, "-")[0]
+		serviceHealth := models.ServiceHealth{
+			ServiceID:   svc.InstanceID,
+			Status:      "checking",
+			LastChecked: time.Now(),
+		}
+
+		if serviceChecker := models.NewServiceRegistry().CreateService(serviceType); serviceChecker != nil {
+			health, statusCode := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
+			health.ServiceID = svc.InstanceID
+
+			if statusCode != 200 {
+				log.Debug().
+					Int("status_code", statusCode).
+					Str("service", svc.InstanceID).
+					Msg("Health check failed")
+				health.Status = "error"
+				health.Message = "Service returned non-200 status code"
+			}
+
+			lastChecksMu.Lock()
+			lastChecks[svc.InstanceID] = time.Now()
+			lastChecksMu.Unlock()
+
+			select {
+			case results <- health:
+			case <-checkCtx.Done():
+				return
+			}
+		} else {
+			serviceHealth.Status = "error"
+			serviceHealth.Message = "Unsupported service type: " + serviceType
+			select {
+			case results <- serviceHealth:
+			case <-checkCtx.Done():
+			}
+		}
+	case <-time.After(5 * time.Second): // Reduced timeout
+		log.Debug().Str("service", svc.InstanceID).Msg("Health check skipped due to concurrency limit")
+	case <-checkCtx.Done():
+		log.Debug().Str("service", svc.InstanceID).Msg("Health check cancelled")
+	}
+}
+
+// collectResults gathers health check results with timeout
+func (h *EventsHandler) collectResults(ctx context.Context, results <-chan models.ServiceHealth) []models.ServiceHealth {
+	var allResults []models.ServiceHealth
+	resultsTimer := time.NewTimer(3 * time.Second) // Reduced collection timeout
+	defer resultsTimer.Stop()
+
+	for {
+		select {
+		case health, ok := <-results:
+			if !ok {
+				return allResults
+			}
+			if health.ResponseTime > 0 || health.Status != "" {
+				allResults = append(allResults, health)
+				BroadcastHealth(health)
+			}
+		case <-resultsTimer.C:
+			return allResults
+		case <-ctx.Done():
+			return allResults
+		}
 	}
 }
 
@@ -142,149 +256,83 @@ func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []models.Se
 	}
 
 	var wg sync.WaitGroup
-	// Make results channel buffered to prevent blocking
 	results := make(chan models.ServiceHealth, len(services))
-	allResults := make([]models.ServiceHealth, 0, len(services))
-
-	// Create a context that will be cancelled when the parent context is done
-	checkCtx, cancel := context.WithCancel(ctx)
+	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second) // Overall timeout for batch
 	defer cancel()
 
-	// Increased batch size from 3 to 5
-	batchSize := 5
+	// Process services in smaller batches
+	batchSize := 3 // Reduced batch size
 	for i := 0; i < len(services); i += batchSize {
 		end := i + batchSize
 		if end > len(services) {
 			end = len(services)
 		}
 
-		batch := services[i:end]
-		for _, service := range batch {
-			if service.URL == "" {
-				continue
-			}
+		h.processServiceBatch(checkCtx, services[i:end], results, &wg)
 
-			wg.Add(1)
-			go func(svc models.ServiceConfiguration) {
-				defer wg.Done()
-
-				select {
-				case healthCheckSemaphore <- struct{}{}:
-					defer func() { <-healthCheckSemaphore }()
-
-					serviceType := strings.Split(svc.InstanceID, "-")[0]
-					serviceHealth := models.ServiceHealth{
-						ServiceID:   svc.InstanceID,
-						Status:      "checking",
-						LastChecked: time.Now(),
-					}
-
-					serviceChecker := models.NewServiceRegistry().CreateService(serviceType)
-					if serviceChecker != nil {
-						health, _ := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
-						health.ServiceID = svc.InstanceID
-
-						lastChecksMu.Lock()
-						lastChecks[svc.InstanceID] = time.Now()
-						lastChecksMu.Unlock()
-
-						select {
-						case results <- health:
-						case <-checkCtx.Done():
-							log.Warn().
-								Str("service", svc.InstanceID).
-								Msg("Context cancelled while sending results")
-							return
-						}
-					} else {
-						serviceHealth.Status = "error"
-						serviceHealth.Message = "Unsupported service type: " + serviceType
-						select {
-						case results <- serviceHealth:
-						case <-checkCtx.Done():
-							return
-						}
-					}
-				case <-time.After(10 * time.Second):
-					log.Warn().
-						Str("service", svc.InstanceID).
-						Msg("Health check skipped due to concurrency limit")
-				case <-checkCtx.Done():
-					return
-				}
-			}(service)
+		// Wait for batch completion or context cancellation
+		if !h.waitForBatch(checkCtx, &wg) {
+			return nil
 		}
 
-		// Wait for current batch to complete or context to be cancelled
-		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			// Batch completed successfully
-		case <-checkCtx.Done():
-			return allResults
-		}
-
-		// Reduced delay between batches
-		time.Sleep(500 * time.Millisecond)
+		// Increased delay between batches
+		time.Sleep(time.Second)
 	}
 
-	// Close results channel after all goroutines are done
+	// Close results channel after all goroutines complete
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
-	// Collect results with timeout
-	resultsTimer := time.NewTimer(5 * time.Second)
-	defer resultsTimer.Stop()
+	return h.collectResults(checkCtx, results)
+}
 
-	for {
-		select {
-		case health, ok := <-results:
-			if !ok {
-				return allResults
-			}
-			if health.ResponseTime > 0 || health.Status != "" {
-				allResults = append(allResults, health)
-				BroadcastHealth(health)
-			}
-		case <-resultsTimer.C:
-			return allResults
-		case <-checkCtx.Done():
-			return allResults
-		}
+// waitForBatch waits for the current batch to complete or context to be canceled
+func (h *EventsHandler) waitForBatch(ctx context.Context, wg *sync.WaitGroup) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
+	case <-time.After(5 * time.Second): // Added timeout for batch wait
+		log.Warn().Msg("Batch wait timeout")
+		return false
 	}
 }
 
 // StreamHealth handles SSE connections for real-time health updates
 func (h *EventsHandler) StreamHealth(c *gin.Context) {
+	// Set headers for SSE
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 	c.Header("Transfer-Encoding", "chunked")
+	c.Header("X-Accel-Buffering", "no") // Disable proxy buffering
 
 	// Create new client with buffered channel and done signal
 	client := &client{
 		send:        make(chan models.ServiceHealth, clientBufferSize),
 		done:        make(chan struct{}),
 		connectedAt: time.Now(),
+		lastActive:  time.Now(),
 	}
 
 	clientsMu.Lock()
 	clients[client] = true
-	atomic.AddInt64(&activeClients, 1)
-	currentClients := len(clients)
+	currentClients := activeClients.Add(1)
 	clientsMu.Unlock()
 
 	// Log new connection
 	log.Info().
 		Time("connected_at", client.connectedAt).
-		Int("total_clients", currentClients).
+		Int64("total_clients", currentClients).
 		Msg("New SSE client connected")
 
 	ctx := c.Request.Context()
@@ -294,17 +342,15 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 		<-ctx.Done()
 		clientsMu.Lock()
 		delete(clients, client)
-		currentClients := len(clients)
+		currentClients := activeClients.Add(-1)
 		clientsMu.Unlock()
-		atomic.AddInt64(&activeClients, -1)
 		safeClose(client.done)
 		close(client.send)
 
-		// Log disconnection
 		log.Info().
 			Time("connected_at", client.connectedAt).
 			Time("disconnected_at", time.Now()).
-			Int("total_clients", currentClients).
+			Int64("total_clients", currentClients).
 			Msg("SSE client disconnected")
 	}()
 
@@ -314,6 +360,9 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 	lastUpdate := make(map[string]time.Time)
 	keepAliveTicker := time.NewTicker(keepAliveInterval)
 	defer keepAliveTicker.Stop()
+
+	healthCheckTicker := time.NewTicker(minCheckInterval)
+	defer healthCheckTicker.Stop()
 
 	for {
 		select {
@@ -334,6 +383,10 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 					continue
 				}
 				lastUpdate[msg.ServiceID] = now
+
+				// Update last active time on successful send
+				client.lastActive = now
+
 				c.SSEvent("health", string(data))
 				c.Writer.Flush()
 			}
@@ -344,6 +397,12 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 			default:
 				c.SSEvent("keepalive", time.Now().Unix())
 				c.Writer.Flush()
+			}
+		case <-healthCheckTicker.C:
+			select {
+			case <-ctx.Done():
+				return
+			default:
 				go h.checkAndBroadcastHealth(ctx)
 			}
 		}
@@ -387,7 +446,7 @@ func (h *EventsHandler) StartHealthMonitor() {
 
 		go h.checkAndBroadcastHealth(monitorCtx)
 
-		healthMonitor = time.NewTicker(30 * time.Second)
+		healthMonitor = time.NewTicker(minCheckInterval)
 		go func() {
 			for {
 				select {

@@ -73,7 +73,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		if err != nil {
 			// Check for context cancellation
 			if ctx.Err() != nil {
-				log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context cancelled while fetching service configuration")
+				log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled while fetching service configuration")
 				c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 				return
 			}
@@ -128,7 +128,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 
 	// Check for context cancellation after health check
 	if ctx.Err() != nil {
-		log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context cancelled during health check")
+		log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled during health check")
 		c.JSON(http.StatusGatewayTimeout, gin.H{
 			"status":  "error",
 			"message": "Health check timed out",

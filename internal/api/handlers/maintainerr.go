@@ -38,35 +38,41 @@ func NewMaintainerrHandler(db *database.DB, cache cache.Store) *MaintainerrHandl
 	}
 }
 
+// handleHTTPStatusCode processes HTTP status codes from Maintainerr errors
+func handleHTTPStatusCode(code int) (int, string) {
+	switch code {
+	case http.StatusBadGateway:
+		return code, "Service is temporarily unavailable (502 Bad Gateway)"
+	case http.StatusServiceUnavailable:
+		return code, "Service is temporarily unavailable (503)"
+	case http.StatusGatewayTimeout:
+		return code, "Service request timed out (504)"
+	case http.StatusUnauthorized:
+		return code, "Invalid API key"
+	case http.StatusForbidden:
+		return code, "Access forbidden"
+	case http.StatusNotFound:
+		return code, "Service endpoint not found"
+	default:
+		return code, fmt.Sprintf("Service returned error: %s (%d)", http.StatusText(code), code)
+	}
+}
+
 // determineErrorResponse maps errors to appropriate HTTP status codes and user-friendly messages
 func determineErrorResponse(err error) (int, string) {
 	var maintErr *maintainerr.ErrMaintainerr
 	if errors.As(err, &maintErr) {
 		if maintErr.HttpCode > 0 {
-			switch maintErr.HttpCode {
-			case http.StatusBadGateway:
-				return http.StatusBadGateway, "Service is temporarily unavailable (502 Bad Gateway)"
-			case http.StatusServiceUnavailable:
-				return http.StatusServiceUnavailable, "Service is temporarily unavailable (503)"
-			case http.StatusGatewayTimeout:
-				return http.StatusGatewayTimeout, "Service request timed out (504)"
-			case http.StatusUnauthorized:
-				return http.StatusUnauthorized, "Invalid API key"
-			case http.StatusForbidden:
-				return http.StatusForbidden, "Access forbidden"
-			case http.StatusNotFound:
-				return http.StatusNotFound, "Service endpoint not found"
-			default:
-				return maintErr.HttpCode, fmt.Sprintf("Service returned error: %s (%d)",
-					http.StatusText(maintErr.HttpCode), maintErr.HttpCode)
-			}
+			return handleHTTPStatusCode(maintErr.HttpCode)
 		}
 
 		// Handle specific error messages
-		switch {
-		case maintErr.Op == "get_collections" && (maintErr.Error() == "maintainerr get_collections: URL is required" ||
-			maintErr.Error() == "maintainerr get_collections: API key is required"):
+		if maintErr.Op == "get_collections" && (maintErr.Error() == "maintainerr get_collections: URL is required" ||
+			maintErr.Error() == "maintainerr get_collections: API key is required") {
 			return http.StatusBadRequest, maintErr.Error()
+		}
+
+		switch {
 		case strings.Contains(maintErr.Error(), "failed to connect"):
 			return http.StatusServiceUnavailable, "Unable to connect to service"
 		case strings.Contains(maintErr.Error(), "failed to read response"):

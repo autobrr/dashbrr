@@ -99,7 +99,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	if err := h.cache.Set(ctx, stateKey, stateData, 5*time.Minute); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while storing state")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while storing state")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
@@ -110,7 +110,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	if err := h.cache.Set(ctx, nonceKey, time.Now().Unix(), 5*time.Minute); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while storing nonce")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while storing nonce")
 			_ = h.cache.Delete(ctx, stateKey)
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
@@ -149,7 +149,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	var stateData map[string]interface{}
 	if err := h.cache.Get(ctx, stateKey, &stateData); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while retrieving state")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while retrieving state")
 			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
 			return
 		}
@@ -177,7 +177,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	token, err := h.oauth2Config.Exchange(ctx, code)
 	if err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled during token exchange")
+			log.Error().Err(ctx.Err()).Msg("Context canceled during token exchange")
 			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
 			return
 		}
@@ -205,7 +205,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	sessionKey := fmt.Sprintf("oidc:session:%s", token.AccessToken)
 	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while storing session")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
 			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
 			return
 		}
@@ -256,7 +256,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	if err := h.cache.Delete(ctx, sessionKey); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while deleting session")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while deleting session")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
@@ -302,7 +302,7 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	var sessionData types.SessionData
 	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while verifying token")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while verifying token")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
@@ -337,7 +337,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var sessionData types.SessionData
 	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while getting session")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while getting session")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
@@ -362,7 +362,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	newToken, err := tokenSource.Token()
 	if err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled during token refresh")
+			log.Error().Err(ctx.Err()).Msg("Context canceled during token refresh")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
@@ -382,7 +382,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	// Store updated session
 	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(newToken.Expiry)); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while updating session")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while updating session")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
@@ -428,7 +428,7 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 	var sessionData types.SessionData
 	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled while getting session")
+			log.Error().Err(ctx.Err()).Msg("Context canceled while getting session")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
@@ -454,7 +454,7 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context cancelled during userinfo request")
+			log.Error().Err(ctx.Err()).Msg("Context canceled during userinfo request")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
 			return
 		}
