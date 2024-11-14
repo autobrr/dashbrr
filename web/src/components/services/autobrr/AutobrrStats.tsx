@@ -207,7 +207,10 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
               >
                 <div className="flex justify-between items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 truncate space-y-2 pointer-events-none">
+                    <div
+                      className="text-xs rounded-md text-gray-700 dark:text-gray-400 truncate space-y-2 cursor-help"
+                      title={release.name}
+                    >
                       {release.name}
                     </div>
                     <div className="mt-1 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
