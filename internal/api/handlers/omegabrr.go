@@ -104,7 +104,7 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 
 	log.Info().
 		Str("instanceId", instanceId).
-		Msg("Successfully retrieved and cached Omegabrr status")
+		Msg("[Omegabrr] Successfully retrieved and cached status")
 
 	c.JSON(http.StatusOK, health)
 }

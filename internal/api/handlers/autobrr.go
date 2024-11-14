@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,6 +37,12 @@ type AutobrrHandler struct {
 	db    *database.DB
 	store cache.Store
 	sf    *singleflight.Group
+
+	// New fields for change tracking
+	lastReleasesHash  map[string]string
+	lastStatsHash     map[string]string
+	lastIRCStatusHash map[string]string
+	hashMu            sync.Mutex
 }
 
 func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
@@ -42,6 +50,11 @@ func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
 		db:    db,
 		store: store,
 		sf:    &singleflight.Group{},
+
+		// Initialize the new maps
+		lastReleasesHash:  make(map[string]string),
+		lastStatsHash:     make(map[string]string),
+		lastIRCStatusHash: make(map[string]string),
 	}
 }
 
@@ -95,9 +108,9 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			status = http.StatusGatewayTimeout
-			log.Error().Err(err).Str("instanceId", instanceId).Msg("Request timeout while fetching Autobrr releases")
+			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Autobrr] Request timeout while fetching releases")
 		} else {
-			log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Autobrr releases")
+			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Autobrr] Failed to fetch releases")
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
@@ -107,10 +120,22 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 
 	log.Debug().
 		Str("instanceId", instanceId).
-		Msg("Successfully retrieved and cached Autobrr releases")
+		Msg("[Autobrr] Successfully retrieved and cached releases")
 
 	// Broadcast releases update via SSE
 	h.broadcastReleases(instanceId, releases)
+
+	h.hashMu.Lock()
+	currentHash := createAutobrrReleaseHash(releases)
+	lastHash := h.lastReleasesHash[instanceId]
+
+	if currentHash != lastHash {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Autobrr releases changed")
+		h.lastReleasesHash[instanceId] = currentHash
+	}
+	h.hashMu.Unlock()
 
 	c.JSON(http.StatusOK, releases)
 }
@@ -180,10 +205,22 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	log.Debug().
 		Str("instanceId", instanceId).
 		Interface("stats", stats).
-		Msg("Successfully retrieved and cached autobrr release stats")
+		Msg("[Autobrr] Successfully retrieved and cached release stats")
 
 	// Broadcast stats update via SSE
 	h.broadcastStats(instanceId, stats)
+
+	h.hashMu.Lock()
+	currentHash := createAutobrrStatsHash(stats)
+	lastHash := h.lastStatsHash[instanceId]
+
+	if currentHash != lastHash {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Autobrr stats changed")
+		h.lastStatsHash[instanceId] = currentHash
+	}
+	h.hashMu.Unlock()
 
 	c.JSON(http.StatusOK, stats)
 }
@@ -246,10 +283,22 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 
 	log.Debug().
 		Str("instanceId", instanceId).
-		Msg("Successfully retrieved and cached Autobrr IRC status")
+		Msg("[Autobrr] Successfully retrieved and cached IRC status")
 
 	// Broadcast IRC status update via SSE
 	h.broadcastIRCStatus(instanceId, status)
+
+	h.hashMu.Lock()
+	currentHash := createIRCStatusHash(status)
+	lastHash := h.lastIRCStatusHash[instanceId]
+
+	if currentHash != lastHash {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Autobrr IRC status changed")
+		h.lastIRCStatusHash[instanceId] = currentHash
+	}
+	h.hashMu.Unlock()
 
 	c.JSON(http.StatusOK, status)
 }
@@ -476,4 +525,49 @@ func (h *AutobrrHandler) refreshReleasesCache(instanceId, cacheKey string) {
 		// Broadcast releases update via SSE
 		h.broadcastReleases(instanceId, releases)
 	}
+}
+
+// createAutobrrReleaseHash generates a unique hash representing the current state of Autobrr releases
+// The hash includes key release details like title, protocol, and filter status
+// This allows for efficient detection of release changes without deep comparison
+func createAutobrrReleaseHash(releases types.ReleasesResponse) string {
+	if len(releases.Data) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	for _, release := range releases.Data {
+		fmt.Fprintf(&sb, "%s:%s:%s,",
+			release.Title,
+			release.Protocol,
+			release.FilterStatus)
+	}
+	return sb.String()
+}
+
+// createAutobrrStatsHash generates a hash representing the current Autobrr statistics
+// The hash includes total counts, filtered, rejected, and push-related statistics
+// Useful for detecting changes in overall release processing statistics
+func createAutobrrStatsHash(stats types.AutobrrStats) string {
+	return fmt.Sprintf("%d:%d:%d:%d:%d",
+		stats.TotalCount,
+		stats.FilteredCount,
+		stats.FilterRejectedCount,
+		stats.PushApprovedCount,
+		stats.PushRejectedCount)
+}
+
+// createIRCStatusHash generates a unique hash representing the current IRC connection statuses
+// The hash includes the name, health status, and enabled state of each IRC connection
+// Helps in detecting changes in IRC connection states efficiently
+func createIRCStatusHash(status []types.IRCStatus) string {
+	if len(status) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	for _, s := range status {
+		fmt.Fprintf(&sb, "%s:%v:%v,", s.Name, s.Healthy, s.Enabled)
+	}
+	return sb.String()
 }

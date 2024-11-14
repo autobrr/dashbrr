@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,15 +27,18 @@ const (
 )
 
 type TailscaleHandler struct {
-	db    *database.DB
-	cache cache.Store
-	sf    singleflight.Group
+	db                *database.DB
+	cache             cache.Store
+	sf                singleflight.Group
+	lastDevicesHash   map[string]string
+	lastDevicesHashMu sync.Mutex
 }
 
 func NewTailscaleHandler(db *database.DB, cache cache.Store) *TailscaleHandler {
 	return &TailscaleHandler{
-		db:    db,
-		cache: cache,
+		db:              db,
+		cache:           cache,
+		lastDevicesHash: make(map[string]string),
 	}
 }
 
@@ -52,7 +56,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		// Try to get the first tailscale instance if no specific instance is requested
 		services, err := h.db.GetAllServices(c.Request.Context())
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to fetch services")
+			log.Error().Err(err).Msg("[Tailscale] Failed to fetch services")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
 			return
 		}
@@ -66,7 +70,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		}
 
 		if instanceId == "" {
-			log.Error().Msg("No Tailscale instance found")
+			log.Error().Msg("[Tailscale] No instance found")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "No Tailscale instance configured"})
 			return
 		}
@@ -83,7 +87,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	if err == nil {
 		log.Debug().
 			Int("deviceCount", len(response.Devices)).
-			Msg("Serving Tailscale devices from cache")
+			Msg("[Tailscale] Serving devices from cache")
 		c.JSON(http.StatusOK, response)
 
 		// Refresh cache in background using singleflight
@@ -107,9 +111,9 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			status = http.StatusGatewayTimeout
-			log.Error().Err(err).Msg("Request timeout while fetching Tailscale devices")
+			log.Error().Err(err).Msg("[Tailscale] Request timeout while fetching devices")
 		} else {
-			log.Error().Err(err).Msg("Failed to fetch Tailscale devices")
+			log.Error().Err(err).Msg("[Tailscale] Failed to fetch devices")
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
@@ -119,13 +123,16 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 
 	if devices == nil {
 		// Return empty array instead of null
-		log.Debug().Msg("No Tailscale devices found")
+		log.Debug().Msg("[Tailscale] No devices found")
 		c.JSON(http.StatusOK, gin.H{
 			"devices": []interface{}{},
 			"status":  "success",
 		})
 		return
 	}
+
+	// Use the new change detection method
+	h.compareAndLogDeviceChanges(instanceId, devices)
 
 	onlineCount := 0
 	for _, device := range devices {
@@ -137,7 +144,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	log.Info().
 		Int("total", len(devices)).
 		Int("online", onlineCount).
-		Msg("Successfully retrieved and cached Tailscale devices")
+		Msg("[Tailscale] Successfully retrieved and cached devices")
 
 	response = struct {
 		Devices []tailscale.Device `json:"devices"`
@@ -161,14 +168,17 @@ func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId,
 	} else {
 		tailscaleConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch tailscale configuration: %v", err)
+			return nil, fmt.Errorf("[Tailscale] failed to fetch configuration: %v", err)
 		}
 
 		if tailscaleConfig == nil {
-			return nil, fmt.Errorf("tailscale is not configured")
+			return nil, fmt.Errorf("[Tailscale] is not configured")
 		}
 
 		devices, err = service.GetDevices(ctx, "", tailscaleConfig.APIKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err != nil {
@@ -188,7 +198,7 @@ func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId,
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to cache Tailscale devices")
+			Msg("[Tailscale] Failed to cache devices")
 	}
 
 	return devices, nil
@@ -204,11 +214,77 @@ func (h *TailscaleHandler) refreshDevicesCache(instanceId, apiKey, cacheKey stri
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to refresh Tailscale devices cache")
+			Msg("[Tailscale] Failed to refresh devices cache")
 		return
 	}
 
 	log.Debug().
 		Str("instanceId", instanceId).
-		Msg("Successfully refreshed Tailscale devices cache")
+		Msg("[Tailscale] Successfully refreshed devices cache")
+}
+
+func createDevicesHash(devices []tailscale.Device) string {
+	if len(devices) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	for _, device := range devices {
+		// Include key device details that indicate meaningful changes
+		fmt.Fprintf(&sb, "%s:%s:%t,",
+			device.ID,
+			device.LastSeen,
+			device.Online,
+		)
+	}
+	return sb.String()
+}
+
+func (h *TailscaleHandler) detectDeviceChanges(oldHash, newHash string) string {
+	if oldHash == "" {
+		return "initial_devices"
+	}
+
+	oldDevices := strings.Split(oldHash, ",")
+	newDevices := strings.Split(newHash, ",")
+
+	if len(oldDevices) < len(newDevices) {
+		return "device_added"
+	} else if len(oldDevices) > len(newDevices) {
+		return "device_removed"
+	}
+
+	return "device_state_changed"
+}
+
+func (h *TailscaleHandler) compareAndLogDeviceChanges(instanceId string, devices []tailscale.Device) {
+	h.lastDevicesHashMu.Lock()
+	defer h.lastDevicesHashMu.Unlock()
+
+	currentHash := createDevicesHash(devices)
+	lastHash := h.lastDevicesHash[instanceId]
+
+	if currentHash != lastHash {
+		// Detect specific changes
+		changes := h.detectDeviceChanges(lastHash, currentHash)
+
+		log.Info().
+			Str("instanceId", instanceId).
+			Int("total", len(devices)).
+			Int("online", countOnlineDevices(devices)).
+			Str("change", changes).
+			Msg("Tailscale devices retrieved")
+
+		h.lastDevicesHash[instanceId] = currentHash
+	}
+}
+
+func countOnlineDevices(devices []tailscale.Device) int {
+	onlineCount := 0
+	for _, device := range devices {
+		if device.Online {
+			onlineCount++
+		}
+	}
+	return onlineCount
 }

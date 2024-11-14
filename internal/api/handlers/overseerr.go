@@ -7,7 +7,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,12 +31,16 @@ type OverseerrHandler struct {
 	db    *database.DB
 	cache cache.Store
 	sf    singleflight.Group
+
+	lastRequestsHash map[string]string
+	hashMu           sync.Mutex
 }
 
 func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
 	return &OverseerrHandler{
-		db:    db,
-		cache: cache,
+		db:               db,
+		cache:            cache,
+		lastRequestsHash: make(map[string]string),
 	}
 }
 
@@ -202,7 +209,26 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("size", len(stats.Requests)).
-			Msg("Successfully retrieved and cached Overseerr requests")
+			Msg("[Overseerr] Successfully retrieved and cached requests")
+
+		// Add hash-based change detection
+		h.hashMu.Lock()
+		currentHash, changes := createOverseerrRequestsHash(stats)
+		lastHash := h.lastRequestsHash[instanceId]
+
+		// Only log and update if this isn't the first time
+		if lastHash != "" && currentHash != lastHash {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Strs("changes", changes).
+				Msg("Overseerr requests hash changed")
+		}
+
+		// Always update the last hash, but only if it's different
+		if currentHash != lastHash {
+			h.lastRequestsHash[instanceId] = currentHash
+		}
+		h.hashMu.Unlock()
 
 		// Broadcast the fresh data
 		h.broadcastOverseerrRequests(instanceId, stats)
@@ -270,6 +296,20 @@ func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
 			Int("size", len(stats.Requests)).
 			Msg("Successfully refreshed Overseerr requests cache")
 
+		// Add hash-based change detection for refresh
+		h.hashMu.Lock()
+		currentHash, changes := createOverseerrRequestsHash(stats)
+		lastHash := h.lastRequestsHash[instanceId]
+
+		if currentHash != lastHash {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Strs("changes", changes).
+				Msg("Overseerr requests changed during refresh")
+			h.lastRequestsHash[instanceId] = currentHash
+		}
+		h.hashMu.Unlock()
+
 		// Broadcast the updated data
 		h.broadcastOverseerrRequests(instanceId, stats)
 	} else {
@@ -279,7 +319,9 @@ func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
 	}
 }
 
-// broadcastOverseerrRequests broadcasts Overseerr request updates to all connected SSE clients
+// broadcastOverseerrRequests broadcasts Overseerr request updates to all connected Server-Sent Events (SSE) clients.
+// It uses the BroadcastHealth function to send a service health update with Overseerr request statistics.
+// The broadcast includes the instance ID, service status, pending request count, and total number of requests.
 func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *types.RequestsStats) {
 	// Use the existing BroadcastHealth function with a special message type
 	BroadcastHealth(models.ServiceHealth{
@@ -297,4 +339,55 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 			},
 		},
 	})
+}
+
+// createOverseerrRequestsHash generates a unique hash representing the current state of Overseerr requests.
+// The hash includes the pending request count and key details of each request to detect changes efficiently.
+// It sorts requests by ID to ensure a consistent hash generation across multiple calls.
+// Returns an empty string if no requests are present or stats is nil.
+func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) {
+	if stats == nil || len(stats.Requests) == 0 {
+		return "", nil
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "%d:", stats.PendingCount)
+
+	// Track changes with full request details
+	changes := []string{}
+
+	// Sort requests by ID to ensure consistent hash generation
+	sort.Slice(stats.Requests, func(i, j int) bool {
+		return stats.Requests[i].ID < stats.Requests[j].ID
+	})
+
+	for _, req := range stats.Requests {
+		// Capture ALL fields for debugging
+		reqDetails := fmt.Sprintf("Full Request Details: "+
+			"ID=%d, Status=%d, MediaType=%s, MediaTitle=%s, "+
+			"RequestedBy.ID=%d, RequestedBy.Username=%s, "+
+			"RequestedBy.Email=%s, RequestedBy.PlexUsername=%s",
+			req.ID,
+			req.Status,
+			req.Media.MediaType,
+			req.Media.Title,
+			req.RequestedBy.ID,
+			req.RequestedBy.Username,
+			req.RequestedBy.Email,
+			req.RequestedBy.PlexUsername)
+
+		reqHash := fmt.Sprintf("%d:%d:%s:%s:%s:%s",
+			req.ID,
+			req.Status,
+			req.Media.MediaType,
+			req.RequestedBy.Username,
+			req.Media.Title,
+			reqDetails)
+
+		sb.WriteString(reqHash + ",")
+
+		changes = append(changes, reqDetails)
+	}
+
+	return sb.String(), changes
 }

@@ -245,10 +245,6 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		if updateResult.err == nil {
 			if hasUpdate, ok := updateResult.data.(bool); ok && hasUpdate {
 				extras["updateAvailable"] = true
-				// Store version info separately from warnings
-				if version, ok := extras["version"].(string); ok {
-					extras["updateVersion"] = version
-				}
 			}
 		} else if updateResult.err != context.DeadlineExceeded {
 			extras["updateError"] = updateResult.err.Error()
@@ -257,7 +253,7 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		// Continue without update status
 	}
 
-	// Determine final status and message
+	// Determine final status and message based only on health warnings
 	if len(allWarnings) > 0 {
 		healthStatus = "warning"
 		healthMessage = strings.Join(allWarnings, "\n\n")
