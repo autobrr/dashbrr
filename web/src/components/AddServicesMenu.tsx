@@ -110,11 +110,11 @@ export function AddServicesMenu({
     } else if (pendingService) {
       setDisplayName(pendingService.displayName);
       // Set default URL for Tailscale only if URL is empty
-      if (pendingService.type === "tailscale" && url === "") {
+      if (pendingService.type === "tailscale") {
         setUrl("https://api.tailscale.com");
       }
     }
-  }, [showServiceConfig, pendingService, url]);
+  }, [showServiceConfig, pendingService]);
 
   const validateTailscaleApiToken = async (token: string) => {
     try {
