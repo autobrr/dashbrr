@@ -67,7 +67,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var releases autobrr.ReleasesResponse
+	var releases types.ReleasesResponse
 	err := h.store.Get(ctx, cacheKey, &releases)
 	if err == nil {
 		log.Debug().
@@ -88,7 +88,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, autobrr.ReleasesResponse{})
+			c.JSON(http.StatusOK, types.ReleasesResponse{})
 			return
 		}
 
@@ -103,7 +103,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		return
 	}
 
-	releases = result.(autobrr.ReleasesResponse)
+	releases = result.(types.ReleasesResponse)
 
 	log.Debug().
 		Str("instanceId", instanceId).
@@ -137,7 +137,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var stats autobrr.AutobrrStats
+	var stats types.AutobrrStats
 	err := h.store.Get(ctx, cacheKey, &stats)
 	if err == nil {
 		log.Debug().
@@ -160,7 +160,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, autobrr.AutobrrStats{})
+			c.JSON(http.StatusOK, types.AutobrrStats{})
 			return
 		}
 
@@ -175,7 +175,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
-	stats = result.(autobrr.AutobrrStats)
+	stats = result.(types.AutobrrStats)
 
 	log.Debug().
 		Str("instanceId", instanceId).
@@ -206,7 +206,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	ctx := context.Background()
 
 	// Try to get from cache first
-	var status []autobrr.IRCStatus
+	var status []types.IRCStatus
 	err := h.store.Get(ctx, cacheKey, &status)
 	if err == nil {
 		log.Debug().
@@ -227,7 +227,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, []autobrr.IRCStatus{})
+			c.JSON(http.StatusOK, []types.IRCStatus{})
 			return
 		}
 
@@ -242,7 +242,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		return
 	}
 
-	status = result.([]autobrr.IRCStatus)
+	status = result.([]types.IRCStatus)
 
 	log.Debug().
 		Str("instanceId", instanceId).
@@ -255,7 +255,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 }
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
-func (h *AutobrrHandler) broadcastReleases(instanceId string, releases autobrr.ReleasesResponse) {
+func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.ReleasesResponse) {
 	BroadcastHealth(models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
@@ -268,7 +268,7 @@ func (h *AutobrrHandler) broadcastReleases(instanceId string, releases autobrr.R
 }
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
-func (h *AutobrrHandler) broadcastStats(instanceId string, stats autobrr.AutobrrStats) {
+func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrStats) {
 	BroadcastHealth(models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
@@ -281,7 +281,7 @@ func (h *AutobrrHandler) broadcastStats(instanceId string, stats autobrr.Autobrr
 }
 
 // broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
-func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []autobrr.IRCStatus) {
+func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IRCStatus) {
 	// Check for unhealthy IRC connections
 	serviceStatus := "online"
 	message := "autobrr_irc_status"
@@ -307,14 +307,14 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []autobrr.
 	})
 }
 
-func (h *AutobrrHandler) fetchAndCacheStats(ctx context.Context, instanceId, cacheKey string) (autobrr.AutobrrStats, error) {
+func (h *AutobrrHandler) fetchAndCacheStats(ctx context.Context, instanceId, cacheKey string) (types.AutobrrStats, error) {
 	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return autobrr.AutobrrStats{}, err
+		return types.AutobrrStats{}, err
 	}
 
 	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return autobrr.AutobrrStats{}, fmt.Errorf("service not configured")
+		return types.AutobrrStats{}, fmt.Errorf("service not configured")
 	}
 
 	service := &autobrr.AutobrrService{
@@ -323,7 +323,7 @@ func (h *AutobrrHandler) fetchAndCacheStats(ctx context.Context, instanceId, cac
 
 	stats, err := service.GetReleaseStats(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
 	if err != nil {
-		return autobrr.AutobrrStats{}, err
+		return types.AutobrrStats{}, err
 	}
 
 	// Cache the results using the centralized cache duration
@@ -337,14 +337,14 @@ func (h *AutobrrHandler) fetchAndCacheStats(ctx context.Context, instanceId, cac
 	return stats, nil
 }
 
-func (h *AutobrrHandler) fetchAndCacheReleases(ctx context.Context, instanceId, cacheKey string) (autobrr.ReleasesResponse, error) {
+func (h *AutobrrHandler) fetchAndCacheReleases(ctx context.Context, instanceId, cacheKey string) (types.ReleasesResponse, error) {
 	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return autobrr.ReleasesResponse{}, err
+		return types.ReleasesResponse{}, err
 	}
 
 	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return autobrr.ReleasesResponse{}, fmt.Errorf("service not configured")
+		return types.ReleasesResponse{}, fmt.Errorf("service not configured")
 	}
 
 	service := &autobrr.AutobrrService{
@@ -353,7 +353,7 @@ func (h *AutobrrHandler) fetchAndCacheReleases(ctx context.Context, instanceId, 
 
 	releases, err := service.GetReleases(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
 	if err != nil {
-		return autobrr.ReleasesResponse{}, err
+		return types.ReleasesResponse{}, err
 	}
 
 	// Cache the results using the centralized cache duration
@@ -367,7 +367,7 @@ func (h *AutobrrHandler) fetchAndCacheReleases(ctx context.Context, instanceId, 
 	return releases, nil
 }
 
-func (h *AutobrrHandler) fetchAndCacheIRC(ctx context.Context, instanceId, cacheKey string) ([]autobrr.IRCStatus, error) {
+func (h *AutobrrHandler) fetchAndCacheIRC(ctx context.Context, instanceId, cacheKey string) ([]types.IRCStatus, error) {
 	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
@@ -414,7 +414,7 @@ func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
 	}
 
 	if err == nil {
-		stats := result.(autobrr.AutobrrStats)
+		stats := result.(types.AutobrrStats)
 		log.Debug().
 			Str("instanceId", instanceId).
 			Msg("Successfully refreshed Autobrr release stats cache")
@@ -441,7 +441,7 @@ func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
 	}
 
 	if err == nil {
-		status := result.([]autobrr.IRCStatus)
+		status := result.([]types.IRCStatus)
 		log.Debug().
 			Str("instanceId", instanceId).
 			Msg("Successfully refreshed autobrr IRC status cache")
@@ -468,7 +468,7 @@ func (h *AutobrrHandler) refreshReleasesCache(instanceId, cacheKey string) {
 	}
 
 	if err == nil {
-		releases := result.(autobrr.ReleasesResponse)
+		releases := result.(types.ReleasesResponse)
 		log.Debug().
 			Str("instanceId", instanceId).
 			Msg("Successfully refreshed autobrr releases cache")

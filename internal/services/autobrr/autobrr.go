@@ -8,111 +8,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type AutobrrService struct {
 	core.ServiceCore
-}
-
-type AutobrrStats struct {
-	TotalCount          int `json:"total_count"`
-	FilteredCount       int `json:"filtered_count"`
-	FilterRejectedCount int `json:"filter_rejected_count"`
-	PushApprovedCount   int `json:"push_approved_count"`
-	PushRejectedCount   int `json:"push_rejected_count"`
-	PushErrorCount      int `json:"push_error_count"`
-}
-
-type IRCStatus struct {
-	Name    string `json:"name"`
-	Healthy bool   `json:"healthy"`
-	Enabled bool   `json:"enabled"`
-}
-
-type VersionResponse struct {
-	Version string `json:"version"`
-}
-
-type ReleasesResponse struct {
-	Data       []Release `json:"data"`
-	Count      int       `json:"count"`
-	NextCursor int       `json:"next_cursor"`
-}
-
-// ReleaseType is a custom type that can handle both string and number types
-type ReleaseType string
-
-func (rt *ReleaseType) UnmarshalJSON(data []byte) error {
-	// Try string first
-	var s string
-	if err := json.Unmarshal(data, &s); err == nil {
-		*rt = ReleaseType(s)
-		return nil
-	}
-
-	// Try number
-	var n int
-	if err := json.Unmarshal(data, &n); err == nil {
-		*rt = ReleaseType(strconv.Itoa(n))
-		return nil
-	}
-
-	return fmt.Errorf("type must be string or number")
-}
-
-type Release struct {
-	ID           int            `json:"id"`
-	FilterStatus string         `json:"filter_status"`
-	Rejections   []string       `json:"rejections"`
-	Indexer      Indexer        `json:"indexer"`
-	Filter       string         `json:"filter"`
-	Protocol     string         `json:"protocol"`
-	Timestamp    time.Time      `json:"timestamp"`
-	InfoURL      string         `json:"info_url"`
-	DownloadURL  string         `json:"download_url"`
-	Name         string         `json:"name"`
-	Size         int64          `json:"size"`
-	Title        string         `json:"title"`
-	Category     string         `json:"category"`
-	Season       int            `json:"season"`
-	Episode      int            `json:"episode"`
-	Year         int            `json:"year"`
-	Resolution   string         `json:"resolution"`
-	Source       string         `json:"source"`
-	Codec        []string       `json:"codec"`
-	Container    string         `json:"container"`
-	HDR          []string       `json:"hdr"`
-	Group        string         `json:"group"`
-	Type         ReleaseType    `json:"type"`
-	Origin       string         `json:"origin"`
-	ActionStatus []ActionStatus `json:"action_status"`
-}
-
-type Indexer struct {
-	ID                 int    `json:"id"`
-	Name               string `json:"name"`
-	Identifier         string `json:"identifier"`
-	IdentifierExternal string `json:"identifier_external"`
-}
-
-type ActionStatus struct {
-	ID         int       `json:"id"`
-	Status     string    `json:"status"`
-	Action     string    `json:"action"`
-	ActionID   int       `json:"action_id"`
-	Type       string    `json:"type"`
-	Client     string    `json:"client"`
-	Filter     string    `json:"filter"`
-	FilterID   int       `json:"filter_id"`
-	Rejections []string  `json:"rejections"`
-	ReleaseID  int       `json:"release_id"`
-	Timestamp  time.Time `json:"timestamp"`
 }
 
 func init() {
@@ -135,9 +40,9 @@ func (s *AutobrrService) getEndpoint(baseURL, path string) string {
 	return fmt.Sprintf("%s%s", baseURL, path)
 }
 
-func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (ReleasesResponse, error) {
+func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (types.ReleasesResponse, error) {
 	if url == "" || apiKey == "" {
-		return ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
+		return types.ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
 	releasesURL := s.getEndpoint(url, "/api/release")
@@ -148,30 +53,30 @@ func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (R
 
 	resp, err := s.MakeRequestWithContext(ctx, releasesURL, apiKey, headers)
 	if err != nil {
-		return ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
+		return types.ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return ReleasesResponse{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return types.ReleasesResponse{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return ReleasesResponse{}, fmt.Errorf("failed to read response body: %v", err)
+		return types.ReleasesResponse{}, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var releases ReleasesResponse
+	var releases types.ReleasesResponse
 	if err := json.Unmarshal(body, &releases); err != nil {
-		return ReleasesResponse{}, fmt.Errorf("failed to decode response: %v", err)
+		return types.ReleasesResponse{}, fmt.Errorf("failed to decode response: %v", err)
 	}
 
 	return releases, nil
 }
 
-func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string) (AutobrrStats, error) {
+func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string) (types.AutobrrStats, error) {
 	if url == "" || apiKey == "" {
-		return AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
+		return types.AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
 	statsURL := s.getEndpoint(url, "/api/release/stats")
@@ -182,25 +87,25 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 
 	resp, err := s.MakeRequestWithContext(ctx, statsURL, apiKey, headers)
 	if err != nil {
-		return AutobrrStats{}, fmt.Errorf("request failed: %v", err)
+		return types.AutobrrStats{}, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return AutobrrStats{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return types.AutobrrStats{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return AutobrrStats{}, fmt.Errorf("failed to read response body: %v", err)
+		return types.AutobrrStats{}, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var stats AutobrrStats
+	var stats types.AutobrrStats
 	decoder := json.NewDecoder(strings.NewReader(string(body)))
 	decoder.UseNumber()
 
 	if err := decoder.Decode(&stats); err != nil {
-		return AutobrrStats{}, fmt.Errorf("failed to decode response: %v, body: %s", err, string(body))
+		return types.AutobrrStats{}, fmt.Errorf("failed to decode response: %v, body: %s", err, string(body))
 	}
 
 	return stats, nil
@@ -217,14 +122,14 @@ func (s *AutobrrService) CacheIRCStatus(url, status string) error {
 	return s.CacheVersion(url+"_irc", status, 5*time.Minute)
 }
 
-func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]IRCStatus, error) {
+func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]types.IRCStatus, error) {
 	if url == "" || apiKey == "" {
 		return nil, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
 	// Check cache first
 	if cached := s.GetIRCStatusFromCache(url); cached != "" {
-		var status []IRCStatus
+		var status []types.IRCStatus
 		if err := json.Unmarshal([]byte(cached), &status); err == nil {
 			return status, nil
 		}
@@ -238,23 +143,23 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 
 	resp, err := s.MakeRequestWithContext(ctx, ircURL, apiKey, headers)
 	if err != nil {
-		return []IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("request failed: %v", err)
+		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return []IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return []IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to read response body: %v", err)
+		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	// Try to decode as array first
-	var allStatus []IRCStatus
+	var allStatus []types.IRCStatus
 	if err := json.Unmarshal(body, &allStatus); err == nil {
-		var unhealthyStatus []IRCStatus
+		var unhealthyStatus []types.IRCStatus
 		for _, status := range allStatus {
 			if !status.Healthy && status.Enabled {
 				unhealthyStatus = append(unhealthyStatus, status)
@@ -270,11 +175,11 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 	}
 
 	// If array decode fails, try to decode as single object
-	var singleStatus IRCStatus
+	var singleStatus types.IRCStatus
 	if err := json.Unmarshal(body, &singleStatus); err == nil {
 		// Only return if unhealthy AND enabled
 		if !singleStatus.Healthy && singleStatus.Enabled {
-			status := []IRCStatus{singleStatus}
+			status := []types.IRCStatus{singleStatus}
 			// Cache the result
 			if cached, err := json.Marshal(status); err == nil {
 				if err := s.CacheIRCStatus(url, string(cached)); err != nil {
@@ -287,10 +192,10 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		if err := s.CacheIRCStatus(url, "[]"); err != nil {
 			fmt.Printf("Failed to cache IRC status: %v\n", err)
 		}
-		return []IRCStatus{}, nil
+		return []types.IRCStatus{}, nil
 	}
 
-	return []IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to decode response: %s", string(body))
+	return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to decode response: %s", string(body))
 }
 
 func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
@@ -320,7 +225,7 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 		return "", err
 	}
 
-	var versionData VersionResponse
+	var versionData types.VersionResponse
 	if err := json.Unmarshal(body, &versionData); err != nil {
 		return "", err
 	}
