@@ -87,6 +87,8 @@ func TestPostgresUserOperations(t *testing.T) {
 	db, cleanup := setupPostgresDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	// Test user creation
 	user := &types.User{
 		Username:     "testuser",
@@ -94,7 +96,7 @@ func TestPostgresUserOperations(t *testing.T) {
 		PasswordHash: "hashedpassword",
 	}
 
-	err := db.CreateUser(user)
+	err := db.CreateUser(ctx, user)
 	if err != nil {
 		t.Fatalf("Failed to create user: %v", err)
 	}
@@ -104,7 +106,7 @@ func TestPostgresUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by username
-	retrieved, err := db.FindUser(context.Background(), types.FindUserParams{Username: "testuser"})
+	retrieved, err := db.FindUser(ctx, types.FindUserParams{Username: "testuser"})
 	if err != nil {
 		t.Fatalf("Failed to get user by username: %v", err)
 	}
@@ -118,7 +120,7 @@ func TestPostgresUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by email
-	retrieved, err = db.FindUser(context.Background(), types.FindUserParams{Email: "test@example.com"})
+	retrieved, err = db.FindUser(ctx, types.FindUserParams{Email: "test@example.com"})
 	if err != nil {
 		t.Fatalf("Failed to get user by email: %v", err)
 	}
@@ -132,7 +134,7 @@ func TestPostgresUserOperations(t *testing.T) {
 	}
 
 	// Test HasUsers
-	hasUsers, err := db.HasUsers()
+	hasUsers, err := db.HasUsers(ctx)
 	if err != nil {
 		t.Fatalf("Failed to check if has users: %v", err)
 	}
@@ -146,6 +148,8 @@ func TestPostgresServiceOperations(t *testing.T) {
 	db, cleanup := setupPostgresDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	// Test service creation
 	service := &models.ServiceConfiguration{
 		InstanceID:  "test-service-1",
@@ -154,7 +158,7 @@ func TestPostgresServiceOperations(t *testing.T) {
 		APIKey:      "test-api-key",
 	}
 
-	err := db.CreateService(service)
+	err := db.CreateService(ctx, service)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -164,7 +168,7 @@ func TestPostgresServiceOperations(t *testing.T) {
 	}
 
 	// Test service retrieval by instance ID
-	retrieved, err := db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get service by instance ID: %v", err)
 	}
@@ -179,12 +183,12 @@ func TestPostgresServiceOperations(t *testing.T) {
 
 	// Test service update
 	service.DisplayName = "Updated Test Service"
-	err = db.UpdateService(service)
+	err = db.UpdateService(ctx, service)
 	if err != nil {
 		t.Fatalf("Failed to update service: %v", err)
 	}
 
-	retrieved, err = db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err = db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get updated service: %v", err)
 	}
@@ -194,7 +198,7 @@ func TestPostgresServiceOperations(t *testing.T) {
 	}
 
 	// Test GetAllServices
-	services, err := db.GetAllServices()
+	services, err := db.GetAllServices(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get all services: %v", err)
 	}
@@ -204,12 +208,12 @@ func TestPostgresServiceOperations(t *testing.T) {
 	}
 
 	// Test service deletion
-	err = db.DeleteService("test-service-1")
+	err = db.DeleteService(ctx, "test-service-1")
 	if err != nil {
 		t.Fatalf("Failed to delete service: %v", err)
 	}
 
-	retrieved, err = db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err = db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to check deleted service: %v", err)
 	}
@@ -223,6 +227,8 @@ func TestPostgresConcurrentOperations(t *testing.T) {
 	db, cleanup := setupPostgresDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	// Create multiple services concurrently
 	numServices := 10
 	errChan := make(chan error, numServices)
@@ -235,7 +241,7 @@ func TestPostgresConcurrentOperations(t *testing.T) {
 				URL:         fmt.Sprintf("http://localhost:808%d", i),
 				APIKey:      fmt.Sprintf("api-key-%d", i),
 			}
-			errChan <- db.CreateService(service)
+			errChan <- db.CreateService(ctx, service)
 		}(i)
 	}
 
@@ -247,7 +253,7 @@ func TestPostgresConcurrentOperations(t *testing.T) {
 	}
 
 	// Verify all services were created
-	services, err := db.GetAllServices()
+	services, err := db.GetAllServices(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get all services: %v", err)
 	}
@@ -261,6 +267,8 @@ func TestPostgresErrorHandling(t *testing.T) {
 	db, cleanup := setupPostgresDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	// Test duplicate user creation
 	user1 := &types.User{
 		Username:     "duplicate",
@@ -268,7 +276,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 		PasswordHash: "hashedpassword",
 	}
 
-	err := db.CreateUser(user1)
+	err := db.CreateUser(ctx, user1)
 	if err != nil {
 		t.Fatalf("Failed to create first user: %v", err)
 	}
@@ -279,7 +287,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 		PasswordHash: "hashedpassword",
 	}
 
-	err = db.CreateUser(user2)
+	err = db.CreateUser(ctx, user2)
 	if err == nil {
 		t.Error("Expected error when creating duplicate user, got nil")
 	}
@@ -292,7 +300,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 		APIKey:      "test-api-key",
 	}
 
-	err = db.CreateService(service1)
+	err = db.CreateService(ctx, service1)
 	if err != nil {
 		t.Fatalf("Failed to create first service: %v", err)
 	}
@@ -304,7 +312,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 		APIKey:      "test-api-key",
 	}
 
-	err = db.CreateService(service2)
+	err = db.CreateService(ctx, service2)
 	if err == nil {
 		t.Error("Expected error when creating duplicate service, got nil")
 	}

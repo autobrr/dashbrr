@@ -10,6 +10,7 @@ import { PlexMessage } from "./PlexMessage";
 import {
   FaUser,
   FaPlay,
+  FaPause,
   FaMusic,
   FaFilm,
   FaTv,
@@ -36,8 +37,15 @@ const formatDuration = (duration: number): string => {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
 
-const getMediaTypeIcon = (type: string) => {
-  switch (type.toLowerCase()) {
+const getMediaTypeIcon = (
+  type: string | undefined,
+  playerState: string | undefined
+) => {
+  if (playerState?.toLowerCase() === "paused") {
+    return <FaPause className="text-yellow-500 dark:text-yellow-400" />;
+  }
+
+  switch (type?.toLowerCase()) {
     case "track":
       return <FaMusic className="text-blue-600 dark:text-blue-400" />;
     case "movie":
@@ -89,10 +97,16 @@ const isTranscoding = (session: PlexSession): boolean => {
   );
 };
 
+interface TimerState {
+  offset: number;
+  lastUpdated: number;
+  state: string;
+}
+
 export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   const { services } = useServiceData();
-  const [currentOffsets, setCurrentOffsets] = useState<{
-    [key: string]: number;
+  const [playbackStates, setPlaybackStates] = useState<{
+    [key: string]: TimerState;
   }>({});
   const service = services.find((s) => s.instanceId === instanceId);
   const isLoading = service?.status === "loading";
@@ -107,24 +121,74 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   );
 
   useEffect(() => {
+    const newStates: { [key: string]: TimerState } = {};
+    sessions.forEach((session) => {
+      const sessionKey = `${session.User?.title}-${session.title}`;
+      const currentTime = Date.now();
+
+      if (playbackStates[sessionKey]) {
+        const existing = playbackStates[sessionKey];
+        if (existing.state === "playing") {
+          const timeDiff = currentTime - existing.lastUpdated;
+          newStates[sessionKey] = {
+            offset: existing.offset + timeDiff,
+            lastUpdated: currentTime,
+            state: session.Player?.state || "stopped",
+          };
+        } else {
+          newStates[sessionKey] = {
+            ...existing,
+            state: session.Player?.state || "stopped",
+          };
+        }
+      } else {
+        newStates[sessionKey] = {
+          offset: session.viewOffset || 0,
+          lastUpdated: currentTime,
+          state: session.Player?.state || "stopped",
+        };
+      }
+    });
+
+    setPlaybackStates(newStates);
+
     const timer = setInterval(() => {
-      setCurrentOffsets((prev) => {
-        const newOffsets = { ...prev };
-        sessions.forEach((session: PlexSession) => {
-          const sessionKey = `${session.User?.title}-${session.title}`;
-          if (session.Player?.state === "playing") {
-            newOffsets[sessionKey] =
-              (prev[sessionKey] || session.viewOffset) + 1000;
-          } else {
-            newOffsets[sessionKey] = prev[sessionKey] || session.viewOffset;
+      setPlaybackStates((prev) => {
+        const currentTime = Date.now();
+        const updated = { ...prev };
+
+        Object.keys(updated).forEach((key) => {
+          const state = updated[key];
+          if (state.state === "playing") {
+            const timeDiff = currentTime - state.lastUpdated;
+            updated[key] = {
+              ...state,
+              offset: state.offset + timeDiff,
+              lastUpdated: currentTime,
+            };
           }
         });
-        return newOffsets;
+
+        return updated;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [sessions]);
+  }, [sessions, playbackStates]);
+
+  const getCurrentOffset = (session: PlexSession): number => {
+    const sessionKey = `${session.User?.title}-${session.title}`;
+    const state = playbackStates[sessionKey];
+
+    if (!state) return session.viewOffset || 0;
+
+    if (state.state === "playing") {
+      const timeDiff = Date.now() - state.lastUpdated;
+      return state.offset + timeDiff;
+    }
+
+    return state.offset;
+  };
 
   if (isLoading) {
     return (
@@ -201,15 +265,18 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                   <div className="flex items-center space-x-3 mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
-                        {getMediaTypeIcon(session.type)}
+                        {getMediaTypeIcon(
+                          session.type || "",
+                          session.Player?.state
+                        )}
                         <span className="text-sm font-sm text-gray-900 dark:text-gray-100 overflow-hidden">
-                          {session.type.toLowerCase() === "movie"
+                          {session.type?.toLowerCase() === "movie"
                             ? session.grandparentTitle
                               ? `${session.grandparentTitle} - ${session.title}`
                               : session.title
                             : session.grandparentTitle
                             ? `${session.grandparentTitle} - ${session.title}`
-                            : session.title}
+                            : session.title ?? ""}
                         </span>
                         {isTranscoding(session) && (
                           <div className="flex items-center space-x-1 text-amber-500 dark:text-amber-400">
@@ -226,33 +293,29 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                     </div>
                   </div>
 
-                  {session.duration && session.viewOffset && (
-                    <div className="mb-3">
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
-                        <div
-                          className="bg-blue-500 h-1 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${getProgressPercentage(
-                              currentOffsets[
-                                `${session.User?.title}-${session.title}`
-                              ] || session.viewOffset,
-                              session.duration
-                            )}%`,
-                          }}
-                        />
+                  {session.duration &&
+                    session.viewOffset &&
+                    getCurrentOffset(session) > 0 && (
+                      <div className="mb-3">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                          <div
+                            className="bg-blue-500 h-1 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${getProgressPercentage(
+                                getCurrentOffset(session),
+                                session.duration || 0
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          <span>
+                            {formatDuration(getCurrentOffset(session))}
+                          </span>
+                          <span>{formatDuration(session.duration || 0)}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        <span>
-                          {formatDuration(
-                            currentOffsets[
-                              `${session.User?.title}-${session.title}`
-                            ] || session.viewOffset
-                          )}
-                        </span>
-                        <span>{formatDuration(session.duration)}</span>
-                      </div>
-                    </div>
-                  )}
+                    )}
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="space-y-2">

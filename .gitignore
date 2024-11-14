@@ -36,3 +36,4 @@ main
 backend/test.db
 dev-dist/
 license.sh
+unit-tests.xml

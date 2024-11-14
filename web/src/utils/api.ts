@@ -12,13 +12,16 @@ interface RequestOptions {
 
 // Service-specific timeouts
 const SERVICE_TIMEOUTS: Record<string, number> = {
-  '/api/autobrr/stats': 20000,    // 10 seconds for autobrr stats
-  '/api/autobrr/irc': 20000,       // 5 seconds for autobrr IRC
-  '/api/plex/sessions': 20000,    // 10 seconds for plex sessions
-  '/api/maintainerr': 20000,      // 10 seconds for maintainerr
-  '/api/overseerr': 20000,        // 10 seconds for overseerr
-  '/api/radarr': 20000,           // 10 seconds for radarr
-  '/api/health': 20000,           // 10 seconds for health checks
+  '/api/autobrr/stats': 60000,      // 1 minute for autobrr stats
+  '/api/autobrr/irc': 300000,       // 5 minutes for autobrr IRC
+  '/api/autobrr/releases': 60000,   // 1 minute for autobrr releases
+  '/api/plex/sessions': 5000,       // 5 seconds for plex sessions
+  '/api/maintainerr': 600000,       // 10 minutes for maintainerr
+  '/api/overseerr': 30000,          // 30 seconds for overseerr
+  '/api/radarr': 60000,             // 1 minute for radarr
+  '/api/sonarr': 60000,             // 1 minute for sonarr
+  '/api/prowlarr': 60000,           // 1 minute for prowlarr
+  '/api/health': 600000,            // 10 minutes for health checks
 };
 
 // Request queue for handling requests during auth initialization

@@ -124,7 +124,8 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
         !trimmedLine ||
         trimmedLine === "Healthy" ||
         trimmedLine === "healthy" ||
-        trimmedLine === "Status: Healthy"
+        trimmedLine === "Status: Healthy" ||
+        trimmedLine === "Prowlarr is running"
       )
         return;
 

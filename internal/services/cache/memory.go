@@ -35,6 +35,7 @@ type MemoryStore struct {
 type rateWindow struct {
 	sync.RWMutex
 	timestamps map[string]int64
+	expiration time.Time
 }
 
 type persistedItem struct {
@@ -43,8 +44,8 @@ type persistedItem struct {
 }
 
 // NewMemoryStore creates a new in-memory cache instance
-func NewMemoryStore(dataDir string) Store {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewMemoryStore(ctx context.Context, dataDir string) Store {
+	ctx, cancel := context.WithCancel(ctx)
 
 	store := &MemoryStore{
 		local: &LocalCache{
@@ -240,13 +241,20 @@ func (s *MemoryStore) Increment(ctx context.Context, key string, timestamp int64
 
 	window, _ := s.rateLimits.LoadOrStore(key, &rateWindow{
 		timestamps: make(map[string]int64),
+		expiration: time.Now().Add(24 * time.Hour),
 	})
 	w := window.(*rateWindow)
 
 	w.Lock()
-	w.timestamps[strconv.FormatInt(timestamp, 10)] = timestamp
-	w.Unlock()
+	defer w.Unlock()
 
+	// Check if window has expired
+	if time.Now().After(w.expiration) {
+		w.timestamps = make(map[string]int64)
+		w.expiration = time.Now().Add(24 * time.Hour)
+	}
+
+	w.timestamps[strconv.FormatInt(timestamp, 10)] = timestamp
 	return nil
 }
 
@@ -262,12 +270,20 @@ func (s *MemoryStore) CleanAndCount(ctx context.Context, key string, windowStart
 	if window, ok := s.rateLimits.Load(key); ok {
 		w := window.(*rateWindow)
 		w.Lock()
+		defer w.Unlock()
+
+		// Check if window has expired
+		if time.Now().After(w.expiration) {
+			w.timestamps = make(map[string]int64)
+			w.expiration = time.Now().Add(24 * time.Hour)
+			return nil
+		}
+
 		for ts, timestamp := range w.timestamps {
 			if timestamp < windowStart {
 				delete(w.timestamps, ts)
 			}
 		}
-		w.Unlock()
 	}
 
 	return nil
@@ -285,9 +301,14 @@ func (s *MemoryStore) GetCount(ctx context.Context, key string) (int64, error) {
 	if window, ok := s.rateLimits.Load(key); ok {
 		w := window.(*rateWindow)
 		w.RLock()
-		count := int64(len(w.timestamps))
-		w.RUnlock()
-		return count, nil
+		defer w.RUnlock()
+
+		// Check if window has expired
+		if time.Now().After(w.expiration) {
+			return 0, nil
+		}
+
+		return int64(len(w.timestamps)), nil
 	}
 
 	return 0, nil
@@ -302,7 +323,19 @@ func (s *MemoryStore) Expire(ctx context.Context, key string, expiration time.Du
 	}
 	s.mu.RUnlock()
 
+	// Handle rate limit windows
+	if window, ok := s.rateLimits.Load(key); ok {
+		w := window.(*rateWindow)
+		w.Lock()
+		w.expiration = time.Now().Add(expiration)
+		w.Unlock()
+		return nil
+	}
+
+	// Handle regular cache items
 	s.local.Lock()
+	defer s.local.Unlock()
+
 	if item, exists := s.local.items[key]; exists {
 		item.expiration = time.Now().Add(expiration)
 		// Persist sessions when their expiration is updated
@@ -310,7 +343,6 @@ func (s *MemoryStore) Expire(ctx context.Context, key string, expiration time.Du
 			s.persistSessions()
 		}
 	}
-	s.local.Unlock()
 
 	return nil
 }
@@ -365,15 +397,12 @@ func (s *MemoryStore) localCacheCleanup() {
 				s.persistSessions()
 			}
 
-			// Cleanup rate limiting windows older than 24 hours
-			windowStart := time.Now().Add(-24 * time.Hour).Unix()
+			// Cleanup expired rate limiting windows
 			s.rateLimits.Range(func(key, value interface{}) bool {
 				w := value.(*rateWindow)
 				w.Lock()
-				for ts, timestamp := range w.timestamps {
-					if timestamp < windowStart {
-						delete(w.timestamps, ts)
-					}
+				if now.After(w.expiration) {
+					s.rateLimits.Delete(key)
 				}
 				w.Unlock()
 				return true

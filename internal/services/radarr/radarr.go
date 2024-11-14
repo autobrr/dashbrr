@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -34,6 +33,7 @@ func NewRadarrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Radarr instance"
 	service.DefaultURL = "http://localhost:7878"
 	service.HealthEndpoint = "/api/v3/health"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -43,7 +43,7 @@ func (s *RadarrService) GetHealthEndpoint(baseURL string) string {
 }
 
 // DeleteQueueItem deletes a queue item with the specified options
-func (s *RadarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, options types.RadarrQueueDeleteOptions) error {
+func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.RadarrQueueDeleteOptions) error {
 	if baseURL == "" {
 		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -51,9 +51,6 @@ func (s *RadarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, 
 	if apiKey == "" {
 		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	// Build delete URL with query parameters
 	deleteURL := fmt.Sprintf("%s/api/v3/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
@@ -116,7 +113,7 @@ func (s *RadarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, 
 }
 
 // GetQueue fetches the current queue from Radarr
-func (s *RadarrService) GetQueue(url, apiKey string) (interface{}, error) {
+func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
 	if url == "" {
 		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -124,9 +121,6 @@ func (s *RadarrService) GetQueue(url, apiKey string) (interface{}, error) {
 	if apiKey == "" {
 		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
 	// Build queue URL with query parameters
 	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownMovieItems=false&includeMovie=false",
@@ -156,8 +150,8 @@ func (s *RadarrService) GetQueue(url, apiKey string) (interface{}, error) {
 }
 
 // GetQueueForHealth is a wrapper around GetQueue that returns []types.RadarrQueueRecord
-func (s *RadarrService) GetQueueForHealth(url, apiKey string) ([]types.RadarrQueueRecord, error) {
-	records, err := s.GetQueue(url, apiKey)
+func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
+	records, err := s.GetQueue(ctx, url, apiKey)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +162,7 @@ func (s *RadarrService) GetQueueForHealth(url, apiKey string) ([]types.RadarrQue
 }
 
 // LookupByTmdbId fetches movie details from Radarr by TMDB ID
-func (s *RadarrService) LookupByTmdbId(baseURL, apiKey string, tmdbId int) (*types.RadarrMovieResponse, error) {
+func (s *RadarrService) LookupByTmdbId(ctx context.Context, baseURL, apiKey string, tmdbId int) (*types.RadarrMovieResponse, error) {
 	if baseURL == "" {
 		return nil, &arr.ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("URL is required")}
 	}
@@ -178,8 +172,6 @@ func (s *RadarrService) LookupByTmdbId(baseURL, apiKey string, tmdbId int) (*typ
 	}
 
 	lookupURL := fmt.Sprintf("%s/api/v3/movie/lookup/tmdb?tmdbId=%d", strings.TrimRight(baseURL, "/"), tmdbId)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
 	if err != nil {
@@ -205,7 +197,7 @@ func (s *RadarrService) LookupByTmdbId(baseURL, apiKey string, tmdbId int) (*typ
 }
 
 // GetMovie fetches movie details from Radarr by ID
-func (s *RadarrService) GetMovie(baseURL, apiKey string, movieID int) (*types.RadarrMovieResponse, error) {
+func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, movieID int) (*types.RadarrMovieResponse, error) {
 	if baseURL == "" {
 		return nil, &arr.ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("URL is required")}
 	}
@@ -215,8 +207,6 @@ func (s *RadarrService) GetMovie(baseURL, apiKey string, movieID int) (*types.Ra
 	}
 
 	movieURL := fmt.Sprintf("%s/api/v3/movie/%d", strings.TrimRight(baseURL, "/"), movieID)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, movieURL, apiKey, nil)
 	if err != nil {
@@ -251,6 +241,6 @@ func (s *RadarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 	return arr.CheckArrForUpdates("radarr", url, apiKey)
 }
 
-func (s *RadarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

@@ -6,18 +6,19 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/omegabrr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -28,6 +29,7 @@ const (
 type OmegabrrHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 type WebhookRequest struct {
@@ -69,13 +71,23 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 			Msg("Serving Omegabrr status from cache")
 		c.JSON(http.StatusOK, health)
 
-		// Refresh cache in background if needed
-		go h.refreshStatusCache(instanceId, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("status_refresh:%s", instanceId)
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshStatusCache(instanceId, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache, fetch from service
-	health, err = h.fetchAndCacheStatus(instanceId, cacheKey)
+	// If not in cache, fetch from service using singleflight
+	sfKey := fmt.Sprintf("status:%s", instanceId)
+	healthI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheStatus(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil {
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
@@ -88,6 +100,8 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 		return
 	}
 
+	health = healthI.(models.ServiceHealth)
+
 	log.Info().
 		Str("instanceId", instanceId).
 		Msg("Successfully retrieved and cached Omegabrr status")
@@ -95,8 +109,8 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, health)
 }
 
-func (h *OmegabrrHandler) fetchAndCacheStatus(instanceId, cacheKey string) (models.ServiceHealth, error) {
-	omegabrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *OmegabrrHandler) fetchAndCacheStatus(ctx context.Context, instanceId, cacheKey string) (models.ServiceHealth, error) {
+	omegabrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return models.ServiceHealth{}, err
 	}
@@ -109,13 +123,12 @@ func (h *OmegabrrHandler) fetchAndCacheStatus(instanceId, cacheKey string) (mode
 		ServiceCore: core.ServiceCore{},
 	}
 
-	health, statusCode := service.CheckHealth(omegabrrConfig.URL, omegabrrConfig.APIKey)
+	health, statusCode := service.CheckHealth(ctx, omegabrrConfig.URL, omegabrrConfig.APIKey)
 	if statusCode != http.StatusOK {
 		return models.ServiceHealth{}, fmt.Errorf("failed to get status")
 	}
 
 	// Cache the results
-	ctx := context.Background()
 	if err := h.cache.Set(ctx, cacheKey, health, omegabrrCacheDuration); err != nil {
 		log.Warn().
 			Err(err).
@@ -130,7 +143,8 @@ func (h *OmegabrrHandler) refreshStatusCache(instanceId, cacheKey string) {
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	_, err := h.fetchAndCacheStatus(instanceId, cacheKey)
+	ctx := context.Background()
+	_, err := h.fetchAndCacheStatus(ctx, instanceId, cacheKey)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -164,11 +178,25 @@ func (h *OmegabrrHandler) TriggerWebhookArrs(c *gin.Context) {
 		return
 	}
 
-	service := &omegabrr.OmegabrrService{
-		ServiceCore: core.ServiceCore{},
+	// Use singleflight to prevent duplicate webhook triggers
+	sfKey := fmt.Sprintf("webhook_arrs:%s", req.TargetURL)
+	resultI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		service := &omegabrr.OmegabrrService{
+			ServiceCore: core.ServiceCore{},
+		}
+		return service.TriggerARRsWebhook(c, req.TargetURL, req.APIKey), nil
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to execute webhook")
+		c.JSON(http.StatusInternalServerError, WebhookResponse{
+			Success: false,
+			Message: "Failed to trigger ARRs webhook",
+		})
+		return
 	}
 
-	statusCode := service.TriggerARRsWebhook(req.TargetURL, req.APIKey)
+	statusCode := resultI.(int)
 	if statusCode != http.StatusOK {
 		log.Error().
 			Str("targetUrl", req.TargetURL).
@@ -211,11 +239,25 @@ func (h *OmegabrrHandler) TriggerWebhookLists(c *gin.Context) {
 		return
 	}
 
-	service := &omegabrr.OmegabrrService{
-		ServiceCore: core.ServiceCore{},
+	// Use singleflight to prevent duplicate webhook triggers
+	sfKey := fmt.Sprintf("webhook_lists:%s", req.TargetURL)
+	resultI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		service := &omegabrr.OmegabrrService{
+			ServiceCore: core.ServiceCore{},
+		}
+		return service.TriggerListsWebhook(c, req.TargetURL, req.APIKey), nil
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to execute webhook")
+		c.JSON(http.StatusInternalServerError, WebhookResponse{
+			Success: false,
+			Message: "Failed to trigger Lists webhook",
+		})
+		return
 	}
 
-	statusCode := service.TriggerListsWebhook(req.TargetURL, req.APIKey)
+	statusCode := resultI.(int)
 	if statusCode != http.StatusOK {
 		log.Error().
 			Str("targetUrl", req.TargetURL).
@@ -258,11 +300,25 @@ func (h *OmegabrrHandler) TriggerWebhookAll(c *gin.Context) {
 		return
 	}
 
-	service := &omegabrr.OmegabrrService{
-		ServiceCore: core.ServiceCore{},
+	// Use singleflight to prevent duplicate webhook triggers
+	sfKey := fmt.Sprintf("webhook_all:%s", req.TargetURL)
+	resultI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		service := &omegabrr.OmegabrrService{
+			ServiceCore: core.ServiceCore{},
+		}
+		return service.TriggerAllWebhooks(c, req.TargetURL, req.APIKey), nil
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to execute webhook")
+		c.JSON(http.StatusInternalServerError, WebhookResponse{
+			Success: false,
+			Message: "Failed to trigger all webhooks",
+		})
+		return
 	}
 
-	statusCode := service.TriggerAllWebhooks(req.TargetURL, req.APIKey)
+	statusCode := resultI.(int)
 	if statusCode != http.StatusOK {
 		log.Error().
 			Str("targetUrl", req.TargetURL).

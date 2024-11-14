@@ -10,6 +10,13 @@ export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowla
 export interface ServiceHealth {
   status: ServiceStatus;
   message: string;
+  serviceId: string;
+  lastChecked?: Date;
+  responseTime?: number;
+  version?: string;
+  updateAvailable?: boolean;
+  stats?: ServiceStats;
+  details?: ServiceDetails;
   extras?: Record<string, unknown>;
 }
 
@@ -34,6 +41,7 @@ export interface Service {
   stats?: ServiceStats;
   details?: ServiceDetails;
   health?: ServiceHealth;
+  releases?: AutobrrReleases;
 }
 
 export interface ServiceConfig {
@@ -56,6 +64,77 @@ export interface AutobrrStats {
 export interface AutobrrIRC {
   name: string;
   healthy: boolean;
+}
+
+export interface AutobrrReleases {
+  data: AutobrrRelease[];
+  count: number;
+  next_cursor: number;
+}
+
+export interface AutobrrRelease {
+  id: number;
+  filter_status: string;
+  rejections: string[];
+  indexer: AutobrrIndexer;
+  filter: string;
+  protocol: string;
+  implementation: string;
+  timestamp: string;
+  type: string | number;
+  info_url: string;
+  download_url: string;
+  group_id: string;
+  torrent_id: string;
+  name: string;
+  normalized_hash: string;
+  size: number;
+  title: string;
+  sub_title: string;
+  category: string;
+  season: number;
+  episode: number;
+  year: number;
+  month: number;
+  day: number;
+  resolution: string;
+  source: string;
+  codec: string[];
+  container: string;
+  hdr: string[] | null;
+  group: string;
+  proper: boolean;
+  repack: boolean;
+  website: string;
+  hybrid: boolean;
+  edition: string[];
+  cut: string[];
+  media_processing: string;
+  origin: string;
+  uploader: string;
+  pre_time: string;
+  action_status: AutobrrActionStatus[];
+}
+
+export interface AutobrrIndexer {
+  id: number;
+  name: string;
+  identifier: string;
+  identifier_external: string;
+}
+
+export interface AutobrrActionStatus {
+  id: number;
+  status: string;
+  action: string;
+  action_id: number;
+  type: string;
+  client: string;
+  filter: string;
+  filter_id: number;
+  rejections: string[];
+  release_id: number;
+  timestamp: string;
 }
 
 // Maintainerr Types
@@ -265,11 +344,15 @@ export interface SonarrQueueItem {
   trackedDownloadStatus?: string;
   errorMessage?: string;
   statusMessages?: SonarrStatusMessage[];
+  size: number;
+  episodes: { id: number; episodeNumber: number; seasonNumber: number }[];
 }
 
 export interface SonarrQueue {
   totalRecords: number;
   records: SonarrQueueItem[];
+  stats?: SonarrStats;
+  version?: string;
 }
 
 export interface SonarrStats {
@@ -315,8 +398,8 @@ export interface RadarrQueueItem {
   movie: RadarrMovie;
   movieId: number;
   statusMessages?: RadarrStatusMessage[];
+  size: number;
 }
-
 export interface RadarrQueue {
   totalRecords: number;
   records: RadarrQueueItem[];
@@ -375,6 +458,8 @@ export interface ServiceStats {
   overseerr?: OverseerrStats;
   sonarr?: {
     queue: SonarrQueue;
+    stats?: SonarrStats;
+    version?: string;
   };
   radarr?: {
     queue: RadarrQueue;
@@ -396,6 +481,7 @@ export interface ServiceStats {
 export interface ServiceDetails {
   autobrr?: {
     irc: AutobrrIRC[];
+    base_url: string;
   };
   omegabrr?: {
     webhookStatus: OmegabrrWebhookStatus;
@@ -411,13 +497,22 @@ export interface ServiceDetails {
   overseerr?: {
     lastRequestDate?: Date;
     totalRequests?: number;
+    pendingCount?: number;
   };
   sonarr?: {
     queueCount: number;
     monitored: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    episodeCount?: number;
+    totalSize?: number;
+    version?: string;
   };
   radarr?: {
     queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    totalSize?: number;
   };
   prowlarr?: {
     activeIndexers: number;

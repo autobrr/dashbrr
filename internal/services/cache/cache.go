@@ -62,8 +62,9 @@ type localCacheItem struct {
 }
 
 // NewCache creates a new Redis cache instance with optimized configuration
-func NewCache(addr string) (Store, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewCache(ctx context.Context, addr string) (Store, error) {
+	// Create a child context that can be cancelled independently
+	ctx, cancel := context.WithCancel(ctx)
 
 	// Development-optimized Redis configuration
 	client := redis.NewClient(&redis.Options{

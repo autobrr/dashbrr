@@ -4,15 +4,26 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
+)
+
+// Custom context keys
+type contextKey string
+
+const (
+	SessionContextKey contextKey = "session_data"
+	AuthTypeKey       contextKey = "auth_type"
+	UserIDKey         contextKey = "user_id"
 )
 
 type AuthMiddleware struct {
@@ -28,6 +39,10 @@ func NewAuthMiddleware(cache cache.Store) *AuthMiddleware {
 // RequireAuth middleware checks for valid authentication
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Create a context with timeout for auth operations
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		// Get session cookie
 		sessionToken, err := c.Cookie("session")
 		if err != nil {
@@ -55,12 +70,19 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 
 		// Try OIDC session format first
 		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)
-		err = m.cache.Get(c, sessionKey, &sessionData)
+		err = m.cache.Get(ctx, sessionKey, &sessionData)
 		if err != nil {
 			// If not found, try built-in auth session format
 			sessionKey = fmt.Sprintf("session:%s", sessionToken)
-			err = m.cache.Get(c, sessionKey, &sessionData)
+			err = m.cache.Get(ctx, sessionKey, &sessionData)
 			if err != nil {
+				// Check for context cancellation
+				if ctx.Err() != nil {
+					log.Error().Err(ctx.Err()).Msg("Context cancelled while checking session")
+					c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Authentication check timed out"})
+					c.Abort()
+					return
+				}
 				// Only log if it's not a "key not found" error, as that's expected
 				if err != cache.ErrKeyNotFound {
 					log.Error().Err(err).Msg("error checking session in cache")
@@ -71,7 +93,17 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			}
 		}
 
-		// Store session data in context
+		// Create new context with session data
+		newCtx := context.WithValue(ctx, SessionContextKey, sessionData)
+		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
+		if sessionData.UserID != 0 {
+			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
+		}
+
+		// Update request context
+		c.Request = c.Request.WithContext(newCtx)
+
+		// Also set in gin context for backward compatibility
 		c.Set("session", sessionData)
 		c.Set("auth_type", sessionData.AuthType)
 		if sessionData.UserID != 0 {
@@ -85,6 +117,10 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 // OptionalAuth middleware checks for authentication but doesn't require it
 func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Create a context with timeout for auth operations
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		sessionToken, err := c.Cookie("session")
 		if err != nil {
 			c.Next()
@@ -96,19 +132,35 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 
 		// Try OIDC session format first
 		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)
-		err = m.cache.Get(c, sessionKey, &sessionData)
+		err = m.cache.Get(ctx, sessionKey, &sessionData)
 		if err != nil {
 			// If not found, try built-in auth session format
 			sessionKey = fmt.Sprintf("session:%s", sessionToken)
-			err = m.cache.Get(c, sessionKey, &sessionData)
+			err = m.cache.Get(ctx, sessionKey, &sessionData)
 			if err != nil {
+				// Check for context cancellation
+				if ctx.Err() != nil {
+					log.Debug().Err(ctx.Err()).Msg("Context cancelled while checking optional session")
+					c.Next()
+					return
+				}
 				// Don't log anything for optional auth failures
 				c.Next()
 				return
 			}
 		}
 
-		// Store session data in context
+		// Create new context with session data
+		newCtx := context.WithValue(ctx, SessionContextKey, sessionData)
+		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
+		if sessionData.UserID != 0 {
+			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
+		}
+
+		// Update request context
+		c.Request = c.Request.WithContext(newCtx)
+
+		// Also set in gin context for backward compatibility
 		c.Set("session", sessionData)
 		c.Set("auth_type", sessionData.AuthType)
 		if sessionData.UserID != 0 {

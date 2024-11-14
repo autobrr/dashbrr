@@ -5,7 +5,7 @@
 
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../../contexts/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -29,16 +29,4 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   return <>{children}</>;
-}
-
-export function withAuth<P extends object>(
-  WrappedComponent: React.ComponentType<P>
-) {
-  return function WithAuthComponent(props: P) {
-    return (
-      <ProtectedRoute>
-        <WrappedComponent {...props} />
-      </ProtectedRoute>
-    );
-  };
 }

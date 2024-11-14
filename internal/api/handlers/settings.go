@@ -6,9 +6,9 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -16,38 +16,89 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/manager"
+	"github.com/autobrr/dashbrr/internal/types"
+)
+
+const (
+	configCacheKey    = "settings:configurations"
+	configCacheTTL    = 5 * time.Minute
+	configDebugLogTTL = 30 * time.Second
 )
 
 type SettingsHandler struct {
-	db     *database.DB
-	health *services.HealthService
+	db             *database.DB
+	health         *services.HealthService
+	cache          cache.Store
+	serviceManager *manager.ServiceManager
+	lastDebugLog   time.Time
 }
 
-func NewSettingsHandler(db *database.DB, health *services.HealthService) *SettingsHandler {
+func NewSettingsHandler(db *database.DB, health *services.HealthService, cache cache.Store) *SettingsHandler {
 	return &SettingsHandler{
-		db:     db,
-		health: health,
+		db:             db,
+		health:         health,
+		cache:          cache,
+		serviceManager: manager.NewServiceManager(db, cache),
+		lastDebugLog:   time.Now().Add(-configDebugLogTTL), // Initialize to ensure first log happens
 	}
 }
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
-	configurations, err := h.db.GetAllServices()
+	// Try to get configurations from cache
+	var configurations []models.ServiceConfiguration
+	err := h.cache.Get(context.Background(), configCacheKey, &configurations)
+	if err == nil {
+		// Only log debug messages every 30 seconds to reduce spam
+		if time.Since(h.lastDebugLog) > configDebugLogTTL {
+			for _, config := range configurations {
+				log.Debug().
+					Str("instance", config.InstanceID).
+					Str("display_name", config.DisplayName).
+					Msg("Loading configuration from cache")
+			}
+			log.Info().Int("count", len(configurations)).Msg("Returning cached configurations")
+			h.lastDebugLog = time.Now()
+		}
+
+		configMap := make(map[string]models.ServiceConfiguration)
+		for _, config := range configurations {
+			configMap[config.InstanceID] = config
+		}
+		c.JSON(http.StatusOK, configMap)
+		return
+	}
+
+	// If not in cache, fetch from database
+	configurations, err = h.db.GetAllServices(context.Background())
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching configurations")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch settings"})
 		return
 	}
 
-	configMap := make(map[string]models.ServiceConfiguration)
-	for _, config := range configurations {
-		log.Debug().
-			Str("instance", config.InstanceID).
-			Str("display_name", config.DisplayName).
-			Msg("Loading configuration")
-		configMap[config.InstanceID] = config
+	// Cache the configurations
+	if err := h.cache.Set(context.Background(), configCacheKey, configurations, configCacheTTL); err != nil {
+		log.Warn().Err(err).Msg("Failed to cache configurations")
 	}
 
-	log.Info().Int("count", len(configMap)).Msg("Returning configurations")
+	// Log configurations (with rate limiting)
+	if time.Since(h.lastDebugLog) > configDebugLogTTL {
+		for _, config := range configurations {
+			log.Debug().
+				Str("instance", config.InstanceID).
+				Str("display_name", config.DisplayName).
+				Msg("Loading configuration from database")
+		}
+		log.Info().Int("count", len(configurations)).Msg("Returning fresh configurations")
+		h.lastDebugLog = time.Now()
+	}
+
+	configMap := make(map[string]models.ServiceConfiguration)
+	for _, config := range configurations {
+		configMap[config.InstanceID] = config
+	}
 	c.JSON(http.StatusOK, configMap)
 }
 
@@ -86,11 +137,11 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	if existing == nil {
 		// Create new configuration
 		log.Debug().Str("instance", instanceID).Msg("Creating new configuration")
-		saveErr = h.db.CreateService(&config)
+		saveErr = h.db.CreateService(c.Request.Context(), &config)
 	} else {
 		// Update existing configuration
 		log.Debug().Str("instance", instanceID).Msg("Updating existing configuration")
-		saveErr = h.db.UpdateService(&config)
+		saveErr = h.db.UpdateService(c.Request.Context(), &config)
 	}
 
 	if saveErr != nil {
@@ -98,6 +149,12 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 		return
 	}
+
+	// Initialize service data
+	h.serviceManager.InitializeService(c.Request.Context(), &config)
+
+	// Invalidate cache
+	h.cache.Delete(context.Background(), configCacheKey)
 
 	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")
 	c.JSON(http.StatusOK, config)
@@ -127,11 +184,14 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	}
 
 	// Delete the configuration
-	if err := h.db.DeleteService(instanceID); err != nil {
+	if err := h.db.DeleteService(c.Request.Context(), instanceID); err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error deleting configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete settings"})
 		return
 	}
+
+	// Invalidate cache
+	h.cache.Delete(context.Background(), configCacheKey)
 
 	log.Info().Str("instance", instanceID).Msg("Successfully deleted configuration")
 	c.JSON(http.StatusOK, gin.H{"message": "Configuration deleted successfully"})
