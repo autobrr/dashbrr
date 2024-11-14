@@ -81,7 +81,7 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 
 	// Fetch requests in a goroutine
 	go func() {
-		stats, err := service.GetRequests(config.URL, config.APIKey)
+		stats, err := service.GetRequests(ctx, config.URL, config.APIKey)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -123,7 +123,7 @@ func (m *ServiceManager) initializePlex(ctx context.Context, config *models.Serv
 
 	// Fetch sessions in a goroutine
 	go func() {
-		sessions, err := service.GetSessions(config.URL, config.APIKey)
+		sessions, err := service.GetSessions(ctx, config.URL, config.APIKey)
 		if err != nil {
 			log.Error().
 				Err(err).

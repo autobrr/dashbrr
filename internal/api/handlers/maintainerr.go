@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -110,7 +110,7 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from service
-	collections, err = h.fetchAndCacheCollections(instanceId, cacheKey)
+	collections, err = h.fetchAndCacheCollections(ctx, instanceId, cacheKey)
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
@@ -141,11 +141,12 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	c.JSON(http.StatusOK, collections)
 }
 
-func (h *MaintainerrHandler) fetchAndCacheCollections(instanceId, cacheKey string) ([]maintainerr.Collection, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+func (h *MaintainerrHandler) fetchAndCacheCollections(ctx context.Context, instanceId, cacheKey string) ([]maintainerr.Collection, error) {
+	// Create a child context with timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
-	maintainerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	maintainerrConfig, err := h.db.FindServiceBy(timeoutCtx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service config: %w", err)
 	}
@@ -155,13 +156,13 @@ func (h *MaintainerrHandler) fetchAndCacheCollections(instanceId, cacheKey strin
 	}
 
 	service := &maintainerr.MaintainerrService{}
-	collections, err := service.GetCollections(maintainerrConfig.URL, maintainerrConfig.APIKey)
+	collections, err := service.GetCollections(timeoutCtx, maintainerrConfig.URL, maintainerrConfig.APIKey)
 	if err != nil {
 		return nil, err // Pass through the ErrMaintainerr
 	}
 
 	// Only cache successful responses
-	if err := h.cache.Set(ctx, cacheKey, collections, cacheDuration); err != nil {
+	if err := h.cache.Set(timeoutCtx, cacheKey, collections, cacheDuration); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -175,7 +176,8 @@ func (h *MaintainerrHandler) refreshCollectionsCache(instanceId, cacheKey string
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	collections, err := h.fetchAndCacheCollections(instanceId, cacheKey)
+	ctx := context.Background()
+	collections, err := h.fetchAndCacheCollections(ctx, instanceId, cacheKey)
 	if err != nil {
 		if err.Error() != "service not configured" {
 			status, message := determineErrorResponse(err)

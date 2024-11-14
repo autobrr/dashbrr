@@ -113,13 +113,10 @@ func (s *AutobrrService) getEndpoint(baseURL, path string) string {
 	return fmt.Sprintf("%s%s", baseURL, path)
 }
 
-func (s *AutobrrService) GetReleases(url, apiKey string) (ReleasesResponse, error) {
+func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (ReleasesResponse, error) {
 	if url == "" || apiKey == "" {
 		return ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	releasesURL := s.getEndpoint(url, "/api/release")
 	headers := map[string]string{
@@ -150,13 +147,10 @@ func (s *AutobrrService) GetReleases(url, apiKey string) (ReleasesResponse, erro
 	return releases, nil
 }
 
-func (s *AutobrrService) GetReleaseStats(url, apiKey string) (AutobrrStats, error) {
+func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string) (AutobrrStats, error) {
 	if url == "" || apiKey == "" {
 		return AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	statsURL := s.getEndpoint(url, "/api/release/stats")
 	headers := map[string]string{
@@ -201,7 +195,7 @@ func (s *AutobrrService) CacheIRCStatus(url, status string) error {
 	return s.CacheVersion(url+"_irc", status, 5*time.Minute)
 }
 
-func (s *AutobrrService) GetIRCStatus(url, apiKey string) ([]IRCStatus, error) {
+func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]IRCStatus, error) {
 	if url == "" || apiKey == "" {
 		return nil, fmt.Errorf("service not configured: missing URL or API key")
 	}
@@ -213,9 +207,6 @@ func (s *AutobrrService) GetIRCStatus(url, apiKey string) ([]IRCStatus, error) {
 			return status, nil
 		}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	ircURL := s.getEndpoint(url, "/api/irc")
 	headers := map[string]string{
@@ -280,14 +271,11 @@ func (s *AutobrrService) GetIRCStatus(url, apiKey string) ([]IRCStatus, error) {
 	return []IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to decode response: %s", string(body))
 }
 
-func (s *AutobrrService) GetVersion(url, apiKey string) (string, error) {
+func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
 	// Check cache first
 	if version := s.GetVersionFromCache(url); version != "" {
 		return version, nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	versionURL := s.getEndpoint(url, "/api/config")
 	headers := map[string]string{
@@ -335,14 +323,11 @@ func (s *AutobrrService) CacheUpdate(url, status string, ttl time.Duration) erro
 	return s.CacheVersion(url+"_update", status, ttl)
 }
 
-func (s *AutobrrService) CheckUpdate(url, apiKey string) (bool, error) {
+func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (bool, error) {
 	// Check cache first
 	if status := s.GetUpdateFromCache(url); status != "" {
 		return status == "true", nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	updateURL := s.getEndpoint(url, "/api/updates/latest")
 	headers := map[string]string{
@@ -372,7 +357,7 @@ func (s *AutobrrService) CheckUpdate(url, apiKey string) (bool, error) {
 	return hasUpdate, nil
 }
 
-func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceHealth, int) {
+func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" || apiKey == "" {
@@ -380,14 +365,14 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	}
 
 	// Create a context with timeout for the entire health check
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	// Start version check in background
 	versionChan := make(chan string, 1)
 	versionErrChan := make(chan error, 1)
 	go func() {
-		version, err := s.GetVersion(url, apiKey)
+		version, err := s.GetVersion(ctx, url, apiKey)
 		if err != nil {
 			versionErrChan <- err
 			versionChan <- ""
@@ -401,7 +386,7 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	updateChan := make(chan bool, 1)
 	updateErrChan := make(chan error, 1)
 	go func() {
-		hasUpdate, err := s.CheckUpdate(url, apiKey)
+		hasUpdate, err := s.CheckUpdate(ctx, url, apiKey)
 		if err != nil {
 			updateErrChan <- err
 			updateChan <- false
@@ -412,7 +397,7 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	}()
 
 	// Get release stats
-	stats, err := s.GetReleaseStats(url, apiKey)
+	stats, err := s.GetReleaseStats(ctx, url, apiKey)
 	if err != nil {
 		fmt.Printf("Failed to get release stats: %v\n", err)
 		// Continue without stats, don't fail the health check
@@ -471,7 +456,7 @@ func (s *AutobrrService) CheckHealth(url string, apiKey string) (models.ServiceH
 	}
 
 	// Get IRC status
-	ircStatus, err := s.GetIRCStatus(url, apiKey)
+	ircStatus, err := s.GetIRCStatus(ctx, url, apiKey)
 	if err != nil {
 		extras := map[string]interface{}{
 			"responseTime": responseTime,

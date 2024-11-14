@@ -3,7 +3,6 @@ package plex
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/url"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/plex"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // AddCommand handles adding a new plex service
@@ -85,7 +85,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	plexService := plex.NewPlexService()
 
 	// Perform health check to validate connection
-	health, _ := plexService.CheckHealth(serviceURL, apiKey)
+	health, _ := plexService.CheckHealth(ctx, serviceURL, apiKey)
 
 	if health.Status == "error" || health.Status == "offline" {
 		return fmt.Errorf("failed to connect to plex service: %s", health.Message)
@@ -201,7 +201,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 
 			// Try to get health info which includes version
 			plexService := plex.NewPlexService()
-			if health, _ := plexService.CheckHealth(service.URL, service.APIKey); health.Status != "" {
+			if health, _ := plexService.CheckHealth(ctx, service.URL, service.APIKey); health.Status != "" {
 				if health.Version != "" {
 					fmt.Printf("    Version: %s\n", health.Version)
 				}

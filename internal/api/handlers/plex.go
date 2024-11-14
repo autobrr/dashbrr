@@ -68,7 +68,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	}
 
 	// If not in cache or invalid cache data, fetch from service
-	sessions, err = h.fetchAndCacheSessions(instanceId, cacheKey)
+	sessions, err = h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
@@ -107,8 +107,8 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
-func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types.PlexSessionsResponse, error) {
-	plexConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *PlexHandler) fetchAndCacheSessions(ctx context.Context, instanceId, cacheKey string) (*types.PlexSessionsResponse, error) {
+	plexConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types
 	}
 
 	service := &plex.PlexService{}
-	sessions, err := service.GetSessions(plexConfig.URL, plexConfig.APIKey)
+	sessions, err := service.GetSessions(ctx, plexConfig.URL, plexConfig.APIKey)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,6 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types
 	}
 
 	// Cache the results using the centralized cache duration
-	ctx := context.Background()
 	if err := h.cache.Set(ctx, cacheKey, sessions, middleware.CacheDurations.PlexSessions); err != nil {
 		log.Warn().
 			Err(err).
@@ -145,7 +144,8 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types
 }
 
 func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
-	sessions, err := h.fetchAndCacheSessions(instanceId, cacheKey)
+	ctx := context.Background()
+	sessions, err := h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).

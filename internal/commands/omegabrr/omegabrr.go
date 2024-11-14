@@ -3,7 +3,6 @@ package omegabrr
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/url"
 	"strconv"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // AddCommand handles adding a new Omegabrr service
@@ -84,7 +84,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	omegabrrService := models.NewOmegabrrService()
 
 	// Perform health check to validate connection
-	health, _ := omegabrrService.CheckHealth(serviceURL, apiKey)
+	health, _ := omegabrrService.CheckHealth(ctx, serviceURL, apiKey)
 
 	if health.Status != "online" {
 		return fmt.Errorf("failed to connect to Omegabrr service: %s", health.Message)
@@ -202,7 +202,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 
 			// Try to get health info which includes version
 			omegabrrService := models.NewOmegabrrService()
-			if health, _ := omegabrrService.CheckHealth(service.URL, service.APIKey); health.Status == "online" {
+			if health, _ := omegabrrService.CheckHealth(ctx, service.URL, service.APIKey); health.Status == "online" {
 				fmt.Printf("    Version: %s\n", health.Version)
 				fmt.Printf("    Status: %s\n", health.Status)
 			}

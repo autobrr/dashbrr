@@ -93,7 +93,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	service.SetDB(h.db)
 
 	// Update request status
-	if err := service.UpdateRequestStatus(overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve); err != nil {
+	if err := service.UpdateRequestStatus(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve); err != nil {
 		log.Error().Err(err).
 			Str("instanceId", instanceId).
 			Int("requestId", reqID).
@@ -204,7 +204,7 @@ func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*
 	service := &overseerr.OverseerrService{}
 	service.SetDB(h.db)
 
-	stats, err := service.GetRequests(overseerrConfig.URL, overseerrConfig.APIKey)
+	stats, err := service.GetRequests(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey)
 	if err != nil {
 		return nil, err
 	}

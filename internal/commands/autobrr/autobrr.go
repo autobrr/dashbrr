@@ -3,7 +3,6 @@ package autobrr
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/url"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // AddCommand handles adding a new Autobrr service
@@ -85,7 +85,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	autobrrService := autobrr.NewAutobrrService()
 
 	// Perform health check to validate connection
-	health, _ := autobrrService.CheckHealth(serviceURL, apiKey)
+	health, _ := autobrrService.CheckHealth(ctx, serviceURL, apiKey)
 
 	if health.Status != "online" {
 		return fmt.Errorf("failed to connect to Autobrr service: %s", health.Message)
@@ -202,7 +202,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 
 			// Try to get health info which includes version
 			autobrrService := autobrr.NewAutobrrService()
-			if health, _ := autobrrService.CheckHealth(service.URL, service.APIKey); health.Status == "online" {
+			if health, _ := autobrrService.CheckHealth(ctx, service.URL, service.APIKey); health.Status == "online" {
 				fmt.Printf("    Version: %s\n", health.Version)
 				fmt.Printf("    Status: %s\n", health.Status)
 			}

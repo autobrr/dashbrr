@@ -33,14 +33,15 @@ type GeneralService struct {
 	core.ServiceCore
 }
 
-func (s *GeneralService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	// Create a child context with timeout if needed
+	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	headers := make(map[string]string)
@@ -48,7 +49,7 @@ func (s *GeneralService) CheckHealth(url, apiKey string) (models.ServiceHealth, 
 		headers["Authorization"] = fmt.Sprintf("Bearer %s", apiKey)
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, url, apiKey, headers)
+	resp, err := s.MakeRequestWithContext(healthCtx, url, apiKey, headers)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusServiceUnavailable
 	}
@@ -106,10 +107,10 @@ func (s *GeneralService) CheckHealth(url, apiKey string) (models.ServiceHealth, 
 	return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Unexpected response: %s", textResponse), extras), resp.StatusCode
 }
 
-func (s *GeneralService) GetVersion(url, apiKey string) (string, error) {
+func (s *GeneralService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
 	return "", nil // Version not supported for general service
 }
 
-func (s *GeneralService) GetLatestVersion() (string, error) {
+func (s *GeneralService) GetLatestVersion(ctx context.Context) (string, error) {
 	return "", nil // Version not supported for general service
 }

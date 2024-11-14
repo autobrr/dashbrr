@@ -86,7 +86,7 @@ func (s *SonarrService) makeRequest(ctx context.Context, method, url, apiKey str
 }
 
 // DeleteQueueItem deletes a queue item with the specified options
-func (s *SonarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, options types.SonarrQueueDeleteOptions) error {
+func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.SonarrQueueDeleteOptions) error {
 	if baseURL == "" {
 		return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -94,9 +94,6 @@ func (s *SonarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, 
 	if apiKey == "" {
 		return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	// Build delete URL with query parameters
 	deleteURL := fmt.Sprintf("%s/api/v3/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
@@ -159,7 +156,7 @@ func (s *SonarrService) DeleteQueueItem(baseURL, apiKey string, queueId string, 
 }
 
 // GetQueue fetches the current queue from Sonarr
-func (s *SonarrService) GetQueue(url, apiKey string) (interface{}, error) {
+func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
 	if url == "" {
 		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -167,9 +164,6 @@ func (s *SonarrService) GetQueue(url, apiKey string) (interface{}, error) {
 	if apiKey == "" {
 		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("API key is required")}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
 		strings.TrimRight(url, "/"))
@@ -198,8 +192,8 @@ func (s *SonarrService) GetQueue(url, apiKey string) (interface{}, error) {
 }
 
 // GetQueueForHealth is a wrapper around GetQueue that returns []types.QueueRecord
-func (s *SonarrService) GetQueueForHealth(url, apiKey string) ([]types.QueueRecord, error) {
-	records, err := s.GetQueue(url, apiKey)
+func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
+	records, err := s.GetQueue(ctx, url, apiKey)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +204,7 @@ func (s *SonarrService) GetQueueForHealth(url, apiKey string) ([]types.QueueReco
 }
 
 // LookupByTvdbId fetches series details from Sonarr by TVDB ID
-func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*types.Series, error) {
+func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey string, tvdbId int) (*types.Series, error) {
 	if baseURL == "" {
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("URL is required")}
 	}
@@ -220,8 +214,6 @@ func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*typ
 	}
 
 	lookupURL := fmt.Sprintf("%s/api/v3/series/lookup?term=tvdb%%3A%d", strings.TrimRight(baseURL, "/"), tvdbId)
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
 	if err != nil {
@@ -252,7 +244,7 @@ func (s *SonarrService) LookupByTvdbId(baseURL, apiKey string, tvdbId int) (*typ
 }
 
 // GetSeries fetches series details from Sonarr by ID
-func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.Series, error) {
+func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, seriesID int) (*types.Series, error) {
 	if baseURL == "" {
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("URL is required")}
 	}
@@ -262,8 +254,6 @@ func (s *SonarrService) GetSeries(baseURL, apiKey string, seriesID int) (*types.
 	}
 
 	seriesURL := fmt.Sprintf("%s/api/v3/series/%d", strings.TrimRight(baseURL, "/"), seriesID)
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, seriesURL, apiKey, nil)
 	if err != nil {
@@ -299,9 +289,10 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return version, nil
 	}
 
-	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
 	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
+
+	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, statusURL, apiKey, nil)
 	if err != nil {
@@ -338,9 +329,10 @@ func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("URL is required")}
 	}
 
-	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
 	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
+
+	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, updateURL, apiKey, nil)
 	if err != nil {
@@ -372,6 +364,6 @@ func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 	return false, nil
 }
 
-func (s *SonarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

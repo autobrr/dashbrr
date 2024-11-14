@@ -3,7 +3,6 @@ package general
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/url"
 	"strconv"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands/base"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // AddCommand handles adding a new General service
@@ -95,7 +95,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	generalService := models.NewGeneralService()
 
 	// Perform health check to validate connection
-	health, _ := generalService.CheckHealth(serviceURL, apiKey)
+	health, _ := generalService.CheckHealth(ctx, serviceURL, apiKey)
 
 	if health.Status != "online" {
 		return fmt.Errorf("failed to connect to General service: %s", health.Message)
@@ -213,7 +213,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 
 			// Try to get health info which includes version
 			generalService := models.NewGeneralService()
-			if health, _ := generalService.CheckHealth(service.URL, service.APIKey); health.Status == "online" {
+			if health, _ := generalService.CheckHealth(ctx, service.URL, service.APIKey); health.Status == "online" {
 				fmt.Printf("    Version: %s\n", health.Version)
 				fmt.Printf("    Status: %s\n", health.Status)
 			}

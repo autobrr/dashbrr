@@ -124,22 +124,22 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	return statusResponse.Version, nil
 }
 
-func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	// Create context with longer timeout
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultLongTimeout)
+	// Create a child context with longer timeout if needed
+	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultLongTimeout)
 	defer cancel()
 
 	versionChan := make(chan string, 1)
 	errChan := make(chan error, 1)
 
 	go func() {
-		version, err := s.getVersion(ctx, url)
+		version, err := s.getVersion(healthCtx, url)
 		if err != nil {
 			errChan <- err
 			versionChan <- ""
@@ -150,7 +150,7 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 	}()
 
 	healthEndpoint := s.GetHealthEndpoint(url)
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", nil)
+	resp, err := s.MakeRequestWithContext(healthCtx, healthEndpoint, "", nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}
@@ -194,8 +194,8 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 	select {
 	case version = <-versionChan:
 		versionErr = <-errChan
-	case <-ctx.Done():
-		versionErr = ctx.Err()
+	case <-healthCtx.Done():
+		versionErr = healthCtx.Err()
 	}
 
 	extras := map[string]interface{}{
@@ -213,7 +213,7 @@ func (s *MaintainerrService) CheckHealth(url, apiKey string) (models.ServiceHeal
 	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK
 }
 
-func (s *MaintainerrService) GetCollections(url, apiKey string) ([]Collection, error) {
+func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey string) ([]Collection, error) {
 	if url == "" {
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("URL is required")}
 	}
@@ -221,10 +221,6 @@ func (s *MaintainerrService) GetCollections(url, apiKey string) ([]Collection, e
 	if apiKey == "" {
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("API key is required")}
 	}
-
-	// Create context with longer timeout
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultLongTimeout)
-	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
 	endpoint := fmt.Sprintf("%s/api/collections", baseURL)

@@ -3,7 +3,6 @@ package radarr
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/url"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // AddCommand handles adding a new radarr service
@@ -85,7 +85,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	radarrService := radarr.NewRadarrService()
 
 	// Perform health check to validate connection
-	health, _ := radarrService.CheckHealth(serviceURL, apiKey)
+	health, _ := radarrService.CheckHealth(ctx, serviceURL, apiKey)
 
 	if health.Status == "error" || health.Status == "offline" {
 		return fmt.Errorf("failed to connect to radarr service: %s", health.Message)
@@ -201,7 +201,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 
 			// Try to get health info which includes version
 			radarrService := radarr.NewRadarrService()
-			if health, _ := radarrService.CheckHealth(service.URL, service.APIKey); health.Status != "" {
+			if health, _ := radarrService.CheckHealth(ctx, service.URL, service.APIKey); health.Status != "" {
 				if health.Version != "" {
 					fmt.Printf("    Version: %s\n", health.Version)
 				}

@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // DatabaseService defines the database operations needed by HealthHandler
@@ -112,7 +112,8 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		return
 	}
 
-	health, statusCode := serviceChecker.CheckHealth(service.URL, service.APIKey)
+	// Use the gin context for propagation
+	health, statusCode := serviceChecker.CheckHealth(c, service.URL, service.APIKey)
 
 	// Enhance error handling for specific status codes
 	if statusCode != http.StatusOK {

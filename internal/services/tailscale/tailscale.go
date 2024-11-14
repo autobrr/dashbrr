@@ -105,20 +105,21 @@ func (s *TailscaleService) getDevicesWithContext(ctx context.Context, apiKey str
 	return &apiResponse, responseTime, nil
 }
 
-func (s *TailscaleService) CheckHealth(_ string, apiKey string) (models.ServiceHealth, int) {
+func (s *TailscaleService) CheckHealth(ctx context.Context, _ string, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if apiKey == "" {
 		return s.CreateHealthResponse(startTime, "error", "Service not configured: missing API key"), http.StatusBadRequest
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	// Create a child context with timeout if needed
+	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	versionChan := make(chan string, 1)
 	errChan := make(chan error, 1)
 	go func() {
-		apiResponse, _, err := s.getDevicesWithContext(ctx, apiKey)
+		apiResponse, _, err := s.getDevicesWithContext(healthCtx, apiKey)
 		if err != nil {
 			errChan <- err
 			versionChan <- ""
@@ -133,7 +134,7 @@ func (s *TailscaleService) CheckHealth(_ string, apiKey string) (models.ServiceH
 		errChan <- nil
 	}()
 
-	apiResponse, responseTime, err := s.getDevicesWithContext(ctx, apiKey)
+	apiResponse, responseTime, err := s.getDevicesWithContext(healthCtx, apiKey)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "error", err.Error()), http.StatusServiceUnavailable
 	}
@@ -143,8 +144,8 @@ func (s *TailscaleService) CheckHealth(_ string, apiKey string) (models.ServiceH
 	select {
 	case version = <-versionChan:
 		versionErr = <-errChan
-	case <-ctx.Done():
-		versionErr = ctx.Err()
+	case <-healthCtx.Done():
+		versionErr = healthCtx.Err()
 	}
 
 	onlineCount := 0
@@ -178,10 +179,7 @@ func isDeviceOnline(lastSeen string) bool {
 	return lastSeenTime.After(fiveMinutesAgo)
 }
 
-func (s *TailscaleService) GetDevices(_ string, apiKey string) ([]Device, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
-
+func (s *TailscaleService) GetDevices(ctx context.Context, _ string, apiKey string) ([]Device, error) {
 	apiResponse, _, err := s.getDevicesWithContext(ctx, apiKey)
 	if err != nil {
 		return nil, err

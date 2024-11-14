@@ -117,7 +117,7 @@ func (h *RadarrHandler) fetchAndCacheQueue(instanceId, cacheKey string) (types.R
 	service := &radarr.RadarrService{}
 
 	// Get queue records using the service
-	records, err := service.GetQueueForHealth(radarrConfig.URL, radarrConfig.APIKey)
+	records, err := service.GetQueueForHealth(context.Background(), radarrConfig.URL, radarrConfig.APIKey)
 	if err != nil {
 		return types.RadarrQueueResponse{}, err
 	}
@@ -235,7 +235,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	service := &radarr.RadarrService{}
 
 	// Call the service method to delete the queue item
-	if err := service.DeleteQueueItem(radarrConfig.URL, radarrConfig.APIKey, queueId, options); err != nil {
+	if err := service.DeleteQueueItem(context.Background(), radarrConfig.URL, radarrConfig.APIKey, queueId, options); err != nil {
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).

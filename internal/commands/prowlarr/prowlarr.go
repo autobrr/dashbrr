@@ -3,7 +3,6 @@ package prowlarr
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/url"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // AddCommand handles adding a new prowlarr service
@@ -85,7 +85,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	prowlarrService := prowlarr.NewProwlarrService()
 
 	// Perform health check to validate connection
-	health, _ := prowlarrService.CheckHealth(serviceURL, apiKey)
+	health, _ := prowlarrService.CheckHealth(ctx, serviceURL, apiKey)
 
 	if health.Status == "error" || health.Status == "offline" {
 		return fmt.Errorf("failed to connect to prowlarr service: %s", health.Message)
@@ -201,7 +201,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 
 			// Try to get health info which includes version
 			prowlarrService := prowlarr.NewProwlarrService()
-			if health, _ := prowlarrService.CheckHealth(service.URL, service.APIKey); health.Status != "" {
+			if health, _ := prowlarrService.CheckHealth(ctx, service.URL, service.APIKey); health.Status != "" {
 				if health.Version != "" {
 					fmt.Printf("    Version: %s\n", health.Version)
 				}

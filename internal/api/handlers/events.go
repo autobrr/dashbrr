@@ -181,7 +181,7 @@ func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []models.Se
 
 					serviceChecker := models.NewServiceRegistry().CreateService(serviceType)
 					if serviceChecker != nil {
-						health, _ := serviceChecker.CheckHealth(svc.URL, svc.APIKey)
+						health, _ := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
 						health.ServiceID = svc.InstanceID
 
 						lastChecksMu.Lock()

@@ -86,7 +86,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	service := &sonarr.SonarrService{}
 
 	// Call the service method to delete the queue item
-	if err := service.DeleteQueueItem(sonarrConfig.URL, sonarrConfig.APIKey, queueId, options); err != nil {
+	if err := service.DeleteQueueItem(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey, queueId, options); err != nil {
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
@@ -212,7 +212,7 @@ func (h *SonarrHandler) fetchAndCacheQueue(instanceId, cacheKey string) (types.S
 	service := &sonarr.SonarrService{}
 
 	// Get queue records using the service
-	records, err := service.GetQueueForHealth(sonarrConfig.URL, sonarrConfig.APIKey)
+	records, err := service.GetQueueForHealth(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
 		return types.SonarrQueueResponse{}, err
 	}

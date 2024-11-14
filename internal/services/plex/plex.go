@@ -56,7 +56,7 @@ func (s *PlexService) getPlexHeaders(apiKey string) map[string]string {
 	}
 }
 
-func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsResponse, error) {
+func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*types.PlexSessionsResponse, error) {
 	if url == "" {
 		return nil, fmt.Errorf("URL is required")
 	}
@@ -64,9 +64,6 @@ func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsRespon
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is required")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
 	sessionsEndpoint := fmt.Sprintf("%s/status/sessions", baseURL)
@@ -117,15 +114,12 @@ func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsRespon
 	return &sessionsResponse, nil
 }
 
-func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := s.getPlexHeaders(apiKey)

@@ -69,13 +69,10 @@ func (s *OverseerrService) SetDB(db *database.DB) {
 }
 
 // UpdateRequestStatus updates the status of a media request (approve/reject)
-func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int, approve bool) error {
+func (s *OverseerrService) UpdateRequestStatus(ctx context.Context, url, apiKey string, requestID int, approve bool) error {
 	if url == "" {
 		return &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
 	status := "approve"
@@ -113,7 +110,7 @@ func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int
 }
 
 // fetchMediaTitle fetches the title from either Radarr or Sonarr based on mediaType
-func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, error) {
+func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.MediaRequest) (string, error) {
 	if s.db == nil {
 		return "", fmt.Errorf("database not initialized")
 	}
@@ -134,7 +131,7 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 
 		radarrService := &radarr.RadarrService{}
 		// Use TmdbID for movie lookups
-		movie, err := radarrService.LookupByTmdbId(service.URL, service.APIKey, request.Media.TmdbID)
+		movie, err := radarrService.LookupByTmdbId(ctx, service.URL, service.APIKey, request.Media.TmdbID)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch movie from Radarr: %w", err)
 		}
@@ -152,7 +149,7 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 
 		sonarrService := &sonarr.SonarrService{}
 		// Use TvdbID for TV show lookups
-		series, err := sonarrService.LookupByTvdbId(service.URL, service.APIKey, request.Media.TvdbID)
+		series, err := sonarrService.LookupByTvdbId(ctx, service.URL, service.APIKey, request.Media.TvdbID)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch series from Sonarr: %w", err)
 		}
@@ -163,13 +160,10 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 	}
 }
 
-func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats, error) {
+func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) (*types.RequestsStats, error) {
 	if url == "" {
 		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
 	requestEndpoint := fmt.Sprintf("%s/api/v1/request?take=10", baseURL)
@@ -214,7 +208,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 		}
 
 		// Try to fetch the title using the appropriate lookup method
-		title, err := s.fetchMediaTitle(mediaRequest)
+		title, err := s.fetchMediaTitle(ctx, mediaRequest)
 		if err == nil {
 			mediaRequest.Media.Title = title
 		}
@@ -228,7 +222,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 	}, nil
 }
 
-func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
@@ -237,10 +231,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 			Errors:  []string{"URL is required"},
 		}).Error()), http.StatusBadRequest
 	}
-
-	// Create a context with timeout for the health check
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
 
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := map[string]string{

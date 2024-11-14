@@ -6,7 +6,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/omegabrr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -75,7 +75,7 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	}
 
 	// If not in cache, fetch from service
-	health, err = h.fetchAndCacheStatus(instanceId, cacheKey)
+	health, err = h.fetchAndCacheStatus(ctx, instanceId, cacheKey)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
@@ -95,8 +95,8 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, health)
 }
 
-func (h *OmegabrrHandler) fetchAndCacheStatus(instanceId, cacheKey string) (models.ServiceHealth, error) {
-	omegabrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *OmegabrrHandler) fetchAndCacheStatus(ctx context.Context, instanceId, cacheKey string) (models.ServiceHealth, error) {
+	omegabrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return models.ServiceHealth{}, err
 	}
@@ -109,13 +109,12 @@ func (h *OmegabrrHandler) fetchAndCacheStatus(instanceId, cacheKey string) (mode
 		ServiceCore: core.ServiceCore{},
 	}
 
-	health, statusCode := service.CheckHealth(omegabrrConfig.URL, omegabrrConfig.APIKey)
+	health, statusCode := service.CheckHealth(ctx, omegabrrConfig.URL, omegabrrConfig.APIKey)
 	if statusCode != http.StatusOK {
 		return models.ServiceHealth{}, fmt.Errorf("failed to get status")
 	}
 
 	// Cache the results
-	ctx := context.Background()
 	if err := h.cache.Set(ctx, cacheKey, health, omegabrrCacheDuration); err != nil {
 		log.Warn().
 			Err(err).
@@ -130,7 +129,8 @@ func (h *OmegabrrHandler) refreshStatusCache(instanceId, cacheKey string) {
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	_, err := h.fetchAndCacheStatus(instanceId, cacheKey)
+	ctx := context.Background()
+	_, err := h.fetchAndCacheStatus(ctx, instanceId, cacheKey)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -168,7 +168,7 @@ func (h *OmegabrrHandler) TriggerWebhookArrs(c *gin.Context) {
 		ServiceCore: core.ServiceCore{},
 	}
 
-	statusCode := service.TriggerARRsWebhook(req.TargetURL, req.APIKey)
+	statusCode := service.TriggerARRsWebhook(c, req.TargetURL, req.APIKey)
 	if statusCode != http.StatusOK {
 		log.Error().
 			Str("targetUrl", req.TargetURL).
@@ -215,7 +215,7 @@ func (h *OmegabrrHandler) TriggerWebhookLists(c *gin.Context) {
 		ServiceCore: core.ServiceCore{},
 	}
 
-	statusCode := service.TriggerListsWebhook(req.TargetURL, req.APIKey)
+	statusCode := service.TriggerListsWebhook(c, req.TargetURL, req.APIKey)
 	if statusCode != http.StatusOK {
 		log.Error().
 			Str("targetUrl", req.TargetURL).
@@ -262,7 +262,7 @@ func (h *OmegabrrHandler) TriggerWebhookAll(c *gin.Context) {
 		ServiceCore: core.ServiceCore{},
 	}
 
-	statusCode := service.TriggerAllWebhooks(req.TargetURL, req.APIKey)
+	statusCode := service.TriggerAllWebhooks(c, req.TargetURL, req.APIKey)
 	if statusCode != http.StatusOK {
 		log.Error().
 			Str("targetUrl", req.TargetURL).

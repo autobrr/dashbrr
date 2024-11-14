@@ -252,7 +252,7 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 
 	// Get indexer stats
 	prowlarrService := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
-	statsResp, err := prowlarrService.GetIndexerStats(prowlarrConfig.URL, prowlarrConfig.APIKey)
+	statsResp, err := prowlarrService.GetIndexerStats(ctx, prowlarrConfig.URL, prowlarrConfig.APIKey)
 	if err == nil && statsResp != nil {
 		// Create a map for quick lookup
 		statsMap := make(map[int]types.ProwlarrIndexerStats)
@@ -344,7 +344,7 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 
 	// Get indexer stats
 	prowlarrService := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
-	stats, err := prowlarrService.GetIndexerStats(prowlarrConfig.URL, prowlarrConfig.APIKey)
+	stats, err := prowlarrService.GetIndexerStats(ctx, prowlarrConfig.URL, prowlarrConfig.APIKey)
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Prowlarr indexer stats")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Prowlarr indexer stats"})
