@@ -180,6 +180,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 			{
 				regularServices.GET("/autobrr/stats", autobrrHandler.GetAutobrrReleaseStats)
 				regularServices.GET("/autobrr/irc", autobrrHandler.GetAutobrrIRCStatus)
+				regularServices.GET("/autobrr/releases", autobrrHandler.GetAutobrrReleases)
 				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
 

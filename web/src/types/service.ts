@@ -41,6 +41,7 @@ export interface Service {
   stats?: ServiceStats;
   details?: ServiceDetails;
   health?: ServiceHealth;
+  releases?: AutobrrReleases;
 }
 
 export interface ServiceConfig {
@@ -63,6 +64,61 @@ export interface AutobrrStats {
 export interface AutobrrIRC {
   name: string;
   healthy: boolean;
+}
+
+export interface AutobrrReleases {
+  data: AutobrrRelease[];
+  count: number;
+  next_cursor: number;
+}
+
+export interface AutobrrRelease {
+  id: number;
+  filter_status: string;
+  rejections: string[];
+  indexer: AutobrrIndexer;
+  filter: string;
+  protocol: string;
+  timestamp: string;
+  info_url: string;
+  download_url: string;
+  name: string;
+  size: number;
+  title: string;
+  category: string;
+  season: number;
+  episode: number;
+  year: number;
+  resolution: string;
+  source: string;
+  codec: string[];
+  container: string;
+  hdr: string[] | null;
+  group: string;
+  type: string;
+  origin: string;
+  action_status: AutobrrActionStatus[];
+}
+
+export interface AutobrrIndexer {
+  id: number;
+  name: string;
+  identifier: string;
+  identifier_external: string;
+}
+
+export interface AutobrrActionStatus {
+  id: number;
+  status: string;
+  action: string;
+  action_id: number;
+  type: string;
+  client: string;
+  filter: string;
+  filter_id: number;
+  rejections: string[];
+  release_id: number;
+  timestamp: string;
 }
 
 // Maintainerr Types
@@ -409,6 +465,7 @@ export interface ServiceStats {
 export interface ServiceDetails {
   autobrr?: {
     irc: AutobrrIRC[];
+    base_url: string;
   };
   omegabrr?: {
     webhookStatus: OmegabrrWebhookStatus;

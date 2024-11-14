@@ -38,6 +38,61 @@ type VersionResponse struct {
 	Version string `json:"version"`
 }
 
+type ReleasesResponse struct {
+	Data       []Release `json:"data"`
+	Count      int       `json:"count"`
+	NextCursor int       `json:"next_cursor"`
+}
+
+type Release struct {
+	ID           int            `json:"id"`
+	FilterStatus string         `json:"filter_status"`
+	Rejections   []string       `json:"rejections"`
+	Indexer      Indexer        `json:"indexer"`
+	Filter       string         `json:"filter"`
+	Protocol     string         `json:"protocol"`
+	Timestamp    time.Time      `json:"timestamp"`
+	InfoURL      string         `json:"info_url"`
+	DownloadURL  string         `json:"download_url"`
+	Name         string         `json:"name"`
+	Size         int64          `json:"size"`
+	Title        string         `json:"title"`
+	Category     string         `json:"category"`
+	Season       int            `json:"season"`
+	Episode      int            `json:"episode"`
+	Year         int            `json:"year"`
+	Resolution   string         `json:"resolution"`
+	Source       string         `json:"source"`
+	Codec        []string       `json:"codec"`
+	Container    string         `json:"container"`
+	HDR          []string       `json:"hdr"`
+	Group        string         `json:"group"`
+	Type         string         `json:"type"`
+	Origin       string         `json:"origin"`
+	ActionStatus []ActionStatus `json:"action_status"`
+}
+
+type Indexer struct {
+	ID                 int    `json:"id"`
+	Name               string `json:"name"`
+	Identifier         string `json:"identifier"`
+	IdentifierExternal string `json:"identifier_external"`
+}
+
+type ActionStatus struct {
+	ID         int       `json:"id"`
+	Status     string    `json:"status"`
+	Action     string    `json:"action"`
+	ActionID   int       `json:"action_id"`
+	Type       string    `json:"type"`
+	Client     string    `json:"client"`
+	Filter     string    `json:"filter"`
+	FilterID   int       `json:"filter_id"`
+	Rejections []string  `json:"rejections"`
+	ReleaseID  int       `json:"release_id"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
 func init() {
 	models.NewAutobrrService = NewAutobrrService
 }
@@ -56,6 +111,43 @@ func NewAutobrrService() models.ServiceHealthChecker {
 func (s *AutobrrService) getEndpoint(baseURL, path string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s%s", baseURL, path)
+}
+
+func (s *AutobrrService) GetReleases(url, apiKey string) (ReleasesResponse, error) {
+	if url == "" || apiKey == "" {
+		return ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	defer cancel()
+
+	releasesURL := s.getEndpoint(url, "/api/release")
+	headers := map[string]string{
+		"auth_header": "X-Api-Token",
+		"auth_value":  apiKey,
+	}
+
+	resp, err := s.MakeRequestWithContext(ctx, releasesURL, apiKey, headers)
+	if err != nil {
+		return ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ReleasesResponse{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return ReleasesResponse{}, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	var releases ReleasesResponse
+	if err := json.Unmarshal(body, &releases); err != nil {
+		return ReleasesResponse{}, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return releases, nil
 }
 
 func (s *AutobrrService) GetReleaseStats(url, apiKey string) (AutobrrStats, error) {
@@ -98,7 +190,6 @@ func (s *AutobrrService) GetReleaseStats(url, apiKey string) (AutobrrStats, erro
 	return stats, nil
 }
 
-// GetIRCStatusFromCache retrieves the IRC status from cache
 func (s *AutobrrService) GetIRCStatusFromCache(url string) string {
 	if status := s.GetVersionFromCache(url + "_irc"); status != "" {
 		return status
@@ -106,7 +197,6 @@ func (s *AutobrrService) GetIRCStatusFromCache(url string) string {
 	return ""
 }
 
-// CacheIRCStatus stores the IRC status in cache
 func (s *AutobrrService) CacheIRCStatus(url, status string) error {
 	return s.CacheVersion(url+"_irc", status, 5*time.Minute)
 }
@@ -234,7 +324,6 @@ func (s *AutobrrService) GetVersion(url, apiKey string) (string, error) {
 	return versionData.Version, nil
 }
 
-// GetUpdateFromCache retrieves the update status from cache
 func (s *AutobrrService) GetUpdateFromCache(url string) string {
 	if update := s.GetVersionFromCache(url + "_update"); update != "" {
 		return update
@@ -242,7 +331,6 @@ func (s *AutobrrService) GetUpdateFromCache(url string) string {
 	return ""
 }
 
-// CacheUpdate stores the update status in cache
 func (s *AutobrrService) CacheUpdate(url, status string, ttl time.Duration) error {
 	return s.CacheVersion(url+"_update", status, ttl)
 }

@@ -30,6 +30,8 @@ var CacheDurations = struct {
 
 	// Service-specific durations for less frequently updated data
 	AutobrrStatus    time.Duration
+	AutobrrIRC       time.Duration
+	AutobrrReleases  time.Duration
 	MaintainerrStats time.Duration
 	SonarrStatus     time.Duration
 	RadarrStatus     time.Duration
@@ -38,12 +40,14 @@ var CacheDurations = struct {
 	Default:           30 * time.Second,
 	HealthCheck:       10 * time.Minute,
 	Statistics:        5 * time.Minute,
-	PlexSessions:      5 * time.Second,  // Frequent updates for active sessions
-	OverseerrRequests: 30 * time.Second, // Frequent updates for pending requests
-	AutobrrStatus:     30 * time.Second,
-	MaintainerrStats:  1 * time.Minute,
-	SonarrStatus:      30 * time.Second,
-	RadarrStatus:      30 * time.Second,
+	PlexSessions:      5 * time.Second,
+	OverseerrRequests: 30 * time.Second,
+	AutobrrStatus:     1 * time.Minute,
+	AutobrrIRC:        5 * time.Minute,
+	AutobrrReleases:   1 * time.Minute,
+	MaintainerrStats:  10 * time.Minute,
+	SonarrStatus:      1 * time.Minute,
+	RadarrStatus:      1 * time.Minute,
 	ProwlarrStatus:    1 * time.Minute,
 }
 
@@ -148,6 +152,12 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 		return CacheDurations.PlexSessions
 	case strings.Contains(path, "/overseerr/requests"):
 		return CacheDurations.OverseerrRequests
+	case strings.Contains(path, "/autobrr/irc"):
+		return CacheDurations.AutobrrIRC
+	case strings.Contains(path, "/autobrr/releases"):
+		return CacheDurations.AutobrrReleases
+	case strings.Contains(path, "/autobrr/stats"):
+		return CacheDurations.AutobrrStatus
 	case strings.Contains(path, "/autobrr"):
 		return CacheDurations.AutobrrStatus
 	case strings.Contains(path, "/maintainerr"):

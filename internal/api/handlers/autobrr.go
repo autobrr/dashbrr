@@ -6,24 +6,28 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
-	autobrrStatsCacheDuration = 10 * time.Second
-	autobrrIRCCacheDuration   = 5 * time.Second
-	statsPrefix               = "autobrr:stats:"
-	ircPrefix                 = "autobrr:irc:"
+	autobrrStatsCacheDuration    = 10 * time.Second
+	autobrrIRCCacheDuration      = 5 * time.Second
+	autobrrReleasesCacheDuration = 30 * time.Second
+	statsPrefix                  = "autobrr:stats:"
+	ircPrefix                    = "autobrr:irc:"
+	releasesPrefix               = "autobrr:releases:"
 )
 
 type AutobrrHandler struct {
@@ -38,11 +42,81 @@ func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
 	}
 }
 
+func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
+	instanceId := c.Query("instanceId")
+	if instanceId == "" {
+		log.Error().Msg("No instance ID provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
+		return
+	}
+
+	if instanceId[:7] != "autobrr" {
+		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
+		return
+	}
+
+	log.Debug().
+		Str("instanceId", instanceId).
+		Msg("GetAutobrrReleases called")
+
+	cacheKey := releasesPrefix + instanceId
+	ctx := context.Background()
+
+	// Try to get from cache first
+	var releases autobrr.ReleasesResponse
+	err := h.store.Get(ctx, cacheKey, &releases)
+	if err == nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Serving Autobrr releases from cache")
+		c.JSON(http.StatusOK, releases)
+
+		// Refresh cache in background without delay
+		go h.refreshReleasesCache(instanceId, cacheKey)
+		return
+	}
+
+	// If not in cache, fetch from service
+	releases, err = h.fetchAndCacheReleases(instanceId, cacheKey)
+	if err != nil {
+		if err.Error() == "service not configured" {
+			c.JSON(http.StatusOK, autobrr.ReleasesResponse{})
+			return
+		}
+
+		status := http.StatusInternalServerError
+		if err == context.DeadlineExceeded || err == context.Canceled {
+			status = http.StatusGatewayTimeout
+			log.Error().Err(err).Str("instanceId", instanceId).Msg("Request timeout while fetching Autobrr releases")
+		} else {
+			log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to fetch Autobrr releases")
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Debug().
+		Str("instanceId", instanceId).
+		Msg("Successfully retrieved and cached Autobrr releases")
+
+	// Broadcast releases update via SSE
+	h.broadcastReleases(instanceId, releases)
+
+	c.JSON(http.StatusOK, releases)
+}
+
 func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
 		log.Error().Msg("No instance ID provided")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
+		return
+	}
+
+	if instanceId[:7] != "autobrr" {
+		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
 		return
 	}
 
@@ -73,10 +147,6 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	stats, err = h.fetchAndCacheStats(instanceId, cacheKey)
 	if err != nil {
 		if err.Error() == "service not configured" {
-			// Return empty response for unconfigured service
-			log.Debug().
-				Str("instanceId", instanceId).
-				Msg("Service not configured, returning empty stats")
 			c.JSON(http.StatusOK, autobrr.AutobrrStats{})
 			return
 		}
@@ -97,6 +167,9 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		Interface("stats", stats).
 		Msg("Successfully retrieved and cached autobrr release stats")
 
+	// Broadcast stats update via SSE
+	h.broadcastStats(instanceId, stats)
+
 	c.JSON(http.StatusOK, stats)
 }
 
@@ -105,6 +178,12 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	if instanceId == "" {
 		log.Error().Msg("No instance ID provided")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
+		return
+	}
+
+	if instanceId[:7] != "autobrr" {
+		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
 		return
 	}
 
@@ -129,7 +208,6 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	status, err = h.fetchAndCacheIRC(instanceId, cacheKey)
 	if err != nil {
 		if err.Error() == "service not configured" {
-			// Return empty response for unconfigured service
 			c.JSON(http.StatusOK, []autobrr.IRCStatus{})
 			return
 		}
@@ -149,7 +227,63 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		Str("instanceId", instanceId).
 		Msg("Successfully retrieved and cached Autobrr IRC status")
 
+	// Broadcast IRC status update via SSE
+	h.broadcastIRCStatus(instanceId, status)
+
 	c.JSON(http.StatusOK, status)
+}
+
+// broadcastReleases broadcasts release updates to all connected SSE clients
+func (h *AutobrrHandler) broadcastReleases(instanceId string, releases autobrr.ReleasesResponse) {
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      "online",
+		Message:     "autobrr_releases",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"autobrr": releases,
+		},
+	})
+}
+
+// broadcastStats broadcasts stats updates to all connected SSE clients
+func (h *AutobrrHandler) broadcastStats(instanceId string, stats autobrr.AutobrrStats) {
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      "online",
+		Message:     "autobrr_stats",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"autobrr": stats,
+		},
+	})
+}
+
+// broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
+func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []autobrr.IRCStatus) {
+	// Check for unhealthy IRC connections
+	serviceStatus := "online"
+	message := "autobrr_irc_status"
+
+	for _, s := range status {
+		if !s.Healthy && s.Enabled {
+			serviceStatus = "warning"
+			message = fmt.Sprintf("IRC network %s is unhealthy", s.Name)
+			break
+		}
+	}
+
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      serviceStatus,
+		Message:     message,
+		LastChecked: time.Now(),
+		Details: map[string]interface{}{
+			"autobrr": map[string]interface{}{
+				"irc": status,
+			},
+		},
+	})
 }
 
 func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobrr.AutobrrStats, error) {
@@ -171,9 +305,9 @@ func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobr
 		return autobrr.AutobrrStats{}, err
 	}
 
-	// Cache the results
+	// Cache the results using the centralized cache duration
 	ctx := context.Background()
-	if err := h.store.Set(ctx, cacheKey, stats, autobrrStatsCacheDuration); err != nil {
+	if err := h.store.Set(ctx, cacheKey, stats, middleware.CacheDurations.AutobrrStatus); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -181,6 +315,37 @@ func (h *AutobrrHandler) fetchAndCacheStats(instanceId, cacheKey string) (autobr
 	}
 
 	return stats, nil
+}
+
+func (h *AutobrrHandler) fetchAndCacheReleases(instanceId, cacheKey string) (autobrr.ReleasesResponse, error) {
+	autobrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	if err != nil {
+		return autobrr.ReleasesResponse{}, err
+	}
+
+	if autobrrConfig == nil || autobrrConfig.URL == "" {
+		return autobrr.ReleasesResponse{}, fmt.Errorf("service not configured")
+	}
+
+	service := &autobrr.AutobrrService{
+		ServiceCore: core.ServiceCore{},
+	}
+
+	releases, err := service.GetReleases(autobrrConfig.URL, autobrrConfig.APIKey)
+	if err != nil {
+		return autobrr.ReleasesResponse{}, err
+	}
+
+	// Cache the results using the centralized cache duration
+	ctx := context.Background()
+	if err := h.store.Set(ctx, cacheKey, releases, middleware.CacheDurations.AutobrrStatus); err != nil {
+		log.Warn().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("Failed to cache Autobrr releases")
+	}
+
+	return releases, nil
 }
 
 func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobrr.IRCStatus, error) {
@@ -202,9 +367,9 @@ func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobr
 		return nil, err
 	}
 
-	// Cache the results
+	// Cache the results using the centralized cache duration
 	ctx := context.Background()
-	if err := h.store.Set(ctx, cacheKey, status, autobrrIRCCacheDuration); err != nil {
+	if err := h.store.Set(ctx, cacheKey, status, middleware.CacheDurations.AutobrrStatus); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -215,7 +380,7 @@ func (h *AutobrrHandler) fetchAndCacheIRC(instanceId, cacheKey string) ([]autobr
 }
 
 func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
-	_, err := h.fetchAndCacheStats(instanceId, cacheKey)
+	stats, err := h.fetchAndCacheStats(instanceId, cacheKey)
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
@@ -227,10 +392,13 @@ func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
 	log.Debug().
 		Str("instanceId", instanceId).
 		Msg("Successfully refreshed Autobrr release stats cache")
+
+	// Broadcast stats update via SSE
+	h.broadcastStats(instanceId, stats)
 }
 
 func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
-	_, err := h.fetchAndCacheIRC(instanceId, cacheKey)
+	status, err := h.fetchAndCacheIRC(instanceId, cacheKey)
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
@@ -242,4 +410,25 @@ func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
 	log.Debug().
 		Str("instanceId", instanceId).
 		Msg("Successfully refreshed autobrr IRC status cache")
+
+	// Broadcast IRC status update via SSE
+	h.broadcastIRCStatus(instanceId, status)
+}
+
+func (h *AutobrrHandler) refreshReleasesCache(instanceId, cacheKey string) {
+	releases, err := h.fetchAndCacheReleases(instanceId, cacheKey)
+	if err != nil && err.Error() != "service not configured" {
+		log.Error().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("Failed to refresh autobrr releases cache")
+		return
+	}
+
+	log.Debug().
+		Str("instanceId", instanceId).
+		Msg("Successfully refreshed autobrr releases cache")
+
+	// Broadcast releases update via SSE
+	h.broadcastReleases(instanceId, releases)
 }
