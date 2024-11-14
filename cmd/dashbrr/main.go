@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,11 +16,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/routes"
 	"github.com/autobrr/dashbrr/internal/buildinfo"
-	"github.com/autobrr/dashbrr/internal/commands/executor"
+	"github.com/autobrr/dashbrr/internal/commands"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
@@ -34,15 +34,52 @@ func init() {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "run" {
-		if err := executor.ExecuteCommand(os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
+	var rootCmd = &cobra.Command{
+		Use: "dashbrr",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
 	}
 
-	startServer()
+	rootCmd.AddCommand(commands.ConfigCommand())
+	rootCmd.AddCommand(commands.ServiceCommand())
+	rootCmd.AddCommand(commands.VersionCommand())
+	rootCmd.AddCommand(commands.UserCommand())
+	rootCmd.AddCommand(commands.HealthCommand())
+
+	rootCmd.AddCommand(RunCommand())
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+
+	//startServer()
+}
+
+func RunCommand() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "run",
+		Short: "run",
+		Long:  `run`,
+		Example: `  dashbrr run
+  dashbrr run --help`,
+		//SilenceUsage: true,
+	}
+
+	var (
+		outputJson  = false
+		checkUpdate = false
+	)
+
+	command.Flags().BoolVar(&outputJson, "json", false, "output in JSON format")
+	command.Flags().BoolVar(&checkUpdate, "check-github", false, "check for updates")
+
+	command.RunE = func(cmd *cobra.Command, args []string) error {
+		startServer()
+		return nil
+	}
+
+	return command
 }
 
 func startServer() {
