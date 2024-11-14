@@ -125,19 +125,19 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     sessions.forEach((session) => {
       const sessionKey = `${session.User?.title}-${session.title}`;
       const currentTime = Date.now();
+      const existingState = playbackStates[sessionKey];
 
-      if (playbackStates[sessionKey]) {
-        const existing = playbackStates[sessionKey];
-        if (existing.state === "playing") {
-          const timeDiff = currentTime - existing.lastUpdated;
+      if (existingState) {
+        if (existingState.state === "playing") {
+          const timeDiff = currentTime - existingState.lastUpdated;
           newStates[sessionKey] = {
-            offset: existing.offset + timeDiff,
+            offset: existingState.offset + timeDiff,
             lastUpdated: currentTime,
             state: session.Player?.state || "stopped",
           };
         } else {
           newStates[sessionKey] = {
-            ...existing,
+            ...existingState,
             state: session.Player?.state || "stopped",
           };
         }
@@ -174,7 +174,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [sessions, playbackStates]);
+  }, [sessions]); // Removed playbackStates from dependencies
 
   const getCurrentOffset = (session: PlexSession): number => {
     const sessionKey = `${session.User?.title}-${session.title}`;
