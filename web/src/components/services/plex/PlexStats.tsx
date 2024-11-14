@@ -293,25 +293,29 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                     </div>
                   </div>
 
-                  {session.duration && session.viewOffset && (
-                    <div className="mb-3">
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
-                        <div
-                          className="bg-blue-500 h-1 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${getProgressPercentage(
-                              getCurrentOffset(session),
-                              session.duration || 0
-                            )}%`,
-                          }}
-                        />
+                  {session.duration &&
+                    session.viewOffset &&
+                    getCurrentOffset(session) > 0 && (
+                      <div className="mb-3">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                          <div
+                            className="bg-blue-500 h-1 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${getProgressPercentage(
+                                getCurrentOffset(session),
+                                session.duration || 0
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          <span>
+                            {formatDuration(getCurrentOffset(session))}
+                          </span>
+                          <span>{formatDuration(session.duration || 0)}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        <span>{formatDuration(getCurrentOffset(session))}</span>
-                        <span>{formatDuration(session.duration || 0)}</span>
-                      </div>
-                    </div>
-                  )}
+                    )}
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="space-y-2">
