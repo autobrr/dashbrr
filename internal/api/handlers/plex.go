@@ -274,7 +274,7 @@ func (h *PlexHandler) compareAndLogSessionChanges(instanceId string, sessions *t
 			Str("instanceId", instanceId).
 			Int("size", sessions.MediaContainer.Size).
 			Str("change", changes).
-			Msg("Plex sessions changed")
+			Msg("[Plex] Sessions changed")
 
 		h.lastSessionHash[instanceId] = currentHash
 	}

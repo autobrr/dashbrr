@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -27,11 +26,11 @@ import (
 const radarrQueuePrefix = "radarr:queue:"
 
 type RadarrHandler struct {
-	db            *database.DB
-	cache         cache.Store
-	sf            singleflight.Group
-	lastQueueHash map[string]string
-	mu            sync.Mutex
+	db              *database.DB
+	cache           cache.Store
+	sf              singleflight.Group
+	lastQueueHash   map[string]string
+	lastQueueHashMu sync.Mutex
 }
 
 func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
@@ -42,20 +41,27 @@ func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
 	}
 }
 
-func createRadarrQueueHash(queueResp *types.RadarrQueueResponse) string {
-	if queueResp == nil || queueResp.Records == nil {
-		return ""
-	}
+// compareAndLogQueueChanges tracks and logs changes in Radarr queue
+// It compares the current queue state with the previous state for a specific Radarr instance
+// Helps detect queue changes like new downloads starting, downloads completing, or status updates
+func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.RadarrQueueResponse) {
+	h.lastQueueHashMu.Lock()
+	defer h.lastQueueHashMu.Unlock()
 
-	var sb strings.Builder
-	for _, record := range queueResp.Records {
-		fmt.Fprintf(&sb, "%s:%s:%d:%d,",
-			record.Title,
-			record.Status,
-			record.Size,
-			record.ID)
+	wrapped := wrapRadarrQueue(queueResp)
+	currentHash := generateQueueHash(wrapped)
+	lastHash := h.lastQueueHash[instanceId]
+
+	if currentHash != lastHash {
+		changes := detectQueueChanges(lastHash, currentHash)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("totalRecords", queueResp.TotalRecords).
+			Str("change", changes).
+			Msg("[Radarr] Queue changed")
+
+		h.lastQueueHash[instanceId] = currentHash
 	}
-	return sb.String()
 }
 
 func (h *RadarrHandler) GetQueue(c *gin.Context) {
@@ -121,21 +127,8 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 
 	queueResp = queueRespI.(types.RadarrQueueResponse)
 
-	// Hash-based change detection
-	h.mu.Lock()
-	currentHash := createRadarrQueueHash(&queueResp)
-	lastHash := h.lastQueueHash[instanceId]
-
-	if currentHash != lastHash {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Str("change", "queue_changed").
-			Msg("[Radarr] Successfully retrieved and cached queue")
-
-		h.lastQueueHash[instanceId] = currentHash
-	}
-	h.mu.Unlock()
+	// Add hash-based change detection
+	h.compareAndLogQueueChanges(instanceId, &queueResp)
 
 	if queueResp.Records != nil {
 		// Broadcast queue update via SSE
@@ -196,23 +189,14 @@ func (h *RadarrHandler) refreshQueueCache(instanceId, cacheKey string) {
 		return
 	}
 
-	// Hash-based change detection
-	h.mu.Lock()
-	currentHash := createRadarrQueueHash(&queueResp)
-	lastHash := h.lastQueueHash[instanceId]
-
-	if currentHash != lastHash {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Str("change", "queue_refreshed").
-			Msg("[Radarr] Successfully refreshed queue cache")
-
-		h.lastQueueHash[instanceId] = currentHash
-	}
-	h.mu.Unlock()
+	// Add hash-based change detection
+	h.compareAndLogQueueChanges(instanceId, &queueResp)
 
 	if queueResp.Records != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("[Radarr] Queue cache refreshed")
+
 		// Broadcast queue update via SSE
 		h.broadcastRadarrQueue(instanceId, &queueResp)
 	} else {

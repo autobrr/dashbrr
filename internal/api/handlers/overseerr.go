@@ -206,26 +206,26 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	stats := statsI.(*types.RequestsStats)
 
 	if stats != nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("size", len(stats.Requests)).
-			Msg("[Overseerr] Successfully retrieved and cached requests")
-
-		// Add hash-based change detection
 		h.hashMu.Lock()
 		currentHash, changes := createOverseerrRequestsHash(stats)
 		lastHash := h.lastRequestsHash[instanceId]
 
-		// Only log and update if this isn't the first time
-		if lastHash != "" && currentHash != lastHash {
+		// Only log and update if there are requests and the hash has changed
+		if len(stats.Requests) > 0 && (lastHash == "" || currentHash != lastHash) {
 			log.Debug().
 				Str("instanceId", instanceId).
-				Strs("changes", changes).
-				Msg("Overseerr requests hash changed")
-		}
+				Int("size", len(stats.Requests)).
+				Msg("[Overseerr] Successfully retrieved and cached requests")
 
-		// Always update the last hash, but only if it's different
-		if currentHash != lastHash {
+			// Log changes if hash is different
+			if lastHash != "" && currentHash != lastHash {
+				log.Debug().
+					Str("instanceId", instanceId).
+					Strs("changes", changes).
+					Msg("Overseerr requests hash changed")
+			}
+
+			// Update the last hash
 			h.lastRequestsHash[instanceId] = currentHash
 		}
 		h.hashMu.Unlock()

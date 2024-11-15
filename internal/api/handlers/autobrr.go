@@ -38,7 +38,6 @@ type AutobrrHandler struct {
 	store cache.Store
 	sf    *singleflight.Group
 
-	// New fields for change tracking
 	lastReleasesHash  map[string]string
 	lastStatsHash     map[string]string
 	lastIRCStatusHash map[string]string
@@ -72,9 +71,9 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Msg("GetAutobrrReleases called")
+	//log.Debug().
+	//	Str("instanceId", instanceId).
+	//	Msg("GetAutobrrReleases called")
 
 	cacheKey := releasesPrefix + instanceId
 	ctx := context.Background()
@@ -118,16 +117,16 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 
 	releases = result.(types.ReleasesResponse)
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Msg("[Autobrr] Successfully retrieved and cached releases")
-
-	// Broadcast releases update via SSE
-	h.broadcastReleases(instanceId, releases)
-
 	h.hashMu.Lock()
 	currentHash := createAutobrrReleaseHash(releases)
 	lastHash := h.lastReleasesHash[instanceId]
+
+	// Only log when there are releases and the hash has changed
+	if (lastHash == "" || currentHash != lastHash) && len(releases.Data) > 0 {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("[Autobrr] Successfully refreshed releases cache")
+	}
 
 	if currentHash != lastHash {
 		log.Debug().
@@ -136,6 +135,9 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		h.lastReleasesHash[instanceId] = currentHash
 	}
 	h.hashMu.Unlock()
+
+	// Broadcast releases update via SSE
+	h.broadcastReleases(instanceId, releases)
 
 	c.JSON(http.StatusOK, releases)
 }
@@ -154,9 +156,9 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Msg("GetAutobrrReleaseStats called")
+	//log.Debug().
+	//	Str("instanceId", instanceId).
+	//	Msg("GetAutobrrReleaseStats called")
 
 	cacheKey := statsPrefix + instanceId
 	ctx := context.Background()
@@ -202,25 +204,27 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 
 	stats = result.(types.AutobrrStats)
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Interface("stats", stats).
-		Msg("[Autobrr] Successfully retrieved and cached release stats")
-
-	// Broadcast stats update via SSE
-	h.broadcastStats(instanceId, stats)
-
 	h.hashMu.Lock()
 	currentHash := createAutobrrStatsHash(stats)
 	lastHash := h.lastStatsHash[instanceId]
 
+	// Only log when there are stats and the hash has changed
+	if (lastHash == "" || currentHash != lastHash) && stats.TotalCount > 0 {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("[Autobrr] Successfully refreshed release stats cache")
+	}
+
 	if currentHash != lastHash {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Msg("Autobrr stats changed")
+			Msg("[Autobrr] Stats updated")
 		h.lastStatsHash[instanceId] = currentHash
 	}
 	h.hashMu.Unlock()
+
+	// Broadcast stats update via SSE
+	h.broadcastStats(instanceId, stats)
 
 	c.JSON(http.StatusOK, stats)
 }
@@ -281,16 +285,19 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 
 	status = result.([]types.IRCStatus)
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Msg("[Autobrr] Successfully retrieved and cached IRC status")
-
 	// Broadcast IRC status update via SSE
 	h.broadcastIRCStatus(instanceId, status)
 
 	h.hashMu.Lock()
 	currentHash := createIRCStatusHash(status)
 	lastHash := h.lastIRCStatusHash[instanceId]
+
+	// Only log when there are status entries and the hash has changed
+	if (lastHash == "" || currentHash != lastHash) && len(status) > 0 {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("[Autobrr] Successfully refreshed IRC status cache")
+	}
 
 	if currentHash != lastHash {
 		log.Debug().
@@ -440,14 +447,13 @@ func (h *AutobrrHandler) fetchAndCacheIRC(ctx context.Context, instanceId, cache
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to cache Autobrr IRC status")
+			Msg("[Autobrr] Failed to cache IRC status")
 	}
 
 	return status, nil
 }
 
 func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
-	// Use singleflight for refresh operations
 	sfKey := fmt.Sprintf("stats_refresh:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
 		ctx := context.Background()
@@ -458,15 +464,31 @@ func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to refresh Autobrr release stats cache")
+			Msg("[Autobrr] Failed to refresh release stats cache")
 		return
 	}
 
 	if err == nil {
 		stats := result.(types.AutobrrStats)
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Successfully refreshed Autobrr release stats cache")
+
+		h.hashMu.Lock()
+		currentHash := createAutobrrStatsHash(stats)
+		lastHash := h.lastStatsHash[instanceId]
+
+		// Only log when there are stats and the hash has changed
+		if (lastHash == "" || currentHash != lastHash) && stats.TotalCount > 0 {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Msg("[Autobrr] Successfully refreshed release stats cache")
+		}
+
+		if currentHash != lastHash {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Msg("[Autobrr] Stats updated")
+			h.lastStatsHash[instanceId] = currentHash
+		}
+		h.hashMu.Unlock()
 
 		// Broadcast stats update via SSE
 		h.broadcastStats(instanceId, stats)
@@ -474,7 +496,6 @@ func (h *AutobrrHandler) refreshStatsCache(instanceId, cacheKey string) {
 }
 
 func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
-	// Use singleflight for refresh operations
 	sfKey := fmt.Sprintf("irc_refresh:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
 		ctx := context.Background()
@@ -485,15 +506,30 @@ func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to refresh autobrr IRC status cache")
+			Msg("[Autobrr] Failed to refresh IRC status cache")
 		return
 	}
 
 	if err == nil {
 		status := result.([]types.IRCStatus)
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Successfully refreshed autobrr IRC status cache")
+
+		h.hashMu.Lock()
+		currentHash := createIRCStatusHash(status)
+		lastHash := h.lastIRCStatusHash[instanceId]
+
+		if (lastHash == "" || currentHash != lastHash) && len(status) > 0 {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Msg("[Autobrr] Successfully refreshed IRC status cache")
+		}
+
+		if currentHash != lastHash {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Msg("Autobrr IRC status changed")
+			h.lastIRCStatusHash[instanceId] = currentHash
+		}
+		h.hashMu.Unlock()
 
 		// Broadcast IRC status update via SSE
 		h.broadcastIRCStatus(instanceId, status)
@@ -501,7 +537,6 @@ func (h *AutobrrHandler) refreshIRCCache(instanceId, cacheKey string) {
 }
 
 func (h *AutobrrHandler) refreshReleasesCache(instanceId, cacheKey string) {
-	// Use singleflight for refresh operations
 	sfKey := fmt.Sprintf("releases_refresh:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
 		ctx := context.Background()
@@ -512,15 +547,30 @@ func (h *AutobrrHandler) refreshReleasesCache(instanceId, cacheKey string) {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to refresh autobrr releases cache")
+			Msg("[Autobrr] Failed to refresh releases cache")
 		return
 	}
 
 	if err == nil {
 		releases := result.(types.ReleasesResponse)
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Successfully refreshed autobrr releases cache")
+
+		h.hashMu.Lock()
+		currentHash := createAutobrrReleaseHash(releases)
+		lastHash := h.lastReleasesHash[instanceId]
+
+		if (lastHash == "" || currentHash != lastHash) && len(releases.Data) > 0 {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Msg("[Autobrr] Successfully refreshed releases cache")
+		}
+
+		if currentHash != lastHash {
+			log.Debug().
+				Str("instanceId", instanceId).
+				Msg("Autobrr releases changed")
+			h.lastReleasesHash[instanceId] = currentHash
+		}
+		h.hashMu.Unlock()
 
 		// Broadcast releases update via SSE
 		h.broadcastReleases(instanceId, releases)

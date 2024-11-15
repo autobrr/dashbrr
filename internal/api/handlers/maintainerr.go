@@ -212,10 +212,25 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	// Add change detection logging
 	h.compareAndLogCollectionChanges(instanceId, collections)
 
-	log.Info().
-		Int("count", len(collections)).
-		Str("instanceId", instanceId).
-		Msg("[Maintainerr] Successfully retrieved and cached collections")
+	h.lastCollectionsHashMu.Lock()
+	currentHash := createCollectionsHash(collections)
+	lastHash := h.lastCollectionsHash[instanceId]
+
+	// Only log when there are collections and the hash has changed
+	if (lastHash == "" || currentHash != lastHash) && len(collections) > 0 {
+		log.Info().
+			Int("count", len(collections)).
+			Str("instanceId", instanceId).
+			Msg("[Maintainerr] Successfully retrieved and cached collections")
+	}
+
+	if currentHash != lastHash {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Maintainerr collections changed")
+		h.lastCollectionsHash[instanceId] = currentHash
+	}
+	h.lastCollectionsHashMu.Unlock()
 
 	c.JSON(http.StatusOK, collections)
 }
@@ -279,8 +294,23 @@ func (h *MaintainerrHandler) refreshCollectionsCache(instanceId, cacheKey string
 	// Add change detection logging
 	h.compareAndLogCollectionChanges(instanceId, collections)
 
-	log.Info().
-		Str("instanceId", instanceId).
-		Int("count", len(collections)).
-		Msg("Successfully refreshed Maintainerr collections cache")
+	h.lastCollectionsHashMu.Lock()
+	currentHash := createCollectionsHash(collections)
+	lastHash := h.lastCollectionsHash[instanceId]
+
+	// Only log when there are collections and the hash has changed
+	if (lastHash == "" || currentHash != lastHash) && len(collections) > 0 {
+		log.Info().
+			Str("instanceId", instanceId).
+			Int("count", len(collections)).
+			Msg("Successfully refreshed Maintainerr collections cache")
+	}
+
+	if currentHash != lastHash {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Maintainerr collections changed")
+		h.lastCollectionsHash[instanceId] = currentHash
+	}
+	h.lastCollectionsHashMu.Unlock()
 }

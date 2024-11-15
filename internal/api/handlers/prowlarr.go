@@ -31,23 +31,162 @@ const (
 )
 
 type ProwlarrHandler struct {
-	db                   *database.DB
-	cache                cache.Store
-	sf                   *singleflight.Group
-	lastStatsHash        map[string]string
-	lastIndexersHash     map[string]string
-	lastIndexerStatsHash map[string]string
-	mu                   sync.Mutex
+	db    *database.DB
+	cache cache.Store
+	sf    *singleflight.Group
+
+	// Single hash map and mutex for all state tracking
+	lastHash   map[string]string // key format: "stats:instanceId", "indexers:instanceId", etc.
+	lastHashMu sync.Mutex
 }
 
 func NewProwlarrHandler(db *database.DB, cache cache.Store) *ProwlarrHandler {
 	return &ProwlarrHandler{
-		db:                   db,
-		cache:                cache,
-		sf:                   &singleflight.Group{},
-		lastStatsHash:        make(map[string]string),
-		lastIndexersHash:     make(map[string]string),
-		lastIndexerStatsHash: make(map[string]string),
+		db:       db,
+		cache:    cache,
+		sf:       &singleflight.Group{},
+		lastHash: make(map[string]string),
+	}
+}
+
+// createStatsHash generates a unique hash representing the current state of Prowlarr system stats
+// The hash includes grab and fail counts to detect meaningful changes in system performance
+// This allows for efficient detection of state changes without deep comparison
+func createStatsHash(stats types.ProwlarrStatsResponse) string {
+	return fmt.Sprintf("%d:%d", stats.GrabCount, stats.FailCount)
+}
+
+// detectStatsChanges determines the type of change in Prowlarr stats
+func (h *ProwlarrHandler) detectStatsChanges(oldHash, newHash string) string {
+	if oldHash == "" {
+		return "initial_stats"
+	}
+	if oldHash != newHash {
+		return "stats_changed"
+	}
+	return "no_change"
+}
+
+// compareAndLogStatsChanges tracks and logs changes in Prowlarr system stats
+// It compares the current stats state with the previous state for a specific Prowlarr instance
+func (h *ProwlarrHandler) compareAndLogStatsChanges(instanceId string, stats types.ProwlarrStatsResponse) {
+	h.lastHashMu.Lock()
+	defer h.lastHashMu.Unlock()
+
+	key := fmt.Sprintf("stats:%s", instanceId)
+	currentHash := createStatsHash(stats)
+	lastHash := h.lastHash[key]
+
+	if currentHash != lastHash {
+		changes := h.detectStatsChanges(lastHash, currentHash)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("grabCount", stats.GrabCount).
+			Str("change", changes).
+			Msg("[Prowlarr] Stats changed")
+
+		h.lastHash[key] = currentHash
+	}
+}
+
+// createIndexersHash generates a unique hash representing the current state of Prowlarr indexers
+// The hash includes key indexer characteristics like ID, name, and number of grabs
+// This allows for efficient detection of indexer changes without deep object traversal
+func createIndexersHash(indexers []types.ProwlarrIndexer) string {
+	var sb strings.Builder
+	for _, indexer := range indexers {
+		fmt.Fprintf(&sb, "%d:%s:%d,",
+			indexer.ID,
+			indexer.Name,
+			indexer.NumberOfGrabs)
+	}
+	return sb.String()
+}
+
+// detectIndexersChanges determines the type of change in Prowlarr indexers
+func (h *ProwlarrHandler) detectIndexersChanges(oldHash, newHash string) string {
+	if oldHash == "" {
+		return "initial_indexers"
+	}
+
+	oldIndexers := strings.Split(oldHash, ",")
+	newIndexers := strings.Split(newHash, ",")
+
+	if len(oldIndexers) < len(newIndexers) {
+		return "indexer_added"
+	} else if len(oldIndexers) > len(newIndexers) {
+		return "indexer_removed"
+	}
+
+	return "indexer_updated"
+}
+
+// compareAndLogIndexersChanges tracks and logs changes in Prowlarr indexers
+// It compares the current indexers state with the previous state for a specific Prowlarr instance
+func (h *ProwlarrHandler) compareAndLogIndexersChanges(instanceId string, indexers []types.ProwlarrIndexer) {
+	h.lastHashMu.Lock()
+	defer h.lastHashMu.Unlock()
+
+	key := fmt.Sprintf("indexers:%s", instanceId)
+	currentHash := createIndexersHash(indexers)
+	lastHash := h.lastHash[key]
+
+	if currentHash != lastHash {
+		changes := h.detectIndexersChanges(lastHash, currentHash)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("indexerCount", len(indexers)).
+			Str("change", changes).
+			Msg("[Prowlarr] Indexers changed")
+
+		h.lastHash[key] = currentHash
+	}
+}
+
+// createIndexerStatsHash generates a unique hash representing the current state of Prowlarr indexer stats
+// The hash includes key statistics like queries and grabs for each indexer
+// This allows for efficient detection of performance changes without deep comparison
+func createIndexerStatsHash(stats types.ProwlarrIndexerStatsResponse) string {
+	var sb strings.Builder
+	for _, indexerStat := range stats.Indexers {
+		fmt.Fprintf(&sb, "%d:%d:%d,",
+			indexerStat.IndexerID,
+			indexerStat.NumberOfQueries,
+			indexerStat.NumberOfGrabs)
+	}
+	return sb.String()
+}
+
+// detectIndexerStatsChanges determines the type of change in Prowlarr indexer stats
+func (h *ProwlarrHandler) detectIndexerStatsChanges(oldHash, newHash string) string {
+	if oldHash == "" {
+		return "initial_stats"
+	}
+	if oldHash != newHash {
+		return "stats_changed"
+	}
+	return "no_change"
+}
+
+// compareAndLogIndexerStatsChanges tracks and logs changes in Prowlarr indexer stats
+// It compares the current indexer stats state with the previous state for a specific Prowlarr instance
+func (h *ProwlarrHandler) compareAndLogIndexerStatsChanges(instanceId string, stats types.ProwlarrIndexerStatsResponse) {
+	h.lastHashMu.Lock()
+	defer h.lastHashMu.Unlock()
+
+	key := fmt.Sprintf("indexer_stats:%s", instanceId)
+	currentHash := createIndexerStatsHash(stats)
+	lastHash := h.lastHash[key]
+
+	if currentHash != lastHash {
+		changes := h.detectIndexerStatsChanges(lastHash, currentHash)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("indexerCount", len(stats.Indexers)).
+			Str("change", changes).
+			Msg("[Prowlarr] Indexer stats changed")
+
+		h.lastHash[key] = currentHash
 	}
 }
 
@@ -136,20 +275,7 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 	statsResp = result.(types.ProwlarrStatsResponse)
 
 	// Add hash-based change detection
-	h.mu.Lock()
-	currentHash := createStatsHash(statsResp)
-	lastHash := h.lastStatsHash[instanceId]
-
-	if currentHash != lastHash {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("grabCount", statsResp.GrabCount).
-			Str("change", "stats_changed").
-			Msg("[Prowlarr] Successfully retrieved and cached stats")
-
-		h.lastStatsHash[instanceId] = currentHash
-	}
-	h.mu.Unlock()
+	h.compareAndLogStatsChanges(instanceId, statsResp)
 
 	// Cache the results
 	if err := h.cache.Set(ctx, cacheKey, statsResp, prowlarrCacheDuration); err != nil {
@@ -158,11 +284,6 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 			Str("instanceId", instanceId).
 			Msg("[Prowlarr] Failed to cache stats")
 	}
-
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("grabCount", statsResp.GrabCount).
-		Msg("[Prowlarr] Successfully retrieved and cached stats")
 
 	// Broadcast stats update via SSE
 	h.broadcastStats(instanceId, statsResp)
@@ -290,20 +411,7 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 	indexers = result.([]types.ProwlarrIndexer)
 
 	// Add hash-based change detection
-	h.mu.Lock()
-	currentHash := createIndexersHash(indexers)
-	lastHash := h.lastIndexersHash[instanceId]
-
-	if currentHash != lastHash {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("indexerCount", len(indexers)).
-			Str("change", "indexers_changed").
-			Msg("[Prowlarr] Successfully retrieved and cached indexers")
-
-		h.lastIndexersHash[instanceId] = currentHash
-	}
-	h.mu.Unlock()
+	h.compareAndLogIndexersChanges(instanceId, indexers)
 
 	// Cache the results
 	if err := h.cache.Set(ctx, cacheKey, indexers, prowlarrCacheDuration); err != nil {
@@ -312,11 +420,6 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 			Str("instanceId", instanceId).
 			Msg("[Prowlarr] Failed to cache indexers")
 	}
-
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("indexerCount", len(indexers)).
-		Msg("[Prowlarr] Successfully retrieved and cached indexers")
 
 	// Broadcast indexers update via SSE
 	h.broadcastIndexers(instanceId, indexers)
@@ -403,20 +506,7 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 	statsResp = result.(types.ProwlarrIndexerStatsResponse)
 
 	// Add hash-based change detection
-	h.mu.Lock()
-	currentHash := createIndexerStatsHash(statsResp)
-	lastHash := h.lastIndexerStatsHash[instanceId]
-
-	if currentHash != lastHash {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("indexerCount", len(statsResp.Indexers)).
-			Str("change", "indexer_stats_changed").
-			Msg("[Prowlarr] Successfully retrieved and cached indexer stats")
-
-		h.lastIndexerStatsHash[instanceId] = currentHash
-	}
-	h.mu.Unlock()
+	h.compareAndLogIndexerStatsChanges(instanceId, statsResp)
 
 	// Cache the results
 	if err := h.cache.Set(ctx, cacheKey, statsResp, prowlarrCacheDuration); err != nil {
@@ -427,42 +517,4 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, statsResp)
-}
-
-// createStatsHash generates a unique hash for Prowlarr system stats
-// The purpose is to efficiently detect meaningful changes in system performance
-// By comparing grab and fail counts, we can avoid unnecessary logging and updates
-// when the system state remains fundamentally unchanged
-func createStatsHash(stats types.ProwlarrStatsResponse) string {
-	return fmt.Sprintf("%d:%d", stats.GrabCount, stats.FailCount)
-}
-
-// createIndexersHash generates a unique hash representing the current state of Prowlarr indexers
-// This method helps reduce unnecessary processing and logging by detecting actual changes
-// It captures key indexer characteristics like ID, name, and number of grabs
-// Allows for quick comparison without deep object traversal, minimizing performance overhead
-func createIndexersHash(indexers []types.ProwlarrIndexer) string {
-	var sb strings.Builder
-	for _, indexer := range indexers {
-		fmt.Fprintf(&sb, "%d:%s:%d,",
-			indexer.ID,
-			indexer.Name,
-			indexer.NumberOfGrabs)
-	}
-	return sb.String()
-}
-
-// createIndexerStatsHash generates a unique hash for Prowlarr indexer statistics
-// Designed to efficiently track meaningful changes in indexer performance
-// 1. Prevent redundant logging and processing
-// 2. Reduce unnecessary system updates when no substantial changes occur
-func createIndexerStatsHash(stats types.ProwlarrIndexerStatsResponse) string {
-	var sb strings.Builder
-	for _, indexerStat := range stats.Indexers {
-		fmt.Fprintf(&sb, "%d:%d:%d,",
-			indexerStat.IndexerID,
-			indexerStat.NumberOfQueries,
-			indexerStat.NumberOfGrabs)
-	}
-	return sb.String()
 }
