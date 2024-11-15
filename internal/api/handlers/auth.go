@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -24,6 +25,7 @@ type AuthHandler struct {
 	config       *types.AuthConfig
 	cache        cache.Store
 	oauth2Config *oauth2.Config
+	httpClient   *http.Client
 }
 
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
@@ -45,6 +47,7 @@ func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 		config:       config,
 		cache:        store,
 		oauth2Config: oauth2Config,
+		httpClient:   &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -59,9 +62,12 @@ func generateSecureRandomString(length int) (string, error) {
 
 // Login initiates the OIDC authentication flow
 func (h *AuthHandler) Login(c *gin.Context) {
+	// Create context with timeout for login flow
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	log.Info().Msg("initiating login flow")
 
-	// Get frontend URL from query parameter
 	frontendUrl := c.Query("frontendUrl")
 	if frontendUrl == "" {
 		log.Error().Msg("no frontend URL provided")
@@ -69,7 +75,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Generate state parameter
 	state, err := generateSecureRandomString(32)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to generate state")
@@ -77,7 +82,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Generate nonce parameter
 	nonce, err := generateSecureRandomString(32)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to generate nonce")
@@ -85,30 +89,38 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Store state and nonce in cache
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
 	nonceKey := fmt.Sprintf("oidc:nonce:%s", nonce)
 
-	// Store both state and frontend URL
 	stateData := map[string]interface{}{
 		"timestamp":   time.Now().Unix(),
 		"frontendUrl": frontendUrl,
 	}
 
-	if err := h.cache.Set(c, stateKey, stateData, 5*time.Minute); err != nil {
+	if err := h.cache.Set(ctx, stateKey, stateData, 5*time.Minute); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while storing state")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		log.Error().Err(err).Msg("failed to store state in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	if err := h.cache.Set(c, nonceKey, time.Now().Unix(), 5*time.Minute); err != nil {
+	if err := h.cache.Set(ctx, nonceKey, time.Now().Unix(), 5*time.Minute); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while storing nonce")
+			_ = h.cache.Delete(ctx, stateKey)
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		log.Error().Err(err).Msg("failed to store nonce in cache")
-		_ = h.cache.Delete(c, stateKey)
+		_ = h.cache.Delete(ctx, stateKey)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	// Build Auth0 authorize URL with additional parameters
 	authURL := h.oauth2Config.AuthCodeURL(
 		state,
 		oauth2.SetAuthURLParam("nonce", nonce),
@@ -120,6 +132,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // Callback handles the OIDC provider callback
 func (h *AuthHandler) Callback(c *gin.Context) {
+	// Create context with timeout for callback handling
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
 	code := c.Query("code")
 	state := c.Query("state")
 
@@ -129,10 +145,14 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Verify state and get frontend URL
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
 	var stateData map[string]interface{}
-	if err := h.cache.Get(c, stateKey, &stateData); err != nil {
+	if err := h.cache.Get(ctx, stateKey, &stateData); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while retrieving state")
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
+			return
+		}
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("state not found or expired")
 		} else {
@@ -149,20 +169,23 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Clean up used state
-	if err := h.cache.Delete(c, stateKey); err != nil && err != cache.ErrKeyNotFound {
+	if err := h.cache.Delete(ctx, stateKey); err != nil && err != cache.ErrKeyNotFound {
 		log.Error().Err(err).Msg("failed to delete state from cache")
 	}
 
-	// Exchange code for token
-	token, err := h.oauth2Config.Exchange(c, code)
+	// Exchange code for token using context
+	token, err := h.oauth2Config.Exchange(ctx, code)
 	if err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled during token exchange")
+			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
+			return
+		}
 		log.Error().Err(err).Msg("code exchange failed")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=exchange_failed", frontendUrl))
 		return
 	}
 
-	// Extract ID Token claims
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		log.Error().Msg("no id_token in token response")
@@ -170,7 +193,6 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Store session
 	sessionData := types.SessionData{
 		AccessToken:  token.AccessToken,
 		TokenType:    token.TokenType,
@@ -181,7 +203,12 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	sessionKey := fmt.Sprintf("oidc:session:%s", token.AccessToken)
-	if err := h.cache.Set(c, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
+	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
+			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
+			return
+		}
 		log.Error().Err(err).Msg("failed to store session in cache")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
 		return
@@ -189,18 +216,16 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
-	// Set secure cookie with session ID
 	c.SetCookie(
 		"session",
 		token.AccessToken,
 		int(time.Until(token.Expiry).Seconds()),
 		"/",
 		"",
-		isSecure, // Secure
-		true,     // HttpOnly
+		isSecure,
+		true,
 	)
 
-	// Redirect to frontend with tokens
 	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s?access_token=%s&id_token=%s",
 		frontendUrl,
 		token.AccessToken,
@@ -210,7 +235,10 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 // Logout handles user logout
 func (h *AuthHandler) Logout(c *gin.Context) {
-	// Get frontend URL from query parameter
+	// Create context with timeout for logout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	frontendUrl := c.Query("frontendUrl")
 	if frontendUrl == "" {
 		log.Error().Msg("no frontend URL provided")
@@ -218,7 +246,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// Get session cookie
 	sessionID, err := c.Cookie("session")
 	if err != nil {
 		log.Error().Err(err).Msg("no session cookie found")
@@ -226,15 +253,20 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// Delete session from cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	if err := h.cache.Delete(c, sessionKey); err != nil && err != cache.ErrKeyNotFound {
-		log.Error().Err(err).Msg("failed to delete session from cache")
+	if err := h.cache.Delete(ctx, sessionKey); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while deleting session")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
+		if err != cache.ErrKeyNotFound {
+			log.Error().Err(err).Msg("failed to delete session from cache")
+		}
 	}
 
 	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
-	// Clear session cookie
 	c.SetCookie(
 		"session",
 		"",
@@ -245,7 +277,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		true,
 	)
 
-	// Redirect to Auth0 logout
 	logoutURL := fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s",
 		strings.TrimRight(h.config.Issuer, "/"),
 		h.config.ClientID,
@@ -256,7 +287,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 // VerifyToken verifies a JWT token
 func (h *AuthHandler) VerifyToken(c *gin.Context) {
-	// Get session cookie
+	// Create context with timeout for token verification
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	sessionID, err := c.Cookie("session")
 	if err != nil {
 		log.Trace().Msg("no session cookie found")
@@ -264,12 +298,16 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 		return
 	}
 
-	// Verify session exists in cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	var sessionData types.SessionData
-	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
+	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while verifying token")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		if err == cache.ErrKeyNotFound {
-			log.Trace().Msg("session not found or expired") // Changed to Trace level for expected scenario
+			log.Trace().Msg("session not found or expired")
 		} else {
 			log.Error().Err(err).Msg("failed to get session from cache")
 		}
@@ -284,7 +322,10 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 
 // RefreshToken handles token refresh
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	// Get session cookie
+	// Create context with timeout for token refresh
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
 	sessionID, err := c.Cookie("session")
 	if err != nil {
 		log.Error().Err(err).Msg("no session cookie found")
@@ -292,10 +333,14 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Get session data from cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	var sessionData types.SessionData
-	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
+	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while getting session")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
 		} else {
@@ -305,15 +350,22 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Create token source for refresh
 	token := &oauth2.Token{
 		RefreshToken: sessionData.RefreshToken,
 		Expiry:       sessionData.ExpiresAt,
 	}
 
+	// Create token source with context
+	tokenSource := h.oauth2Config.TokenSource(ctx, token)
+
 	// Refresh the token
-	newToken, err := h.oauth2Config.TokenSource(c, token).Token()
+	newToken, err := tokenSource.Token()
 	if err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled during token refresh")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		log.Error().Err(err).Msg("token refresh failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh token"})
 		return
@@ -328,7 +380,12 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	}
 
 	// Store updated session
-	if err := h.cache.Set(c, sessionKey, sessionData, time.Until(newToken.Expiry)); err != nil {
+	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(newToken.Expiry)); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while updating session")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		log.Error().Err(err).Msg("failed to update session in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update session"})
 		return
@@ -336,7 +393,6 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
-	// Update session cookie
 	c.SetCookie(
 		"session",
 		newToken.AccessToken,
@@ -357,7 +413,10 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 // UserInfo returns the current user's information
 func (h *AuthHandler) UserInfo(c *gin.Context) {
-	// Get session cookie
+	// Create context with timeout for userinfo request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
 	sessionID, err := c.Cookie("session")
 	if err != nil {
 		log.Error().Err(err).Msg("no session cookie found")
@@ -365,10 +424,14 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 		return
 	}
 
-	// Get session data from cache
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	var sessionData types.SessionData
-	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
+	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while getting session")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
 		} else {
@@ -378,9 +441,8 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 		return
 	}
 
-	// Make request to userinfo endpoint
 	userinfoURL := fmt.Sprintf("%s/userinfo", strings.TrimRight(h.config.Issuer, "/"))
-	req, err := http.NewRequest("GET", userinfoURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", userinfoURL, nil)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create userinfo request")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -389,8 +451,13 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionData.AccessToken))
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.httpClient.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled during userinfo request")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
 		log.Error().Err(err).Msg("userinfo request failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
 		return

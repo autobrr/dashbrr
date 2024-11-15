@@ -88,7 +88,7 @@ func getCacheType() CacheType {
 
 // InitCache initializes a cache instance based on configuration.
 // It always returns a valid cache store, falling back to memory cache if Redis fails.
-func InitCache(cfg Config) (Store, error) {
+func InitCache(ctx context.Context, cfg Config) (Store, error) {
 	cacheType := getCacheType()
 
 	switch cacheType {
@@ -96,7 +96,7 @@ func InitCache(cfg Config) (Store, error) {
 		// Only attempt Redis connection if Redis address is configured
 		if cfg.RedisAddr == "" {
 			// Silently fall back to memory cache when Redis isn't configured
-			return NewMemoryStore(cfg.DataDir), nil
+			return NewMemoryStore(ctx, cfg.DataDir), nil
 		}
 
 		isDev := os.Getenv("GIN_MODE") != "release"
@@ -108,12 +108,14 @@ func InitCache(cfg Config) (Store, error) {
 			timeout = 2 * time.Second
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
+		// Create Redis client
 		client := redis.NewClient(opts)
-		err := client.Ping(ctx).Err()
 
+		// Test connection
+		err := client.Ping(timeoutCtx).Err()
 		if err != nil {
 			if client != nil {
 				client.Close()
@@ -122,25 +124,36 @@ func InitCache(cfg Config) (Store, error) {
 				// Only log error if Redis was explicitly requested
 				log.Error().Err(err).Str("addr", opts.Addr).Msg("Failed to connect to explicitly configured Redis, falling back to memory cache")
 			}
-			return NewMemoryStore(cfg.DataDir), err
+			return NewMemoryStore(ctx, cfg.DataDir), err
 		}
 
-		// Initialize Redis cache store
-		store, err := NewCache(opts.Addr)
-		if err != nil {
-			if os.Getenv("CACHE_TYPE") == "redis" {
-				// Only log error if Redis was explicitly requested
-				log.Error().Err(err).Msg("Failed to initialize explicitly configured Redis cache, falling back to memory cache")
-			}
-			return NewMemoryStore(cfg.DataDir), err
+		// Create a new context with cancel for the store
+		storeCtx, storeCancel := context.WithCancel(ctx)
+
+		// Create Redis store with existing client
+		store := &RedisStore{
+			client: client,
+			local: &LocalCache{
+				items: make(map[string]*localCacheItem),
+			},
+			ctx:    storeCtx,
+			cancel: storeCancel,
 		}
+
+		// Start cleanup goroutine
+		store.wg.Add(1)
+		go func() {
+			defer store.wg.Done()
+			store.localCacheCleanup()
+		}()
+
 		return store, nil
 
 	case CacheTypeMemory:
-		return NewMemoryStore(cfg.DataDir), nil
+		return NewMemoryStore(ctx, cfg.DataDir), nil
 
 	default:
 		// This shouldn't happen due to getCacheType's default
-		return NewMemoryStore(cfg.DataDir), nil
+		return NewMemoryStore(ctx, cfg.DataDir), nil
 	}
 }

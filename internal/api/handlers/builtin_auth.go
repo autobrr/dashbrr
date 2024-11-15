@@ -32,7 +32,7 @@ func NewBuiltinAuthHandler(db *database.DB, cache cache.Store) *BuiltinAuthHandl
 
 // CheckRegistrationStatus checks if registration is allowed (no users exist)
 func (h *BuiltinAuthHandler) CheckRegistrationStatus(c *gin.Context) {
-	hasUsers, err := h.db.HasUsers()
+	hasUsers, err := h.db.HasUsers(c.Request.Context())
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check existing users")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -47,7 +47,7 @@ func (h *BuiltinAuthHandler) CheckRegistrationStatus(c *gin.Context) {
 // Register handles user registration
 func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	// Check if any users exist
-	hasUsers, err := h.db.HasUsers()
+	hasUsers, err := h.db.HasUsers(c.Request.Context())
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check existing users")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -109,7 +109,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 		PasswordHash: hashedPassword,
 	}
 
-	if err := h.db.CreateUser(user); err != nil {
+	if err := h.db.CreateUser(c.Request.Context(), user); err != nil {
 		log.Error().Err(err).Msg("failed to create user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return

@@ -7,11 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,12 +23,12 @@ import (
 
 // mockServiceHealthChecker implements models.ServiceHealthChecker interface for testing
 type mockServiceHealthChecker struct {
-	checkHealthFunc func(url, apiKey string) (models.ServiceHealth, int)
+	checkHealthFunc func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int)
 }
 
-func (m *mockServiceHealthChecker) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (m *mockServiceHealthChecker) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	if m.checkHealthFunc != nil {
-		return m.checkHealthFunc(url, apiKey)
+		return m.checkHealthFunc(ctx, url, apiKey)
 	}
 	return models.ServiceHealth{
 		Status:      "healthy",
@@ -52,11 +53,10 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name      string
-		serviceID string
-		//mockDBResponse func(string) (*models.ServiceConfiguration, error)
+		name           string
+		serviceID      string
 		mockDBResponse func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
-		mockHealth     func(url, apiKey string) (models.ServiceHealth, int)
+		mockHealth     func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int)
 		expectedCode   int
 		expectedBody   gin.H
 	}{
@@ -103,7 +103,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 					APIKey:     "test-key",
 				}, nil
 			},
-			mockHealth: func(url, apiKey string) (models.ServiceHealth, int) {
+			mockHealth: func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 				return models.ServiceHealth{
 					Status:      "healthy",
 					LastChecked: time.Now(),

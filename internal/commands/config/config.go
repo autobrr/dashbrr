@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"path/filepath"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/discovery"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // ConfigCommand handles service discovery and configuration
@@ -151,7 +151,7 @@ func (c *ConfigCommand) handleExport(ctx context.Context, args []string) error {
 	}
 
 	// Get all services from database
-	services, err := c.db.GetAllServices()
+	services, err := c.db.GetAllServices(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to retrieve services: %v", err)
 	}
@@ -217,7 +217,7 @@ func (c *ConfigCommand) handleDiscoveredServices(services []models.ServiceConfig
 		}
 
 		// Add new service
-		if err := c.db.CreateService(&service); err != nil {
+		if err := c.db.CreateService(context.Background(), &service); err != nil {
 			fmt.Printf("Warning: Failed to add service %s: %v\n", service.URL, err)
 			continue
 		}

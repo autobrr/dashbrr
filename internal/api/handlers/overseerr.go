@@ -12,21 +12,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const (
-	overseerrCacheDuration = 5 * time.Minute
-	overseerrCachePrefix   = "overseerr:requests:"
-)
+const overseerrCachePrefix = "overseerr:requests:"
 
 type OverseerrHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
@@ -93,8 +94,13 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	service := &overseerr.OverseerrService{}
 	service.SetDB(h.db)
 
-	// Update request status
-	if err := service.UpdateRequestStatus(overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve); err != nil {
+	// Update request status using singleflight
+	sfKey := fmt.Sprintf("update_status:%s:%s", instanceId, requestId)
+	_, err, _ = h.sf.Do(sfKey, func() (interface{}, error) {
+		return nil, service.UpdateRequestStatus(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve)
+	})
+
+	if err != nil {
 		log.Error().Err(err).
 			Str("instanceId", instanceId).
 			Int("requestId", reqID).
@@ -110,6 +116,17 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after status update")
 	}
 
+	// Fetch fresh data and broadcast update using singleflight
+	sfKey = fmt.Sprintf("requests:%s", instanceId)
+	statsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheRequests(instanceId, cacheKey)
+	})
+
+	if err == nil && statsI != nil {
+		stats := statsI.(*types.RequestsStats)
+		h.broadcastOverseerrRequests(instanceId, stats)
+	}
+
 	c.Status(http.StatusOK)
 }
 
@@ -121,27 +138,43 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
+	// Verify this is an Overseerr instance
+	if instanceId[:9] != "overseerr" {
+		log.Error().Str("instanceId", instanceId).Msg("Invalid Overseerr instance ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Overseerr instance ID"})
+		return
+	}
+
 	cacheKey := overseerrCachePrefix + instanceId
 	ctx := context.Background()
 
 	// Try to get from cache first
 	var response *types.RequestsStats
 	err := h.cache.Get(ctx, cacheKey, &response)
-	if err == nil {
+	if err == nil && response != nil {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Int("pendingCount", response.PendingCount).
-			Int("totalRequests", len(response.Requests)).
+			Int("size", len(response.Requests)).
 			Msg("Serving Overseerr requests from cache")
 		c.JSON(http.StatusOK, response)
 
-		// Refresh cache in background if needed
-		go h.refreshRequestsCache(instanceId, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("requests_refresh:%s", instanceId)
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshRequestsCache(instanceId, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache, fetch from service
-	stats, err := h.fetchAndCacheRequests(instanceId, cacheKey)
+	// If not in cache, fetch from service using singleflight
+	sfKey := fmt.Sprintf("requests:%s", instanceId)
+	statsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheRequests(instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
@@ -163,11 +196,21 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("pendingCount", stats.PendingCount).
-		Int("totalRequests", len(stats.Requests)).
-		Msg("Successfully retrieved and cached Overseerr requests")
+	stats := statsI.(*types.RequestsStats)
+
+	if stats != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("size", len(stats.Requests)).
+			Msg("Successfully retrieved and cached Overseerr requests")
+
+		// Broadcast the fresh data
+		h.broadcastOverseerrRequests(instanceId, stats)
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Retrieved empty Overseerr requests")
+	}
 
 	c.JSON(http.StatusOK, stats)
 }
@@ -183,16 +226,25 @@ func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*
 	}
 
 	service := &overseerr.OverseerrService{}
-	service.SetDB(h.db) // Set the database instance for fetching Radarr/Sonarr configs
+	service.SetDB(h.db)
 
-	stats, err := service.GetRequests(overseerrConfig.URL, overseerrConfig.APIKey)
+	stats, err := service.GetRequests(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// Cache the results
+	if stats == nil {
+		return nil, nil
+	}
+
+	// Initialize empty requests if nil
+	if stats.Requests == nil {
+		stats.Requests = []types.MediaRequest{}
+	}
+
+	// Cache the results using the centralized cache duration
 	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, stats, overseerrCacheDuration); err != nil {
+	if err := h.cache.Set(ctx, cacheKey, stats, middleware.CacheDurations.OverseerrRequests); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -203,9 +255,6 @@ func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*
 }
 
 func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
-	// Add a small delay to prevent immediate refresh
-	time.Sleep(100 * time.Millisecond)
-
 	stats, err := h.fetchAndCacheRequests(instanceId, cacheKey)
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
@@ -215,9 +264,37 @@ func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
 		return
 	}
 
-	log.Debug().
-		Str("instanceId", instanceId).
-		Int("pendingCount", stats.PendingCount).
-		Int("totalRequests", len(stats.Requests)).
-		Msg("Successfully refreshed Overseerr requests cache")
+	if stats != nil {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("size", len(stats.Requests)).
+			Msg("Successfully refreshed Overseerr requests cache")
+
+		// Broadcast the updated data
+		h.broadcastOverseerrRequests(instanceId, stats)
+	} else {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Msg("Refreshed cache with empty Overseerr requests")
+	}
+}
+
+// broadcastOverseerrRequests broadcasts Overseerr request updates to all connected SSE clients
+func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *types.RequestsStats) {
+	// Use the existing BroadcastHealth function with a special message type
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      "ok",
+		Message:     "overseerr_requests",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"overseerr": stats,
+		},
+		Details: map[string]interface{}{
+			"overseerr": map[string]interface{}{
+				"pendingCount":  stats.PendingCount,
+				"totalRequests": len(stats.Requests),
+			},
+		},
+	})
 }

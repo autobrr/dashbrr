@@ -6,17 +6,18 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 type TailscaleHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 func NewTailscaleHandler(db *database.DB, cache cache.Store) *TailscaleHandler {
@@ -48,7 +50,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		cacheKey = devicesCachePrefix + instanceId
 	} else {
 		// Try to get the first tailscale instance if no specific instance is requested
-		services, err := h.db.GetAllServices()
+		services, err := h.db.GetAllServices(c.Request.Context())
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to fetch services")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
@@ -84,13 +86,23 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 			Msg("Serving Tailscale devices from cache")
 		c.JSON(http.StatusOK, response)
 
-		// Refresh cache in background if needed
-		go h.refreshDevicesCache(instanceId, apiKey, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("devices_refresh:%s", strings.TrimPrefix(cacheKey, devicesCachePrefix))
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshDevicesCache(instanceId, apiKey, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache, fetch from service
-	devices, err := h.fetchAndCacheDevices(instanceId, apiKey, cacheKey)
+	// If not in cache, fetch from service using singleflight
+	sfKey := fmt.Sprintf("devices:%s", strings.TrimPrefix(cacheKey, devicesCachePrefix))
+	devicesI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
+	})
+
 	if err != nil {
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
@@ -102,6 +114,8 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
+
+	devices := devicesI.([]tailscale.Device)
 
 	if devices == nil {
 		// Return empty array instead of null
@@ -136,16 +150,16 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *TailscaleHandler) fetchAndCacheDevices(instanceId, apiKey, cacheKey string) ([]tailscale.Device, error) {
+func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId, apiKey, cacheKey string) ([]tailscale.Device, error) {
 	service := &tailscale.TailscaleService{}
 
 	var devices []tailscale.Device
 	var err error
 
 	if apiKey != "" {
-		devices, err = service.GetDevices("", apiKey)
+		devices, err = service.GetDevices(ctx, "", apiKey)
 	} else {
-		tailscaleConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+		tailscaleConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tailscale configuration: %v", err)
 		}
@@ -154,7 +168,7 @@ func (h *TailscaleHandler) fetchAndCacheDevices(instanceId, apiKey, cacheKey str
 			return nil, fmt.Errorf("tailscale is not configured")
 		}
 
-		devices, err = service.GetDevices("", tailscaleConfig.APIKey)
+		devices, err = service.GetDevices(ctx, "", tailscaleConfig.APIKey)
 	}
 
 	if err != nil {
@@ -162,7 +176,6 @@ func (h *TailscaleHandler) fetchAndCacheDevices(instanceId, apiKey, cacheKey str
 	}
 
 	// Cache the results
-	ctx := context.Background()
 	response := struct {
 		Devices []tailscale.Device `json:"devices"`
 		Status  string             `json:"status"`
@@ -185,7 +198,8 @@ func (h *TailscaleHandler) refreshDevicesCache(instanceId, apiKey, cacheKey stri
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	_, err := h.fetchAndCacheDevices(instanceId, apiKey, cacheKey)
+	ctx := context.Background()
+	_, err := h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
 	if err != nil {
 		log.Error().
 			Err(err).

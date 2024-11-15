@@ -5,6 +5,8 @@ package cache
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,68 +20,117 @@ type testStruct struct {
 	Value int
 }
 
-func setupTestCache(t *testing.T) *RedisStore {
-	store, err := NewCache("localhost:6379")
-	if err != nil {
-		t.Skip("Redis not available, skipping test:", err)
-	}
-	// Type assertion since we know it's a RedisStore
-	redisStore, ok := store.(*RedisStore)
-	if !ok {
-		t.Fatal("Expected RedisStore type")
-	}
-	return redisStore
+func setupTestDir(t *testing.T) string {
+	dir := filepath.Join(os.TempDir(), "dashbrr-test-"+time.Now().Format("20060102150405"))
+	err := os.MkdirAll(dir, 0755)
+	require.NoError(t, err, "Failed to create test directory")
+	return dir
 }
 
-func cleanupTestCache(t *testing.T, cache *RedisStore) {
-	if err := cache.Close(); err != nil {
-		t.Errorf("Failed to close cache: %v", err)
-	}
+// checkRedisAvailable checks if Redis is available at the given address
+func checkRedisAvailable(addr string) bool {
+	client := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	err := client.Ping(ctx).Err()
+	return err == nil
 }
 
-func TestNewCache(t *testing.T) {
+func setupTestCache(t *testing.T) Store {
+	dataDir := setupTestDir(t)
+	cfg := Config{
+		RedisAddr: "localhost:6379",
+		DataDir:   dataDir,
+	}
+
+	// Check if Redis is available
+	if !checkRedisAvailable(cfg.RedisAddr) {
+		t.Skip("Redis not available, skipping test")
+	}
+
+	store, err := InitCache(context.Background(), cfg)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("Failed to close cache: %v", err)
+		}
+		if err := os.RemoveAll(dataDir); err != nil {
+			t.Errorf("Failed to cleanup test directory: %v", err)
+		}
+	})
+
+	return store
+}
+
+func TestInitCache(t *testing.T) {
 	tests := []struct {
-		name    string
-		addr    string
-		wantErr bool
+		name      string
+		config    Config
+		wantRedis bool // true if we expect a RedisStore, false for MemoryStore
 	}{
 		{
-			name:    "Valid address",
-			addr:    "localhost:6379",
-			wantErr: false,
+			name: "Valid Redis address",
+			config: Config{
+				RedisAddr: "localhost:6379",
+				DataDir:   setupTestDir(t),
+			},
+			wantRedis: true,
 		},
 		{
-			name:    "Invalid address",
-			addr:    "invalid:6379",
-			wantErr: true,
+			name: "Invalid Redis address",
+			config: Config{
+				RedisAddr: "invalid:6379",
+				DataDir:   setupTestDir(t),
+			},
+			wantRedis: false,
+		},
+		{
+			name: "No Redis configured",
+			config: Config{
+				DataDir: setupTestDir(t),
+			},
+			wantRedis: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store, err := NewCache(tt.addr)
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, store)
-			} else if err != nil {
-				t.Skip("Redis not available, skipping test:", err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, store)
-				// Type assertion since we know it's a RedisStore
-				cache, ok := store.(*RedisStore)
-				if !ok {
-					t.Fatal("Expected RedisStore type")
-				}
-				cleanupTestCache(t, cache)
+			if tt.wantRedis && !checkRedisAvailable(tt.config.RedisAddr) {
+				t.Skip("Redis not available, skipping test")
 			}
+
+			store, err := InitCache(context.Background(), tt.config)
+			require.NotNil(t, store, "Store should never be nil")
+
+			if tt.wantRedis {
+				redisStore, ok := store.(*RedisStore)
+				assert.True(t, ok, "Expected RedisStore type")
+				if ok {
+					err = redisStore.Close()
+					assert.NoError(t, err)
+				}
+			} else {
+				_, ok := store.(*MemoryStore)
+				assert.True(t, ok, "Expected MemoryStore type")
+				err = store.Close()
+				assert.NoError(t, err)
+			}
+
+			// Clean up test directory
+			err = os.RemoveAll(tt.config.DataDir)
+			assert.NoError(t, err)
 		})
 	}
 }
 
 func TestBasicOperations(t *testing.T) {
 	cache := setupTestCache(t)
-	defer cleanupTestCache(t, cache)
 
 	ctx := context.Background()
 	tests := []struct {
@@ -134,14 +185,13 @@ func TestBasicOperations(t *testing.T) {
 
 			// Verify deletion
 			err = cache.Get(ctx, tt.key, &retrieved)
-			assert.Equal(t, redis.Nil, err)
+			assert.Equal(t, ErrKeyNotFound, err)
 		})
 	}
 }
 
 func TestLocalCache(t *testing.T) {
 	cache := setupTestCache(t)
-	defer cleanupTestCache(t, cache)
 
 	ctx := context.Background()
 	tests := []struct {
@@ -170,11 +220,6 @@ func TestLocalCache(t *testing.T) {
 			err := cache.Set(ctx, tt.key, tt.value, tt.ttl)
 			require.NoError(t, err)
 
-			// Check local cache
-			data, exists := cache.getFromLocalCache(tt.key)
-			assert.True(t, exists)
-			assert.NotEmpty(t, data)
-
 			// Get value should use local cache
 			var retrieved testStruct
 			err = cache.Get(ctx, tt.key, &retrieved)
@@ -184,8 +229,8 @@ func TestLocalCache(t *testing.T) {
 			if tt.ttl == time.Second {
 				// Wait for short TTL to expire
 				time.Sleep(time.Second * 2)
-				_, exists = cache.getFromLocalCache(tt.key)
-				assert.False(t, exists, "Cache entry should have expired")
+				err = cache.Get(ctx, tt.key, &retrieved)
+				assert.Equal(t, ErrKeyNotFound, err, "Cache entry should have expired")
 			}
 		})
 	}
@@ -193,7 +238,6 @@ func TestLocalCache(t *testing.T) {
 
 func TestRateLimitOperations(t *testing.T) {
 	cache := setupTestCache(t)
-	defer cleanupTestCache(t, cache)
 
 	ctx := context.Background()
 	key := "test:rate:limit"
@@ -242,7 +286,6 @@ func TestRateLimitOperations(t *testing.T) {
 
 func TestConcurrentAccess(t *testing.T) {
 	cache := setupTestCache(t)
-	defer cleanupTestCache(t, cache)
 
 	ctx := context.Background()
 	key := "test:concurrent"
@@ -283,7 +326,6 @@ func TestConcurrentAccess(t *testing.T) {
 
 func TestCleanup(t *testing.T) {
 	cache := setupTestCache(t)
-	defer cleanupTestCache(t, cache)
 
 	ctx := context.Background()
 	key := "test:cleanup"
@@ -294,30 +336,20 @@ func TestCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify initial set
-	_, exists := cache.getFromLocalCache(key)
-	assert.True(t, exists)
+	var retrieved testStruct
+	err = cache.Get(ctx, key, &retrieved)
+	require.NoError(t, err)
 
 	// Wait for cleanup
 	time.Sleep(time.Second * 2)
 
-	// Trigger cleanup manually
-	cache.local.Lock()
-	now := time.Now()
-	for k, item := range cache.local.items {
-		if now.After(item.expiration) {
-			delete(cache.local.items, k)
-		}
-	}
-	cache.local.Unlock()
-
 	// Verify cleanup
-	_, exists = cache.getFromLocalCache(key)
-	assert.False(t, exists, "Cache entry should have been cleaned up")
+	err = cache.Get(ctx, key, &retrieved)
+	assert.Equal(t, ErrKeyNotFound, err, "Cache entry should have been cleaned up")
 }
 
 func TestContextCancellation(t *testing.T) {
 	cache := setupTestCache(t)
-	defer cleanupTestCache(t, cache)
 
 	// Create a cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -359,12 +391,12 @@ func TestClosedCache(t *testing.T) {
 
 	// Attempt operations on closed cache
 	err = cache.Set(ctx, key, value, time.Minute)
-	assert.Equal(t, redis.ErrClosed, err)
+	assert.Equal(t, ErrClosed, err)
 
 	var retrieved testStruct
 	err = cache.Get(ctx, key, &retrieved)
-	assert.Equal(t, redis.ErrClosed, err)
+	assert.Equal(t, ErrClosed, err)
 
 	err = cache.Delete(ctx, key)
-	assert.Equal(t, redis.ErrClosed, err)
+	assert.Equal(t, ErrClosed, err)
 }

@@ -12,6 +12,7 @@ import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import { api } from "../../../utils/api";
 import { toast } from "react-hot-toast";
 import Toast from "../../Toast";
+import { FaFilm, FaTv } from "react-icons/fa";
 
 interface OverseerrStatsProps {
   instanceId: string;
@@ -138,6 +139,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   };
 
@@ -166,46 +168,52 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       : `Movie (TMDB: ${request.media.tmdbId})`;
   };
 
-  const RequestActions = ({ request }: { request: OverseerrMediaRequest }) => (
-    <div className="flex items-center gap-1">
-      <button
-        onClick={() => handleAction(request, "approve")}
-        className="p-1 rounded-full hover:bg-gray-700/50 text-green-500 transition-colors"
-        title="Approve request"
-      >
-        <CheckCircleIcon className="h-5 w-5" />
-      </button>
-      <button
-        onClick={() => handleAction(request, "reject")}
-        className="p-1 rounded-full hover:bg-gray-700/50 text-red-500 transition-colors"
-        title="Reject request"
-      >
-        <XCircleIcon className="h-5 w-5" />
-      </button>
-    </div>
-  );
-
   const RequestItem = ({ request }: { request: OverseerrMediaRequest }) => (
     <div className="border-b border-gray-800 last:border-0 pb-2 last:pb-0 space-y-1">
-      <div className="flex justify-between items-center">
-        <div className="font-medium">{getMediaTitle(request)}</div>
-        <div className="flex items-center gap-2 ml-2 shrink-0">
-          {request.status === 1 && <RequestActions request={request} />}
-          <span
-            className={`${getStatusColor(request.status)} text-xs font-medium`}
-          >
-            {getStatusLabel(request.status)}
-          </span>
+      <div className="flex justify-between items-start">
+        <div className="space-y-1.5">
+          <div className="font-medium flex items-center gap-2 pointer-events-none">
+            {getMediaType(request) === "TV" ? (
+              <FaTv className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+            ) : (
+              <FaFilm className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+            )}
+            {getMediaTitle(request)}
+          </div>
+          <div className="text-gray-500 text-[11px] flex items-center gap-2 pointer-events-none">
+            <span>{getUserDisplayName(request.requestedBy)}</span>
+            <span>•</span>
+            <span>{formatDate(request.createdAt)}</span>
+          </div>
         </div>
-      </div>
-      <div className="text-gray-500 flex items-center gap-2 flex-wrap pt-1">
-        <span>Requested by: {getUserDisplayName(request.requestedBy)}</span>
-        <span>•</span>
-        <span>{formatDate(request.createdAt)}</span>
-        <span>•</span>
-        <span className="text-[10px] font-medium text-gray-500">
-          {getMediaType(request)}
-        </span>
+        <div className="flex items-center gap-3 ml-4 shrink-0">
+          {request.status === 1 ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleAction(request, "approve")}
+                className="rounded-full bg-gray-800 hover:bg-gray-700 p-1.5 text-green-500 transition-colors"
+                title="Approve request"
+              >
+                <CheckCircleIcon className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => handleAction(request, "reject")}
+                className="rounded-full bg-gray-800 hover:bg-gray-700 p-1.5 text-red-500 transition-colors"
+                title="Reject request"
+              >
+                <XCircleIcon className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <span
+              className={`${getStatusColor(
+                request.status
+              )} text-xs font-medium px-2 py-1 rounded-full bg-gray-800`}
+            >
+              {getStatusLabel(request.status)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -222,9 +230,15 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
             Pending Requests:
           </div>
           <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 overflow-hidden space-y-2">
-            {pendingRequests.map((request) => (
-              <RequestItem key={request.id} request={request} />
-            ))}
+            {pendingRequests
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime()
+              )
+              .map((request) => (
+                <RequestItem key={request.id} request={request} />
+              ))}
           </div>
         </div>
       )}
@@ -235,9 +249,14 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Recent Requests:
           </div>
-          <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
+          <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2 pointer-events-none">
             {requests
               .filter((request) => request.status !== 1)
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime()
+              )
               .slice(0, 5)
               .map((request) => (
                 <RequestItem key={request.id} request={request} />

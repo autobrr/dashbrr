@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"github.com/autobrr/dashbrr/internal/types"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // DatabaseService defines the database operations needed by HealthHandler
@@ -44,6 +44,10 @@ func NewHealthHandler(db DatabaseService, health *services.HealthService, creato
 }
 
 func (h *HealthHandler) CheckHealth(c *gin.Context) {
+	// Create a context with timeout for the entire health check operation
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
 	serviceID := c.Param("service")
 	if serviceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Service ID is required"})
@@ -64,8 +68,15 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 			APIKey:     apiKey,
 		}
 	} else {
-		service, err = h.db.FindServiceBy(c, types.FindServiceParams{InstanceID: serviceID})
+		// Use context with timeout for database operation
+		service, err = h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
 		if err != nil {
+			// Check for context cancellation
+			if ctx.Err() != nil {
+				log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled while fetching service configuration")
+				c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+				return
+			}
 			log.Error().Err(err).Str("service", serviceID).Msg("Failed to fetch service configuration")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service configuration"})
 			return
@@ -112,7 +123,18 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		return
 	}
 
-	health, statusCode := serviceChecker.CheckHealth(service.URL, service.APIKey)
+	// Use the context with timeout for health check
+	health, statusCode := serviceChecker.CheckHealth(ctx, service.URL, service.APIKey)
+
+	// Check for context cancellation after health check
+	if ctx.Err() != nil {
+		log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled during health check")
+		c.JSON(http.StatusGatewayTimeout, gin.H{
+			"status":  "error",
+			"message": "Health check timed out",
+		})
+		return
+	}
 
 	// Enhance error handling for specific status codes
 	if statusCode != http.StatusOK {

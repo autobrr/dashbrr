@@ -96,7 +96,7 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 	// Service health checks
 	if c.checkServices {
 		// Get all configured services
-		services, err := c.db.GetAllServices()
+		services, err := c.db.GetAllServices(context.Background())
 		if err != nil {
 			// Log error but continue with empty services map
 			fmt.Printf("Failed to retrieve services: %v\n", err)
@@ -117,34 +117,34 @@ func (c *HealthCommand) Execute(ctx context.Context, args []string) error {
 				// Check all supported services
 				switch {
 				case strings.HasPrefix(service.InstanceID, "autobrr-"):
-					health, _ := autobrrService.CheckHealth(service.URL, service.APIKey)
+					health, _ := autobrrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "omegabrr-"):
-					health, _ := omegabrrService.CheckHealth(service.URL, service.APIKey)
+					health, _ := omegabrrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "radarr-"):
-					health, _ := radarrService.CheckHealth(service.URL, service.APIKey)
+					health, _ := radarrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "sonarr-"):
-					health, _ := sonarrService.CheckHealth(service.URL, service.APIKey)
+					health, _ := sonarrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "prowlarr-"):
-					health, _ := prowlarrService.CheckHealth(service.URL, service.APIKey)
+					health, _ := prowlarrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "plex-"):
-					health, _ := plexService.CheckHealth(service.URL, service.APIKey)
+					health, _ := plexService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "overseerr-"):
-					health, _ := overseerrService.CheckHealth(service.URL, service.APIKey)
+					health, _ := overseerrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "maintainerr-"):
-					health, _ := maintainerrService.CheckHealth(service.URL, service.APIKey)
+					health, _ := maintainerrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "tailscale-"):
-					health, _ := tailscaleService.CheckHealth(service.URL, service.APIKey)
+					health, _ := tailscaleService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "general-"):
-					health, _ := generalService.CheckHealth(service.URL, service.APIKey)
+					health, _ := generalService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				}
 			}

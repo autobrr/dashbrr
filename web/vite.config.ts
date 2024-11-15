@@ -168,7 +168,20 @@ export default defineConfig(({ mode }) => ({
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
-        ws: true
+        ws: false, // Disable websocket for API proxy
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req) => {
+            if (req.url?.includes('/health/events')) {
+              // Set specific headers for SSE connections
+              proxyReq.setHeader('Accept', 'text/event-stream');
+              proxyReq.setHeader('Cache-Control', 'no-cache');
+              proxyReq.setHeader('Connection', 'keep-alive');
+            }
+          });
+        }
       }
     }
   },
@@ -179,7 +192,7 @@ export default defineConfig(({ mode }) => ({
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
-        ws: true
+        ws: false // Disable websocket for API proxy
       }
     }
   }

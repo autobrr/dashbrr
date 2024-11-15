@@ -4,6 +4,7 @@
 package models
 
 import (
+	"context"
 	"time"
 )
 
@@ -34,7 +35,7 @@ type ServiceHealth struct {
 
 // ServiceHealthChecker defines the interface for service health checking
 type ServiceHealthChecker interface {
-	CheckHealth(url, apiKey string) (ServiceHealth, int)
+	CheckHealth(ctx context.Context, url, apiKey string) (ServiceHealth, int)
 }
 
 // Service creation function types

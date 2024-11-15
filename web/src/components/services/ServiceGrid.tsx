@@ -21,7 +21,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 
@@ -242,7 +242,7 @@ export const ServiceGrid = ({
         >
           <SortableContext
             items={items.map((item) => item.instanceId)}
-            strategy={verticalListSortingStrategy}
+            strategy={horizontalListSortingStrategy}
           >
             <div
               className="columns-1 sm:columns-2 lg:columns-3 2xl:columns-4 gap-4"

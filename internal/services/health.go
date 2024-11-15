@@ -62,8 +62,12 @@ func CheckServiceHealth(serviceType, url, apiKey string) (models.ServiceHealth, 
 		}, http.StatusBadRequest
 	}
 
+	// Create a context with timeout for the health check
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Use the service-specific implementation to check health
-	health, statusCode := serviceChecker.CheckHealth(url, apiKey)
+	health, statusCode := serviceChecker.CheckHealth(ctx, url, apiKey)
 	return health, statusCode
 }
 

@@ -15,10 +15,41 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/cache"
 )
 
-const (
-	HealthCheckTTL = 5 * time.Minute  // 5 minutes for health checks
-	DefaultTTL     = 30 * time.Second // 30 seconds default for other endpoints
-)
+// CacheDurations defines all cache TTLs in one place for consistency
+var CacheDurations = struct {
+	// Default fallback duration
+	Default time.Duration
+
+	// System-level cache durations
+	HealthCheck time.Duration
+	Statistics  time.Duration
+
+	// Service-specific durations for frequently updated data
+	PlexSessions      time.Duration
+	OverseerrRequests time.Duration
+
+	// Service-specific durations for less frequently updated data
+	AutobrrStatus    time.Duration
+	AutobrrIRC       time.Duration
+	AutobrrReleases  time.Duration
+	MaintainerrStats time.Duration
+	SonarrStatus     time.Duration
+	RadarrStatus     time.Duration
+	ProwlarrStatus   time.Duration
+}{
+	Default:           30 * time.Second,
+	HealthCheck:       10 * time.Minute,
+	Statistics:        5 * time.Minute,
+	PlexSessions:      5 * time.Second,
+	OverseerrRequests: 30 * time.Second,
+	AutobrrStatus:     1 * time.Minute,
+	AutobrrIRC:        5 * time.Minute,
+	AutobrrReleases:   1 * time.Minute,
+	MaintainerrStats:  10 * time.Minute,
+	SonarrStatus:      1 * time.Minute,
+	RadarrStatus:      1 * time.Minute,
+	ProwlarrStatus:    1 * time.Minute,
+}
 
 type CacheMiddleware struct {
 	store cache.Store
@@ -112,27 +143,33 @@ func (m *CacheMiddleware) Cache() gin.HandlerFunc {
 func (m *CacheMiddleware) getTTL(path string) time.Duration {
 	// Health check endpoints
 	if strings.Contains(path, "/health") {
-		return HealthCheckTTL
+		return CacheDurations.HealthCheck
 	}
 
 	// Service-specific TTLs
 	switch {
 	case strings.Contains(path, "/plex/sessions"):
-		return 10 * time.Second
+		return CacheDurations.PlexSessions
+	case strings.Contains(path, "/overseerr/requests"):
+		return CacheDurations.OverseerrRequests
+	case strings.Contains(path, "/autobrr/irc"):
+		return CacheDurations.AutobrrIRC
+	case strings.Contains(path, "/autobrr/releases"):
+		return CacheDurations.AutobrrReleases
+	case strings.Contains(path, "/autobrr/stats"):
+		return CacheDurations.AutobrrStatus
 	case strings.Contains(path, "/autobrr"):
-		return 30 * time.Second
-	case strings.Contains(path, "/overseerr"):
-		return 1 * time.Minute
+		return CacheDurations.AutobrrStatus
 	case strings.Contains(path, "/maintainerr"):
-		return 1 * time.Minute
+		return CacheDurations.MaintainerrStats
 	case strings.Contains(path, "/sonarr"):
-		return 30 * time.Second
+		return CacheDurations.SonarrStatus
 	case strings.Contains(path, "/radarr"):
-		return 30 * time.Second
+		return CacheDurations.RadarrStatus
 	case strings.Contains(path, "/prowlarr"):
-		return 1 * time.Minute
+		return CacheDurations.ProwlarrStatus
 	default:
-		return DefaultTTL
+		return CacheDurations.Default
 	}
 }
 

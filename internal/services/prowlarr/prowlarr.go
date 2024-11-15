@@ -6,13 +6,13 @@ package prowlarr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -57,6 +57,7 @@ func NewProwlarrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Prowlarr instance"
 	service.DefaultURL = "http://localhost:9696"
 	service.HealthEndpoint = "/api/v1/health"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -75,7 +76,7 @@ func (s *ProwlarrService) makeRequest(ctx context.Context, method, url, apiKey s
 }
 
 // GetSystemStatus fetches the system status from Prowlarr
-func (s *ProwlarrService) GetSystemStatus(baseURL, apiKey string) (string, error) {
+func (s *ProwlarrService) GetSystemStatus(ctx context.Context, baseURL, apiKey string) (string, error) {
 	if baseURL == "" {
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
@@ -86,9 +87,6 @@ func (s *ProwlarrService) GetSystemStatus(baseURL, apiKey string) (string, error
 	}
 
 	statusURL := fmt.Sprintf("%s/api/v1/system/status", strings.TrimRight(baseURL, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
 	resp, err := s.makeRequest(ctx, http.MethodGet, statusURL, apiKey)
 	if err != nil {
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to make request: %w", err)}
@@ -119,15 +117,12 @@ func (s *ProwlarrService) GetSystemStatus(baseURL, apiKey string) (string, error
 }
 
 // GetIndexerStats fetches indexer statistics from Prowlarr
-func (s *ProwlarrService) GetIndexerStats(baseURL, apiKey string) (*types.ProwlarrIndexerStatsResponse, error) {
+func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey string) (*types.ProwlarrIndexerStatsResponse, error) {
 	if baseURL == "" {
 		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("URL is required")}
 	}
 
 	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
 	resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, apiKey)
 	if err != nil {
 		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to make request: %w", err)}
@@ -152,13 +147,13 @@ func (s *ProwlarrService) GetIndexerStats(baseURL, apiKey string) (*types.Prowla
 }
 
 // CheckForUpdates checks if there are any updates available
-func (s *ProwlarrService) CheckForUpdates(url, apiKey string) (bool, error) {
+func (s *ProwlarrService) CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error) {
 	// Prowlarr doesn't have a dedicated updates endpoint, updates are reported through health checks
 	return false, nil
 }
 
 // GetQueue gets the current queue status
-func (s *ProwlarrService) GetQueue(url, apiKey string) (interface{}, error) {
+func (s *ProwlarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
 	// Prowlarr doesn't have a queue system
 	return nil, nil
 }
@@ -169,6 +164,47 @@ func (s *ProwlarrService) GetHealthEndpoint(baseURL string) string {
 	return fmt.Sprintf("%s/api/v1/health", baseURL)
 }
 
-func (s *ProwlarrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+	startTime := time.Now()
+
+	if url == "" {
+		return s.CreateHealthResponse(startTime, "pending", "Prowlarr not configured"), http.StatusOK
+	}
+
+	// Get version
+	version, err := s.GetSystemStatus(ctx, url, apiKey)
+	if err != nil {
+		var prowlarrErr *ErrProwlarr
+		if strings.Contains(err.Error(), "connection refused") {
+			return s.CreateHealthResponse(startTime, "offline", "Connection refused"), http.StatusOK
+		}
+		if strings.Contains(err.Error(), "no such host") {
+			return s.CreateHealthResponse(startTime, "offline", "Host not found"), http.StatusOK
+		}
+		if strings.Contains(err.Error(), "context deadline exceeded") {
+			return s.CreateHealthResponse(startTime, "timeout", "Request timed out"), http.StatusOK
+		}
+		if strings.Contains(err.Error(), "certificate") {
+			return s.CreateHealthResponse(startTime, "error", "Invalid SSL certificate"), http.StatusOK
+		}
+		if ok := errors.As(err, &prowlarrErr); ok && prowlarrErr.HttpCode == http.StatusUnauthorized {
+			return s.CreateHealthResponse(startTime, "error", "Invalid API key"), http.StatusUnauthorized
+		}
+		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to get version: %v", err)), http.StatusOK
+	}
+
+	// Get indexer stats
+	stats, err := s.GetIndexerStats(ctx, url, apiKey)
+	if err != nil {
+		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to get indexer stats: %v", err)), http.StatusOK
+	}
+
+	// Create health response with version and stats
+	health := s.CreateHealthResponse(startTime, "online", "Prowlarr is running")
+	health.Version = version
+	health.Stats = map[string]interface{}{
+		"prowlarr": stats,
+	}
+
+	return health, http.StatusOK
 }

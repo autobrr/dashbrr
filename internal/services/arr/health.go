@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -76,16 +75,28 @@ func (ihc *instanceHealthCheck) runChecks() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		version, err := ihc.checker.GetSystemStatus(ihc.url, ihc.apiKey)
-		ihc.version <- healthCheckResult{data: version, err: err}
+		select {
+		case <-ihc.ctx.Done():
+			ihc.version <- healthCheckResult{err: ihc.ctx.Err()}
+			return
+		default:
+			version, err := ihc.checker.GetSystemStatus(ihc.url, ihc.apiKey)
+			ihc.version <- healthCheckResult{data: version, err: err}
+		}
 	}()
 
 	// Update check
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		hasUpdate, err := ihc.checker.CheckForUpdates(ihc.url, ihc.apiKey)
-		ihc.update <- healthCheckResult{data: hasUpdate, err: err}
+		select {
+		case <-ihc.ctx.Done():
+			ihc.update <- healthCheckResult{err: ihc.ctx.Err()}
+			return
+		default:
+			hasUpdate, err := ihc.checker.CheckForUpdates(ihc.url, ihc.apiKey)
+			ihc.update <- healthCheckResult{data: hasUpdate, err: err}
+		}
 	}()
 
 	// Health check
@@ -96,38 +107,43 @@ func (ihc *instanceHealthCheck) runChecks() {
 		headers := map[string]string{
 			"X-Api-Key": ihc.apiKey,
 		}
-		resp, err := ihc.core.MakeRequestWithContext(ihc.ctx, healthEndpoint, ihc.apiKey, headers)
-		if err != nil {
-			ihc.health <- healthCheckResult{err: err}
+
+		select {
+		case <-ihc.ctx.Done():
+			ihc.health <- healthCheckResult{err: ihc.ctx.Err()}
 			return
-		}
-
-		if resp == nil {
-			ihc.health <- healthCheckResult{err: fmt.Errorf("nil response")}
-			return
-		}
-
-		defer resp.Body.Close()
-		body, err := ihc.core.ReadBody(resp)
-
-		// Parse response time from header (now stored as milliseconds)
-		responseTimeStr := resp.Header.Get("X-Response-Time")
-		var responseTime int64
-		if responseTimeStr != "" {
-			if rt, err := strconv.ParseInt(responseTimeStr, 10, 64); err == nil {
-				responseTime = rt
+		default:
+			resp, err := ihc.core.MakeRequestWithContext(ihc.ctx, healthEndpoint, ihc.apiKey, headers)
+			if err != nil {
+				ihc.health <- healthCheckResult{err: err}
+				return
 			}
-		}
 
-		ihc.health <- healthCheckResult{data: struct {
-			body         []byte
-			statusCode   int
-			responseTime int64
-		}{
-			body:         body,
-			statusCode:   resp.StatusCode,
-			responseTime: responseTime,
-		}, err: err}
+			if resp == nil {
+				ihc.health <- healthCheckResult{err: fmt.Errorf("nil response")}
+				return
+			}
+
+			defer resp.Body.Close()
+			body, err := ihc.core.ReadBody(resp)
+
+			// Parse response time from header
+			respTimeStr := resp.Header.Get("X-Response-Time")
+			var respTime time.Duration
+			if respTimeStr != "" {
+				respTime, _ = time.ParseDuration(respTimeStr)
+			}
+
+			ihc.health <- healthCheckResult{data: struct {
+				body       []byte
+				statusCode int
+				respTime   time.Duration
+			}{
+				body:       body,
+				statusCode: resp.StatusCode,
+				respTime:   respTime,
+			}, err: err}
+		}
 	}()
 
 	// Wait for all goroutines to complete
@@ -149,8 +165,8 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		return s.CreateHealthResponse(time.Now(), "error", "URL is required"), http.StatusBadRequest
 	}
 
-	// Create a context with a single timeout for all operations
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Create a context with timeout from service configuration
+	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
 	// Create and run instance health check
@@ -167,6 +183,9 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 	select {
 	case healthResult := <-ihc.health:
 		if healthResult.err != nil {
+			if healthResult.err == context.DeadlineExceeded {
+				return s.CreateHealthResponse(ihc.startTime, "error", "Health check timed out"), http.StatusOK
+			}
 			return s.CreateHealthResponse(ihc.startTime, "offline", fmt.Sprintf("Failed to connect: %v", healthResult.err)), http.StatusOK
 		}
 
@@ -213,6 +232,8 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 			if version, ok := versionResult.data.(string); ok && version != "" {
 				extras["version"] = version
 			}
+		} else if versionResult.err != context.DeadlineExceeded {
+			extras["versionError"] = versionResult.err.Error()
 		}
 	case <-ctx.Done():
 		// Continue without version
@@ -224,7 +245,13 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		if updateResult.err == nil {
 			if hasUpdate, ok := updateResult.data.(bool); ok && hasUpdate {
 				extras["updateAvailable"] = true
+				// Store version info separately from warnings
+				if version, ok := extras["version"].(string); ok {
+					extras["updateVersion"] = version
+				}
 			}
+		} else if updateResult.err != context.DeadlineExceeded {
+			extras["updateError"] = updateResult.err.Error()
 		}
 	case <-ctx.Done():
 		// Continue without update status
