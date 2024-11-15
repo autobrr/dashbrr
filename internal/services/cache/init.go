@@ -111,9 +111,11 @@ func InitCache(ctx context.Context, cfg Config) (Store, error) {
 		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
+		// Create Redis client
 		client := redis.NewClient(opts)
-		err := client.Ping(timeoutCtx).Err()
 
+		// Test connection
+		err := client.Ping(timeoutCtx).Err()
 		if err != nil {
 			if client != nil {
 				client.Close()
@@ -125,15 +127,26 @@ func InitCache(ctx context.Context, cfg Config) (Store, error) {
 			return NewMemoryStore(ctx, cfg.DataDir), err
 		}
 
-		// Initialize Redis cache store
-		store, err := NewCache(ctx, opts.Addr)
-		if err != nil {
-			if os.Getenv("CACHE_TYPE") == "redis" {
-				// Only log error if Redis was explicitly requested
-				log.Error().Err(err).Msg("Failed to initialize explicitly configured Redis cache, falling back to memory cache")
-			}
-			return NewMemoryStore(ctx, cfg.DataDir), err
+		// Create a new context with cancel for the store
+		storeCtx, storeCancel := context.WithCancel(ctx)
+
+		// Create Redis store with existing client
+		store := &RedisStore{
+			client: client,
+			local: &LocalCache{
+				items: make(map[string]*localCacheItem),
+			},
+			ctx:    storeCtx,
+			cancel: storeCancel,
 		}
+
+		// Start cleanup goroutine
+		store.wg.Add(1)
+		go func() {
+			defer store.wg.Done()
+			store.localCacheCleanup()
+		}()
+
 		return store, nil
 
 	case CacheTypeMemory:
