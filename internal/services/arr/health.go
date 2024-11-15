@@ -12,8 +12,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
+
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
+)
+
+const (
+	healthCacheDuration = 30 * time.Second
+	arrCachePrefix      = "arr:"
+)
+
+var (
+	sf singleflight.Group
+	mu sync.RWMutex
 )
 
 // HealthResponse represents a common health check response structure
@@ -31,259 +44,154 @@ type HealthChecker interface {
 	GetHealthEndpoint(baseURL string) string
 }
 
-// healthCheckResult holds the results of individual health check operations
-type healthCheckResult struct {
-	data interface{}
-	err  error
-}
-
-// instanceHealthCheck manages health checks for a single instance
-type instanceHealthCheck struct {
-	url       string
-	apiKey    string
-	startTime time.Time
-	checker   HealthChecker
-	core      *core.ServiceCore
-	ctx       context.Context
-
-	// Channels for different health check operations
-	version chan healthCheckResult
-	update  chan healthCheckResult
-	health  chan healthCheckResult
-}
-
-// newInstanceHealthCheck creates a new instance health check
-func newInstanceHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker) *instanceHealthCheck {
-	return &instanceHealthCheck{
-		url:       url,
-		apiKey:    apiKey,
-		startTime: time.Now(),
-		checker:   checker,
-		core:      s,
-		ctx:       ctx,
-		version:   make(chan healthCheckResult, 1),
-		update:    make(chan healthCheckResult, 1),
-		health:    make(chan healthCheckResult, 1),
-	}
-}
-
-// runChecks executes all health check operations concurrently
-func (ihc *instanceHealthCheck) runChecks() {
-	var wg sync.WaitGroup
-
-	// Version check
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		select {
-		case <-ihc.ctx.Done():
-			ihc.version <- healthCheckResult{err: ihc.ctx.Err()}
-			return
-		default:
-			version, err := ihc.checker.GetSystemStatus(ihc.url, ihc.apiKey)
-			ihc.version <- healthCheckResult{data: version, err: err}
-		}
-	}()
-
-	// Update check
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		select {
-		case <-ihc.ctx.Done():
-			ihc.update <- healthCheckResult{err: ihc.ctx.Err()}
-			return
-		default:
-			hasUpdate, err := ihc.checker.CheckForUpdates(ihc.url, ihc.apiKey)
-			ihc.update <- healthCheckResult{data: hasUpdate, err: err}
-		}
-	}()
-
-	// Health check
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		healthEndpoint := ihc.checker.GetHealthEndpoint(ihc.url)
-		headers := map[string]string{
-			"X-Api-Key": ihc.apiKey,
-		}
-
-		select {
-		case <-ihc.ctx.Done():
-			ihc.health <- healthCheckResult{err: ihc.ctx.Err()}
-			return
-		default:
-			resp, err := ihc.core.MakeRequestWithContext(ihc.ctx, healthEndpoint, ihc.apiKey, headers)
-			if err != nil {
-				ihc.health <- healthCheckResult{err: err}
-				return
-			}
-
-			if resp == nil {
-				ihc.health <- healthCheckResult{err: fmt.Errorf("nil response")}
-				return
-			}
-
-			defer resp.Body.Close()
-			body, err := ihc.core.ReadBody(resp)
-
-			// Parse response time from header
-			respTimeStr := resp.Header.Get("X-Response-Time")
-			var respTime time.Duration
-			if respTimeStr != "" {
-				respTime, _ = time.ParseDuration(respTimeStr)
-			}
-
-			ihc.health <- healthCheckResult{data: struct {
-				body       []byte
-				statusCode int
-				respTime   time.Duration
-			}{
-				body:       body,
-				statusCode: resp.StatusCode,
-				respTime:   respTime,
-			}, err: err}
-		}
-	}()
-
-	// Wait for all goroutines to complete
-	wg.Wait()
-}
-
-// processHealthResponse processes the health check response
-func processHealthResponse(body []byte) ([]HealthResponse, error) {
-	var healthIssues []HealthResponse
-	if err := json.Unmarshal(body, &healthIssues); err != nil {
-		return nil, err
-	}
-	return healthIssues, nil
-}
-
 // ArrHealthCheck provides a common implementation of health checking for *arr services
 func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, int) {
 	if url == "" {
 		return s.CreateHealthResponse(time.Now(), "error", "URL is required"), http.StatusBadRequest
 	}
 
-	// Create a context with timeout from service configuration
+	startTime := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
 	defer cancel()
 
-	// Create and run instance health check
-	ihc := newInstanceHealthCheck(ctx, s, url, apiKey, checker)
-	ihc.runChecks()
-
-	// Process results
-	extras := make(map[string]interface{})
-	var healthStatus string
-	var healthMessage string
-	var allWarnings []string
-
-	// Process health check results
-	select {
-	case healthResult := <-ihc.health:
-		if healthResult.err != nil {
-			if healthResult.err == context.DeadlineExceeded {
-				return s.CreateHealthResponse(ihc.startTime, "error", "Health check timed out"), http.StatusOK
-			}
-			return s.CreateHealthResponse(ihc.startTime, "offline", fmt.Sprintf("Failed to connect: %v", healthResult.err)), http.StatusOK
-		}
-
-		if data, ok := healthResult.data.(struct {
-			body         []byte
-			statusCode   int
-			responseTime int64
-		}); ok {
-			extras["responseTime"] = data.responseTime
-
-			if data.statusCode >= 400 {
-				statusText := http.StatusText(data.statusCode)
-				switch data.statusCode {
-				case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-					return s.CreateHealthResponse(ihc.startTime, "error", fmt.Sprintf("Service is temporarily unavailable (%d %s)", data.statusCode, statusText)), http.StatusOK
-				case http.StatusUnauthorized:
-					return s.CreateHealthResponse(ihc.startTime, "error", "Invalid API key"), http.StatusOK
-				case http.StatusForbidden:
-					return s.CreateHealthResponse(ihc.startTime, "error", "Access forbidden"), http.StatusOK
-				case http.StatusNotFound:
-					return s.CreateHealthResponse(ihc.startTime, "error", "Service endpoint not found"), http.StatusOK
-				default:
-					return s.CreateHealthResponse(ihc.startTime, "error", fmt.Sprintf("Server returned %s (%d)", statusText, data.statusCode)), http.StatusOK
-				}
-			}
-
-			if healthIssues, err := processHealthResponse(data.body); err == nil {
-				for _, issue := range healthIssues {
-					if issue.Type == "warning" || issue.Type == "error" {
-						warning := formatWarning(issue)
-						allWarnings = append(allWarnings, warning)
-					}
-				}
-			}
-		}
-	case <-ctx.Done():
-		return s.CreateHealthResponse(ihc.startTime, "error", "Health check timed out"), http.StatusOK
+	// Try to get cached health response
+	cacheKey := arrCachePrefix + "health:" + url
+	var cachedHealth models.ServiceHealth
+	if _, err := s.GetCachedVersion(ctx, cacheKey, "", func(_, _ string) (string, error) {
+		return "", nil // Cache miss, will handle below
+	}); err == nil && cachedHealth.Status != "" {
+		// Refresh cache in background
+		go func() {
+			refreshKey := fmt.Sprintf("refresh:%s", url)
+			_, _, _ = sf.Do(refreshKey, func() (interface{}, error) {
+				return performHealthCheck(ctx, s, url, apiKey, checker)
+			})
+		}()
+		return cachedHealth, http.StatusOK
 	}
 
-	// Process version check
-	select {
-	case versionResult := <-ihc.version:
-		if versionResult.err == nil {
-			if version, ok := versionResult.data.(string); ok && version != "" {
-				extras["version"] = version
-			}
-		} else if versionResult.err != context.DeadlineExceeded {
-			extras["versionError"] = versionResult.err.Error()
-		}
-	case <-ctx.Done():
-		// Continue without version
+	// Use singleflight for health check
+	healthKey := fmt.Sprintf("health:%s", url)
+	result, err, _ := sf.Do(healthKey, func() (interface{}, error) {
+		return performHealthCheck(ctx, s, url, apiKey, checker)
+	})
+
+	if err != nil {
+		log.Error().Err(err).Str("url", url).Msg("Health check failed")
+		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
 	}
 
-	// Process update check
-	select {
-	case updateResult := <-ihc.update:
-		if updateResult.err == nil {
-			if hasUpdate, ok := updateResult.data.(bool); ok && hasUpdate {
-				extras["updateAvailable"] = true
-				// Store version info separately from warnings
-				if version, ok := extras["version"].(string); ok {
-					extras["updateVersion"] = version
-				}
-			}
-		} else if updateResult.err != context.DeadlineExceeded {
-			extras["updateError"] = updateResult.err.Error()
-		}
-	case <-ctx.Done():
-		// Continue without update status
-	}
-
-	// Determine final status and message
-	if len(allWarnings) > 0 {
-		healthStatus = "warning"
-		healthMessage = strings.Join(allWarnings, "\n\n")
-	} else {
-		healthStatus = "online"
-		healthMessage = "Healthy"
-	}
-
-	return s.CreateHealthResponse(ihc.startTime, healthStatus, healthMessage, extras), http.StatusOK
+	health := result.(models.ServiceHealth)
+	return health, http.StatusOK
 }
 
-func formatWarning(issue HealthResponse) string {
-	// Check for known warning patterns
-	message := issue.Message
-	for _, warning := range knownWarnings {
-		if strings.Contains(message, warning.Pattern) {
-			return fmt.Sprintf("[%s] %s", warning.Category, message)
+// performHealthCheck executes the actual health check
+func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, error) {
+	startTime := time.Now()
+
+	// Get version synchronously first
+	version := s.GetVersionFromCache(url)
+	if version == "" {
+		var err error
+		version, err = checker.GetSystemStatus(url, apiKey)
+		if err == nil {
+			s.CacheVersion(url, version, time.Hour)
 		}
 	}
 
-	// If no specific pattern is matched, use the source if available
-	if issue.Source != "" &&
-		issue.Source != "IndexerLongTermStatusCheck" &&
-		issue.Source != "NotificationStatusCheck" {
-		return fmt.Sprintf("[%s] %s", issue.Source, message)
+	// Make health check request
+	healthEndpoint := checker.GetHealthEndpoint(url)
+	headers := map[string]string{
+		"X-Api-Key": apiKey,
 	}
 
-	return message
+	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, apiKey, headers)
+	if err != nil {
+		return models.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
+	}
+	if resp == nil {
+		return models.ServiceHealth{}, fmt.Errorf("nil response")
+	}
+
+	defer resp.Body.Close()
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return models.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
+	}
+
+	// Get response time
+	respTimeStr := resp.Header.Get("X-Response-Time")
+	var respTime time.Duration
+	if respTimeStr != "" {
+		respTime, _ = time.ParseDuration(respTimeStr)
+	}
+
+	// Handle error status codes
+	if resp.StatusCode >= 400 {
+		statusText := http.StatusText(resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Service is temporarily unavailable (%d %s)", resp.StatusCode, statusText)), nil
+		case http.StatusUnauthorized:
+			return s.CreateHealthResponse(startTime, "error", "Invalid API key"), nil
+		case http.StatusForbidden:
+			return s.CreateHealthResponse(startTime, "error", "Access forbidden"), nil
+		case http.StatusNotFound:
+			return s.CreateHealthResponse(startTime, "error", "Service endpoint not found"), nil
+		default:
+			return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Server returned %s (%d)", statusText, resp.StatusCode)), nil
+		}
+	}
+
+	// Process health response
+	var healthIssues []HealthResponse
+	if err := json.Unmarshal(body, &healthIssues); err != nil {
+		return models.ServiceHealth{}, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	// Build response
+	extras := map[string]interface{}{
+		"responseTime": respTime.Milliseconds(),
+	}
+
+	// Set version in extras
+	if version != "" {
+		extras["version"] = version
+	}
+
+	// Check for updates in background
+	go func() {
+		if hasUpdate, err := checker.CheckForUpdates(url, apiKey); err == nil && hasUpdate {
+			updateKey := fmt.Sprintf("%s:update", url)
+			s.CacheVersion(updateKey, "true", time.Hour)
+			extras["updateAvailable"] = true
+		}
+	}()
+
+	// Determine status and message
+	status := "online"
+	var warnings []string
+	for _, issue := range healthIssues {
+		if issue.Type == "warning" || issue.Type == "error" {
+			warnings = append(warnings, fmt.Sprintf("[%s] %s", issue.Source, issue.Message))
+			status = "warning"
+		}
+	}
+
+	message := "Healthy"
+	if len(warnings) > 0 {
+		message = strings.Join(warnings, "\n\n")
+	}
+
+	health := s.CreateHealthResponse(startTime, status, message, extras)
+
+	// Cache the health response
+	if status != "error" {
+		cacheKey := arrCachePrefix + "health:" + url
+		if err := s.CacheVersion(cacheKey, fmt.Sprintf("%+v", health), healthCacheDuration); err != nil {
+			log.Warn().Err(err).Str("url", url).Msg("Failed to cache health response")
+		}
+	}
+
+	return health, nil
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,15 +29,67 @@ const (
 )
 
 type SonarrHandler struct {
-	db    *database.DB
-	cache cache.Store
-	sf    singleflight.Group
+	db              *database.DB
+	cache           cache.Store
+	sf              singleflight.Group
+	lastQueueHash   map[string]string
+	lastStatsHash   map[string]string
+	lastQueueHashMu sync.Mutex
+	lastStatsHashMu sync.Mutex
 }
 
 func NewSonarrHandler(db *database.DB, cache cache.Store) *SonarrHandler {
 	return &SonarrHandler{
-		db:    db,
-		cache: cache,
+		db:            db,
+		cache:         cache,
+		lastQueueHash: make(map[string]string),
+		lastStatsHash: make(map[string]string),
+	}
+}
+
+// compareAndLogQueueChanges tracks and logs changes in Sonarr queue
+// It compares the current queue state with the previous state for a specific Sonarr instance
+// Helps detect queue changes like new downloads starting, downloads completing, or status updates
+func (h *SonarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.SonarrQueueResponse) {
+	h.lastQueueHashMu.Lock()
+	defer h.lastQueueHashMu.Unlock()
+
+	wrapped := wrapSonarrQueue(queueResp)
+	currentHash := generateQueueHash(wrapped)
+	lastHash := h.lastQueueHash[instanceId]
+
+	if currentHash != lastHash {
+		changes := detectQueueChanges(lastHash, currentHash)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("totalRecords", queueResp.TotalRecords).
+			Str("change", changes).
+			Msg("[Sonarr] Queue changed")
+
+		h.lastQueueHash[instanceId] = currentHash
+	}
+}
+
+// compareAndLogStatsChanges tracks and logs changes in Sonarr stats
+func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *types.SonarrStatsResponse) {
+	h.lastStatsHashMu.Lock()
+	defer h.lastStatsHashMu.Unlock()
+
+	currentHash := fmt.Sprintf("%d:%d:%d:%d",
+		stats.EpisodeCount,
+		stats.EpisodeFileCount,
+		stats.QueuedCount,
+		stats.MissingCount)
+	lastHash := h.lastStatsHash[instanceId]
+
+	if currentHash != lastHash {
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("episodeCount", stats.EpisodeCount).
+			Int("queuedCount", stats.QueuedCount).
+			Msg("[Sonarr] Stats changed")
+
+		h.lastStatsHash[instanceId] = currentHash
 	}
 }
 
@@ -73,13 +126,13 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	// Get Sonarr configuration
 	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Sonarr configuration")
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Sonarr] Failed to get configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Sonarr configuration"})
 		return
 	}
 
 	if sonarrConfig == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Sonarr is not configured")
+		log.Error().Str("instanceId", instanceId).Msg("[Sonarr] is not configured")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Sonarr is not configured"})
 		return
 	}
@@ -94,7 +147,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 				Err(arrErr).
 				Str("instanceId", instanceId).
 				Str("queueId", queueId).
-				Msg("Failed to delete queue item")
+				Msg("[Sonarr] Failed to delete queue item")
 
 			if arrErr.HttpCode > 0 {
 				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
@@ -111,7 +164,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to clear Sonarr queue cache")
+			Msg("[Sonarr] Failed to clear queue cache")
 	}
 
 	// Fetch fresh data and broadcast update using singleflight
@@ -125,29 +178,20 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		h.broadcastSonarrQueue(instanceId, &queueResp)
 	}
 
-	log.Info().
-		Str("instanceId", instanceId).
-		Str("queueId", queueId).
-		Bool("removeFromClient", options.RemoveFromClient).
-		Bool("blocklist", options.Blocklist).
-		Bool("skipRedownload", options.SkipRedownload).
-		Bool("changeCategory", options.ChangeCategory).
-		Msg("Successfully deleted queue item")
-
 	c.Status(http.StatusOK)
 }
 
 func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
+		log.Error().Msg("[Sonarr] No instanceId provided")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
 		return
 	}
 
 	// Verify this is a Sonarr instance
 	if instanceId[:6] != "sonarr" {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Sonarr instance ID")
+		log.Error().Str("instanceId", instanceId).Msg("[Sonarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
 		return
 	}
@@ -162,7 +206,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Serving Sonarr queue from cache")
+			Msg("[Sonarr] Serving queue from cache")
 		c.JSON(http.StatusOK, queueResp)
 
 		// Refresh cache in background using singleflight
@@ -187,7 +231,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
-				Msg("Failed to fetch Sonarr queue")
+				Msg("[Sonarr] Failed to fetch queue")
 
 			if arrErr.HttpCode > 0 {
 				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
@@ -200,18 +244,17 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 
 	queueResp = queueRespI.(types.SonarrQueueResponse)
 
-	if queueResp.Records != nil {
+	if len(queueResp.Records) > 0 {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Successfully retrieved and cached Sonarr queue")
+			Msg("[Sonarr] Queue retrieved with records")
+
+		// Add hash-based change detection
+		h.compareAndLogQueueChanges(instanceId, &queueResp)
 
 		// Broadcast queue update via SSE
 		h.broadcastSonarrQueue(instanceId, &queueResp)
-	} else {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Retrieved empty Sonarr queue")
 	}
 
 	c.JSON(http.StatusOK, queueResp)
@@ -271,22 +314,24 @@ func (h *SonarrHandler) refreshQueueCache(instanceId, cacheKey string) {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to refresh Sonarr queue cache")
+			Msg("[Sonarr] Failed to refresh queue cache")
 		return
 	}
+
+	// Use existing compareAndLogQueueChanges method
+	h.compareAndLogQueueChanges(instanceId, &queueResp)
 
 	if queueResp.Records != nil {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Successfully refreshed Sonarr queue cache")
+			Msg("[Sonarr] Queue cache refreshed")
 
 		// Broadcast queue update via SSE
 		h.broadcastSonarrQueue(instanceId, &queueResp)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Msg("Refreshed cache with empty Sonarr queue")
+			Msg("[Sonarr] Refreshed cache with empty queue")
 	}
 }
 
@@ -328,14 +373,14 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 func (h *SonarrHandler) GetStats(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
+		log.Error().Msg("[Sonarr] No instanceId provided")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
 		return
 	}
 
 	// Verify this is a Sonarr instance
 	if instanceId[:6] != "sonarr" {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Sonarr instance ID")
+		log.Error().Str("instanceId", instanceId).Msg("[Sonarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
 		return
 	}
@@ -350,7 +395,7 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("monitored", statsResp.Monitored).
-			Msg("Serving Sonarr stats from cache")
+			Msg("[Sonarr] Serving stats from cache")
 		c.JSON(http.StatusOK, gin.H{
 			"stats":   statsResp,
 			"version": "", // Version will be added by the frontend if needed
@@ -378,7 +423,7 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
-				Msg("Failed to fetch Sonarr stats")
+				Msg("[Sonarr] Failed to fetch stats")
 
 			if arrErr.HttpCode > 0 {
 				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
@@ -449,7 +494,7 @@ func (h *SonarrHandler) fetchAndCacheStats(instanceId, cacheKey string) (struct 
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to cache Sonarr stats")
+			Msg("[Sonarr] Failed to cache stats")
 	}
 
 	return result, nil
@@ -461,14 +506,15 @@ func (h *SonarrHandler) refreshStatsCache(instanceId, cacheKey string) {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to refresh Sonarr stats cache")
+			Msg("[Sonarr] Failed to refresh stats cache")
 		return
 	}
 
+	h.compareAndLogStatsChanges(instanceId, &statsResult.Stats)
+
 	log.Debug().
 		Str("instanceId", instanceId).
-		Int("monitored", statsResult.Stats.Monitored).
-		Msg("Successfully refreshed Sonarr stats cache")
+		Msg("[Sonarr] Stats cache refreshed")
 
 	// Broadcast stats update via SSE
 	h.broadcastSonarrStats(instanceId, &statsResult.Stats, statsResult.Version)

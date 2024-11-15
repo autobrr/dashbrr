@@ -154,7 +154,9 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	h.serviceManager.InitializeService(c.Request.Context(), &config)
 
 	// Invalidate cache
-	h.cache.Delete(context.Background(), configCacheKey)
+	if err := h.cache.Delete(context.Background(), configCacheKey); err != nil {
+		log.Warn().Err(err).Msg("Failed to delete configuration cache")
+	}
 
 	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")
 	c.JSON(http.StatusOK, config)
@@ -191,7 +193,9 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	}
 
 	// Invalidate cache
-	h.cache.Delete(context.Background(), configCacheKey)
+	if err := h.cache.Delete(context.Background(), configCacheKey); err != nil {
+		log.Warn().Err(err).Msg("Failed to delete configuration cache")
+	}
 
 	log.Info().Str("instance", instanceID).Msg("Successfully deleted configuration")
 	c.JSON(http.StatusOK, gin.H{"message": "Configuration deleted successfully"})

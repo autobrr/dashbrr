@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,29 +26,55 @@ import (
 const radarrQueuePrefix = "radarr:queue:"
 
 type RadarrHandler struct {
-	db    *database.DB
-	cache cache.Store
-	sf    singleflight.Group
+	db              *database.DB
+	cache           cache.Store
+	sf              singleflight.Group
+	lastQueueHash   map[string]string
+	lastQueueHashMu sync.Mutex
 }
 
 func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
 	return &RadarrHandler{
-		db:    db,
-		cache: cache,
+		db:            db,
+		cache:         cache,
+		lastQueueHash: make(map[string]string),
+	}
+}
+
+// compareAndLogQueueChanges tracks and logs changes in Radarr queue
+// It compares the current queue state with the previous state for a specific Radarr instance
+// Helps detect queue changes like new downloads starting, downloads completing, or status updates
+func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.RadarrQueueResponse) {
+	h.lastQueueHashMu.Lock()
+	defer h.lastQueueHashMu.Unlock()
+
+	wrapped := wrapRadarrQueue(queueResp)
+	currentHash := generateQueueHash(wrapped)
+	lastHash := h.lastQueueHash[instanceId]
+
+	if currentHash != lastHash {
+		changes := detectQueueChanges(lastHash, currentHash)
+		log.Debug().
+			Str("instanceId", instanceId).
+			Int("totalRecords", queueResp.TotalRecords).
+			Str("change", changes).
+			Msg("[Radarr] Queue changed")
+
+		h.lastQueueHash[instanceId] = currentHash
 	}
 }
 
 func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
+		log.Error().Msg("[Radarr] No instanceId provided")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
 		return
 	}
 
 	// Verify this is a Radarr instance
 	if instanceId[:6] != "radarr" {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Radarr instance ID")
+		log.Error().Str("instanceId", instanceId).Msg("[Radarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Radarr instance ID"})
 		return
 	}
@@ -62,7 +89,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Serving Radarr queue from cache")
+			Msg("[Radarr] Serving queue from cache")
 		c.JSON(http.StatusOK, queueResp)
 
 		// Refresh cache in background using singleflight
@@ -87,7 +114,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
-				Msg("Failed to fetch Radarr queue")
+				Msg("[Radarr] Failed to fetch queue")
 
 			if arrErr.HttpCode > 0 {
 				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
@@ -100,18 +127,16 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 
 	queueResp = queueRespI.(types.RadarrQueueResponse)
 
-	if queueResp.Records != nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Successfully retrieved and cached Radarr queue")
+	// Add hash-based change detection
+	h.compareAndLogQueueChanges(instanceId, &queueResp)
 
+	if queueResp.Records != nil {
 		// Broadcast queue update via SSE
 		h.broadcastRadarrQueue(instanceId, &queueResp)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Msg("Retrieved empty Radarr queue")
+			Msg("[Radarr] Retrieved empty queue")
 	}
 
 	c.JSON(http.StatusOK, queueResp)
@@ -148,7 +173,7 @@ func (h *RadarrHandler) fetchAndCacheQueue(instanceId, cacheKey string) (types.R
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to cache Radarr queue")
+			Msg("[Radarr] Failed to cache queue")
 	}
 
 	return queueResp, nil
@@ -160,22 +185,24 @@ func (h *RadarrHandler) refreshQueueCache(instanceId, cacheKey string) {
 		log.Error().
 			Err(err).
 			Str("instanceId", instanceId).
-			Msg("Failed to refresh Radarr queue cache")
+			Msg("[Radarr] Failed to refresh queue cache")
 		return
 	}
+
+	// Add hash-based change detection
+	h.compareAndLogQueueChanges(instanceId, &queueResp)
 
 	if queueResp.Records != nil {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Successfully refreshed Radarr queue cache")
+			Msg("[Radarr] Queue cache refreshed")
 
 		// Broadcast queue update via SSE
 		h.broadcastRadarrQueue(instanceId, &queueResp)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Msg("Refreshed cache with empty Radarr queue")
+			Msg("[Radarr] Refreshed cache with empty queue")
 	}
 }
 
@@ -234,13 +261,13 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 
 	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Radarr configuration")
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Radarr] Failed to get configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Radarr configuration"})
 		return
 	}
 
 	if radarrConfig == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Radarr is not configured")
+		log.Error().Str("instanceId", instanceId).Msg("[Radarr] is not configured")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Radarr is not configured"})
 		return
 	}
@@ -255,7 +282,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 				Err(arrErr).
 				Str("instanceId", instanceId).
 				Str("queueId", queueId).
-				Msg("Failed to delete queue item")
+				Msg("[Radarr] Failed to delete queue item")
 
 			if arrErr.HttpCode > 0 {
 				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
@@ -269,7 +296,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	// Clear cache after successful deletion
 	cacheKey := radarrQueuePrefix + instanceId
 	if err := h.cache.Delete(context.Background(), cacheKey); err != nil {
-		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after queue item deletion")
+		log.Warn().Err(err).Str("instanceId", instanceId).Msg("[Radarr] Failed to clear cache after queue item deletion")
 	}
 
 	// Fetch fresh data and broadcast update using singleflight

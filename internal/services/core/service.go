@@ -302,6 +302,23 @@ func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 	return version
 }
 
+// GetUpdateStatusFromCache retrieves the update status from cache
+func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
+	if err := s.initCache(); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		return false
+	}
+
+	var updateStatus string
+	cacheKey := fmt.Sprintf("%s:update", baseURL)
+	err := s.cache.Get(context.Background(), cacheKey, &updateStatus)
+	if err != nil {
+		return false
+	}
+
+	return updateStatus == "true"
+}
+
 // CacheVersion stores the version in cache with the specified TTL
 func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) error {
 	if err := s.initCache(); err != nil {
