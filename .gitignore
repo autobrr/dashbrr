@@ -1,39 +1,65 @@
-# Logs
-logs
+# Binaries and Executables
+######################
+dashbrr
+bin/
+dist/
+
+# Dependencies
+######################
+node_modules/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Package Manager Files
+######################
+# If needed, package-lock.json shall be added manually using an explicit git add command
+package-lock.json
+# Using npm, not yarn
+yarn.lock
+
+# Build and Development
+######################
+web/build
+web/dev-dist/
+web/dist/*
+!web/dist/.gitkeep
+web/tsconfig.app.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+
+# Database Files
+######################
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-*.tsbuildinfo
-
-backend/data/dashbrr.db
-backend/dashbrr.db
-dashbrr.db
-/dashbrr
+*.sql
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+*.db*
 data/
-dump.rdb
+
+# IDE and Editor Files
+######################
+.idea
+.vscode
+
+# Environment Files
+######################
 .env
-main
-backend/test.db
-dev-dist/
 license.sh
 unit-tests.xml
+dump.rdb
+
+# OS Generated Files
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

@@ -60,7 +60,6 @@ jobs:
 
   test:
     name: Test
-    needs: [web]
     runs-on: ubuntu-latest
     services:
       test_postgres:
@@ -78,12 +77,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download web production build
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: web/dist
-
+      # 1.20 is the last version to support Windows < 10, Server < 2016, and MacOS < 1.15.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -91,12 +85,6 @@ jobs:
           cache: true
 
       - name: Test
-        env:
-          DASHBRR__DB_HOST: localhost
-          DASHBRR__DB_PORT: 5432
-          DASHBRR__DB_USER: dashbrr
-          DASHBRR__DB_PASSWORD: dashbrr
-          DASHBRR__DB_NAME: dashbrr_test
         run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- ./... -tags=integration
 
       - name: Test Summary
@@ -121,6 +109,7 @@ jobs:
           name: web-dist
           path: web/dist
 
+      #     1.20 is the last version to support Windows < 10, Server < 2016, and MacOS < 1.15.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -133,7 +122,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --snapshot --skip=validate --skip=publish --parallelism 5
+          args: release --clean --skip=validate --skip=publish --parallelism 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -171,6 +160,7 @@ jobs:
 
   docker:
     name: Build Docker images
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
@@ -183,7 +173,10 @@ jobs:
           - linux/arm/v6
           - linux/arm/v7
           - linux/arm64
+          #       - linux/mips64le
+          #       - linux/mips64
           - linux/ppc64le
+          #       - linux/riscv64
           - linux/s390x
     needs: [web, test]
     steps:
