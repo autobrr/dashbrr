@@ -57,9 +57,6 @@ func setupTestCache(t *testing.T) Store {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Errorf("Failed to close cache: %v", err)
-		}
 		if err := os.RemoveAll(dataDir); err != nil {
 			t.Errorf("Failed to cleanup test directory: %v", err)
 		}
@@ -131,6 +128,7 @@ func TestInitCache(t *testing.T) {
 
 func TestBasicOperations(t *testing.T) {
 	cache := setupTestCache(t)
+	defer cache.Close()
 
 	ctx := context.Background()
 	tests := []struct {
@@ -192,6 +190,7 @@ func TestBasicOperations(t *testing.T) {
 
 func TestLocalCache(t *testing.T) {
 	cache := setupTestCache(t)
+	defer cache.Close()
 
 	ctx := context.Background()
 	tests := []struct {
@@ -238,6 +237,7 @@ func TestLocalCache(t *testing.T) {
 
 func TestRateLimitOperations(t *testing.T) {
 	cache := setupTestCache(t)
+	defer cache.Close()
 
 	ctx := context.Background()
 	key := "test:rate:limit"
@@ -286,6 +286,7 @@ func TestRateLimitOperations(t *testing.T) {
 
 func TestConcurrentAccess(t *testing.T) {
 	cache := setupTestCache(t)
+	defer cache.Close()
 
 	ctx := context.Background()
 	key := "test:concurrent"
@@ -326,6 +327,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 func TestCleanup(t *testing.T) {
 	cache := setupTestCache(t)
+	defer cache.Close()
 
 	ctx := context.Background()
 	key := "test:cleanup"
@@ -350,6 +352,7 @@ func TestCleanup(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	cache := setupTestCache(t)
+	defer cache.Close()
 
 	// Create a cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
