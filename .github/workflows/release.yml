@@ -71,6 +71,11 @@ jobs:
           POSTGRES_PASSWORD: dashbrr
           POSTGRES_DB: dashbrr_test
         options: --health-cmd pg_isready --health-interval 1s --health-timeout 5s --health-retries 60
+      test_redis:
+        image: redis:7-alpine
+        ports:
+          - "6379:6379"
+        options: --health-cmd "redis-cli ping" --health-interval 1s --health-timeout 5s --health-retries 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -84,7 +89,20 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Initialize test database
+        run: |
+          PGPASSWORD=dashbrr psql -h localhost -U dashbrr -d dashbrr_test -f docker-compose/init.sql
+
       - name: Test
+        env:
+          DASHBRR__DB_TYPE: postgres
+          DASHBRR__DB_HOST: localhost
+          DASHBRR__DB_PORT: 5432
+          DASHBRR__DB_USER: dashbrr
+          DASHBRR__DB_PASSWORD: dashbrr
+          DASHBRR__DB_NAME: dashbrr_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
         run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- ./... -tags=integration
 
       - name: Test Summary
