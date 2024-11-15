@@ -17,13 +17,17 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
-	tailscaleCacheDuration = 60 * time.Second // Longer cache for Tailscale as it changes less frequently
-	devicesCachePrefix     = "tailscale:devices:"
+	tailscaleCacheDuration    = 60 * time.Second // Primary cache duration
+	tailscaleStaleDataTimeout = 5 * time.Minute  // Stale data timeout
+	devicesCachePrefix        = "tailscale:devices:"
+	maxFailures               = 5
+	resetTimeout              = time.Minute
 )
 
 type TailscaleHandler struct {
@@ -32,6 +36,7 @@ type TailscaleHandler struct {
 	sf                singleflight.Group
 	lastDevicesHash   map[string]string
 	lastDevicesHashMu sync.Mutex
+	circuitBreaker    *resilience.CircuitBreaker
 }
 
 func NewTailscaleHandler(db *database.DB, cache cache.Store) *TailscaleHandler {
@@ -39,6 +44,7 @@ func NewTailscaleHandler(db *database.DB, cache cache.Store) *TailscaleHandler {
 		db:              db,
 		cache:           cache,
 		lastDevicesHash: make(map[string]string),
+		circuitBreaker:  resilience.NewCircuitBreaker(maxFailures, resetTimeout),
 	}
 }
 
@@ -78,6 +84,16 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 
 	ctx := context.Background()
 
+	// Check if circuit breaker is open
+	if h.circuitBreaker.IsOpen() {
+		log.Warn().Msg("[Tailscale] Circuit breaker is open, serving stale data")
+		if err := h.serveStaleData(c, cacheKey); err == nil {
+			return
+		}
+		// If no stale data available, continue with the request
+		log.Warn().Msg("[Tailscale] No stale data available, attempting fresh request")
+	}
+
 	// Try to get from cache first
 	var response struct {
 		Devices []tailscale.Device `json:"devices"`
@@ -104,7 +120,21 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	// If not in cache, fetch from service using singleflight
 	sfKey := fmt.Sprintf("devices:%s", strings.TrimPrefix(cacheKey, devicesCachePrefix))
 	devicesI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
+		var devices []tailscale.Device
+		err := resilience.RetryWithBackoff(ctx, func() error {
+			var fetchErr error
+			devices, fetchErr = h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
+			if fetchErr != nil {
+				h.circuitBreaker.RecordFailure()
+				return fetchErr
+			}
+			h.circuitBreaker.RecordSuccess()
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return devices, nil
 	})
 
 	if err != nil {
@@ -115,6 +145,12 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		} else {
 			log.Error().Err(err).Msg("[Tailscale] Failed to fetch devices")
 		}
+
+		// Try to serve stale data on error
+		if serveErr := h.serveStaleData(c, cacheKey); serveErr == nil {
+			return
+		}
+
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
@@ -157,6 +193,23 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *TailscaleHandler) serveStaleData(c *gin.Context, cacheKey string) error {
+	var response struct {
+		Devices []tailscale.Device `json:"devices"`
+		Status  string             `json:"status"`
+	}
+
+	staleCacheKey := cacheKey + ":stale"
+	err := h.cache.Get(c.Request.Context(), staleCacheKey, &response)
+	if err != nil {
+		return err
+	}
+
+	log.Info().Msg("[Tailscale] Serving stale data")
+	c.JSON(http.StatusOK, response)
+	return nil
+}
+
 func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId, apiKey, cacheKey string) ([]tailscale.Device, error) {
 	service := &tailscale.TailscaleService{}
 
@@ -194,11 +247,21 @@ func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId,
 		Status:  "success",
 	}
 
+	// Cache fresh data
 	if err := h.cache.Set(ctx, cacheKey, response, tailscaleCacheDuration); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
 			Msg("[Tailscale] Failed to cache devices")
+	}
+
+	// Cache stale data with longer duration
+	staleCacheKey := cacheKey + ":stale"
+	if err := h.cache.Set(ctx, staleCacheKey, response, tailscaleStaleDataTimeout); err != nil {
+		log.Warn().
+			Err(err).
+			Str("instanceId", instanceId).
+			Msg("[Tailscale] Failed to cache stale devices")
 	}
 
 	return devices, nil
@@ -209,7 +272,11 @@ func (h *TailscaleHandler) refreshDevicesCache(instanceId, apiKey, cacheKey stri
 	time.Sleep(100 * time.Millisecond)
 
 	ctx := context.Background()
-	_, err := h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
+	err := resilience.RetryWithBackoff(ctx, func() error {
+		_, err := h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
+		return err
+	})
+
 	if err != nil {
 		log.Error().
 			Err(err).

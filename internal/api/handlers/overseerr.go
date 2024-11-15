@@ -22,15 +22,20 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
+	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const overseerrCachePrefix = "overseerr:requests:"
+const (
+	overseerrCachePrefix       = "overseerr:requests:"
+	overseerrStaleDataDuration = 5 * time.Minute
+)
 
 type OverseerrHandler struct {
-	db    *database.DB
-	cache cache.Store
-	sf    singleflight.Group
+	db             *database.DB
+	cache          cache.Store
+	sf             singleflight.Group
+	circuitBreaker *resilience.CircuitBreaker
 
 	lastRequestsHash map[string]string
 	hashMu           sync.Mutex
@@ -40,8 +45,66 @@ func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
 	return &OverseerrHandler{
 		db:               db,
 		cache:            cache,
+		circuitBreaker:   resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastRequestsHash: make(map[string]string),
 	}
+}
+
+// fetchDataWithCache implements a stale-while-revalidate pattern
+func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
+	var data interface{}
+
+	// Try to get from cache first
+	err := h.cache.Get(ctx, cacheKey, &data)
+	if err == nil {
+		// Data found in cache
+		go func() {
+			// Refresh cache in background if close to expiration
+			if time.Now().After(time.Now().Add(-middleware.CacheDurations.OverseerrRequests + 5*time.Second)) {
+				if newData, err := fetchFn(); err == nil {
+					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.OverseerrRequests)
+				}
+			}
+		}()
+		return data, nil
+	}
+
+	// Check circuit breaker before making request
+	if h.circuitBreaker.IsOpen() {
+		// Try to get stale data when circuit is open
+		var staleData interface{}
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+			return staleData, nil
+		}
+		return nil, fmt.Errorf("circuit breaker is open")
+	}
+
+	// Cache miss or error, fetch fresh data with retry
+	var fetchErr error
+	err = resilience.RetryWithBackoff(ctx, func() error {
+		data, fetchErr = fetchFn()
+		return fetchErr
+	})
+
+	if err != nil {
+		h.circuitBreaker.RecordFailure()
+		// Try to get stale data
+		var staleData interface{}
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+			return staleData, nil
+		}
+		return nil, err
+	}
+
+	h.circuitBreaker.RecordSuccess()
+
+	// Cache the fresh data
+	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.OverseerrRequests); err == nil {
+		// Also cache as stale data with longer duration
+		h.cache.Set(ctx, cacheKey+":stale", data, overseerrStaleDataDuration)
+	}
+
+	return data, nil
 }
 
 func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
@@ -101,13 +164,23 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	service := &overseerr.OverseerrService{}
 	service.SetDB(h.db)
 
-	// Update request status using singleflight
+	// Update request status using singleflight with retry and circuit breaker
 	sfKey := fmt.Sprintf("update_status:%s:%s", instanceId, requestId)
+	ctx := context.Background()
+
+	if h.circuitBreaker.IsOpen() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Service is temporarily unavailable"})
+		return
+	}
+
 	_, err, _ = h.sf.Do(sfKey, func() (interface{}, error) {
-		return nil, service.UpdateRequestStatus(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve)
+		return nil, resilience.RetryWithBackoff(ctx, func() error {
+			return service.UpdateRequestStatus(ctx, overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve)
+		})
 	})
 
 	if err != nil {
+		h.circuitBreaker.RecordFailure()
 		log.Error().Err(err).
 			Str("instanceId", instanceId).
 			Int("requestId", reqID).
@@ -116,6 +189,8 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update request status: %v", err)})
 		return
 	}
+
+	h.circuitBreaker.RecordSuccess()
 
 	// Clear the cache for this instance to force a refresh
 	cacheKey := overseerrCachePrefix + instanceId
@@ -155,31 +230,12 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	cacheKey := overseerrCachePrefix + instanceId
 	ctx := context.Background()
 
-	// Try to get from cache first
-	var response *types.RequestsStats
-	err := h.cache.Get(ctx, cacheKey, &response)
-	if err == nil && response != nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("size", len(response.Requests)).
-			Msg("Serving Overseerr requests from cache")
-		c.JSON(http.StatusOK, response)
-
-		// Refresh cache in background using singleflight
-		go func() {
-			refreshKey := fmt.Sprintf("requests_refresh:%s", instanceId)
-			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
-				h.refreshRequestsCache(instanceId, cacheKey)
-				return nil, nil
-			})
-		}()
-		return
-	}
-
-	// If not in cache, fetch from service using singleflight
+	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("requests:%s", instanceId)
 	statsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchAndCacheRequests(instanceId, cacheKey)
+		return h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+			return h.fetchAndCacheRequests(instanceId, cacheKey)
+		})
 	})
 
 	if err != nil {
@@ -268,62 +324,10 @@ func (h *OverseerrHandler) fetchAndCacheRequests(instanceId, cacheKey string) (*
 		stats.Requests = []types.MediaRequest{}
 	}
 
-	// Cache the results using the centralized cache duration
-	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, stats, middleware.CacheDurations.OverseerrRequests); err != nil {
-		log.Warn().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("Failed to cache Overseerr requests")
-	}
-
 	return stats, nil
 }
 
-func (h *OverseerrHandler) refreshRequestsCache(instanceId, cacheKey string) {
-	stats, err := h.fetchAndCacheRequests(instanceId, cacheKey)
-	if err != nil && err.Error() != "service not configured" {
-		log.Error().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("Failed to refresh Overseerr requests cache")
-		return
-	}
-
-	if stats != nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("size", len(stats.Requests)).
-			Msg("Successfully refreshed Overseerr requests cache")
-
-		// Add hash-based change detection for refresh
-		h.hashMu.Lock()
-		currentHash, changes := createOverseerrRequestsHash(stats)
-		lastHash := h.lastRequestsHash[instanceId]
-
-		if currentHash != lastHash {
-			log.Debug().
-				Str("instanceId", instanceId).
-				Strs("changes", changes).
-				Msg("Overseerr requests changed during refresh")
-			h.lastRequestsHash[instanceId] = currentHash
-		}
-		h.hashMu.Unlock()
-
-		// Broadcast the updated data
-		h.broadcastOverseerrRequests(instanceId, stats)
-	} else {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Refreshed cache with empty Overseerr requests")
-	}
-}
-
-// broadcastOverseerrRequests broadcasts Overseerr request updates to all connected Server-Sent Events (SSE) clients.
-// It uses the BroadcastHealth function to send a service health update with Overseerr request statistics.
-// The broadcast includes the instance ID, service status, pending request count, and total number of requests.
 func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *types.RequestsStats) {
-	// Use the existing BroadcastHealth function with a special message type
 	BroadcastHealth(models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
@@ -341,10 +345,6 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 	})
 }
 
-// createOverseerrRequestsHash generates a unique hash representing the current state of Overseerr requests.
-// The hash includes the pending request count and key details of each request to detect changes efficiently.
-// It sorts requests by ID to ensure a consistent hash generation across multiple calls.
-// Returns an empty string if no requests are present or stats is nil.
 func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) {
 	if stats == nil || len(stats.Requests) == 0 {
 		return "", nil
@@ -353,16 +353,13 @@ func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%d:", stats.PendingCount)
 
-	// Track changes with full request details
 	changes := []string{}
 
-	// Sort requests by ID to ensure consistent hash generation
 	sort.Slice(stats.Requests, func(i, j int) bool {
 		return stats.Requests[i].ID < stats.Requests[j].ID
 	})
 
 	for _, req := range stats.Requests {
-		// Capture ALL fields for debugging
 		reqDetails := fmt.Sprintf("Full Request Details: "+
 			"ID=%d, Status=%d, MediaType=%s, MediaTitle=%s, "+
 			"RequestedBy.ID=%d, RequestedBy.Username=%s, "+

@@ -29,13 +29,14 @@ var CacheDurations = struct {
 	OverseerrRequests time.Duration
 
 	// Service-specific durations for less frequently updated data
-	AutobrrStatus    time.Duration
-	AutobrrIRC       time.Duration
-	AutobrrReleases  time.Duration
-	MaintainerrStats time.Duration
-	SonarrStatus     time.Duration
-	RadarrStatus     time.Duration
-	ProwlarrStatus   time.Duration
+	AutobrrStatus     time.Duration
+	AutobrrIRC        time.Duration
+	AutobrrReleases   time.Duration
+	MaintainerrStatus time.Duration
+	SonarrStatus      time.Duration
+	RadarrStatus      time.Duration
+	ProwlarrStatus    time.Duration
+	OmegabrrStatus    time.Duration
 }{
 	Default:           30 * time.Second,
 	HealthCheck:       10 * time.Minute,
@@ -45,10 +46,11 @@ var CacheDurations = struct {
 	AutobrrStatus:     1 * time.Minute,
 	AutobrrIRC:        5 * time.Minute,
 	AutobrrReleases:   1 * time.Minute,
-	MaintainerrStats:  10 * time.Minute,
+	MaintainerrStatus: 10 * time.Minute,
 	SonarrStatus:      1 * time.Minute,
 	RadarrStatus:      1 * time.Minute,
 	ProwlarrStatus:    1 * time.Minute,
+	OmegabrrStatus:    1 * time.Minute,
 }
 
 type CacheMiddleware struct {
@@ -161,7 +163,7 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 	case strings.Contains(path, "/autobrr"):
 		return CacheDurations.AutobrrStatus
 	case strings.Contains(path, "/maintainerr"):
-		return CacheDurations.MaintainerrStats
+		return CacheDurations.MaintainerrStatus
 	case strings.Contains(path, "/sonarr"):
 		return CacheDurations.SonarrStatus
 	case strings.Contains(path, "/radarr"):

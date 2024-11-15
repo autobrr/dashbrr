@@ -20,15 +20,20 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/plex"
+	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const plexCachePrefix = "plex:sessions:"
+const (
+	plexCachePrefix       = "plex:sessions:"
+	plexStaleDataDuration = 5 * time.Minute
+)
 
 type PlexHandler struct {
 	db                *database.DB
 	cache             cache.Store
 	sf                singleflight.Group
+	circuitBreaker    *resilience.CircuitBreaker
 	lastSessionHash   map[string]string
 	lastSessionHashMu sync.Mutex
 }
@@ -37,8 +42,66 @@ func NewPlexHandler(db *database.DB, cache cache.Store) *PlexHandler {
 	return &PlexHandler{
 		db:              db,
 		cache:           cache,
+		circuitBreaker:  resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastSessionHash: make(map[string]string),
 	}
+}
+
+// fetchDataWithCache implements a stale-while-revalidate pattern
+func (h *PlexHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
+	var data interface{}
+
+	// Try to get from cache first
+	err := h.cache.Get(ctx, cacheKey, &data)
+	if err == nil {
+		// Data found in cache
+		go func() {
+			// Refresh cache in background if close to expiration
+			if time.Now().After(time.Now().Add(-middleware.CacheDurations.PlexSessions + 5*time.Second)) {
+				if newData, err := fetchFn(); err == nil {
+					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.PlexSessions)
+				}
+			}
+		}()
+		return data, nil
+	}
+
+	// Check circuit breaker before making request
+	if h.circuitBreaker.IsOpen() {
+		// Try to get stale data when circuit is open
+		var staleData interface{}
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+			return staleData, nil
+		}
+		return nil, fmt.Errorf("circuit breaker is open")
+	}
+
+	// Cache miss or error, fetch fresh data with retry
+	var fetchErr error
+	err = resilience.RetryWithBackoff(ctx, func() error {
+		data, fetchErr = fetchFn()
+		return fetchErr
+	})
+
+	if err != nil {
+		h.circuitBreaker.RecordFailure()
+		// Try to get stale data
+		var staleData interface{}
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+			return staleData, nil
+		}
+		return nil, err
+	}
+
+	h.circuitBreaker.RecordSuccess()
+
+	// Cache the fresh data
+	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.PlexSessions); err == nil {
+		// Also cache as stale data with longer duration
+		h.cache.Set(ctx, cacheKey+":stale", data, plexStaleDataDuration)
+	}
+
+	return data, nil
 }
 
 func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
@@ -59,31 +122,12 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	cacheKey := plexCachePrefix + instanceId
 	ctx := context.Background()
 
-	// Try to get from cache first
-	var sessions *types.PlexSessionsResponse
-	err := h.cache.Get(ctx, cacheKey, &sessions)
-	if err == nil && sessions != nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("size", sessions.MediaContainer.Size).
-			Msg("Serving Plex sessions from cache")
-		c.JSON(http.StatusOK, sessions)
-
-		// Refresh cache in background using singleflight
-		go func() {
-			refreshKey := fmt.Sprintf("sessions_refresh:%s", instanceId)
-			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
-				h.refreshSessionsCache(instanceId, cacheKey)
-				return nil, nil
-			})
-		}()
-		return
-	}
-
-	// If not in cache or invalid cache data, fetch from service using singleflight
+	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("sessions:%s", instanceId)
 	sessionsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
+		return h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+			return h.fetchSessions(ctx, instanceId)
+		})
 	})
 
 	if err != nil {
@@ -107,7 +151,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
-	sessions = sessionsI.(*types.PlexSessionsResponse)
+	sessions := sessionsI.(*types.PlexSessionsResponse)
 
 	if sessions != nil {
 		h.compareAndLogSessionChanges(instanceId, sessions)
@@ -121,7 +165,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
-func (h *PlexHandler) fetchAndCacheSessions(ctx context.Context, instanceId, cacheKey string) (*types.PlexSessionsResponse, error) {
+func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*types.PlexSessionsResponse, error) {
 	plexConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
@@ -146,41 +190,7 @@ func (h *PlexHandler) fetchAndCacheSessions(ctx context.Context, instanceId, cac
 		sessions.MediaContainer.Metadata = []types.PlexSession{}
 	}
 
-	// Cache the results using the centralized cache duration
-	if err := h.cache.Set(ctx, cacheKey, sessions, middleware.CacheDurations.PlexSessions); err != nil {
-		log.Warn().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("Failed to cache Plex sessions")
-	}
-
 	return sessions, nil
-}
-
-func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
-	ctx := context.Background()
-	sessions, err := h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
-	if err != nil && err.Error() != "service not configured" {
-		log.Error().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("Failed to refresh Plex sessions cache")
-		return
-	}
-
-	if sessions != nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("size", sessions.MediaContainer.Size).
-			Msg("Successfully refreshed Plex sessions cache")
-
-		// Broadcast sessions update via SSE
-		h.broadcastPlexSessions(instanceId, sessions)
-	} else {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Refreshed cache with empty Plex sessions")
-	}
 }
 
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
