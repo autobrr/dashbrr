@@ -4,6 +4,7 @@
 package models
 
 import (
+	"context"
 	"time"
 )
 
@@ -12,6 +13,7 @@ type Service struct {
 	ID             string `json:"id"`
 	Type           string `json:"type"`
 	URL            string `json:"url"`
+	AccessURL      string `json:"accessUrl,omitempty"` // New field for external access URL
 	APIKey         string `json:"apiKey,omitempty"`
 	Name           string `json:"name"`
 	DisplayName    string `json:"displayName,omitempty"`
@@ -33,7 +35,7 @@ type ServiceHealth struct {
 
 // ServiceHealthChecker defines the interface for service health checking
 type ServiceHealthChecker interface {
-	CheckHealth(url, apiKey string) (ServiceHealth, int)
+	CheckHealth(ctx context.Context, url, apiKey string) (ServiceHealth, int)
 }
 
 // Service creation function types

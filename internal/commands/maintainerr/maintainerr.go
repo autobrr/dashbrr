@@ -11,6 +11,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // AddCommand handles adding a new maintainerr service
@@ -33,7 +34,7 @@ func NewAddCommand(db *database.DB) *AddCommand {
 }
 
 func (c *AddCommand) getNextInstanceID() (string, error) {
-	services, err := c.db.GetAllServices()
+	services, err := c.db.GetAllServices(context.Background())
 	if err != nil {
 		return "", fmt.Errorf("failed to get services: %v", err)
 	}
@@ -72,7 +73,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	}
 
 	// Check if service already exists
-	existing, err := c.db.GetServiceByURL(serviceURL)
+	existing, err := c.db.FindServiceBy(context.Background(), types.FindServiceParams{URL: serviceURL})
 	if err != nil {
 		return fmt.Errorf("failed to check for existing service: %v", err)
 	}
@@ -84,7 +85,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 	maintainerrService := maintainerr.NewMaintainerrService()
 
 	// Perform health check to validate connection
-	health, _ := maintainerrService.CheckHealth(serviceURL, apiKey)
+	health, _ := maintainerrService.CheckHealth(ctx, serviceURL, apiKey)
 
 	if health.Status == "error" || health.Status == "offline" {
 		return fmt.Errorf("failed to connect to maintainerr service: %s", health.Message)
@@ -104,7 +105,7 @@ func (c *AddCommand) Execute(ctx context.Context, args []string) error {
 		APIKey:      apiKey,
 	}
 
-	if err := c.db.CreateService(service); err != nil {
+	if err := c.db.CreateService(ctx, service); err != nil {
 		return fmt.Errorf("failed to save service configuration: %v", err)
 	}
 
@@ -144,7 +145,7 @@ func (c *RemoveCommand) Execute(ctx context.Context, args []string) error {
 	serviceURL := args[0]
 
 	// Find service by URL
-	service, err := c.db.GetServiceByURL(serviceURL)
+	service, err := c.db.FindServiceBy(context.Background(), types.FindServiceParams{URL: serviceURL})
 	if err != nil {
 		return fmt.Errorf("failed to find service: %v", err)
 	}
@@ -153,7 +154,7 @@ func (c *RemoveCommand) Execute(ctx context.Context, args []string) error {
 	}
 
 	// Delete service
-	if err := c.db.DeleteService(service.InstanceID); err != nil {
+	if err := c.db.DeleteService(context.Background(), service.InstanceID); err != nil {
 		return fmt.Errorf("failed to remove service: %v", err)
 	}
 
@@ -182,7 +183,7 @@ func NewListCommand(db *database.DB) *ListCommand {
 }
 
 func (c *ListCommand) Execute(ctx context.Context, args []string) error {
-	services, err := c.db.GetAllServices()
+	services, err := c.db.GetAllServices(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve services: %v", err)
 	}
@@ -200,7 +201,7 @@ func (c *ListCommand) Execute(ctx context.Context, args []string) error {
 
 			// Try to get health info which includes version
 			maintainerrService := maintainerr.NewMaintainerrService()
-			if health, _ := maintainerrService.CheckHealth(service.URL, service.APIKey); health.Status != "" {
+			if health, _ := maintainerrService.CheckHealth(ctx, service.URL, service.APIKey); health.Status != "" {
 				if health.Version != "" {
 					fmt.Printf("    Version: %s\n", health.Version)
 				}

@@ -51,6 +51,8 @@ data/
 ######################
 .env
 license.sh
+unit-tests.xml
+dump.rdb
 
 # OS Generated Files
 ######################

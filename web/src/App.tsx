@@ -5,7 +5,8 @@
 
 import { ServiceHealthMonitor } from "./components/services/ServiceHealthMonitor";
 import { ConfigurationProvider } from "./contexts/ConfigurationContext";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { useAuth } from "./hooks/useAuth";
 import { Toaster } from "react-hot-toast";
 import Toast from "./components/Toast";
 import { AddServicesMenu } from "./components/AddServicesMenu";

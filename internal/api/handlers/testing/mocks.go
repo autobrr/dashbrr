@@ -4,22 +4,24 @@
 package testing
 
 import (
+	"context"
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // MockDB implements database operations for testing
 type MockDB struct {
-	GetServiceByInstanceIDFunc func(string) (*models.ServiceConfiguration, error)
-	GetAllServicesFunc         func() ([]models.ServiceConfiguration, error)
-	CreateServiceFunc          func(*models.ServiceConfiguration) error
-	UpdateServiceFunc          func(*models.ServiceConfiguration) error
-	DeleteServiceFunc          func(string) error
+	FindServiceByFunc  func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
+	GetAllServicesFunc func() ([]models.ServiceConfiguration, error)
+	CreateServiceFunc  func(*models.ServiceConfiguration) error
+	UpdateServiceFunc  func(*models.ServiceConfiguration) error
+	DeleteServiceFunc  func(string) error
 }
 
-// GetServiceByInstanceID implements the database method
-func (m *MockDB) GetServiceByInstanceID(id string) (*models.ServiceConfiguration, error) {
-	if m.GetServiceByInstanceIDFunc != nil {
-		return m.GetServiceByInstanceIDFunc(id)
+// FindServiceBy implements the database method
+func (m *MockDB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+	if m.FindServiceByFunc != nil {
+		return m.FindServiceByFunc(ctx, params)
 	}
 	return nil, nil
 }

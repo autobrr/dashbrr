@@ -11,21 +11,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const (
-	plexCacheDuration = 5 * time.Second // Reduced from 30s to 5s for more frequent updates
-	plexCachePrefix   = "plex:sessions:"
-)
+const plexCachePrefix = "plex:sessions:"
 
 type PlexHandler struct {
 	db    *database.DB
 	cache cache.Store
+	sf    singleflight.Group
 }
 
 func NewPlexHandler(db *database.DB, cache cache.Store) *PlexHandler {
@@ -63,13 +64,23 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 			Msg("Serving Plex sessions from cache")
 		c.JSON(http.StatusOK, sessions)
 
-		// Refresh cache in background without delay
-		go h.refreshSessionsCache(instanceId, cacheKey)
+		// Refresh cache in background using singleflight
+		go func() {
+			refreshKey := fmt.Sprintf("sessions_refresh:%s", instanceId)
+			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
+				h.refreshSessionsCache(instanceId, cacheKey)
+				return nil, nil
+			})
+		}()
 		return
 	}
 
-	// If not in cache or invalid cache data, fetch from service
-	sessions, err = h.fetchAndCacheSessions(instanceId, cacheKey)
+	// If not in cache or invalid cache data, fetch from service using singleflight
+	sfKey := fmt.Sprintf("sessions:%s", instanceId)
+	sessionsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+		return h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
+	})
+
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
@@ -91,11 +102,16 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
+	sessions = sessionsI.(*types.PlexSessionsResponse)
+
 	if sessions != nil {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("size", sessions.MediaContainer.Size).
 			Msg("Successfully retrieved and cached Plex sessions")
+
+		// Broadcast sessions update via SSE
+		h.broadcastPlexSessions(instanceId, sessions)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
@@ -105,8 +121,8 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
-func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types.PlexSessionsResponse, error) {
-	plexConfig, err := h.db.GetServiceByInstanceID(instanceId)
+func (h *PlexHandler) fetchAndCacheSessions(ctx context.Context, instanceId, cacheKey string) (*types.PlexSessionsResponse, error) {
+	plexConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +132,7 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types
 	}
 
 	service := &plex.PlexService{}
-	sessions, err := service.GetSessions(plexConfig.URL, plexConfig.APIKey)
+	sessions, err := service.GetSessions(ctx, plexConfig.URL, plexConfig.APIKey)
 	if err != nil {
 		return nil, err
 	}
@@ -130,9 +146,8 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types
 		sessions.MediaContainer.Metadata = []types.PlexSession{}
 	}
 
-	// Cache the results
-	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, sessions, plexCacheDuration); err != nil {
+	// Cache the results using the centralized cache duration
+	if err := h.cache.Set(ctx, cacheKey, sessions, middleware.CacheDurations.PlexSessions); err != nil {
 		log.Warn().
 			Err(err).
 			Str("instanceId", instanceId).
@@ -143,7 +158,8 @@ func (h *PlexHandler) fetchAndCacheSessions(instanceId, cacheKey string) (*types
 }
 
 func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
-	sessions, err := h.fetchAndCacheSessions(instanceId, cacheKey)
+	ctx := context.Background()
+	sessions, err := h.fetchAndCacheSessions(ctx, instanceId, cacheKey)
 	if err != nil && err.Error() != "service not configured" {
 		log.Error().
 			Err(err).
@@ -157,9 +173,45 @@ func (h *PlexHandler) refreshSessionsCache(instanceId, cacheKey string) {
 			Str("instanceId", instanceId).
 			Int("size", sessions.MediaContainer.Size).
 			Msg("Successfully refreshed Plex sessions cache")
+
+		// Broadcast sessions update via SSE
+		h.broadcastPlexSessions(instanceId, sessions)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
 			Msg("Refreshed cache with empty Plex sessions")
 	}
+}
+
+// broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
+func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.PlexSessionsResponse) {
+	// Use the existing BroadcastHealth function with a special message type
+	BroadcastHealth(models.ServiceHealth{
+		ServiceID:   instanceId,
+		Status:      "ok",
+		Message:     "plex_sessions",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"plex": map[string]interface{}{
+				"sessions": sessions.MediaContainer.Metadata,
+			},
+		},
+		Details: map[string]interface{}{
+			"plex": map[string]interface{}{
+				"activeStreams": len(sessions.MediaContainer.Metadata),
+				"transcoding":   len(filterTranscodingSessions(sessions.MediaContainer.Metadata)),
+			},
+		},
+	})
+}
+
+// filterTranscodingSessions returns sessions that are being transcoded
+func filterTranscodingSessions(sessions []types.PlexSession) []types.PlexSession {
+	transcoding := make([]types.PlexSession, 0)
+	for _, session := range sessions {
+		if session.TranscodeSession != nil {
+			transcoding = append(transcoding, session)
+		}
+	}
+	return transcoding
 }

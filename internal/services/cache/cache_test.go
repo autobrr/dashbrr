@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +18,7 @@ type testStruct struct {
 }
 
 func setupTestCache(t *testing.T) *RedisStore {
-	store, err := NewCache("localhost:6379")
+	store, err := NewCache(context.Background(), "localhost:6379")
 	if err != nil {
 		t.Skip("Redis not available, skipping test:", err)
 	}
@@ -57,7 +56,7 @@ func TestNewCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store, err := NewCache(tt.addr)
+			store, err := NewCache(context.Background(), tt.addr)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, store)
@@ -134,7 +133,7 @@ func TestBasicOperations(t *testing.T) {
 
 			// Verify deletion
 			err = cache.Get(ctx, tt.key, &retrieved)
-			assert.Equal(t, redis.Nil, err)
+			assert.Equal(t, ErrKeyNotFound, err)
 		})
 	}
 }
@@ -359,12 +358,12 @@ func TestClosedCache(t *testing.T) {
 
 	// Attempt operations on closed cache
 	err = cache.Set(ctx, key, value, time.Minute)
-	assert.Equal(t, redis.ErrClosed, err)
+	assert.Equal(t, ErrClosed, err)
 
 	var retrieved testStruct
 	err = cache.Get(ctx, key, &retrieved)
-	assert.Equal(t, redis.ErrClosed, err)
+	assert.Equal(t, ErrClosed, err)
 
 	err = cache.Delete(ctx, key)
-	assert.Equal(t, redis.ErrClosed, err)
+	assert.Equal(t, ErrClosed, err)
 }

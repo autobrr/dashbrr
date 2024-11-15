@@ -44,3 +44,16 @@ type Changes struct {
 	New   []string `json:"new"`
 	Fixed []string `json:"fixed"`
 }
+
+type FindUserParams struct {
+	ID       int64
+	Username string
+	Email    string
+}
+
+type FindServiceParams struct {
+	InstanceID     string
+	InstancePrefix string
+	URL            string
+	AccessURL      string
+}

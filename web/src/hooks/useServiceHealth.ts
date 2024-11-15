@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useServiceData } from './useServiceData';
 import { ServiceStatus } from '../types/service';
 import { api } from '../utils/api';
@@ -30,7 +30,8 @@ interface HealthResponse {
 export const useServiceHealth = () => {
   const { services, isLoading, refreshService } = useServiceData();
 
-  const getStatusCounts = useCallback((): StatusCount => {
+  // Memoize status counts to prevent unnecessary recalculations
+  const statusCounts = useMemo((): StatusCount => {
     return (services || []).reduce(
       (acc, service) => {
         const status = service.status || 'unknown';
@@ -60,6 +61,6 @@ export const useServiceHealth = () => {
     services: services || [],
     isLoading,
     refreshServiceHealth,
-    statusCounts: getStatusCounts(),
+    statusCounts,
   };
 };

@@ -4,13 +4,16 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	_ "modernc.org/sqlite"
 
@@ -23,6 +26,8 @@ type DB struct {
 	*sql.DB
 	driver string
 	path   string
+
+	squirrel sq.StatementBuilderType
 }
 
 // Config holds database configuration
@@ -111,6 +116,11 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 				Msg("Retrying database connection")
 			time.Sleep(delay)
 		}
+
+		// Configure connection pool
+		database.SetMaxOpenConns(25)
+		database.SetMaxIdleConns(25)
+		database.SetConnMaxLifetime(5 * time.Minute)
 	} else {
 		// SQLite connection
 		dbDir := filepath.Dir(config.Path)
@@ -130,6 +140,43 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 			return nil, fmt.Errorf("error creating database file: %w", err)
 		}
 
+		// Set busy timeout
+		if _, err = database.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+			return nil, errors.Wrap(err, "busy timeout pragma")
+		}
+
+		// Enable WAL. SQLite performs better with the WAL  because it allows
+		// multiple readers to operate while data is being written.
+		if _, err = database.Exec(`PRAGMA journal_mode = wal;`); err != nil {
+			return nil, errors.Wrap(err, "enable wal")
+		}
+
+		// SQLite has a query planner that uses lifecycle stats to fund optimizations.
+		// This restricts the SQLite query planner optimizer to only run if sufficient
+		// information has been gathered over the lifecycle of the connection.
+		// The SQLite documentation is inconsistent in this regard,
+		// suggestions of 400 and 1000 are both "recommended", so lets use the lower bound.
+		if _, err = database.Exec(`PRAGMA analysis_limit = 400;`); err != nil {
+			return nil, errors.Wrap(err, "analysis_limit")
+		}
+
+		// When the application does not cleanly shut down, the WAL will still be present and not committed.
+		// This is a no-op if the WAL is empty, and a commit when the WAL is not to start fresh.
+		// When commits hit 1000, PRAGMA wal_checkpoint(PASSIVE); is invoked which tries its best
+		// to commit from the WAL (and can fail to commit all pending operations).
+		// Forcing a PRAGMA wal_checkpoint(RESTART); in the future on a "quiet period" could be
+		// considered.
+		if _, err = database.Exec(`PRAGMA wal_checkpoint(TRUNCATE);`); err != nil {
+			return nil, errors.Wrap(err, "commit wal")
+		}
+
+		// Enable foreign key checks. For historical reasons, SQLite does not check
+		// foreign key constraints by default. There's some overhead on inserts to
+		// verify foreign key integrity, but it's definitely worth it.
+		if _, err = database.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
+			return nil, errors.New("foreign keys pragma")
+		}
+
 		// Now that the file exists, set restrictive permissions
 		if err := os.Chmod(config.Path, 0640); err != nil {
 			return nil, fmt.Errorf("error setting database file permissions: %w", err)
@@ -139,11 +186,6 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 			Msg("Initializing SQLite database")
 	}
 
-	// Configure connection pool
-	database.SetMaxOpenConns(25)
-	database.SetMaxIdleConns(25)
-	database.SetConnMaxLifetime(5 * time.Minute)
-
 	log.Info().
 		Str("driver", config.Driver).
 		Msg("Successfully connected to database")
@@ -152,6 +194,8 @@ func InitDBWithConfig(config *Config) (*DB, error) {
 		DB:     database,
 		driver: config.Driver,
 		path:   config.Path,
+		// set default placeholder for squirrel to support both sqlite and postgres
+		squirrel: sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
 
 	// Initialize schema
@@ -183,8 +227,41 @@ func (db *DB) initSchema() error {
 			instance_id TEXT UNIQUE NOT NULL,
 			display_name TEXT NOT NULL,
 			url TEXT,
-			api_key TEXT
+			api_key TEXT,
+			access_url TEXT
 		)`, autoIncrement))
+	if err != nil {
+		return err
+	}
+
+	// Add access_url column if it doesn't exist
+	if db.driver == "postgres" {
+		_, err = db.Exec(`
+			DO $$ 
+			BEGIN 
+				BEGIN
+					ALTER TABLE service_configurations ADD COLUMN access_url TEXT;
+				EXCEPTION 
+					WHEN duplicate_column THEN 
+						NULL;
+				END;
+			END $$;
+		`)
+	} else {
+		// For SQLite, check if column exists first
+		var count int
+		err = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM pragma_table_info('service_configurations') 
+			WHERE name='access_url'
+		`).Scan(&count)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			_, err = db.Exec(`ALTER TABLE service_configurations ADD COLUMN access_url TEXT`)
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -203,7 +280,6 @@ func (db *DB) initSchema() error {
 		return err
 	}
 
-	//log.Debug().Msg("Database schema initialized")
 	return nil
 }
 
@@ -216,9 +292,16 @@ func getEnv(key, fallback string) string {
 }
 
 // HasUsers checks if any users exist in the database
-func (db *DB) HasUsers() (bool, error) {
+func (db *DB) HasUsers(ctx context.Context) (bool, error) {
+	qb := db.squirrel.Select("COUNT(*)").From("users")
+
+	query, args, err := qb.ToSql()
+	if err != nil {
+		return false, err
+	}
+
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -228,264 +311,204 @@ func (db *DB) HasUsers() (bool, error) {
 // User Management Functions
 
 // CreateUser creates a new user in the database
-func (db *DB) CreateUser(user *types.User) error {
+func (db *DB) CreateUser(ctx context.Context, user *types.User) error {
 	now := time.Now()
-	var result sql.Result
-	var err error
 
-	if db.driver == "postgres" {
-		err = db.QueryRow(`
-			INSERT INTO users (username, email, password_hash, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5)
-			RETURNING id`,
-			user.Username,
-			user.Email,
-			user.PasswordHash,
-			now,
-			now,
-		).Scan(&user.ID)
-	} else {
-		result, err = db.Exec(`
-			INSERT INTO users (username, email, password_hash, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?)`,
-			user.Username,
-			user.Email,
-			user.PasswordHash,
-			now,
-			now,
-		)
-		if err == nil {
-			user.ID, err = result.LastInsertId()
-		}
-	}
+	queryBuilder := db.squirrel.Insert("users").
+		Columns("username", "email", "password_hash", "created_at", "updated_at").
+		Values(user.Username, user.Email, user.PasswordHash, now, now).
+		Suffix("RETURNING id").RunWith(db.DB)
 
-	if err != nil {
-		return err
+	if err := queryBuilder.QueryRowContext(ctx).Scan(&user.ID); err != nil {
+		return errors.Wrap(err, "error executing query")
 	}
 
 	user.CreatedAt = now
 	user.UpdatedAt = now
+
 	return nil
 }
 
-// GetUserByUsername retrieves a user by their username
-func (db *DB) GetUserByUsername(username string) (*types.User, error) {
-	var user types.User
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1"
-	} else {
-		placeholder = "?"
+// FindUser retrieves a user by FindUserParams
+func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types.User, error) {
+	queryBuilder := db.squirrel.Select("id", "username", "email", "password_hash", "created_at", "updated_at").From("users")
+
+	or := sq.Or{}
+
+	if params.ID != 0 {
+		or = append(or, sq.Eq{"id": params.ID})
+	}
+	if params.Username != "" {
+		or = append(or, sq.Eq{"username": params.Username})
+	}
+	if params.Email != "" {
+		or = append(or, sq.Eq{"email": params.Email})
 	}
 
-	err := db.QueryRow(`
-		SELECT id, username, email, password_hash, created_at, updated_at
-		FROM users
-		WHERE username = `+placeholder,
-		username,
-	).Scan(
-		&user.ID,
-		&user.Username,
-		&user.Email,
-		&user.PasswordHash,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+	queryBuilder = queryBuilder.Where(or)
+
+	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
 	}
-	return &user, nil
-}
 
-// GetUserByEmail retrieves a user by their email
-func (db *DB) GetUserByEmail(email string) (*types.User, error) {
 	var user types.User
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1"
-	} else {
-		placeholder = "?"
-	}
-
-	err := db.QueryRow(`
-		SELECT id, username, email, password_hash, created_at, updated_at
-		FROM users
-		WHERE email = `+placeholder,
-		email,
-	).Scan(
-		&user.ID,
-		&user.Username,
-		&user.Email,
-		&user.PasswordHash,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+	err = db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
 		return nil, err
 	}
-	return &user, nil
-}
 
-// GetUserByID retrieves a user by their ID
-func (db *DB) GetUserByID(id int64) (*types.User, error) {
-	var user types.User
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1"
-	} else {
-		placeholder = "?"
-	}
-
-	err := db.QueryRow(`
-		SELECT id, username, email, password_hash, created_at, updated_at
-		FROM users
-		WHERE id = `+placeholder,
-		id,
-	).Scan(
-		&user.ID,
-		&user.Username,
-		&user.Email,
-		&user.PasswordHash,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
 	return &user, nil
 }
 
 // UpdateUserPassword updates a user's password hash and updated_at timestamp
-func (db *DB) UpdateUserPassword(userID int64, newPasswordHash string) error {
+func (db *DB) UpdateUserPassword(ctx context.Context, userID int64, newPasswordHash string) error {
 	now := time.Now()
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1, $2, $3"
-	} else {
-		placeholder = "?, ?, ?"
+
+	queryBuilder := db.squirrel.Update("users").
+		Set("password_hash", newPasswordHash).
+		Set("updated_at", now).
+		Where(sq.Eq{"id": userID})
+
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return err
 	}
 
-	_, err := db.Exec(`
-		UPDATE users 
-		SET password_hash = `+placeholder[0:2]+`, 
-		    updated_at = `+placeholder[4:5]+`
-		WHERE id = `+placeholder[7:8],
-		newPasswordHash,
-		now,
-		userID,
-	)
-	return err
+	_, err = db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Service Management Functions
 
-// GetServiceByInstanceID retrieves a service configuration by its instance ID
-func (db *DB) GetServiceByInstanceID(instanceID string) (*models.ServiceConfiguration, error) {
-	var service models.ServiceConfiguration
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1"
-	} else {
-		placeholder = "?"
+// FindServiceBy retrieves a service configuration by FindServiceParams
+func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
+		From("service_configurations")
+
+	if params.InstanceID != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"instance_id": params.InstanceID})
 	}
 
-	err := db.QueryRow(`
-		SELECT id, instance_id, display_name, url, api_key 
-		FROM service_configurations 
-		WHERE instance_id = `+placeholder, instanceID).Scan(
-		&service.ID,
-		&service.InstanceID,
-		&service.DisplayName,
-		&service.URL,
-		&service.APIKey,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
+	if params.InstancePrefix != "" {
+		queryBuilder = queryBuilder.Where(sq.Like{"instance_id": params.InstancePrefix + "%"})
 	}
+
+	if params.URL != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"url": params.URL})
+	}
+
+	if params.AccessURL != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"access_url": params.AccessURL})
+	}
+
+	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
 	}
-	return &service, nil
-}
 
-// GetServiceByURL retrieves a service configuration by its URL
-func (db *DB) GetServiceByURL(url string) (*models.ServiceConfiguration, error) {
 	var service models.ServiceConfiguration
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1"
-	} else {
-		placeholder = "?"
-	}
+	var url, apiKey, accessURL sql.NullString
 
-	err := db.QueryRow(`
-		SELECT id, instance_id, display_name, url, api_key 
-		FROM service_configurations 
-		WHERE url = `+placeholder, url).Scan(
+	err = db.QueryRowContext(ctx, query, args...).Scan(
 		&service.ID,
 		&service.InstanceID,
 		&service.DisplayName,
-		&service.URL,
-		&service.APIKey,
+		&url,
+		&apiKey,
+		&accessURL,
 	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
+
+	// Only set optional fields if they're not NULL
+	if url.Valid {
+		service.URL = url.String
+	}
+	if apiKey.Valid {
+		service.APIKey = apiKey.String
+	}
+	if accessURL.Valid {
+		service.AccessURL = accessURL.String
+	}
+
 	return &service, nil
 }
 
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
-func (db *DB) GetServiceByInstancePrefix(prefix string) (*models.ServiceConfiguration, error) {
+func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*models.ServiceConfiguration, error) {
 	var service models.ServiceConfiguration
+	var url, apiKey, accessURL sql.NullString
+
 	var query string
 	if db.driver == "postgres" {
 		query = `
-			SELECT id, instance_id, display_name, url, api_key 
+			SELECT id, instance_id, display_name, url, api_key, access_url
 			FROM service_configurations 
 			WHERE instance_id LIKE $1 || '%'
 			LIMIT 1`
 	} else {
 		query = `
-			SELECT id, instance_id, display_name, url, api_key 
+			SELECT id, instance_id, display_name, url, api_key, access_url
 			FROM service_configurations 
 			WHERE instance_id LIKE ? || '%'
 			LIMIT 1`
 	}
 
-	err := db.QueryRow(query, prefix).Scan(
+	err := db.QueryRowContext(ctx, query, prefix).Scan(
 		&service.ID,
 		&service.InstanceID,
 		&service.DisplayName,
-		&service.URL,
-		&service.APIKey,
+		&url,
+		&apiKey,
+		&accessURL,
 	)
+
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+
+	// Only set optional fields if they're not NULL
+	if url.Valid {
+		service.URL = url.String
+	}
+	if apiKey.Valid {
+		service.APIKey = apiKey.String
+	}
+	if accessURL.Valid {
+		service.AccessURL = accessURL.String
+	}
+
 	return &service, nil
 }
 
 // GetAllServices retrieves all service configurations
-func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
-	rows, err := db.Query(`
-		SELECT id, instance_id, display_name, url, api_key 
-		FROM service_configurations
-	`)
+func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration, error) {
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
+		From("service_configurations")
+
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -494,96 +517,89 @@ func (db *DB) GetAllServices() ([]models.ServiceConfiguration, error) {
 	var services []models.ServiceConfiguration
 	for rows.Next() {
 		var service models.ServiceConfiguration
+		var url, apiKey, accessURL sql.NullString
+
 		err := rows.Scan(
 			&service.ID,
 			&service.InstanceID,
 			&service.DisplayName,
-			&service.URL,
-			&service.APIKey,
+			&url,
+			&apiKey,
+			&accessURL,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		if url.Valid {
+			service.URL = url.String
+		}
+		if apiKey.Valid {
+			service.APIKey = apiKey.String
+		}
+		if accessURL.Valid {
+			service.AccessURL = accessURL.String
+		}
+
 		services = append(services, service)
 	}
+
 	return services, nil
 }
 
 // CreateService creates a new service configuration
-func (db *DB) CreateService(service *models.ServiceConfiguration) error {
-	if db.driver == "postgres" {
-		err := db.QueryRow(`
-			INSERT INTO service_configurations (instance_id, display_name, url, api_key)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id`,
-			service.InstanceID,
-			service.DisplayName,
-			service.URL,
-			service.APIKey,
-		).Scan(&service.ID)
-		return err
+func (db *DB) CreateService(ctx context.Context, service *models.ServiceConfiguration) error {
+	queryBuilder := db.squirrel.Insert("service_configurations").
+		Columns("instance_id", "display_name", "url", "api_key", "access_url").
+		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL).
+		Suffix("RETURNING id").RunWith(db.DB)
+
+	if err := queryBuilder.QueryRowContext(ctx).Scan(&service.ID); err != nil {
+		return errors.Wrap(err, "error executing query")
 	}
 
-	result, err := db.Exec(`
-		INSERT INTO service_configurations (instance_id, display_name, url, api_key)
-		VALUES (?, ?, ?, ?)`,
-		service.InstanceID,
-		service.DisplayName,
-		service.URL,
-		service.APIKey,
-	)
-	if err != nil {
-		return err
-	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return err
-	}
-
-	service.ID = id
 	return nil
 }
 
 // UpdateService updates an existing service configuration
-func (db *DB) UpdateService(service *models.ServiceConfiguration) error {
-	var query string
-	if db.driver == "postgres" {
-		query = `
-			UPDATE service_configurations 
-			SET display_name = $1, url = $2, api_key = $3
-			WHERE instance_id = $4`
-	} else {
-		query = `
-			UPDATE service_configurations 
-			SET display_name = ?, url = ?, api_key = ?
-			WHERE instance_id = ?`
+func (db *DB) UpdateService(ctx context.Context, service *models.ServiceConfiguration) error {
+	queryBuilder := db.squirrel.Update("service_configurations").
+		Set("display_name", service.DisplayName).
+		Set("url", sql.NullString{String: service.URL, Valid: service.URL != ""}).
+		Set("api_key", sql.NullString{String: service.APIKey, Valid: service.APIKey != ""}).
+		Set("access_url", sql.NullString{String: service.AccessURL, Valid: service.AccessURL != ""}).
+		Where(sq.Eq{"instance_id": service.InstanceID})
+
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return err
 	}
 
-	_, err := db.Exec(query,
-		service.DisplayName,
-		service.URL,
-		service.APIKey,
-		service.InstanceID,
-	)
+	_, err = db.ExecContext(ctx, query, args...)
 	return err
 }
 
 // DeleteService deletes a service configuration by its instance ID
-func (db *DB) DeleteService(instanceID string) error {
-	var placeholder string
-	if db.driver == "postgres" {
-		placeholder = "$1"
-	} else {
-		placeholder = "?"
+func (db *DB) DeleteService(ctx context.Context, instanceID string) error {
+	queryBuilder := db.squirrel.Delete("service_configurations").Where(sq.Eq{"instance_id": instanceID})
+
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return err
 	}
 
-	_, err := db.Exec(`
-		DELETE FROM service_configurations 
-		WHERE instance_id = `+placeholder,
-		instanceID,
-	)
-	return err
+	res, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected, err := res.RowsAffected(); err != nil {
+		if rowsAffected == 0 {
+			return nil
+		}
+	}
+
+	return nil
 }
 
 // Close closes the database connection

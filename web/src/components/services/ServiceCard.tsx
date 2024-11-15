@@ -19,6 +19,7 @@ import { GeneralStats } from "./general/GeneralStats";
 import AnimatedModal from "../ui/AnimatedModal";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon } from "@heroicons/react/24/outline";
+import { useConfiguration } from "../../contexts/useConfiguration";
 
 interface DragHandleProps {
   role?: string;
@@ -63,6 +64,9 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
       return false;
     }
   });
+
+  const { configurations } = useConfiguration();
+  const currentConfig = configurations[service.instanceId];
 
   useEffect(() => {
     try {
@@ -149,8 +153,9 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             </div>
             <div className="pr-8">
               <ServiceHeader
-                displayName={service.displayName}
-                url={service.url}
+                displayName={currentConfig?.displayName || service.displayName}
+                url={currentConfig?.url || service.url}
+                accessUrl={currentConfig?.accessUrl || service.accessUrl}
                 version={service.version}
                 updateAvailable={service.updateAvailable}
                 healthEndpoint={service.healthEndpoint}

@@ -36,6 +36,7 @@ func NewOmegabrrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Omegabrr instance"
 	service.DefaultURL = "http://localhost:7474"
 	service.HealthEndpoint = "/api/healthz/liveness"
+	service.SetTimeout(core.DefaultLongTimeout) // Set longer timeout for Omegabrr
 	return service
 }
 
@@ -86,21 +87,24 @@ func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (s
 	return version.Version, nil
 }
 
-func (s *OmegabrrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
-	ctx := context.Background()
+	// Create a child context with longer timeout if needed
+	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultLongTimeout)
+	defer cancel()
 
 	// Start version check in background
 	versionChan := make(chan string, 1)
+	versionErrChan := make(chan error, 1)
 	go func() {
-		version, err := s.getVersion(ctx, url, apiKey)
+		version, err := s.getVersion(healthCtx, url, apiKey)
 		if err != nil {
-			versionChan <- ""
+			versionErrChan <- err
 			return
 		}
 		versionChan <- version
@@ -113,14 +117,14 @@ func (s *OmegabrrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 		"auth_value":  apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
+	resp, err := s.MakeRequestWithContext(healthCtx, healthEndpoint, "", headers)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", "Failed to connect: "+err.Error()), http.StatusOK
 	}
 	defer resp.Body.Close()
 
-	// Get response time from header
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -137,29 +141,37 @@ func (s *OmegabrrService) CheckHealth(url, apiKey string) (models.ServiceHealth,
 
 	// Wait for version with timeout
 	var version string
+	var versionErr error
 	select {
 	case v := <-versionChan:
 		version = v
-	case <-time.After(500 * time.Millisecond):
-		// Continue without version if it takes too long
+	case err := <-versionErrChan:
+		versionErr = err
+	case <-healthCtx.Done():
+		versionErr = healthCtx.Err()
 	}
 
 	extras := map[string]interface{}{
-		"version":      version,
-		"responseTime": responseTime.Milliseconds(),
+		"responseTime": responseTime,
+	}
+
+	if version != "" {
+		extras["version"] = version
+	} else if versionErr != nil {
+		extras["versionError"] = versionErr.Error()
 	}
 
 	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK
 }
 
 // TriggerARRsWebhook triggers the ARRs webhook
-func (s *OmegabrrService) TriggerARRsWebhook(url, apiKey string) int {
+func (s *OmegabrrService) TriggerARRsWebhook(ctx context.Context, url, apiKey string) int {
 	if url == "" {
 		return http.StatusBadRequest
 	}
 
 	webhookEndpoint := fmt.Sprintf("%s/api/webhook/trigger/arr?apikey=%s", strings.TrimRight(url, "/"), apiKey)
-	resp, err := s.MakeRequest(webhookEndpoint, "", nil)
+	resp, err := s.MakeRequestWithContext(ctx, webhookEndpoint, "", nil)
 	if err != nil {
 		return http.StatusInternalServerError
 	}
@@ -169,13 +181,13 @@ func (s *OmegabrrService) TriggerARRsWebhook(url, apiKey string) int {
 }
 
 // TriggerListsWebhook triggers the Lists webhook
-func (s *OmegabrrService) TriggerListsWebhook(url, apiKey string) int {
+func (s *OmegabrrService) TriggerListsWebhook(ctx context.Context, url, apiKey string) int {
 	if url == "" {
 		return http.StatusBadRequest
 	}
 
 	webhookEndpoint := fmt.Sprintf("%s/api/webhook/trigger/lists?apikey=%s", strings.TrimRight(url, "/"), apiKey)
-	resp, err := s.MakeRequest(webhookEndpoint, "", nil)
+	resp, err := s.MakeRequestWithContext(ctx, webhookEndpoint, "", nil)
 	if err != nil {
 		return http.StatusInternalServerError
 	}
@@ -185,13 +197,13 @@ func (s *OmegabrrService) TriggerListsWebhook(url, apiKey string) int {
 }
 
 // TriggerAllWebhooks triggers all webhooks
-func (s *OmegabrrService) TriggerAllWebhooks(url, apiKey string) int {
+func (s *OmegabrrService) TriggerAllWebhooks(ctx context.Context, url, apiKey string) int {
 	if url == "" {
 		return http.StatusBadRequest
 	}
 
 	webhookEndpoint := fmt.Sprintf("%s/api/webhook/trigger?apikey=%s", strings.TrimRight(url, "/"), apiKey)
-	resp, err := s.MakeRequest(webhookEndpoint, "", nil)
+	resp, err := s.MakeRequestWithContext(ctx, webhookEndpoint, "", nil)
 	if err != nil {
 		return http.StatusInternalServerError
 	}

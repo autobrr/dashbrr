@@ -54,6 +54,7 @@ func NewOverseerrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Overseerr instance"
 	service.DefaultURL = "http://localhost:5055"
 	service.HealthEndpoint = "/api/v1/status"
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -68,13 +69,10 @@ func (s *OverseerrService) SetDB(db *database.DB) {
 }
 
 // UpdateRequestStatus updates the status of a media request (approve/reject)
-func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int, approve bool) error {
+func (s *OverseerrService) UpdateRequestStatus(ctx context.Context, url, apiKey string, requestID int, approve bool) error {
 	if url == "" {
 		return &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
 	status := "approve"
@@ -97,12 +95,6 @@ func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Int("requestID", requestID).
-			Str("status", status).
-			Msg("Failed to update Overseerr request status")
 		return &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
 	}
 	defer resp.Body.Close()
@@ -118,7 +110,7 @@ func (s *OverseerrService) UpdateRequestStatus(url, apiKey string, requestID int
 }
 
 // fetchMediaTitle fetches the title from either Radarr or Sonarr based on mediaType
-func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, error) {
+func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.MediaRequest) (string, error) {
 	if s.db == nil {
 		return "", fmt.Errorf("database not initialized")
 	}
@@ -129,7 +121,7 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 	switch request.Media.MediaType {
 	case "movie":
 		// Find Radarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix("radarr")
+		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "radarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Radarr service: %w", err)
 		}
@@ -139,7 +131,7 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 
 		radarrService := &radarr.RadarrService{}
 		// Use TmdbID for movie lookups
-		movie, err := radarrService.LookupByTmdbId(service.URL, service.APIKey, request.Media.TmdbID)
+		movie, err := radarrService.LookupByTmdbId(ctx, service.URL, service.APIKey, request.Media.TmdbID)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch movie from Radarr: %w", err)
 		}
@@ -147,7 +139,7 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 
 	case "tv":
 		// Find Sonarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix("sonarr")
+		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "sonarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Sonarr service: %w", err)
 		}
@@ -157,7 +149,7 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 
 		sonarrService := &sonarr.SonarrService{}
 		// Use TvdbID for TV show lookups
-		series, err := sonarrService.LookupByTvdbId(service.URL, service.APIKey, request.Media.TvdbID)
+		series, err := sonarrService.LookupByTvdbId(ctx, service.URL, service.APIKey, request.Media.TvdbID)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch series from Sonarr: %w", err)
 		}
@@ -168,21 +160,13 @@ func (s *OverseerrService) fetchMediaTitle(request types.MediaRequest) (string, 
 	}
 }
 
-func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats, error) {
+func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) (*types.RequestsStats, error) {
 	if url == "" {
 		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	baseURL := strings.TrimRight(url, "/")
 	requestEndpoint := fmt.Sprintf("%s/api/v1/request?take=10", baseURL)
-
-	log.Debug().
-		Str("url", url).
-		Str("endpoint", requestEndpoint).
-		Msg("Fetching Overseerr requests")
 
 	headers := map[string]string{
 		"X-Api-Key": apiKey,
@@ -190,30 +174,17 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 
 	resp, err := s.MakeRequestWithContext(ctx, requestEndpoint, "", headers)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to connect to Overseerr")
 		return nil, &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
 	}
 	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to read Overseerr response body")
 		return nil, &ErrOverseerr{Message: "Service error", Errors: []string{err.Error()}}
 	}
 
 	var requestsResponse types.RequestsResponse
 	if err := json.Unmarshal(body, &requestsResponse); err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Str("body", string(body)).
-			Msg("Failed to parse Overseerr response")
 		return nil, &ErrOverseerr{Message: "Response error", Errors: []string{"Failed to parse requests response"}}
 	}
 
@@ -224,19 +195,11 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 	for _, result := range requestsResponse.Results {
 		resultBytes, err := json.Marshal(result)
 		if err != nil {
-			log.Warn().
-				Err(err).
-				Interface("result", result).
-				Msg("Failed to marshal request result")
 			continue
 		}
 
 		var mediaRequest types.MediaRequest
 		if err := json.Unmarshal(resultBytes, &mediaRequest); err != nil {
-			log.Warn().
-				Err(err).
-				Str("resultBytes", string(resultBytes)).
-				Msg("Failed to unmarshal media request")
 			continue
 		}
 
@@ -245,25 +208,13 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 		}
 
 		// Try to fetch the title using the appropriate lookup method
-		title, err := s.fetchMediaTitle(mediaRequest)
-		if err != nil {
-			log.Warn().
-				Err(err).
-				Str("mediaType", mediaRequest.Media.MediaType).
-				Int("tmdbId", mediaRequest.Media.TmdbID).
-				Int("tvdbId", mediaRequest.Media.TvdbID).
-				Msg("Failed to fetch media title")
-		} else {
+		title, err := s.fetchMediaTitle(ctx, mediaRequest)
+		if err == nil {
 			mediaRequest.Media.Title = title
 		}
 
 		mediaRequests = append(mediaRequests, mediaRequest)
 	}
-
-	log.Debug().
-		Int("totalRequests", len(mediaRequests)).
-		Int("pendingCount", pendingCount).
-		Msg("Successfully processed Overseerr requests")
 
 	return &types.RequestsStats{
 		PendingCount: pendingCount,
@@ -271,7 +222,7 @@ func (s *OverseerrService) GetRequests(url, apiKey string) (*types.RequestsStats
 	}, nil
 }
 
-func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
@@ -281,10 +232,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 		}).Error()), http.StatusBadRequest
 	}
 
-	// Create a context with timeout for the health check
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := map[string]string{
 		"auth_header": "X-Api-Key",
@@ -293,10 +240,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to connect to Overseerr health endpoint")
 		return s.CreateHealthResponse(startTime, "offline", (&ErrOverseerr{
 			Message: "Connection error",
 			Errors:  []string{err.Error()},
@@ -304,8 +247,8 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	}
 	defer resp.Body.Close()
 
-	// Get response time from header
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -313,11 +256,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 			Message: "Service error",
 			Errors:  []string{err.Error()},
 		}).Error()
-
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Msg("Failed to read Overseerr health response")
 
 		// Align error status with request failures
 		if resp.StatusCode >= 500 {
@@ -329,11 +267,6 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	// Parse the response
 	var statusResponse types.StatusResponse
 	if err := json.Unmarshal(body, &statusResponse); err != nil {
-		log.Error().
-			Err(err).
-			Str("url", url).
-			Str("body", string(body)).
-			Msg("Failed to parse Overseerr health response")
 		return s.CreateHealthResponse(startTime, "warning", (&ErrOverseerr{
 			Message: "Response error",
 			Errors:  []string{"Failed to parse status response"},
@@ -344,7 +277,7 @@ func (s *OverseerrService) CheckHealth(url, apiKey string) (models.ServiceHealth
 	extras := map[string]interface{}{
 		"version":         statusResponse.Version,
 		"updateAvailable": statusResponse.UpdateAvailable,
-		"responseTime":    responseTime.Milliseconds(),
+		"responseTime":    responseTime,
 	}
 
 	status := "online"

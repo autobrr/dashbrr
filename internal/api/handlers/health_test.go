@@ -4,12 +4,15 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,12 +23,12 @@ import (
 
 // mockServiceHealthChecker implements models.ServiceHealthChecker interface for testing
 type mockServiceHealthChecker struct {
-	checkHealthFunc func(url, apiKey string) (models.ServiceHealth, int)
+	checkHealthFunc func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int)
 }
 
-func (m *mockServiceHealthChecker) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (m *mockServiceHealthChecker) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	if m.checkHealthFunc != nil {
-		return m.checkHealthFunc(url, apiKey)
+		return m.checkHealthFunc(ctx, url, apiKey)
 	}
 	return models.ServiceHealth{
 		Status:      "healthy",
@@ -52,15 +55,15 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 	tests := []struct {
 		name           string
 		serviceID      string
-		mockDBResponse func(string) (*models.ServiceConfiguration, error)
-		mockHealth     func(url, apiKey string) (models.ServiceHealth, int)
+		mockDBResponse func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
+		mockHealth     func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int)
 		expectedCode   int
 		expectedBody   gin.H
 	}{
 		{
 			name:      "Service Not Found",
 			serviceID: "nonexistent-service",
-			mockDBResponse: func(id string) (*models.ServiceConfiguration, error) {
+			mockDBResponse: func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
 				return nil, nil
 			},
 			expectedCode: http.StatusNotFound,
@@ -69,7 +72,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 		{
 			name:      "Database Error",
 			serviceID: "error-service",
-			mockDBResponse: func(id string) (*models.ServiceConfiguration, error) {
+			mockDBResponse: func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
 				return nil, errors.New("database error")
 			},
 			expectedCode: http.StatusInternalServerError,
@@ -78,7 +81,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 		{
 			name:      "Unsupported Service Type",
 			serviceID: "invalid-service",
-			mockDBResponse: func(id string) (*models.ServiceConfiguration, error) {
+			mockDBResponse: func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
 				return &models.ServiceConfiguration{
 					ID:         1,
 					InstanceID: "invalid-service",
@@ -92,7 +95,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 		{
 			name:      "Valid Service",
 			serviceID: "autobrr-service",
-			mockDBResponse: func(id string) (*models.ServiceConfiguration, error) {
+			mockDBResponse: func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
 				return &models.ServiceConfiguration{
 					ID:         1,
 					InstanceID: "autobrr-service",
@@ -100,7 +103,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 					APIKey:     "test-key",
 				}, nil
 			},
-			mockHealth: func(url, apiKey string) (models.ServiceHealth, int) {
+			mockHealth: func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 				return models.ServiceHealth{
 					Status:      "healthy",
 					LastChecked: time.Now(),
@@ -115,7 +118,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock DB
 			mockDB := &testing_mocks.MockDB{
-				GetServiceByInstanceIDFunc: tt.mockDBResponse,
+				FindServiceByFunc: tt.mockDBResponse,
 			}
 
 			// Create mock health checker

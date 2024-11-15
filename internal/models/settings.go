@@ -10,4 +10,5 @@ type ServiceConfiguration struct {
 	DisplayName string `json:"displayName"`
 	URL         string `json:"url"`
 	APIKey      string `json:"apiKey,omitempty"`
+	AccessURL   string `json:"accessUrl,omitempty"`
 }

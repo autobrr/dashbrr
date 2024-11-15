@@ -25,7 +25,13 @@ interface AddServicesMenuProps {
     instanceId: string;
     displayName: string;
   } | null;
-  onConfirmService: (url: string, apiKey: string, displayName: string) => void;
+  onConfirmService: (
+    url: string,
+    apiKey: string,
+    displayName: string,
+    accessUrl?: string
+  ) => void;
+
   onCancelService: () => void;
 }
 
@@ -85,21 +91,30 @@ export function AddServicesMenu({
     );
   }, [serviceTemplates, configurations]);
 
+  const [accessUrl, setAccessUrl] = useState("");
+
+  const getSettingsUrl = (path: string): string | null => {
+    if (!url) return null;
+    const baseUrl = accessUrl || url;
+    return `${baseUrl}${path}`;
+  };
+
   // Reset form fields when modal is opened/closed or when pending service changes
   useEffect(() => {
     if (!showServiceConfig) {
       setUrl("");
       setApiKey("");
       setDisplayName("");
+      setAccessUrl("");
       setError(null);
     } else if (pendingService) {
       setDisplayName(pendingService.displayName);
       // Set default URL for Tailscale only if URL is empty
-      if (pendingService.type === "tailscale" && url === "") {
+      if (pendingService.type === "tailscale") {
         setUrl("https://api.tailscale.com");
       }
     }
-  }, [showServiceConfig, pendingService, url]);
+  }, [showServiceConfig, pendingService]);
 
   const validateTailscaleApiToken = async (token: string) => {
     try {
@@ -135,7 +150,8 @@ export function AddServicesMenu({
       onConfirmService(
         url,
         apiKey,
-        displayName || pendingService?.displayName || ""
+        displayName || pendingService?.displayName || "",
+        accessUrl || undefined
       );
     } catch (err) {
       const errorMessage =
@@ -177,7 +193,7 @@ export function AddServicesMenu({
         return {
           prefix: "Found in ",
           text: "Settings > API",
-          link: url ? `${url}/settings/api` : null,
+          link: getSettingsUrl("/settings/api"),
         };
       case "omegabrr":
         return {
@@ -197,19 +213,19 @@ export function AddServicesMenu({
         return {
           prefix: "Found in ",
           text: "Settings > General",
-          link: url ? `${url}/settings/general` : null,
+          link: getSettingsUrl("/settings/general"),
         };
       case "overseerr":
         return {
           prefix: "Found in ",
           text: "Settings",
-          link: url ? `${url}/settings/main` : null,
+          link: getSettingsUrl("/settings/main"),
         };
       case "maintainerr":
         return {
           prefix: "Found in ",
           text: "Settings",
-          link: url ? `${url}/settings/main` : null,
+          link: getSettingsUrl("/settings/main"),
         };
       case "general":
         return {
@@ -399,6 +415,21 @@ export function AddServicesMenu({
                 data-1p-ignore
               />
             )}
+
+            <FormInput
+              id="accessUrl"
+              label="Access URL (Optional)"
+              type="text"
+              value={accessUrl}
+              onChange={(e) => setAccessUrl(e.target.value)}
+              placeholder="Leave empty to use main URL"
+              helpText={{
+                prefix: "Override ",
+                text: "URL used when opening service in browser. Useful for internal/external URL differences.",
+                link: null,
+              }}
+              data-1p-ignore
+            />
 
             <FormInput
               id="apiKey"

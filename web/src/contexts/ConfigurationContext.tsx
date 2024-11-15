@@ -6,7 +6,7 @@
 import { useState, useEffect, ReactNode, useCallback } from "react";
 import { API_BASE_URL, API_PREFIX } from "../config/api";
 import { ServiceConfig } from "../types/service";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { ConfigurationContext } from "./context";
 import { ConfigurationContextType } from "./types";
 
@@ -73,6 +73,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   ) => {
     try {
       setError(null);
+
       const response = await fetch(buildUrl(`/settings/${instanceId}`), {
         method: "POST",
         headers: getAuthHeaders(),
@@ -85,13 +86,13 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
       }
 
       const updatedConfig = await response.json();
+
+      // Update local state with the server response
       setConfigurations((prev) => ({
         ...prev,
         [instanceId]: updatedConfig,
       }));
 
-      // Fetch fresh data to ensure consistency
-      await fetchConfigurations();
       return updatedConfig;
     } catch (err) {
       const errorMessage =
@@ -120,9 +121,6 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
         delete newConfigs[instanceId];
         return newConfigs;
       });
-
-      // Fetch fresh data to ensure consistency
-      await fetchConfigurations();
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to delete configuration";

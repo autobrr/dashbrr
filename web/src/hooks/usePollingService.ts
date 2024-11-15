@@ -140,6 +140,9 @@ export function usePollingService<T>(
 
     return () => {
       mountedRef.current = false;
+      activeRequests.forEach((_, key) => {
+        activeRequests.delete(key); // Clear active requests
+      });
       if (timeoutRef.current) {
         clearInterval(timeoutRef.current);
       }

@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -31,7 +32,7 @@ func NewBuiltinAuthHandler(db *database.DB, cache cache.Store) *BuiltinAuthHandl
 
 // CheckRegistrationStatus checks if registration is allowed (no users exist)
 func (h *BuiltinAuthHandler) CheckRegistrationStatus(c *gin.Context) {
-	hasUsers, err := h.db.HasUsers()
+	hasUsers, err := h.db.HasUsers(c.Request.Context())
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check existing users")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -46,7 +47,7 @@ func (h *BuiltinAuthHandler) CheckRegistrationStatus(c *gin.Context) {
 // Register handles user registration
 func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	// Check if any users exist
-	hasUsers, err := h.db.HasUsers()
+	hasUsers, err := h.db.HasUsers(c.Request.Context())
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check existing users")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -70,7 +71,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	}
 
 	// Check if username exists
-	existingUser, err := h.db.GetUserByUsername(req.Username)
+	existingUser, err := h.db.FindUser(context.Background(), types.FindUserParams{Username: req.Username})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check username")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -82,7 +83,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	}
 
 	// Check if email exists
-	existingUser, err = h.db.GetUserByEmail(req.Email)
+	existingUser, err = h.db.FindUser(context.Background(), types.FindUserParams{Email: req.Email})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check email")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -108,7 +109,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 		PasswordHash: hashedPassword,
 	}
 
-	if err := h.db.CreateUser(user); err != nil {
+	if err := h.db.CreateUser(c.Request.Context(), user); err != nil {
 		log.Error().Err(err).Msg("failed to create user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
@@ -133,7 +134,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	}
 
 	// Get user by username
-	user, err := h.db.GetUserByUsername(req.Username)
+	user, err := h.db.FindUser(context.Background(), types.FindUserParams{Username: req.Username})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -176,6 +177,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Set session cookie
 	c.SetCookie(
 		"session",
@@ -183,8 +186,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 		int(time.Until(expiresAt).Seconds()),
 		"/",
 		"",
-		true, // Secure
-		true, // HttpOnly
+		isSecure, // Secure
+		true,     // HttpOnly
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -249,6 +252,8 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
 
+	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Clear session cookie
 	c.SetCookie(
 		"session",
@@ -256,7 +261,7 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 		-1,
 		"/",
 		"",
-		true,
+		isSecure,
 		true,
 	)
 
@@ -286,7 +291,7 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 	}
 
 	// Get user from database
-	user, err := h.db.GetUserByID(sessionData.UserID)
+	user, err := h.db.FindUser(context.Background(), types.FindUserParams{ID: sessionData.UserID})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})

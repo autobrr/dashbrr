@@ -26,12 +26,16 @@ func init() {
 }
 
 func NewPlexService() models.ServiceHealthChecker {
-	service := &PlexService{}
-	service.Type = "plex"
-	service.DisplayName = "Plex"
-	service.Description = "Monitor and manage your Plex Media Server"
-	service.DefaultURL = "http://localhost:32400"
-	service.HealthEndpoint = "/identity"
+	service := &PlexService{
+		ServiceCore: core.ServiceCore{
+			Type:           "plex",
+			DisplayName:    "Plex",
+			Description:    "Monitor and manage your Plex Media Server",
+			DefaultURL:     "http://localhost:32400",
+			HealthEndpoint: "/identity",
+		},
+	}
+	service.SetTimeout(core.DefaultTimeout)
 	return service
 }
 
@@ -52,7 +56,7 @@ func (s *PlexService) getPlexHeaders(apiKey string) map[string]string {
 	}
 }
 
-func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsResponse, error) {
+func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*types.PlexSessionsResponse, error) {
 	if url == "" {
 		return nil, fmt.Errorf("URL is required")
 	}
@@ -60,9 +64,6 @@ func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsRespon
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is required")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	baseURL := strings.TrimRight(url, "/")
 	sessionsEndpoint := fmt.Sprintf("%s/status/sessions", baseURL)
@@ -113,15 +114,12 @@ func (s *PlexService) GetSessions(url, apiKey string) (*types.PlexSessionsRespon
 	return &sessionsResponse, nil
 }
 
-func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int) {
+func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := s.getPlexHeaders(apiKey)
@@ -132,7 +130,8 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 	}
 	defer resp.Body.Close()
 
-	responseTime, _ := time.ParseDuration(resp.Header.Get("X-Response-Time") + "ms")
+	// Calculate response time directly
+	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -154,7 +153,7 @@ func (s *PlexService) CheckHealth(url, apiKey string) (models.ServiceHealth, int
 
 	extras := map[string]interface{}{
 		"version":      plexResponse.MediaContainer.Version,
-		"responseTime": responseTime.Milliseconds(),
+		"responseTime": responseTime,
 	}
 
 	// Always set status to "online" when healthy and include a message
