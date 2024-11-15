@@ -230,9 +230,15 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
             Pending Requests:
           </div>
           <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 overflow-hidden space-y-2">
-            {pendingRequests.map((request) => (
-              <RequestItem key={request.id} request={request} />
-            ))}
+            {pendingRequests
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime()
+              )
+              .map((request) => (
+                <RequestItem key={request.id} request={request} />
+              ))}
           </div>
         </div>
       )}
@@ -246,6 +252,11 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2 pointer-events-none">
             {requests
               .filter((request) => request.status !== 1)
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime()
+              )
               .slice(0, 5)
               .map((request) => (
                 <RequestItem key={request.id} request={request} />
