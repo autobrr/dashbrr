@@ -115,8 +115,8 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 		return "", &ErrArr{Service: service, Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
 
-	// Check cache first
-	if version := getVersionFromCache(url); version != "" {
+	// Check cache first using version-specific cache key
+	if version := getVersionFromCache(url); version != "" && version != "true" {
 		return version, nil
 	}
 

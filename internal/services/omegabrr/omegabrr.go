@@ -51,11 +51,6 @@ func (s *OmegabrrService) GetVersionEndpoint(baseURL string) string {
 }
 
 func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (string, error) {
-	// Check cache first
-	if version := s.GetVersionFromCache(url); version != "" {
-		return version, nil
-	}
-
 	versionEndpoint := s.GetVersionEndpoint(url)
 	headers := map[string]string{
 		"auth_header": "X-Api-Key",
@@ -78,10 +73,9 @@ func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (s
 		return "", err
 	}
 
-	// Cache version for 1 hour
-	if err := s.CacheVersion(url, version.Version, time.Hour); err != nil {
-		// Log error but don't fail the request
-		fmt.Printf("Failed to cache version: %v\n", err)
+	// Validate version to prevent "true" being shown
+	if version.Version == "true" || version.Version == "" {
+		return "unknown", nil
 	}
 
 	return version.Version, nil
@@ -98,17 +92,10 @@ func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (
 	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultLongTimeout)
 	defer cancel()
 
-	// Start version check in background
-	versionChan := make(chan string, 1)
-	versionErrChan := make(chan error, 1)
-	go func() {
-		version, err := s.getVersion(healthCtx, url, apiKey)
-		if err != nil {
-			versionErrChan <- err
-			return
-		}
-		versionChan <- version
-	}()
+	// Get version using GetCachedVersion for better caching
+	version, err := s.GetCachedVersion(healthCtx, url, apiKey, func(baseURL, key string) (string, error) {
+		return s.getVersion(healthCtx, baseURL, key)
+	})
 
 	// Check health endpoint
 	healthEndpoint := s.GetHealthEndpoint(url)
@@ -139,26 +126,14 @@ func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (
 		return s.CreateHealthResponse(startTime, "warning", "Unexpected response from server"), http.StatusOK
 	}
 
-	// Wait for version with timeout
-	var version string
-	var versionErr error
-	select {
-	case v := <-versionChan:
-		version = v
-	case err := <-versionErrChan:
-		versionErr = err
-	case <-healthCtx.Done():
-		versionErr = healthCtx.Err()
-	}
-
 	extras := map[string]interface{}{
 		"responseTime": responseTime,
 	}
 
 	if version != "" {
 		extras["version"] = version
-	} else if versionErr != nil {
-		extras["versionError"] = versionErr.Error()
+		// Check update status from cache
+		extras["updateAvailable"] = s.GetUpdateStatusFromCache(url)
 	}
 
 	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK

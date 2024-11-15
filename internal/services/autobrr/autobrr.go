@@ -199,8 +199,8 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 }
 
 func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
-	// Check cache first
-	if version := s.GetVersionFromCache(url); version != "" {
+	// Check cache first, ensuring we don't return "true" as a version
+	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
 		return version, nil
 	}
 
@@ -240,14 +240,11 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 }
 
 func (s *AutobrrService) GetUpdateFromCache(url string) string {
-	if update := s.GetVersionFromCache(url + "_update"); update != "" {
-		return update
-	}
-	return ""
+	return s.GetVersionFromCache(fmt.Sprintf("%s:update", url))
 }
 
 func (s *AutobrrService) CacheUpdate(url, status string, ttl time.Duration) error {
-	return s.CacheVersion(url+"_update", status, ttl)
+	return s.CacheVersion(fmt.Sprintf("%s:update", url), status, ttl)
 }
 
 func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (bool, error) {

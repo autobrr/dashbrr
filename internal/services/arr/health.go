@@ -89,6 +89,16 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, error) {
 	startTime := time.Now()
 
+	// Get version synchronously first
+	version := s.GetVersionFromCache(url)
+	if version == "" {
+		var err error
+		version, err = checker.GetSystemStatus(url, apiKey)
+		if err == nil {
+			s.CacheVersion(url, version, time.Hour)
+		}
+	}
+
 	// Make health check request
 	healthEndpoint := checker.GetHealthEndpoint(url)
 	headers := map[string]string{
@@ -144,16 +154,16 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		"responseTime": respTime.Milliseconds(),
 	}
 
-	// Get version and update status in background
+	// Set version in extras
+	if version != "" {
+		extras["version"] = version
+	}
+
+	// Check for updates in background
 	go func() {
-		if version := s.GetVersionFromCache(url); version == "" {
-			if v, err := checker.GetSystemStatus(url, apiKey); err == nil {
-				s.CacheVersion(url, v, time.Hour)
-				extras["version"] = v
-			}
-		}
-		if _, err := checker.CheckForUpdates(url, apiKey); err == nil {
-			s.CacheVersion(url, "true", time.Hour)
+		if hasUpdate, err := checker.CheckForUpdates(url, apiKey); err == nil && hasUpdate {
+			updateKey := fmt.Sprintf("%s:update", url)
+			s.CacheVersion(updateKey, "true", time.Hour)
 			extras["updateAvailable"] = true
 		}
 	}()
