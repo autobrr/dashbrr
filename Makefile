@@ -14,8 +14,9 @@ PNPM=pnpm
 # Docker parameters
 DOCKER_COMPOSE=docker compose
 
-# Build directory
+# Build directories
 BUILD_DIR=web/dist
+BIN_DIR=bin
 
 # Main Go file
 MAIN_GO=./cmd/dashbrr/main.go
@@ -40,14 +41,13 @@ all: clean deps-frontend deps-go frontend backend
 clean:
 	@echo "Cleaning..."
 	$(GOCLEAN)
-	rm -rf $(BUILD_DIR)
-	rm -f $(BINARY_NAME)
+	find $(BUILD_DIR) -mindepth 1 -not -name '.gitkeep' -delete 2>/dev/null || true
+	rm -rf $(BIN_DIR)
 
 # Install Go dependencies
 deps-go:
 	@echo "Installing Go dependencies..."
 	$(GOMOD) tidy
-	$(GOGET) github.com/gin-gonic/gin
 
 # Install frontend dependencies
 deps-frontend:
@@ -62,7 +62,8 @@ frontend: deps-frontend type-check lint
 # Build backend and create final binary
 backend: deps-go
 	@echo "Building backend..."
-	$(GOBUILD) -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) $(MAIN_GO)
+	mkdir -p $(BIN_DIR)
+	$(GOBUILD) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(MAIN_GO)
 
 # Lint frontend code
 lint:
@@ -210,7 +211,7 @@ test-integration: test-integration-db
 # Run the application
 run: all
 	@echo "Starting $(BINARY_NAME)..."
-	./$(BINARY_NAME)
+	$(BIN_DIR)/$(BINARY_NAME)
 
 # Help target
 help:

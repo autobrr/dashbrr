@@ -46,23 +46,13 @@ RUN --network=none --mount=target=. \
     -o /out/bin/dashbrr cmd/dashbrr/main.go
 
 # build runner
-FROM --platform=$TARGETPLATFORM alpine:latest
+FROM alpine:latest
 
 LABEL org.opencontainers.image.source="https://github.com/autobrr/dashbrr"
 LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
 LABEL org.opencontainers.image.base.name="alpine:latest"
 
-ENV HOME="/config" \
-    XDG_CONFIG_HOME="/config" \
-    XDG_DATA_HOME="/config"
-
-RUN apk --no-cache add ca-certificates curl tzdata jq
-
-WORKDIR /app
-VOLUME /config
-
 COPY --link --from=app-builder /out/bin/dashbrr /usr/local/bin/dashbrr
-
 EXPOSE 8080
 
-ENTRYPOINT ["dashbrr"]
+ENTRYPOINT ["/usr/local/bin/dashbrr"]
