@@ -1,6 +1,8 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+//go:build integration
+
 package cache
 
 import (
@@ -46,6 +48,7 @@ func setupTestCache(t *testing.T) Store {
 	cfg := Config{
 		RedisAddr: "localhost:6379",
 		DataDir:   dataDir,
+		testing:   true, // Enable test mode to bypass singleton pattern
 	}
 
 	// Check if Redis is available
@@ -76,6 +79,7 @@ func TestInitCache(t *testing.T) {
 			config: Config{
 				RedisAddr: "localhost:6379",
 				DataDir:   setupTestDir(t),
+				testing:   true,
 			},
 			wantRedis: true,
 		},
@@ -84,6 +88,7 @@ func TestInitCache(t *testing.T) {
 			config: Config{
 				RedisAddr: "invalid:6379",
 				DataDir:   setupTestDir(t),
+				testing:   true,
 			},
 			wantRedis: false,
 		},
@@ -91,6 +96,7 @@ func TestInitCache(t *testing.T) {
 			name: "No Redis configured",
 			config: Config{
 				DataDir: setupTestDir(t),
+				testing: true,
 			},
 			wantRedis: false,
 		},

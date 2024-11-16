@@ -95,3 +95,10 @@ type RadarrQueueDeleteOptions struct {
 	SkipRedownload   bool `json:"skipRedownload"`
 	ChangeCategory   bool `json:"changeCategory"`
 }
+
+// RadarrQueueStats represents statistics about the Radarr queue
+type RadarrQueueStats struct {
+	TotalRecords     int   `json:"totalRecords"`     // Total number of records in the queue
+	DownloadingCount int   `json:"downloadingCount"` // Number of items currently downloading
+	TotalSize        int64 `json:"totalSize"`        // Total size of all items in the queue
+}
