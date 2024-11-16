@@ -64,7 +64,7 @@ func (h *SonarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.SonarrStatus + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.SonarrStatus)
+					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.SonarrStatus)
 				}
 			}
 		}()
@@ -103,7 +103,7 @@ func (h *SonarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 	// Cache the fresh data
 	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.SonarrStatus); err == nil {
 		// Also cache as stale data with longer duration
-		h.cache.Set(ctx, cacheKey+":stale", data, sonarrStaleDataDuration)
+		_ = h.cache.Set(ctx, cacheKey+":stale", data, sonarrStaleDataDuration)
 	}
 
 	return data, nil

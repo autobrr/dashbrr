@@ -59,7 +59,7 @@ func (h *PlexHandler) fetchDataWithCache(ctx context.Context, cacheKey string, f
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.PlexSessions + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.PlexSessions)
+					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.PlexSessions)
 				}
 			}
 		}()
@@ -98,7 +98,7 @@ func (h *PlexHandler) fetchDataWithCache(ctx context.Context, cacheKey string, f
 	// Cache the fresh data
 	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.PlexSessions); err == nil {
 		// Also cache as stale data with longer duration
-		h.cache.Set(ctx, cacheKey+":stale", data, plexStaleDataDuration)
+		_ = h.cache.Set(ctx, cacheKey+":stale", data, plexStaleDataDuration)
 	}
 
 	return data, nil

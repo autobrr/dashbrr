@@ -60,7 +60,7 @@ func (h *RadarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.RadarrStatus + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.RadarrStatus)
+					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.RadarrStatus)
 				}
 			}
 		}()
@@ -99,7 +99,7 @@ func (h *RadarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 	// Cache the fresh data
 	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.RadarrStatus); err == nil {
 		// Also cache as stale data with longer duration
-		h.cache.Set(ctx, cacheKey+":stale", data, radarrStaleDataDuration)
+		_ = h.cache.Set(ctx, cacheKey+":stale", data, radarrStaleDataDuration)
 	}
 
 	return data, nil

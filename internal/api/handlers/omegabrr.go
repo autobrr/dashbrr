@@ -65,7 +65,7 @@ func (h *OmegabrrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.OmegabrrStatus + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.OmegabrrStatus)
+					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.OmegabrrStatus)
 				}
 			}
 		}()
@@ -104,7 +104,7 @@ func (h *OmegabrrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	// Cache the fresh data
 	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.OmegabrrStatus); err == nil {
 		// Also cache as stale data with longer duration
-		h.cache.Set(ctx, cacheKey+":stale", data, omegabrrStaleDataDuration)
+		_ = h.cache.Set(ctx, cacheKey+":stale", data, omegabrrStaleDataDuration)
 	}
 
 	return data, nil

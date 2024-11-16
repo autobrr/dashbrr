@@ -63,7 +63,7 @@ func (h *MaintainerrHandler) fetchDataWithCache(ctx context.Context, cacheKey st
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.MaintainerrStatus + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.MaintainerrStatus)
+					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.MaintainerrStatus)
 				}
 			}
 		}()
@@ -104,7 +104,7 @@ func (h *MaintainerrHandler) fetchDataWithCache(ctx context.Context, cacheKey st
 	// Cache the fresh data
 	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.MaintainerrStatus); err == nil {
 		// Also cache as stale data with longer duration
-		h.cache.Set(ctx, cacheKey+":stale", data, maintainerrStaleDataDuration)
+		_ = h.cache.Set(ctx, cacheKey+":stale", data, maintainerrStaleDataDuration)
 	}
 
 	return data, nil

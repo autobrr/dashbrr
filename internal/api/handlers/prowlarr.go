@@ -66,7 +66,7 @@ func (h *ProwlarrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.ProwlarrStatus + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.ProwlarrStatus)
+					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.ProwlarrStatus)
 				}
 			}
 		}()
@@ -105,7 +105,7 @@ func (h *ProwlarrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	// Cache the fresh data
 	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.ProwlarrStatus); err == nil {
 		// Also cache as stale data with longer duration
-		h.cache.Set(ctx, cacheKey+":stale", data, prowlarrStaleDataDuration)
+		_ = h.cache.Set(ctx, cacheKey+":stale", data, prowlarrStaleDataDuration)
 	}
 
 	return data, nil

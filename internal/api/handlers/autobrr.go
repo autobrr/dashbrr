@@ -72,7 +72,7 @@ func (h *AutobrrHandler) fetchDataWithCache(ctx context.Context, cacheKey string
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.AutobrrStatus + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					h.store.Set(ctx, cacheKey, newData, middleware.CacheDurations.AutobrrStatus)
+					_ = h.store.Set(ctx, cacheKey, newData, middleware.CacheDurations.AutobrrStatus)
 				}
 			}
 		}()
@@ -111,7 +111,7 @@ func (h *AutobrrHandler) fetchDataWithCache(ctx context.Context, cacheKey string
 	// Cache the fresh data
 	if err := h.store.Set(ctx, cacheKey, data, middleware.CacheDurations.AutobrrStatus); err == nil {
 		// Also cache as stale data with longer duration
-		h.store.Set(ctx, cacheKey+":stale", data, autobrrStaleDataDuration)
+		_ = h.store.Set(ctx, cacheKey+":stale", data, autobrrStaleDataDuration)
 	}
 
 	return data, nil
