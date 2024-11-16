@@ -31,6 +31,7 @@ const (
 	autobrrIRCCacheDuration      = 5 * time.Second
 	autobrrReleasesCacheDuration = 30 * time.Second
 	autobrrStaleDataDuration     = 5 * time.Minute
+	backgroundTimeout            = 5 * time.Second
 	statsPrefix                  = "autobrr:stats:"
 	ircPrefix                    = "autobrr:irc:"
 	releasesPrefix               = "autobrr:releases:"
@@ -69,14 +70,36 @@ func fetchDataWithCache[T any](ctx context.Context, store cache.Store, circuitBr
 	err := store.Get(ctx, cacheKey, &data)
 	if err == nil {
 		// Data found in cache
+		// Create a new context with timeout for background refresh
+		bgCtx, cancel := context.WithTimeout(context.Background(), backgroundTimeout)
+
 		go func() {
+			defer cancel() // Ensure context is cancelled when goroutine exits
+
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.AutobrrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = store.Set(ctx, cacheKey, newData, middleware.CacheDurations.AutobrrStatus)
+				// Use the background context for the fetch operation
+				done := make(chan struct{})
+
+				go func() {
+					defer close(done)
+					if newData, err := fetchFn(); err == nil {
+						// Use background context for cache set
+						_ = store.Set(bgCtx, cacheKey, newData, middleware.CacheDurations.AutobrrStatus)
+					}
+				}()
+
+				// Wait for either completion or timeout
+				select {
+				case <-bgCtx.Done():
+					log.Warn().Err(bgCtx.Err()).Str("cacheKey", cacheKey).Msg("Background cache refresh timed out")
+					return
+				case <-done:
+					return
 				}
 			}
 		}()
+
 		return data, nil
 	}
 
@@ -134,7 +157,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	}
 
 	cacheKey := releasesPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context() // Use request context instead of background
 
 	// Use singleflight to prevent duplicate requests
 	result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
@@ -200,7 +223,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	}
 
 	cacheKey := statsPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context() // Use request context instead of background
 
 	// Use singleflight to prevent duplicate requests
 	result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
@@ -266,7 +289,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	}
 
 	cacheKey := ircPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context() // Use request context instead of background
 
 	// Use singleflight to prevent duplicate requests
 	result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
