@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -126,6 +127,14 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 	}
 
 	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
+
+	// Add query parameters for date range
+	// TODO MAKE THIS CONFIGURABLE IN THE UI
+	query := url.Values{}
+	query.Add("startDate", "1") // Last 1 day ago
+	query.Add("endDate", "30")  // Up to 30 days ago
+	statsURL = statsURL + "?" + query.Encode()
+
 	resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, apiKey)
 	if err != nil {
 		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to make request: %w", err)}
