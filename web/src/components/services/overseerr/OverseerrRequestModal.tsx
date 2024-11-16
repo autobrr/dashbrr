@@ -7,7 +7,11 @@ import React from "react";
 import AnimatedModal from "../../ui/AnimatedModal";
 import { OverseerrMediaRequest } from "../../../types/service";
 import { FaFilm, FaTv } from "react-icons/fa";
-import { ClockIcon, UserIcon } from "@heroicons/react/24/outline";
+import {
+  ClockIcon,
+  UserIcon,
+  ArrowTopRightOnSquareIcon,
+} from "@heroicons/react/24/outline";
 
 interface OverseerrRequestModalProps {
   isOpen: boolean;
@@ -87,16 +91,30 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
                         } (${request.media.tmdbId})`}
                     </h3>
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    {request.media.tmdbId && (
-                      <span className="px-3 py-0.5 rounded-md bg-gray-700/50 border border-gray-600/50 text-xs font-medium text-gray-300 min-w-[120px] text-center">
-                        TMDB: {request.media.tmdbId}
-                      </span>
+                  <div className="flex items-center gap-2 mt-4 flex-wrap">
+                    {request.media.tmdbId !== 0 && (
+                      <a
+                        href={`https://www.themoviedb.org/${
+                          request.media.mediaType === "tv" ? "tv" : "movie"
+                        }/${request.media.tmdbId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-3 py-0.5 rounded-md bg-gray-700/50 border border-gray-600/50 text-xs font-medium text-gray-300 min-w-[120px] text-center hover:text-blue-400"
+                      >
+                        View on TMDB
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      </a>
                     )}
-                    {request.media.tvdbId && (
-                      <span className="px-3 py-0.5 rounded-md bg-gray-700/50 border border-gray-600/50 text-xs font-medium text-gray-300 min-w-[120px] text-center">
-                        TVDB: {request.media.tvdbId}
-                      </span>
+                    {request.media.tvdbId !== 0 && (
+                      <a
+                        href={`https://www.thetvdb.com/dereferrer/series/${request.media.tvdbId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-3 py-0.5 rounded-md bg-gray-700/50 border border-gray-600/50 text-xs font-medium text-gray-300 min-w-[120px] text-center hover:text-blue-400"
+                      >
+                        View on TVDB
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      </a>
                     )}
                   </div>
                 </div>
