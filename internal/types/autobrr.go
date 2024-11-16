@@ -16,6 +16,19 @@ type AutobrrStats struct {
 	PushErrorCount      int `json:"push_error_count"`
 }
 
+type AutobrrServiceHealth struct {
+	ServiceID   string         `json:"serviceId"`
+	Status      string         `json:"status"`
+	Message     string         `json:"message"`
+	LastChecked time.Time      `json:"lastChecked"`
+	Stats       *AutobrrStats  `json:"stats,omitempty"`
+	Details     AutobrrDetails `json:"details,omitempty"`
+}
+
+type AutobrrDetails struct {
+	IRC []IRCStatus `json:"irc,omitempty"`
+}
+
 type IRCStatus struct {
 	Name    string `json:"name"`
 	Healthy bool   `json:"healthy"`

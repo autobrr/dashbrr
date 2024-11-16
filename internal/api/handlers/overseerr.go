@@ -24,6 +24,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -46,12 +47,11 @@ func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
 		db:               db,
 		cache:            cache,
 		sf:               &singleflight.Group{},
-		circuitBreaker:   resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
+		circuitBreaker:   resilience.NewCircuitBreaker(5, 1*time.Minute),
 		lastRequestsHash: make(map[string]string),
 	}
 }
 
-// fetchDataWithCache implements a stale-while-revalidate pattern
 func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (*types.RequestsStats, error)) (*types.RequestsStats, error) {
 	var data types.RequestsStats
 
@@ -139,10 +139,8 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	// Convert numeric status to approve/decline
 	approve := false
 	if status == "2" {
-		status = "approve"
 		approve = true
 	} else if status == "3" {
-		status = "decline"
 		approve = false
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status"})
@@ -202,13 +200,14 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	// Fetch fresh data and broadcast update using singleflight
 	sfKey = fmt.Sprintf("requests:%s", instanceId)
-	stats, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
 		return h.fetchRequests(instanceId)
 	})
 
-	if err == nil && stats != nil {
-		if statsTyped, ok := stats.(*types.RequestsStats); ok {
-			h.broadcastOverseerrRequests(instanceId, statsTyped)
+	if err == nil && result != nil {
+		stats, err := utils.SafeConvert[*types.RequestsStats](result)
+		if err == nil {
+			h.broadcastOverseerrRequests(instanceId, stats)
 		}
 	}
 
@@ -235,7 +234,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("requests:%s", instanceId)
-	stats, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
 		return h.fetchDataWithCache(ctx, cacheKey, func() (*types.RequestsStats, error) {
 			return h.fetchRequests(instanceId)
 		})
@@ -262,21 +261,21 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
-	statsTyped, ok := stats.(*types.RequestsStats)
-	if !ok || statsTyped == nil {
+	stats, err := utils.SafeConvert[*types.RequestsStats](result)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
 		return
 	}
 
 	h.hashMu.Lock()
-	currentHash, changes := createOverseerrRequestsHash(statsTyped)
+	currentHash, changes := createOverseerrRequestsHash(stats)
 	lastHash := h.lastRequestsHash[instanceId]
 
 	// Only log and update if there are requests and the hash has changed
-	if len(statsTyped.Requests) > 0 && (lastHash == "" || currentHash != lastHash) {
+	if len(stats.Requests) > 0 && (lastHash == "" || currentHash != lastHash) {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Int("size", len(statsTyped.Requests)).
+			Int("size", len(stats.Requests)).
 			Msg("[Overseerr] Successfully retrieved and cached requests")
 
 		// Log changes if hash is different
@@ -293,9 +292,9 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	h.hashMu.Unlock()
 
 	// Broadcast the fresh data
-	h.broadcastOverseerrRequests(instanceId, statsTyped)
+	h.broadcastOverseerrRequests(instanceId, stats)
 
-	c.JSON(http.StatusOK, statsTyped)
+	c.JSON(http.StatusOK, stats)
 }
 
 func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStats, error) {
@@ -329,6 +328,10 @@ func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStat
 }
 
 func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *types.RequestsStats) {
+	if stats == nil {
+		return
+	}
+
 	serviceStatus := "online"
 	message := "overseerr_requests"
 
@@ -338,23 +341,29 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 		message = fmt.Sprintf("%d pending requests", stats.PendingCount)
 	}
 
-	BroadcastHealth(models.ServiceHealth{
+	health := models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      serviceStatus,
 		Message:     message,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
-			"overseerr": stats,
-		},
-		Details: map[string]interface{}{
-			"overseerr": map[string]interface{}{
-				"pendingCount":  stats.PendingCount,
-				"totalRequests": len(stats.Requests),
+			"overseerr": types.OverseerrStats{
+				Requests:     stats.Requests,
+				PendingCount: stats.PendingCount,
 			},
 		},
-	})
+		Details: map[string]interface{}{
+			"overseerr": types.OverseerrDetails{
+				PendingCount:  stats.PendingCount,
+				TotalRequests: len(stats.Requests),
+			},
+		},
+	}
+
+	BroadcastHealth(health)
 }
 
+// createOverseerrRequestsHash generates a deterministic hash of the requests state
 func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) {
 	if stats == nil || len(stats.Requests) == 0 {
 		return "", nil
@@ -363,13 +372,16 @@ func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%d:", stats.PendingCount)
 
-	changes := []string{}
+	changes := make([]string, 0, len(stats.Requests))
 
-	sort.Slice(stats.Requests, func(i, j int) bool {
-		return stats.Requests[i].ID < stats.Requests[j].ID
+	// Sort requests by ID for consistent hashing
+	sortedRequests := make([]types.MediaRequest, len(stats.Requests))
+	copy(sortedRequests, stats.Requests)
+	sort.Slice(sortedRequests, func(i, j int) bool {
+		return sortedRequests[i].ID < sortedRequests[j].ID
 	})
 
-	for _, req := range stats.Requests {
+	for _, req := range sortedRequests {
 		reqDetails := fmt.Sprintf("Full Request Details: "+
 			"ID=%d, Status=%d, MediaType=%s, MediaTitle=%s, "+
 			"RequestedBy.ID=%d, RequestedBy.Username=%s, "+
@@ -383,6 +395,7 @@ func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) 
 			req.RequestedBy.Email,
 			req.RequestedBy.PlexUsername)
 
+		// Create a deterministic hash string for each request
 		reqHash := fmt.Sprintf("%d:%d:%s:%s:%s:%s",
 			req.ID,
 			req.Status,
@@ -392,7 +405,6 @@ func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) 
 			reqDetails)
 
 		sb.WriteString(reqHash + ",")
-
 		changes = append(changes, reqDetails)
 	}
 

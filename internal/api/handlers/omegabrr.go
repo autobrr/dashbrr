@@ -21,6 +21,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/omegabrr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -43,6 +44,7 @@ type WebhookRequest struct {
 type WebhookResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
+	Code    int    `json:"code,omitempty"`
 }
 
 func NewOmegabrrHandler(db *database.DB, cache cache.Store) *OmegabrrHandler {
@@ -110,6 +112,29 @@ func (h *OmegabrrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	return data, nil
 }
 
+// fetchStatusWithCache is a type-safe wrapper around fetchDataWithCache for ServiceHealth
+func (h *OmegabrrHandler) fetchStatusWithCache(ctx context.Context, cacheKey string, fetchFn func() (models.ServiceHealth, error)) (models.ServiceHealth, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return models.ServiceHealth{}, err
+	}
+
+	// Convert the cached data to ServiceHealth using SafeStructConvert
+	converted, err := utils.SafeStructConvert[models.ServiceHealth](data)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("cache_key", cacheKey).
+			Str("type", utils.GetTypeString(data)).
+			Msg("[Omegabrr] Failed to convert cached data")
+		return models.ServiceHealth{}, fmt.Errorf("failed to convert cached data: %w", err)
+	}
+
+	return converted, nil
+}
+
 func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	log.Debug().Msg("Starting to fetch Omegabrr status")
 
@@ -126,7 +151,7 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("status:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return h.fetchStatusWithCache(ctx, cacheKey, func() (models.ServiceHealth, error) {
 			return h.fetchStatus(ctx, instanceId)
 		})
 	})
@@ -174,21 +199,37 @@ func (h *OmegabrrHandler) fetchStatus(ctx context.Context, instanceId string) (m
 	return health, nil
 }
 
-// executeWebhook handles webhook execution with resilience patterns
-func (h *OmegabrrHandler) executeWebhook(c *gin.Context, webhookType string, req WebhookRequest, triggerFn func() int) {
-	if req.APIKey == "" || req.TargetURL == "" {
-		c.JSON(http.StatusBadRequest, WebhookResponse{
+// validateWebhookRequest performs type-safe validation of webhook requests
+func validateWebhookRequest(c *gin.Context) (*WebhookRequest, *WebhookResponse) {
+	var req WebhookRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Error().Err(err).Msg("[Omegabrr] Failed to parse webhook request")
+		return nil, &WebhookResponse{
 			Success: false,
-			Message: "API key and target URL are required",
-		})
-		return
+			Message: "Invalid request format",
+			Code:    http.StatusBadRequest,
+		}
 	}
 
+	if req.APIKey == "" || req.TargetURL == "" {
+		return nil, &WebhookResponse{
+			Success: false,
+			Message: "API key and target URL are required",
+			Code:    http.StatusBadRequest,
+		}
+	}
+
+	return &req, nil
+}
+
+// executeWebhook handles webhook execution with resilience patterns
+func (h *OmegabrrHandler) executeWebhook(c *gin.Context, webhookType string, req WebhookRequest, triggerFn func() int) {
 	// Check circuit breaker before making request
 	if h.circuitBreaker.IsOpen() {
 		c.JSON(http.StatusServiceUnavailable, WebhookResponse{
 			Success: false,
 			Message: "Service is temporarily unavailable",
+			Code:    http.StatusServiceUnavailable,
 		})
 		return
 	}
@@ -219,11 +260,12 @@ func (h *OmegabrrHandler) executeWebhook(c *gin.Context, webhookType string, req
 			Str("webhookType", webhookType).
 			Str("targetUrl", req.TargetURL).
 			Int("statusCode", statusCode).
-			Msg("Failed to trigger webhook")
+			Msg("[Omegabrr] Failed to trigger webhook")
 
 		c.JSON(statusCode, WebhookResponse{
 			Success: false,
 			Message: fmt.Sprintf("Failed to trigger %s webhook", webhookType),
+			Code:    statusCode,
 		})
 		return
 	}
@@ -232,70 +274,59 @@ func (h *OmegabrrHandler) executeWebhook(c *gin.Context, webhookType string, req
 	log.Info().
 		Str("webhookType", webhookType).
 		Str("targetUrl", req.TargetURL).
-		Msg("Successfully triggered webhook")
+		Msg("[Omegabrr] Successfully triggered webhook")
 
 	c.JSON(http.StatusOK, WebhookResponse{
 		Success: true,
 		Message: fmt.Sprintf("%s webhook triggered successfully", webhookType),
+		Code:    http.StatusOK,
 	})
 }
 
 // TriggerWebhookArrs handles webhook trigger for ARRs
 func (h *OmegabrrHandler) TriggerWebhookArrs(c *gin.Context) {
-	var req WebhookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Error().Err(err).Msg("Failed to parse webhook request")
-		c.JSON(http.StatusBadRequest, WebhookResponse{
-			Success: false,
-			Message: "Invalid request format",
-		})
+	req, resp := validateWebhookRequest(c)
+	if resp != nil {
+		c.JSON(resp.Code, resp)
 		return
 	}
 
 	service := &omegabrr.OmegabrrService{
 		ServiceCore: core.ServiceCore{},
 	}
-	h.executeWebhook(c, "ARRs", req, func() int {
+	h.executeWebhook(c, "ARRs", *req, func() int {
 		return service.TriggerARRsWebhook(c, req.TargetURL, req.APIKey)
 	})
 }
 
 // TriggerWebhookLists handles webhook trigger for Lists
 func (h *OmegabrrHandler) TriggerWebhookLists(c *gin.Context) {
-	var req WebhookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Error().Err(err).Msg("Failed to parse webhook request")
-		c.JSON(http.StatusBadRequest, WebhookResponse{
-			Success: false,
-			Message: "Invalid request format",
-		})
+	req, resp := validateWebhookRequest(c)
+	if resp != nil {
+		c.JSON(resp.Code, resp)
 		return
 	}
 
 	service := &omegabrr.OmegabrrService{
 		ServiceCore: core.ServiceCore{},
 	}
-	h.executeWebhook(c, "Lists", req, func() int {
+	h.executeWebhook(c, "Lists", *req, func() int {
 		return service.TriggerListsWebhook(c, req.TargetURL, req.APIKey)
 	})
 }
 
 // TriggerWebhookAll handles webhook trigger for all updates
 func (h *OmegabrrHandler) TriggerWebhookAll(c *gin.Context) {
-	var req WebhookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Error().Err(err).Msg("Failed to parse webhook request")
-		c.JSON(http.StatusBadRequest, WebhookResponse{
-			Success: false,
-			Message: "Invalid request format",
-		})
+	req, resp := validateWebhookRequest(c)
+	if resp != nil {
+		c.JSON(resp.Code, resp)
 		return
 	}
 
 	service := &omegabrr.OmegabrrService{
 		ServiceCore: core.ServiceCore{},
 	}
-	h.executeWebhook(c, "All", req, func() int {
+	h.executeWebhook(c, "All", *req, func() int {
 		return service.TriggerAllWebhooks(c, req.TargetURL, req.APIKey)
 	})
 }

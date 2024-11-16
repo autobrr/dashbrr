@@ -23,6 +23,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -52,7 +53,7 @@ func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
 		db:             db,
 		store:          store,
 		sf:             &singleflight.Group{},
-		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
+		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute),
 
 		lastReleasesHash:  make(map[string]string),
 		lastStatsHash:     make(map[string]string),
@@ -60,19 +61,19 @@ func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
 	}
 }
 
-// fetchDataWithCache implements a stale-while-revalidate pattern
-func (h *AutobrrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
-	var data interface{}
+// fetchDataWithCache implements a type-safe stale-while-revalidate pattern
+func fetchDataWithCache[T any](ctx context.Context, store cache.Store, circuitBreaker *resilience.CircuitBreaker, cacheKey string, fetchFn func() (T, error)) (T, error) {
+	var data T
 
 	// Try to get from cache first
-	err := h.store.Get(ctx, cacheKey, &data)
+	err := store.Get(ctx, cacheKey, &data)
 	if err == nil {
 		// Data found in cache
 		go func() {
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.AutobrrStatus + 5*time.Second)) {
 				if newData, err := fetchFn(); err == nil {
-					_ = h.store.Set(ctx, cacheKey, newData, middleware.CacheDurations.AutobrrStatus)
+					_ = store.Set(ctx, cacheKey, newData, middleware.CacheDurations.AutobrrStatus)
 				}
 			}
 		}()
@@ -80,41 +81,42 @@ func (h *AutobrrHandler) fetchDataWithCache(ctx context.Context, cacheKey string
 	}
 
 	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
+	if circuitBreaker.IsOpen() {
 		// Try to get stale data when circuit is open
-		var staleData interface{}
-		if staleErr := h.store.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+		var staleData T
+		if staleErr := store.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
 			return staleData, nil
 		}
-		return nil, fmt.Errorf("circuit breaker is open")
+		return data, fmt.Errorf("circuit breaker is open")
 	}
 
 	// Cache miss or error, fetch fresh data with retry
-	var fetchErr error
+	var freshData T
 	err = resilience.RetryWithBackoff(ctx, func() error {
-		data, fetchErr = fetchFn()
+		var fetchErr error
+		freshData, fetchErr = fetchFn()
 		return fetchErr
 	})
 
 	if err != nil {
-		h.circuitBreaker.RecordFailure()
+		circuitBreaker.RecordFailure()
 		// Try to get stale data
-		var staleData interface{}
-		if staleErr := h.store.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+		var staleData T
+		if staleErr := store.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
 			return staleData, nil
 		}
-		return nil, err
+		return data, err
 	}
 
-	h.circuitBreaker.RecordSuccess()
+	circuitBreaker.RecordSuccess()
 
 	// Cache the fresh data
-	if err := h.store.Set(ctx, cacheKey, data, middleware.CacheDurations.AutobrrStatus); err == nil {
+	if err := store.Set(ctx, cacheKey, freshData, middleware.CacheDurations.AutobrrStatus); err == nil {
 		// Also cache as stale data with longer duration
-		_ = h.store.Set(ctx, cacheKey+":stale", data, autobrrStaleDataDuration)
+		_ = store.Set(ctx, cacheKey+":stale", freshData, autobrrStaleDataDuration)
 	}
 
-	return data, nil
+	return freshData, nil
 }
 
 func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
@@ -134,8 +136,11 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	cacheKey := releasesPrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return h.fetchReleases(instanceId)
+	// Use singleflight to prevent duplicate requests
+	result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.ReleasesResponse, error) {
+			return h.fetchReleases(instanceId)
+		})
 	})
 
 	if err != nil {
@@ -155,7 +160,12 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		return
 	}
 
-	releases := result.(types.ReleasesResponse)
+	releases, err := utils.SafeConvert[types.ReleasesResponse](result)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to convert releases response")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
+		return
+	}
 
 	h.hashMu.Lock()
 	currentHash := createAutobrrReleaseHash(releases)
@@ -192,8 +202,11 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	cacheKey := statsPrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return h.fetchStats(instanceId)
+	// Use singleflight to prevent duplicate requests
+	result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.AutobrrStats, error) {
+			return h.fetchStats(instanceId)
+		})
 	})
 
 	if err != nil {
@@ -213,7 +226,12 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
-	stats := result.(types.AutobrrStats)
+	stats, err := utils.SafeConvert[types.AutobrrStats](result)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to convert stats response")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
+		return
+	}
 
 	h.hashMu.Lock()
 	currentHash := createAutobrrStatsHash(stats)
@@ -250,8 +268,11 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	cacheKey := ircPrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return h.fetchIRC(instanceId)
+	// Use singleflight to prevent duplicate requests
+	result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() ([]types.IRCStatus, error) {
+			return h.fetchIRC(instanceId)
+		})
 	})
 
 	if err != nil {
@@ -271,7 +292,12 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		return
 	}
 
-	status := result.([]types.IRCStatus)
+	status, err := utils.SafeConvert[[]types.IRCStatus](result)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to convert IRC status response")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
+		return
+	}
 
 	h.hashMu.Lock()
 	currentHash := createIRCStatusHash(status)
@@ -344,7 +370,7 @@ func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) 
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.ReleasesResponse) {
-	BroadcastHealth(models.ServiceHealth{
+	health := models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_releases",
@@ -352,12 +378,14 @@ func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.Rel
 		Stats: map[string]interface{}{
 			"autobrr": releases,
 		},
-	})
+	}
+
+	BroadcastHealth(health)
 }
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrStats) {
-	BroadcastHealth(models.ServiceHealth{
+	health := models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_stats",
@@ -365,7 +393,9 @@ func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrSt
 		Stats: map[string]interface{}{
 			"autobrr": stats,
 		},
-	})
+	}
+
+	BroadcastHealth(health)
 }
 
 // broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
@@ -382,17 +412,19 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 		}
 	}
 
-	BroadcastHealth(models.ServiceHealth{
+	health := models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      serviceStatus,
 		Message:     message,
 		LastChecked: time.Now(),
 		Details: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"irc": status,
+			"autobrr": types.AutobrrDetails{
+				IRC: status,
 			},
 		},
-	})
+	}
+
+	BroadcastHealth(health)
 }
 
 // Hash generation functions

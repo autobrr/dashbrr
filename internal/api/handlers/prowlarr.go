@@ -24,6 +24,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -60,12 +61,12 @@ func (h *ProwlarrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
-	if err == nil {
-		// Data found in cache
+	if err == nil && data != nil {
+		// Data found in cache and is not nil
 		go func() {
 			// Refresh cache in background if close to expiration
 			if time.Now().After(time.Now().Add(-middleware.CacheDurations.ProwlarrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
+				if newData, err := fetchFn(); err == nil && newData != nil {
 					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.ProwlarrStatus)
 				}
 			}
@@ -77,7 +78,7 @@ func (h *ProwlarrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	if h.circuitBreaker.IsOpen() {
 		// Try to get stale data when circuit is open
 		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil && staleData != nil {
 			return staleData, nil
 		}
 		return nil, fmt.Errorf("circuit breaker is open")
@@ -87,14 +88,20 @@ func (h *ProwlarrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	var fetchErr error
 	err = resilience.RetryWithBackoff(ctx, func() error {
 		data, fetchErr = fetchFn()
-		return fetchErr
+		if fetchErr != nil {
+			return fetchErr
+		}
+		if data == nil {
+			return fmt.Errorf("fetch function returned nil data")
+		}
+		return nil
 	})
 
 	if err != nil {
 		h.circuitBreaker.RecordFailure()
 		// Try to get stale data
 		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil && staleData != nil {
 			return staleData, nil
 		}
 		return nil, err
@@ -109,6 +116,95 @@ func (h *ProwlarrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	}
 
 	return data, nil
+}
+
+// fetchStatsWithCache is a type-safe wrapper around fetchDataWithCache for ProwlarrStatsResponse
+func (h *ProwlarrHandler) fetchStatsWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.ProwlarrStatsResponse, error)) (types.ProwlarrStatsResponse, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return types.ProwlarrStatsResponse{}, err
+	}
+
+	if data == nil {
+		return types.ProwlarrStatsResponse{}, fmt.Errorf("received nil data from cache/fetch")
+	}
+
+	// Convert the cached data to ProwlarrStatsResponse
+	converted, err := utils.SafeStructConvert[types.ProwlarrStatsResponse](data)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("cache_key", cacheKey).
+			Str("type", utils.GetTypeString(data)).
+			Msg("[Prowlarr] Failed to convert cached stats data")
+		return types.ProwlarrStatsResponse{}, fmt.Errorf("failed to convert cached stats data: %w", err)
+	}
+
+	return converted, nil
+}
+
+// fetchIndexersWithCache is a type-safe wrapper around fetchDataWithCache for []ProwlarrIndexer
+func (h *ProwlarrHandler) fetchIndexersWithCache(ctx context.Context, cacheKey string, fetchFn func() ([]types.ProwlarrIndexer, error)) ([]types.ProwlarrIndexer, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if data == nil {
+		return nil, fmt.Errorf("received nil data from cache/fetch")
+	}
+
+	// Handle the case where data is already a []types.ProwlarrIndexer
+	if indexers, ok := data.([]types.ProwlarrIndexer); ok {
+		return indexers, nil
+	}
+
+	// Convert slice of interfaces to []types.ProwlarrIndexer using SafeSliceConvert
+	if slice, ok := data.([]interface{}); ok {
+		converted, err := utils.SafeSliceConvert[types.ProwlarrIndexer](slice)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("cache_key", cacheKey).
+				Str("type", utils.GetTypeString(data)).
+				Msg("[Prowlarr] Failed to convert indexers data")
+			return nil, fmt.Errorf("failed to convert indexers data: %w", err)
+		}
+		return converted, nil
+	}
+
+	return nil, fmt.Errorf("unexpected data type: %T", data)
+}
+
+// fetchIndexerStatsWithCache is a type-safe wrapper around fetchDataWithCache for ProwlarrIndexerStatsResponse
+func (h *ProwlarrHandler) fetchIndexerStatsWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.ProwlarrIndexerStatsResponse, error)) (types.ProwlarrIndexerStatsResponse, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return types.ProwlarrIndexerStatsResponse{}, err
+	}
+
+	if data == nil {
+		return types.ProwlarrIndexerStatsResponse{}, fmt.Errorf("received nil data from cache/fetch")
+	}
+
+	// Convert the cached data to ProwlarrIndexerStatsResponse
+	converted, err := utils.SafeStructConvert[types.ProwlarrIndexerStatsResponse](data)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("cache_key", cacheKey).
+			Str("type", utils.GetTypeString(data)).
+			Msg("[Prowlarr] Failed to convert cached indexer stats data")
+		return types.ProwlarrIndexerStatsResponse{}, fmt.Errorf("failed to convert cached indexer stats data: %w", err)
+	}
+
+	return converted, nil
 }
 
 // fetchProwlarrData handles fetching all required data in parallel
@@ -159,6 +255,9 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 			if err := json.NewDecoder(resp.Body).Decode(&i); err != nil {
 				return nil, err
 			}
+			if i == nil {
+				i = make([]types.ProwlarrIndexer, 0)
+			}
 			return i, nil
 		},
 		// Indexer stats request
@@ -186,7 +285,7 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 		}(i, req)
 	}
 
-	// Collect results
+	// Collect results with type-safe conversions
 	for i := 0; i < len(requests); i++ {
 		result := <-results
 		switch result.index {
@@ -194,19 +293,42 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 			if result.err != nil {
 				statsErr = result.err
 			} else {
-				stats = result.result.(types.ProwlarrStatsResponse)
+				converted, err := utils.SafeStructConvert[types.ProwlarrStatsResponse](result.result)
+				if err != nil {
+					statsErr = fmt.Errorf("failed to convert stats: %w", err)
+				} else {
+					stats = converted
+				}
 			}
 		case 1:
 			if result.err != nil {
 				indexersErr = result.err
 			} else {
-				indexers = result.result.([]types.ProwlarrIndexer)
+				// Handle the case where result is already []types.ProwlarrIndexer
+				if indexerList, ok := result.result.([]types.ProwlarrIndexer); ok {
+					indexers = indexerList
+				} else if slice, ok := result.result.([]interface{}); ok {
+					// Convert slice of interfaces using SafeSliceConvert
+					converted, err := utils.SafeSliceConvert[types.ProwlarrIndexer](slice)
+					if err != nil {
+						indexersErr = fmt.Errorf("failed to convert indexers: %w", err)
+					} else {
+						indexers = converted
+					}
+				} else {
+					indexersErr = fmt.Errorf("unexpected indexer data type: %T", result.result)
+				}
 			}
 		case 2:
 			if result.err != nil {
 				indexerStatsErr = result.err
 			} else {
-				indexerStats = *result.result.(*types.ProwlarrIndexerStatsResponse)
+				converted, err := utils.SafeStructConvert[types.ProwlarrIndexerStatsResponse](result.result)
+				if err != nil {
+					indexerStatsErr = fmt.Errorf("failed to convert indexer stats: %w", err)
+				} else {
+					indexerStats = converted
+				}
 			}
 		}
 	}
@@ -254,7 +376,7 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 	cacheKey := prowlarrStatsPrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+	result, err := h.fetchStatsWithCache(ctx, cacheKey, func() (types.ProwlarrStatsResponse, error) {
 		stats, _, _, err := h.fetchProwlarrData(ctx, instanceId)
 		return stats, err
 	})
@@ -269,11 +391,10 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	statsResp := result.(types.ProwlarrStatsResponse)
-	h.compareAndLogStatsChanges(instanceId, statsResp)
-	h.broadcastStats(instanceId, statsResp)
+	h.compareAndLogStatsChanges(instanceId, result)
+	h.broadcastStats(instanceId, result)
 
-	c.JSON(http.StatusOK, statsResp)
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
@@ -293,7 +414,7 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 	cacheKey := prowlarrIndexerPrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+	result, err := h.fetchIndexersWithCache(ctx, cacheKey, func() ([]types.ProwlarrIndexer, error) {
 		_, indexers, _, err := h.fetchProwlarrData(ctx, instanceId)
 		return indexers, err
 	})
@@ -308,11 +429,10 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 		return
 	}
 
-	indexers := result.([]types.ProwlarrIndexer)
-	h.compareAndLogIndexersChanges(instanceId, indexers)
-	h.broadcastIndexers(instanceId, indexers)
+	h.compareAndLogIndexersChanges(instanceId, result)
+	h.broadcastIndexers(instanceId, result)
 
-	c.JSON(http.StatusOK, indexers)
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
@@ -332,7 +452,7 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 	cacheKey := prowlarrIndexerStatsPrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+	result, err := h.fetchIndexerStatsWithCache(ctx, cacheKey, func() (types.ProwlarrIndexerStatsResponse, error) {
 		_, _, stats, err := h.fetchProwlarrData(ctx, instanceId)
 		return stats, err
 	})
@@ -347,10 +467,9 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 		return
 	}
 
-	statsResp := result.(types.ProwlarrIndexerStatsResponse)
-	h.compareAndLogIndexerStatsChanges(instanceId, statsResp)
+	h.compareAndLogIndexerStatsChanges(instanceId, result)
 
-	c.JSON(http.StatusOK, statsResp)
+	c.JSON(http.StatusOK, result)
 }
 
 // Helper methods for change detection

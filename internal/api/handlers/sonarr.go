@@ -22,6 +22,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -109,6 +110,67 @@ func (h *SonarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 	return data, nil
 }
 
+// fetchQueueWithCache is a type-safe wrapper around fetchDataWithCache for SonarrQueueResponse
+func (h *SonarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.SonarrQueueResponse, error)) (types.SonarrQueueResponse, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return types.SonarrQueueResponse{}, err
+	}
+
+	// Convert the cached data to SonarrQueueResponse
+	converted, err := utils.SafeStructConvert[types.SonarrQueueResponse](data)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("cache_key", cacheKey).
+			Str("type", utils.GetTypeString(data)).
+			Msg("[Sonarr] Failed to convert cached data")
+		return types.SonarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
+	}
+
+	return converted, nil
+}
+
+// fetchStatsWithCache is a type-safe wrapper around fetchDataWithCache for SonarrStatsResponse
+func (h *SonarrHandler) fetchStatsWithCache(ctx context.Context, cacheKey string, fetchFn func() (struct {
+	Stats   types.SonarrStatsResponse
+	Version string
+}, error)) (struct {
+	Stats   types.SonarrStatsResponse
+	Version string
+}, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return struct {
+			Stats   types.SonarrStatsResponse
+			Version string
+		}{}, err
+	}
+
+	// Convert the cached data
+	converted, err := utils.SafeStructConvert[struct {
+		Stats   types.SonarrStatsResponse
+		Version string
+	}](data)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("cache_key", cacheKey).
+			Str("type", utils.GetTypeString(data)).
+			Msg("[Sonarr] Failed to convert cached stats data")
+		return struct {
+			Stats   types.SonarrStatsResponse
+			Version string
+		}{}, fmt.Errorf("failed to convert cached stats data: %w", err)
+	}
+
+	return converted, nil
+}
+
 func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
@@ -126,7 +188,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	cacheKey := sonarrQueuePrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
 		return h.fetchQueue(instanceId)
 	})
 
@@ -146,22 +208,20 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	queueResp := result.(types.SonarrQueueResponse)
-
-	if len(queueResp.Records) > 0 {
+	if len(result.Records) > 0 {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
+			Int("totalRecords", result.TotalRecords).
 			Msg("[Sonarr] Queue retrieved with records")
 
 		// Add hash-based change detection
-		h.compareAndLogQueueChanges(instanceId, &queueResp)
+		h.compareAndLogQueueChanges(instanceId, &result)
 
 		// Broadcast queue update via SSE
-		h.broadcastSonarrQueue(instanceId, &queueResp)
+		h.broadcastSonarrQueue(instanceId, &result)
 	}
 
-	c.JSON(http.StatusOK, queueResp)
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *SonarrHandler) fetchQueue(instanceId string) (types.SonarrQueueResponse, error) {
@@ -218,7 +278,10 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	cacheKey := sonarrStatsPrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+	result, err := h.fetchStatsWithCache(ctx, cacheKey, func() (struct {
+		Stats   types.SonarrStatsResponse
+		Version string
+	}, error) {
 		return h.fetchStats(instanceId)
 	})
 
@@ -238,20 +301,15 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	statsResult := result.(struct {
-		Stats   types.SonarrStatsResponse
-		Version string
-	})
-
 	// Add hash-based change detection
-	h.compareAndLogStatsChanges(instanceId, &statsResult.Stats)
+	h.compareAndLogStatsChanges(instanceId, &result.Stats)
 
 	// Broadcast stats update via SSE
-	h.broadcastSonarrStats(instanceId, &statsResult.Stats, statsResult.Version)
+	h.broadcastSonarrStats(instanceId, &result.Stats, result.Version)
 
 	c.JSON(http.StatusOK, gin.H{
-		"stats":   statsResult.Stats,
-		"version": statsResult.Version,
+		"stats":   result.Stats,
+		"version": result.Version,
 	})
 }
 
@@ -356,13 +414,12 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	}
 
 	// Fetch fresh queue data
-	result, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
 		return h.fetchQueue(instanceId)
 	})
 
 	if err == nil {
-		queueResp := result.(types.SonarrQueueResponse)
-		h.broadcastSonarrQueue(instanceId, &queueResp)
+		h.broadcastSonarrQueue(instanceId, &result)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})

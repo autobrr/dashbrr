@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 type EventsHandler struct {
@@ -146,6 +148,15 @@ func cleanupClients() {
 	}
 }
 
+// extractServiceType safely extracts the service type from an instance ID
+func extractServiceType(instanceID string) (string, error) {
+	parts := strings.Split(instanceID, "-")
+	if len(parts) == 0 {
+		return "", fmt.Errorf("invalid instance ID format: %s", instanceID)
+	}
+	return parts[0], nil
+}
+
 // processServiceBatch handles health checks for a batch of services
 func (h *EventsHandler) processServiceBatch(ctx context.Context, services []models.ServiceConfiguration, results chan<- models.ServiceHealth, wg *sync.WaitGroup) {
 	// Process services sequentially within batch to prevent connection spikes
@@ -187,7 +198,18 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 	case healthCheckSemaphore <- struct{}{}:
 		defer func() { <-healthCheckSemaphore }()
 
-		serviceType := strings.Split(svc.InstanceID, "-")[0]
+		serviceType, err := extractServiceType(svc.InstanceID)
+		if err != nil {
+			log.Error().Err(err).Str("instance_id", svc.InstanceID).Msg("Failed to extract service type")
+			results <- models.ServiceHealth{
+				ServiceID:   svc.InstanceID,
+				Status:      "error",
+				Message:     "Invalid service ID format",
+				LastChecked: time.Now(),
+			}
+			return
+		}
+
 		serviceHealth := models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      "checking",
@@ -196,15 +218,34 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 
 		if serviceChecker := models.NewServiceRegistry().CreateService(serviceType); serviceChecker != nil {
 			health, statusCode := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
-			health.ServiceID = svc.InstanceID
+
+			// Safely convert health to ServiceHealth
+			convertedHealth, err := utils.SafeStructConvert[models.ServiceHealth](health)
+			if err != nil {
+				log.Error().
+					Err(err).
+					Str("service", svc.InstanceID).
+					Str("type", utils.GetTypeString(health)).
+					Msg("Failed to convert health check result")
+
+				serviceHealth.Status = "error"
+				serviceHealth.Message = "Failed to process health check result"
+				select {
+				case results <- serviceHealth:
+				case <-checkCtx.Done():
+				}
+				return
+			}
+
+			convertedHealth.ServiceID = svc.InstanceID
 
 			if statusCode != 200 {
 				log.Debug().
 					Int("status_code", statusCode).
 					Str("service", svc.InstanceID).
 					Msg("Health check failed")
-				health.Status = "error"
-				health.Message = "Service returned non-200 status code"
+				convertedHealth.Status = "error"
+				convertedHealth.Message = "Service returned non-200 status code"
 			}
 
 			lastChecksMu.Lock()
@@ -212,7 +253,7 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 			lastChecksMu.Unlock()
 
 			select {
-			case results <- health:
+			case results <- convertedHealth:
 			case <-checkCtx.Done():
 				return
 			}
@@ -354,7 +395,11 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 			if lastUpdateTime, exists := lastUpdate[msg.ServiceID]; !exists || now.Sub(lastUpdateTime) >= 5*time.Second {
 				data, err := json.Marshal(msg)
 				if err != nil {
-					log.Error().Err(err).Msg("Failed to marshal health message")
+					log.Error().
+						Err(err).
+						Interface("msg", msg).
+						Str("type", utils.GetTypeString(msg)).
+						Msg("Failed to marshal health message")
 					continue
 				}
 				lastUpdate[msg.ServiceID] = now

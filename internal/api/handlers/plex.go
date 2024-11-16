@@ -22,6 +22,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -104,6 +105,29 @@ func (h *PlexHandler) fetchDataWithCache(ctx context.Context, cacheKey string, f
 	return data, nil
 }
 
+// fetchSessionsWithCache is a type-safe wrapper around fetchDataWithCache for PlexSessionsResponse
+func (h *PlexHandler) fetchSessionsWithCache(ctx context.Context, cacheKey string, fetchFn func() (*types.PlexSessionsResponse, error)) (*types.PlexSessionsResponse, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the cached data to PlexSessionsResponse
+	converted, err := utils.SafeStructConvert[types.PlexSessionsResponse](data)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("cache_key", cacheKey).
+			Str("type", utils.GetTypeString(data)).
+			Msg("[Plex] Failed to convert cached data")
+		return nil, fmt.Errorf("failed to convert cached data: %w", err)
+	}
+
+	return &converted, nil
+}
+
 func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
@@ -125,7 +149,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("sessions:%s", instanceId)
 	sessionsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return h.fetchSessionsWithCache(ctx, cacheKey, func() (*types.PlexSessionsResponse, error) {
 			return h.fetchSessions(ctx, instanceId)
 		})
 	})
