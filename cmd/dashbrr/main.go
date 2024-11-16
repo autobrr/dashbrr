@@ -47,42 +47,41 @@ func main() {
 	rootCmd.AddCommand(commands.UserCommand())
 	rootCmd.AddCommand(commands.HealthCommand())
 
-	rootCmd.AddCommand(RunCommand())
+	rootCmd.AddCommand(ServeCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
-
-	//startServer()
 }
 
-func RunCommand() *cobra.Command {
+func ServeCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "run",
-		Short: "run",
-		Long:  `run`,
-		Example: `  dashbrr run
-  dashbrr run --help`,
+		Use:   "serve",
+		Short: "Run dashbrr service",
+		Long:  `serve runs dashbrr`,
+		Example: `  dashbrr serve
+  dashbrr serve --help`,
 		//SilenceUsage: true,
 	}
 
 	var (
-		outputJson  = false
-		checkUpdate = false
+		configPath = "config.toml"
+		listenAddr = ":8080"
+		dbFile     = ""
 	)
 
-	command.Flags().BoolVar(&outputJson, "json", false, "output in JSON format")
-	command.Flags().BoolVar(&checkUpdate, "check-github", false, "check for updates")
+	command.Flags().StringVar(&configPath, "config", "config.toml", "path to config file")
+	command.Flags().StringVar(&listenAddr, "listen-addr", listenAddr, "address to listen on")
+	command.Flags().StringVar(&dbFile, "db-file", "", "path to database file")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		startServer()
-		return nil
+		return startServer(configPath, listenAddr, dbFile)
 	}
 
 	return command
 }
 
-func startServer() {
+func startServer(configPath string, listenAddr string, origDBPath string) error {
 	log.Info().
 		Str("version", buildinfo.Version).
 		Str("commit", buildinfo.Commit).
@@ -119,16 +118,10 @@ func startServer() {
 
 	// Store original flag values to detect changes
 	origListenAddr := ":8080"
-	var origDBPath string
-
-	configPath := flag.String("config", defaultConfigPath, "path to config file")
-	listenAddr := flag.String("listen", origListenAddr, "address to listen on")
-	flag.StringVar(&origDBPath, "db", "", "path to database file")
-	flag.Parse()
 
 	// If dbPath wasn't set via flag, use config directory
 	if origDBPath == "" {
-		configDir := filepath.Dir(*configPath)
+		configDir := filepath.Dir(configPath)
 		origDBPath = filepath.Join(configDir, "data", "dashbrr.db")
 	}
 
@@ -138,19 +131,21 @@ func startServer() {
 	if config.HasRequiredEnvVars() {
 		cfg = &config.Config{}
 		if err := config.LoadEnvOverrides(cfg); err != nil {
-			log.Fatal().Err(err).Msg("Failed to load environment variables")
+			log.Error().Err(err).Msg("Failed to load environment variables")
+			return err
 		}
 	} else {
-		log.Debug().Str("path", *configPath).Msg("Loading config file")
+		log.Debug().Str("path", configPath).Msg("Loading config file")
 
-		cfg, err = config.LoadConfig(*configPath)
+		cfg, err = config.LoadConfig(configPath)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to load or create configuration")
+			log.Error().Err(err).Msg("Failed to load or create configuration")
+			return err
 		}
 
 		// Override with command line flags if they differ from defaults
-		if *listenAddr != origListenAddr {
-			cfg.Server.ListenAddr = *listenAddr
+		if listenAddr != origListenAddr {
+			cfg.Server.ListenAddr = listenAddr
 		}
 		if flag.Lookup("db") != nil && origDBPath != "" {
 			cfg.Database.Path = origDBPath
@@ -159,7 +154,8 @@ func startServer() {
 
 	db, err := database.InitDB(cfg.Database.Path)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize database")
+		log.Error().Err(err).Msg("Failed to initialize database")
+		return err
 	}
 	defer db.Close()
 
@@ -215,7 +211,8 @@ func startServer() {
 			Str("database", cfg.Database.Path).
 			Msg("Starting server")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("Failed to start server")
+			log.Error().Err(err).Msg("Failed to start server")
+			return
 		}
 	}()
 
@@ -228,8 +225,11 @@ func startServer() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal().Err(err).Msg("Server forced to shutdown")
+		log.Error().Err(err).Msg("Server forced to shutdown")
+		return err
 	}
 
 	log.Info().Msg("Server exiting")
+
+	return nil
 }

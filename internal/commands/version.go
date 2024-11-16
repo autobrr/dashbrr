@@ -32,9 +32,10 @@ type GitHubRelease struct {
 func VersionCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "version",
-		Short: "version",
-		Long:  `version`,
-		Example: `  dashbrr version
+		Short: "Print version and check for updates",
+		Long:  `Print version and check for updates`,
+		Example: `  dashbrr version --check-github
+  dashbrr version --json
   dashbrr version --help`,
 		//SilenceUsage: true,
 	}

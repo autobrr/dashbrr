@@ -13,9 +13,9 @@ import (
 func UserCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "user",
-		Short: "user",
-		Long:  `user`,
-		Example: `  dashbrr user 
+		Short: "Manage users. Create, change password",
+		Long:  `Manage users. Create, change password`,
+		Example: `  dashbrr user
   dashbrr user --help`,
 		SilenceUsage: true,
 	}
@@ -33,8 +33,8 @@ func UserCommand() *cobra.Command {
 func UserCreateCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "create",
-		Short: "create",
-		Long:  `create`,
+		Short: "Create new user",
+		Long:  `Create new user`,
 		Example: `  dashbrr user create <username> <password>
   dashbrr user create --help`,
 		//SilenceUsage: true,
@@ -113,8 +113,8 @@ func UserCreateCommand() *cobra.Command {
 func UserChangePasswordCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "change-password",
-		Short: "change-password",
-		Long:  `change-password`,
+		Short: "Change user password",
+		Long:  `Change user password`,
 		Example: `  dashbrr user change-password <username> <new-password>
   dashbrr user change-password --help`,
 		//SilenceUsage: true,

@@ -20,8 +20,8 @@ func initializeDatabase() (*database.DB, error) {
 func ServiceCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "service",
-		Short: "service",
-		Long:  `service`,
+		Short: "Manage services",
+		Long:  `Manage services`,
 		Example: `  dashbrr service 
   dashbrr service --help`,
 		//SilenceUsage: true,

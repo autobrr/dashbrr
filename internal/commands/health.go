@@ -25,22 +25,20 @@ import (
 func HealthCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "health",
-		Short: "health",
-		Long:  `health`,
-		Example: `  dashbrr health
+		Short: "Check health of system and services",
+		Long:  `Check health of system and services`,
+		Example: `  dashbrr health --services --system --json
   dashbrr health --help`,
 		//SilenceUsage: true,
 	}
 
 	var (
 		outputJson    = false
-		checkUpdate   = false
 		checkServices = false
 		checkSystem   = false
 	)
 
 	command.Flags().BoolVar(&outputJson, "json", false, "output in JSON format")
-	command.Flags().BoolVar(&checkUpdate, "check-github", false, "check for updates")
 	command.Flags().BoolVar(&checkServices, "checkServices", false, "check checkServices")
 	command.Flags().BoolVar(&checkSystem, "system", false, "check system")
 

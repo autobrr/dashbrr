@@ -17,8 +17,8 @@ import (
 func ConfigCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "config",
-		Short: "config",
-		Long:  `config`,
+		Short: "Manage config. Import, export, discover",
+		Long:  `Manage config. Import, export, discover`,
 		Example: `  dashbrr config 
   dashbrr config --help`,
 		SilenceUsage: true,
