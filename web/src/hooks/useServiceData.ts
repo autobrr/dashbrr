@@ -263,13 +263,24 @@ export const useServiceData = () => {
             api.get<AutobrrIRC[]>(`/api/autobrr/irc?instanceId=${service.instanceId}`),
             api.get<AutobrrReleases>(`/api/autobrr/releases?instanceId=${service.instanceId}`)
           ]);
+
+          // Initialize data with stats and IRC info if available
           if (statsData && ircData) {
-            data = { 
-              stats: { autobrr: statsData }, 
-              details: { autobrr: { 
-                irc: ircData,
-                base_url: service.url || ''
-              }},
+            data = {
+              stats: { autobrr: statsData },
+              details: {
+                autobrr: {
+                  irc: ircData,
+                  base_url: service.url || ''
+                }
+              }
+            };
+          }
+
+          // Add releases data if available
+          if (releasesData) {
+            data = {
+              ...data,
               releases: releasesData
             };
           }
@@ -592,11 +603,13 @@ const updateService = useCallback((service: Service) => {
             break;
           }
           case 'autobrr_releases': {
-            if (health.stats?.autobrr && 'data' in health.stats.autobrr) {
+            if (health.stats?.autobrr) {
               const releases = health.stats.autobrr as unknown as AutobrrReleases;
-              updateServiceData(health.serviceId, {
-                releases
-              });
+              if (releases && releases.data) {
+                updateServiceData(health.serviceId, {
+                  releases
+                });
+              }
             }
             break;
           }
@@ -857,4 +870,5 @@ const updateService = useCallback((service: Service) => {
     refreshService: debouncedRefreshService
   };
 };
+
 
