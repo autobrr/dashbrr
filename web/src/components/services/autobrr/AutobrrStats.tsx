@@ -70,9 +70,6 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   const ircStatus = service.details?.autobrr?.irc;
   const releases = service.releases?.data || [];
 
-  console.log("Service releases:", service.instanceId, service.releases?.data);
-
-  // Only show message component if there's a message or status isn't online
   const showMessage = service.message || service.status !== "online";
 
   const baseUrl = service?.url || "";
@@ -194,108 +191,118 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
       )}
 
       {/* Recent Releases */}
-      {releases.length > 0 && (
+      {(service.status === "online" || service.status === "warning") && (
         <div>
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Recent Releases:
           </div>
-          <div className="space-y-1.5">
-            {releases.slice(0, 5).map((release: AutobrrRelease) => (
-              <div
-                key={release.id}
-                className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3"
-              >
-                <div className="flex justify-between items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="text-xs rounded-md text-gray-700 dark:text-gray-400 truncate space-y-2 cursor-help"
-                      title={release.name}
-                    >
-                      {release.name}
-                    </div>
-                    <div className="mt-1 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <div className="flex items-center gap-1.5">
-                        {release.filter_status === "FILTER_REJECTED" ? (
-                          <NoSymbolIcon className="w-4 h-4 text-red-500" />
-                        ) : release.action_status?.[0]?.status ===
-                          "PUSH_APPROVED" ? (
-                          <CheckCircleIcon className="w-4 h-4 text-green-500" />
-                        ) : release.action_status?.[0]?.status ===
-                          "PUSH_REJECTED" ? (
-                          <XCircleIcon className="w-4 h-4 text-blue-400" />
-                        ) : release.action_status?.[0]?.status ===
-                          "PUSH_ERROR" ? (
-                          <ExclamationCircleIcon className="w-4 h-4 text-red-500" />
-                        ) : (
-                          <ClockIcon className="w-4 h-4 text-yellow-500" />
-                        )}
-                        <span>{release.indexer.name}</span>
+          {releases.length > 0 ? (
+            <div className="space-y-1.5">
+              {releases.slice(0, 5).map((release: AutobrrRelease) => (
+                <div
+                  key={release.id}
+                  className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3"
+                >
+                  <div className="flex justify-between items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="text-xs rounded-md text-gray-700 dark:text-gray-400 truncate space-y-2 cursor-help"
+                        title={release.name}
+                      >
+                        {release.name}
                       </div>
-                      <span className="text-gray-500">•</span>
-                      <span>
-                        {release.filter_status === "FILTER_REJECTED"
-                          ? "Rejected"
-                          : release.action_status?.[0]?.status ===
-                            "PUSH_APPROVED"
-                          ? "Approved"
-                          : release.action_status?.[0]?.status ===
-                            "PUSH_REJECTED"
-                          ? "Rejected"
-                          : release.action_status?.[0]?.status === "PUSH_ERROR"
-                          ? "Error"
-                          : "Pending"}
-                      </span>
-                      {release.filter && (
-                        <>
-                          <span className="text-gray-500 truncate">•</span>
-                          <span>{release.filter}</span>
-                        </>
-                      )}
-                      {release.source && (
-                        <>
-                          <span className="text-gray-500">•</span>
-                          <span className="flex items-center gap-1">
-                            {(() => {
-                              const mediaType = getMediaType(release.category);
-                              const IconComponent = getMediaTypeIcon(mediaType);
-                              return (
-                                <>
-                                  <IconComponent className="w-4 h-4" />
-                                  {mediaType}
-                                </>
-                              );
-                            })()}
-                          </span>
-                        </>
-                      )}
+                      <div className="mt-1 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <div className="flex items-center gap-1.5">
+                          {release.filter_status === "FILTER_REJECTED" ? (
+                            <NoSymbolIcon className="w-4 h-4 text-red-500" />
+                          ) : release.action_status?.[0]?.status ===
+                            "PUSH_APPROVED" ? (
+                            <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                          ) : release.action_status?.[0]?.status ===
+                            "PUSH_REJECTED" ? (
+                            <XCircleIcon className="w-4 h-4 text-blue-400" />
+                          ) : release.action_status?.[0]?.status ===
+                            "PUSH_ERROR" ? (
+                            <ExclamationCircleIcon className="w-4 h-4 text-red-500" />
+                          ) : (
+                            <ClockIcon className="w-4 h-4 text-yellow-500" />
+                          )}
+                          <span>{release.indexer.name}</span>
+                        </div>
+                        <span className="text-gray-500">•</span>
+                        <span>
+                          {release.filter_status === "FILTER_REJECTED"
+                            ? "Rejected"
+                            : release.action_status?.[0]?.status ===
+                              "PUSH_APPROVED"
+                            ? "Approved"
+                            : release.action_status?.[0]?.status ===
+                              "PUSH_REJECTED"
+                            ? "Rejected"
+                            : release.action_status?.[0]?.status ===
+                              "PUSH_ERROR"
+                            ? "Error"
+                            : "Pending"}
+                        </span>
+                        {release.filter && (
+                          <>
+                            <span className="text-gray-500 truncate">•</span>
+                            <span>{release.filter}</span>
+                          </>
+                        )}
+                        {release.source && (
+                          <>
+                            <span className="text-gray-500">•</span>
+                            <span className="flex items-center gap-1">
+                              {(() => {
+                                const mediaType = getMediaType(
+                                  release.category
+                                );
+                                const IconComponent =
+                                  getMediaTypeIcon(mediaType);
+                                return (
+                                  <>
+                                    <IconComponent className="w-4 h-4" />
+                                    {mediaType}
+                                  </>
+                                );
+                              })()}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
+                    {release.download_url && (
+                      <a
+                        href={release.download_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 flex-shrink-0"
+                        title={`Download torrentfile`}
+                      >
+                        <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                      </a>
+                    )}{" "}
+                    {release.info_url && (
+                      <a
+                        href={release.info_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 flex-shrink-0"
+                        title={`View this release on ${release.indexer.name}`}
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                      </a>
+                    )}
                   </div>
-                  {release.download_url && (
-                    <a
-                      href={release.download_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 flex-shrink-0"
-                      title={`Download torrentfile`}
-                    >
-                      <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                    </a>
-                  )}{" "}
-                  {release.info_url && (
-                    <a
-                      href={release.info_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 flex-shrink-0"
-                      title={`View this release on ${release.indexer.name}`}
-                    >
-                      <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                    </a>
-                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
+              No recent releases
+            </div>
+          )}
         </div>
       )}
     </div>

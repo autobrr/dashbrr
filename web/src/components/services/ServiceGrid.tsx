@@ -233,33 +233,31 @@ export const ServiceGrid = ({
   }
 
   return (
-    <div className="w-full">
-      <div className="px-0 py-6 w-full">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
+    <div className="w-full mt-4">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={items.map((item) => item.instanceId)}
+          strategy={horizontalListSortingStrategy}
         >
-          <SortableContext
-            items={items.map((item) => item.instanceId)}
-            strategy={horizontalListSortingStrategy}
+          <div
+            className="columns-1 sm:columns-1 md:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 3xl:columns-6 gap-6"
+            style={{ columnFill: "balance", width: "100%" }}
           >
-            <div
-              className="columns-1 sm:columns-2 lg:columns-3 2xl:columns-4 gap-4"
-              style={{ columnFill: "balance" }}
-            >
-              {items.map((service) => (
-                <DraggableServiceCard
-                  key={service.instanceId}
-                  service={service}
-                  onRemove={() => handleRemoveService(service.instanceId)}
-                  isConnected={isConnected}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </div>
+            {items.map((service) => (
+              <DraggableServiceCard
+                key={service.instanceId}
+                service={service}
+                onRemove={() => handleRemoveService(service.instanceId)}
+                isConnected={isConnected}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 };

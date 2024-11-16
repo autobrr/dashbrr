@@ -95,7 +95,8 @@ func (s *MaintainerrService) GetHealthEndpoint(baseURL string) string {
 }
 
 func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string, error) {
-	if version := s.GetVersionFromCache(url); version != "" {
+	// Check cache first, ensuring we don't return "true" as a version
+	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
 		return version, nil
 	}
 
@@ -116,9 +117,18 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 		return "", &ErrMaintainerr{Op: "get_version", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
+	// Cache version for 1 hour
 	if err := s.CacheVersion(url, statusResponse.Version, time.Hour); err != nil {
 		// Log but don't fail if caching fails
 		fmt.Printf("Failed to cache version: %v\n", err)
+	}
+
+	// Cache update status separately
+	if statusResponse.UpdateAvailable {
+		updateKey := fmt.Sprintf("%s:update", url)
+		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
+			fmt.Printf("Failed to cache update status: %v\n", err)
+		}
 	}
 
 	return statusResponse.Version, nil
@@ -196,6 +206,14 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 		versionErr = <-errChan
 	case <-healthCtx.Done():
 		versionErr = healthCtx.Err()
+	}
+
+	// Cache update status
+	if statusResponse.UpdateAvailable {
+		updateKey := fmt.Sprintf("%s:update", url)
+		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
+			fmt.Printf("Failed to cache update status: %v\n", err)
+		}
 	}
 
 	extras := map[string]interface{}{
