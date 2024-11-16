@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 type EventsHandler struct {
@@ -46,8 +48,8 @@ var (
 	// Track active client count
 	activeClients atomic.Int64
 
-	// Reduced concurrent checks from 10 to 5 to prevent overwhelming
-	healthCheckSemaphore = make(chan struct{}, 5)
+	// Reduced concurrent checks to prevent connection leaks
+	healthCheckSemaphore = make(chan struct{}, 2)
 
 	// Track last check time per service
 	lastChecks   = make(map[string]time.Time)
@@ -58,14 +60,14 @@ var (
 )
 
 const (
-	minCheckInterval  = 30 * time.Second
-	checkTimeout      = 10 * time.Second // Reduced from 15s to 10s
+	minCheckInterval  = 60 * time.Second // Increased to reduce connection frequency
+	checkTimeout      = 10 * time.Second
 	keepAliveInterval = 15 * time.Second
-	broadcastTimeout  = 2 * time.Second  // Reduced from 5s to 2s
-	clientBufferSize  = 50               // Reduced from 100 to 50
-	cleanupInterval   = 2 * time.Minute  // More frequent cleanup
-	maxClientAge      = 10 * time.Minute // Max time before forcing reconnect
-	maxInactiveTime   = 30 * time.Second // Max time without successful message
+	broadcastTimeout  = 2 * time.Second
+	clientBufferSize  = 10 // Reduced buffer size
+	cleanupInterval   = 2 * time.Minute
+	maxClientAge      = 10 * time.Minute
+	maxInactiveTime   = 30 * time.Second
 )
 
 // safeClose safely closes a channel if it's not already closed
@@ -146,8 +148,18 @@ func cleanupClients() {
 	}
 }
 
+// extractServiceType safely extracts the service type from an instance ID
+func extractServiceType(instanceID string) (string, error) {
+	parts := strings.Split(instanceID, "-")
+	if len(parts) == 0 {
+		return "", fmt.Errorf("invalid instance ID format: %s", instanceID)
+	}
+	return parts[0], nil
+}
+
 // processServiceBatch handles health checks for a batch of services
 func (h *EventsHandler) processServiceBatch(ctx context.Context, services []models.ServiceConfiguration, results chan<- models.ServiceHealth, wg *sync.WaitGroup) {
+	// Process services sequentially within batch to prevent connection spikes
 	for _, service := range services {
 		if service.URL == "" {
 			continue
@@ -158,7 +170,8 @@ func (h *EventsHandler) processServiceBatch(ctx context.Context, services []mode
 			return
 		default:
 			wg.Add(1)
-			go h.checkSingleService(ctx, service, results, wg)
+			// Run synchronously to prevent connection spikes
+			h.checkSingleService(ctx, service, results, wg)
 		}
 	}
 }
@@ -166,6 +179,16 @@ func (h *EventsHandler) processServiceBatch(ctx context.Context, services []mode
 // checkSingleService performs health check for a single service
 func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.ServiceConfiguration, results chan<- models.ServiceHealth, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	// Skip if checked recently
+	lastChecksMu.RLock()
+	if lastCheck, exists := lastChecks[svc.InstanceID]; exists {
+		if time.Since(lastCheck) < minCheckInterval {
+			lastChecksMu.RUnlock()
+			return
+		}
+	}
+	lastChecksMu.RUnlock()
 
 	// Create timeout context for health check
 	checkCtx, cancel := context.WithTimeout(ctx, checkTimeout)
@@ -175,7 +198,18 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 	case healthCheckSemaphore <- struct{}{}:
 		defer func() { <-healthCheckSemaphore }()
 
-		serviceType := strings.Split(svc.InstanceID, "-")[0]
+		serviceType, err := extractServiceType(svc.InstanceID)
+		if err != nil {
+			log.Error().Err(err).Str("instance_id", svc.InstanceID).Msg("Failed to extract service type")
+			results <- models.ServiceHealth{
+				ServiceID:   svc.InstanceID,
+				Status:      "error",
+				Message:     "Invalid service ID format",
+				LastChecked: time.Now(),
+			}
+			return
+		}
+
 		serviceHealth := models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      "checking",
@@ -184,15 +218,34 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 
 		if serviceChecker := models.NewServiceRegistry().CreateService(serviceType); serviceChecker != nil {
 			health, statusCode := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
-			health.ServiceID = svc.InstanceID
+
+			// Safely convert health to ServiceHealth
+			convertedHealth, err := utils.SafeStructConvert[models.ServiceHealth](health)
+			if err != nil {
+				log.Error().
+					Err(err).
+					Str("service", svc.InstanceID).
+					Str("type", utils.GetTypeString(health)).
+					Msg("Failed to convert health check result")
+
+				serviceHealth.Status = "error"
+				serviceHealth.Message = "Failed to process health check result"
+				select {
+				case results <- serviceHealth:
+				case <-checkCtx.Done():
+				}
+				return
+			}
+
+			convertedHealth.ServiceID = svc.InstanceID
 
 			if statusCode != 200 {
 				log.Debug().
 					Int("status_code", statusCode).
 					Str("service", svc.InstanceID).
 					Msg("Health check failed")
-				health.Status = "error"
-				health.Message = "Service returned non-200 status code"
+				convertedHealth.Status = "error"
+				convertedHealth.Message = "Service returned non-200 status code"
 			}
 
 			lastChecksMu.Lock()
@@ -200,7 +253,7 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 			lastChecksMu.Unlock()
 
 			select {
-			case results <- health:
+			case results <- convertedHealth:
 			case <-checkCtx.Done():
 				return
 			}
@@ -212,8 +265,6 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 			case <-checkCtx.Done():
 			}
 		}
-	case <-time.After(5 * time.Second): // Reduced timeout
-		log.Debug().Str("service", svc.InstanceID).Msg("Health check skipped due to concurrency limit")
 	case <-checkCtx.Done():
 		log.Debug().Str("service", svc.InstanceID).Msg("Health check cancelled")
 	}
@@ -222,7 +273,7 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 // collectResults gathers health check results with timeout
 func (h *EventsHandler) collectResults(ctx context.Context, results <-chan models.ServiceHealth) []models.ServiceHealth {
 	var allResults []models.ServiceHealth
-	resultsTimer := time.NewTimer(3 * time.Second) // Reduced collection timeout
+	resultsTimer := time.NewTimer(5 * time.Second)
 	defer resultsTimer.Stop()
 
 	for {
@@ -257,54 +308,19 @@ func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []models.Se
 
 	var wg sync.WaitGroup
 	results := make(chan models.ServiceHealth, len(services))
-	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second) // Overall timeout for batch
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second) // Increased timeout for sequential processing
 	defer cancel()
 
-	// Process services in smaller batches
-	batchSize := 3 // Reduced batch size
-	for i := 0; i < len(services); i += batchSize {
-		end := i + batchSize
-		if end > len(services) {
-			end = len(services)
-		}
+	// Process all services in a single batch
+	h.processServiceBatch(checkCtx, services, results, &wg)
 
-		h.processServiceBatch(checkCtx, services[i:end], results, &wg)
-
-		// Wait for batch completion or context cancellation
-		if !h.waitForBatch(checkCtx, &wg) {
-			return nil
-		}
-
-		// Increased delay between batches
-		time.Sleep(time.Second)
-	}
-
-	// Close results channel after all goroutines complete
+	// Close results channel after all services are processed
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
 	return h.collectResults(checkCtx, results)
-}
-
-// waitForBatch waits for the current batch to complete or context to be canceled
-func (h *EventsHandler) waitForBatch(ctx context.Context, wg *sync.WaitGroup) bool {
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return true
-	case <-ctx.Done():
-		return false
-	case <-time.After(5 * time.Second): // Added timeout for batch wait
-		log.Warn().Msg("Batch wait timeout")
-		return false
-	}
 }
 
 // StreamHealth handles SSE connections for real-time health updates
@@ -379,7 +395,11 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 			if lastUpdateTime, exists := lastUpdate[msg.ServiceID]; !exists || now.Sub(lastUpdateTime) >= 5*time.Second {
 				data, err := json.Marshal(msg)
 				if err != nil {
-					log.Error().Err(err).Msg("Failed to marshal health message")
+					log.Error().
+						Err(err).
+						Interface("msg", msg).
+						Str("type", utils.GetTypeString(msg)).
+						Msg("Failed to marshal health message")
 					continue
 				}
 				lastUpdate[msg.ServiceID] = now

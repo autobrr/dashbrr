@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -119,11 +120,12 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		return models.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
 	}
 
-	// Get response time
-	respTimeStr := resp.Header.Get("X-Response-Time")
-	var respTime time.Duration
-	if respTimeStr != "" {
-		respTime, _ = time.ParseDuration(respTimeStr)
+	// Get response time from header (stored as milliseconds)
+	var responseTimeMs int64
+	if respTimeStr := resp.Header.Get("X-Response-Time"); respTimeStr != "" {
+		if ms, err := strconv.ParseInt(respTimeStr, 10, 64); err == nil {
+			responseTimeMs = ms
+		}
 	}
 
 	// Handle error status codes
@@ -151,7 +153,7 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 
 	// Build response
 	extras := map[string]interface{}{
-		"responseTime": respTime.Milliseconds(),
+		"responseTime": responseTimeMs,
 	}
 
 	// Set version in extras
