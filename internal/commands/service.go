@@ -34,6 +34,7 @@ func ServiceCommand() *cobra.Command {
 	command.AddCommand(ServiceListCommand())
 
 	command.AddCommand(ServiceAutobrrCommand())
+	command.AddCommand(ServiceGeneralCommand())
 	command.AddCommand(ServiceMaintainerrCommand())
 	command.AddCommand(ServiceOmegabrrCommand())
 	command.AddCommand(ServiceOverseerrCommand())

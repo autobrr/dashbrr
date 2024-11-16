@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func ServiceGenericCommand() *cobra.Command {
+func ServiceGeneralCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "generic",
 		Short: "generic management",
@@ -25,14 +25,14 @@ func ServiceGenericCommand() *cobra.Command {
 		return cmd.Usage()
 	}
 
-	command.AddCommand(ServiceGenericListCommand())
-	command.AddCommand(ServiceGenericAddCommand())
-	command.AddCommand(ServiceGenericRemoveCommand())
+	command.AddCommand(ServiceGeneralListCommand())
+	command.AddCommand(ServiceGeneralAddCommand())
+	command.AddCommand(ServiceGeneralRemoveCommand())
 
 	return command
 }
 
-func ServiceGenericListCommand() *cobra.Command {
+func ServiceGeneralListCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -61,11 +61,11 @@ func ServiceGenericListCommand() *cobra.Command {
 		}
 
 		if len(services) == 0 {
-			fmt.Println("No Generic services configured.")
+			fmt.Println("No General services configured.")
 			return nil
 		}
 
-		fmt.Println("Configured Generic Services:")
+		fmt.Println("Configured General Services:")
 		for _, service := range services {
 
 			if strings.HasPrefix(service.InstanceID, "general-") {
@@ -87,14 +87,14 @@ func ServiceGenericListCommand() *cobra.Command {
 	return command
 }
 
-func ServiceGenericAddCommand() *cobra.Command {
+func ServiceGeneralAddCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "add",
 		Short: "add",
 		Long:  `add`,
-		Example: `  dashbrr service generic add [url] [name]
-  dashbrr service generic add [url] [name] [apiKey]
-  dashbrr service generic add --help`,
+		Example: `  dashbrr service general add [url] [name]
+  dashbrr service general add [url] [name] [apiKey]
+  dashbrr service general add --help`,
 		Args: cobra.MinimumNArgs(2),
 	}
 
@@ -142,14 +142,14 @@ func ServiceGenericAddCommand() *cobra.Command {
 			return fmt.Errorf("service with URL %s already exists", serviceURL)
 		}
 
-		// Create Generic service
-		genericService := models.NewGeneralService()
+		// Create General service
+		generalService := models.NewGeneralService()
 
 		// Perform health check to validate connection
-		health, _ := genericService.CheckHealth(cmd.Context(), serviceURL, apiKey)
+		health, _ := generalService.CheckHealth(cmd.Context(), serviceURL, apiKey)
 
 		if health.Status != "online" {
-			return fmt.Errorf("failed to connect to Generic service: %s", health.Message)
+			return fmt.Errorf("failed to connect to General service: %s", health.Message)
 		}
 
 		// Get next available instance ID
@@ -170,7 +170,7 @@ func ServiceGenericAddCommand() *cobra.Command {
 			return fmt.Errorf("failed to save service configuration: %v", err)
 		}
 
-		fmt.Printf("Generic service added successfully:\n")
+		fmt.Printf("General service added successfully:\n")
 		fmt.Printf("  URL: %s\n", serviceURL)
 		fmt.Printf("  Version: %s\n", health.Version)
 		fmt.Printf("  Status: %s\n", health.Status)
@@ -181,13 +181,13 @@ func ServiceGenericAddCommand() *cobra.Command {
 	return command
 }
 
-func ServiceGenericRemoveCommand() *cobra.Command {
+func ServiceGeneralRemoveCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "remove",
 		Short: "remove",
 		Long:  `remove`,
-		Example: `  dashbrr service generic remove"
-  dashbrr service generic remove --help`,
+		Example: `  dashbrr service general remove"
+  dashbrr service general remove --help`,
 		Args: cobra.MinimumNArgs(1),
 	}
 
@@ -219,7 +219,7 @@ func ServiceGenericRemoveCommand() *cobra.Command {
 			return fmt.Errorf("failed to remove service: %v", err)
 		}
 
-		fmt.Printf("Generic service removed successfully:\n")
+		fmt.Printf("General service removed successfully:\n")
 		fmt.Printf("  URL: %s\n", serviceURL)
 		fmt.Printf("  Instance ID: %s\n", service.InstanceID)
 

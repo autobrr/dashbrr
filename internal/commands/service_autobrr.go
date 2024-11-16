@@ -47,16 +47,9 @@ func ServiceAutobrrListCommand() *cobra.Command {
 		Args: cobra.MinimumNArgs(1),
 	}
 
-	var (
-		dry     bool
-		verbose bool
-		dbFile  = ""
-	)
-
-	command.Flags().StringVar(&dbFile, "db-file", "torrents.db", "torrents database file. default is ./torrents.db")
+	var dry bool
 
 	command.Flags().BoolVar(&dry, "dry-run", false, "Dry run, don't write changes")
-	command.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
 		db, err := initializeDatabase()
@@ -106,16 +99,9 @@ func ServiceAutobrrAddCommand() *cobra.Command {
 		Args: cobra.MinimumNArgs(2),
 	}
 
-	var (
-		dry     bool
-		verbose bool
-		dbFile  = ""
-	)
-
-	command.Flags().StringVar(&dbFile, "db-file", "torrents.db", "torrents database file. default is ./torrents.db")
+	var dry bool
 
 	command.Flags().BoolVar(&dry, "dry-run", false, "Dry run, don't write changes")
-	command.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
 		db, err := initializeDatabase()
@@ -194,16 +180,9 @@ func ServiceAutobrrRemoveCommand() *cobra.Command {
 		Args: cobra.MinimumNArgs(1),
 	}
 
-	var (
-		dry     bool
-		verbose bool
-		dbFile  = ""
-	)
-
-	command.Flags().StringVar(&dbFile, "db-file", "torrents.db", "torrents database file. default is ./torrents.db")
+	var dry bool
 
 	command.Flags().BoolVar(&dry, "dry-run", false, "Dry run, don't write changes")
-	command.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
 		db, err := initializeDatabase()
