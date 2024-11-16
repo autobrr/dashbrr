@@ -44,7 +44,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 - Responsive and modern UI with draggable cards
 - Docker support
 - Multiple database support (SQLite & PostgreSQL)
-- Flexible caching system (In-memory or Redis)
+- Built-in memory caching system
 - Comprehensive CLI for service management and system operations
 - Progressive Web App (PWA) support for mobile and desktop
 
@@ -79,13 +79,10 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 Several docker-compose configurations are available in the `docker-compose` directory:
 
 ```bash
-# Using memory cache (default)
+# Basic setup
 docker compose -f docker-compose/docker-compose.yml up -d
 
-# Using Redis cache
-docker compose -f docker-compose/docker-compose.redis.yml up -d
-
-# Using service discovery features
+# With service discovery features
 docker compose -f docker-compose/docker-compose.discovery.yml up -d
 ```
 
@@ -175,7 +172,7 @@ For a complete list of available environment variables and their configurations,
 Key configuration options include:
 
 - Server settings (listen address, ports)
-- Cache configuration (Memory/Redis)
+- Cache configuration
 - Database settings (SQLite/PostgreSQL)
 - Authentication (Built-in/OIDC)
 
@@ -234,7 +231,7 @@ OIDC_REDIRECT_URL=http://localhost:3000/auth/callback
 ### Backend
 
 - Go with Gin web framework
-- Flexible caching: In-memory or Redis
+- Built-in memory caching system
 - Database: SQLite or PostgreSQL
 
 ### Frontend
