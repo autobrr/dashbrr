@@ -34,6 +34,12 @@ const CACHE_PREFIXES = {
   },
   MAINTAINERR: {
     COLLECTIONS: 'maintainerr:collections:'
+  },
+  RADARR: {
+    QUEUE: 'radarr:queue:'
+  },
+  SONARR: {
+    QUEUE: 'sonarr:queue:'
   }
 };
 
@@ -47,7 +53,7 @@ const PRESERVED_KEYS = [
 
 // Cache times for different types of data
 const HEALTH_TTL = 300000;                // 5 minutes for health checks
-const DEFAULT_STATS_TTL = 30000;          // 30 seconds default for stats
+const DEFAULT_STATS_TTL = 60000;          // Increased to 60 seconds default for stats
 const DEFAULT_MAX_ENTRIES = 1000;
 
 // Service-specific cache configurations
@@ -66,23 +72,35 @@ const SERVICE_CACHE_CONFIGS: Record<string, CacheConfig> = {
   },
   // Autobrr stats and IRC status
   [CACHE_PREFIXES.AUTOBRR.STATS]: {
-    ttl: 30000, // 30 seconds
-    staleWhileRevalidate: 15000,
+    ttl: 60000, // Increased to 60 seconds
+    staleWhileRevalidate: 30000,
     maxEntries: DEFAULT_MAX_ENTRIES
   },
   [CACHE_PREFIXES.AUTOBRR.IRC]: {
-    ttl: 30000, // 30 seconds
-    staleWhileRevalidate: 15000,
+    ttl: 60000, // Increased to 60 seconds
+    staleWhileRevalidate: 30000,
     maxEntries: DEFAULT_MAX_ENTRIES
   },
   // Overseerr stats
   [CACHE_PREFIXES.OVERSEERR.STATS]: {
-    ttl: 60000, // 1 minute
-    staleWhileRevalidate: 30000,
+    ttl: 120000, // Increased to 2 minutes
+    staleWhileRevalidate: 60000,
     maxEntries: DEFAULT_MAX_ENTRIES
   },
   // Maintainerr collections
   [CACHE_PREFIXES.MAINTAINERR.COLLECTIONS]: {
+    ttl: 120000, // Increased to 2 minutes
+    staleWhileRevalidate: 60000,
+    maxEntries: DEFAULT_MAX_ENTRIES
+  },
+  // Radarr queue
+  [CACHE_PREFIXES.RADARR.QUEUE]: {
+    ttl: 60000, // 1 minute
+    staleWhileRevalidate: 30000,
+    maxEntries: DEFAULT_MAX_ENTRIES
+  },
+  // Sonarr queue
+  [CACHE_PREFIXES.SONARR.QUEUE]: {
     ttl: 60000, // 1 minute
     staleWhileRevalidate: 30000,
     maxEntries: DEFAULT_MAX_ENTRIES
@@ -90,7 +108,7 @@ const SERVICE_CACHE_CONFIGS: Record<string, CacheConfig> = {
   // Default stats configuration
   [CACHE_PREFIXES.STATS]: {
     ttl: DEFAULT_STATS_TTL,
-    staleWhileRevalidate: 15000, // 15 seconds
+    staleWhileRevalidate: 30000,
     maxEntries: DEFAULT_MAX_ENTRIES
   }
 };
@@ -99,14 +117,14 @@ export class Cache {
   private static instance: Cache;
   private config: CacheConfig = {
     ttl: DEFAULT_STATS_TTL,
-    staleWhileRevalidate: 15000,
+    staleWhileRevalidate: 30000,
     maxEntries: DEFAULT_MAX_ENTRIES,
   };
   private memoryCache: Map<string, CacheEntry<unknown>> = new Map();
 
   private constructor() {
     this.loadFromLocalStorage();
-    setInterval(() => this.cleanup(), 60000); // Run cleanup every minute
+    setInterval(() => this.cleanup(), 300000); // Run cleanup every 5 minutes
   }
 
   static getInstance(): Cache {

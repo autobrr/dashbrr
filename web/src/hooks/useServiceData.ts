@@ -100,6 +100,23 @@ export const useServiceData = () => {
   }, []);
 
   const fetchPlexSessions = useCallback(async (service: Service) => {
+    const cacheKey = `${CACHE_PREFIXES.PLEX.SESSIONS}${service.instanceId}`;
+    const { data: cachedData, isStale } = cache.get<{ MediaContainer?: { Metadata?: PlexSession[] } }>(cacheKey);
+
+    if (cachedData && !isStale) {
+      const sessions = cachedData.MediaContainer?.Metadata || [];
+      updateServiceData(service.instanceId, {
+        stats: { plex: { sessions } },
+        details: {
+          plex: {
+            activeStreams: sessions.length,
+            transcoding: sessions.filter(s => s?.TranscodeSession).length
+          }
+        }
+      });
+      return;
+    }
+
     try {
       const response = await api.get<{ MediaContainer?: { Metadata?: PlexSession[] } }>(
         `/api/plex/sessions?instanceId=${service.instanceId}`
@@ -114,6 +131,7 @@ export const useServiceData = () => {
           }
         }
       };
+      cache.set(cacheKey, response);
       updateServiceData(service.instanceId, data);
     } catch (error) {
       console.error('Error fetching Plex sessions:', error);
@@ -121,6 +139,23 @@ export const useServiceData = () => {
   }, [updateServiceData]);
 
   const fetchOverseerrRequests = useCallback(async (service: Service) => {
+    const cacheKey = `${CACHE_PREFIXES.OVERSEERR.STATS}${service.instanceId}`;
+    const { data: cachedStats, isStale } = cache.get<OverseerrStats>(cacheKey);
+
+    if (cachedStats && !isStale) {
+      const data = {
+        stats: { overseerr: cachedStats },
+        details: {
+          overseerr: {
+            pendingCount: cachedStats.pendingCount,
+            totalRequests: cachedStats.requests.length
+          }
+        }
+      };
+      updateServiceData(service.instanceId, data);
+      return;
+    }
+
     try {
       const stats = await api.get<OverseerrStats>(
         `/api/overseerr/requests?instanceId=${service.instanceId}`
@@ -134,6 +169,7 @@ export const useServiceData = () => {
           }
         }
       };
+      cache.set(cacheKey, stats);
       updateServiceData(service.instanceId, data);
     } catch (error) {
       console.error('Error fetching Overseerr requests:', error);
@@ -141,6 +177,28 @@ export const useServiceData = () => {
   }, [updateServiceData]);
 
   const fetchRadarrQueue = useCallback(async (service: Service) => {
+    const cacheKey = `radarr:queue:${service.instanceId}`;
+    const { data: cachedQueue, isStale } = cache.get<RadarrQueue>(cacheKey);
+
+    if (cachedQueue && !isStale) {
+      const downloadingCount = cachedQueue.records.filter(r => r.status === 'downloading').length;
+      const totalSize = cachedQueue.records.reduce((acc, r) => acc + r.size, 0);
+      
+      const data = {
+        stats: { radarr: { queue: cachedQueue } },
+        details: {
+          radarr: {
+            queueCount: cachedQueue.totalRecords,
+            totalRecords: cachedQueue.totalRecords,
+            downloadingCount,
+            totalSize
+          }
+        }
+      };
+      updateServiceData(service.instanceId, data);
+      return;
+    }
+
     try {
       const queueData = await api.get<RadarrQueue>(
         `/api/radarr/queue?instanceId=${service.instanceId}`
@@ -160,6 +218,7 @@ export const useServiceData = () => {
             }
           }
         };
+        cache.set(cacheKey, queueData);
         updateServiceData(service.instanceId, data);
       }
     } catch (error) {
@@ -168,6 +227,31 @@ export const useServiceData = () => {
   }, [updateServiceData]);
 
   const fetchSonarrQueue = useCallback(async (service: Service) => {
+    const cacheKey = `sonarr:queue:${service.instanceId}`;
+    const { data: cachedQueue, isStale } = cache.get<SonarrQueue>(cacheKey);
+
+    if (cachedQueue && !isStale) {
+      const downloadingCount = cachedQueue.records.filter(r => r.status === 'downloading').length;
+      const episodeCount = cachedQueue.records.reduce((acc, r) => acc + r.episodes.length, 0);
+      const totalSize = cachedQueue.records.reduce((acc, r) => acc + r.size, 0);
+      
+      const data = {
+        stats: { sonarr: { queue: cachedQueue } },
+        details: {
+          sonarr: {
+            queueCount: cachedQueue.totalRecords,
+            monitored: 0,
+            totalRecords: cachedQueue.totalRecords,
+            downloadingCount,
+            episodeCount,
+            totalSize
+          }
+        }
+      };
+      updateServiceData(service.instanceId, data);
+      return;
+    }
+
     try {
       const queueData = await api.get<SonarrQueue>(
         `/api/sonarr/queue?instanceId=${service.instanceId}`
@@ -190,6 +274,7 @@ export const useServiceData = () => {
             }
           }
         };
+        cache.set(cacheKey, queueData);
         updateServiceData(service.instanceId, data);
       }
     } catch (error) {
@@ -870,5 +955,3 @@ const updateService = useCallback((service: Service) => {
     refreshService: debouncedRefreshService
   };
 };
-
-
