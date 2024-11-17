@@ -54,7 +54,7 @@ func NewOverseerrService() models.ServiceHealthChecker {
 	service.Description = "Monitor and manage your Overseerr instance"
 	service.DefaultURL = "http://localhost:5055"
 	service.HealthEndpoint = "/api/v1/status"
-	service.SetTimeout(core.DefaultTimeout)
+	service.SetTimeout(core.DefaultLongTimeout) // Increased timeout for Overseerr
 	return service
 }
 

@@ -17,7 +17,7 @@ const SERVICE_TIMEOUTS: Record<string, number> = {
   '/api/autobrr/releases': 60000,   // 1 minute for autobrr releases
   '/api/plex/sessions': 5000,       // 5 seconds for plex sessions
   '/api/maintainerr': 600000,       // 10 minutes for maintainerr
-  '/api/overseerr': 30000,          // 30 seconds for overseerr
+  '/api/overseerr': 60000,          // 1 minute for overseerr (increased from 30s)
   '/api/radarr': 60000,             // 1 minute for radarr
   '/api/sonarr': 60000,             // 1 minute for sonarr
   '/api/prowlarr': 60000,           // 1 minute for prowlarr

@@ -45,7 +45,7 @@ func NewHealthHandler(db DatabaseService, health *services.HealthService, creato
 
 func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	// Create a context with timeout for the entire health check operation
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
 	serviceID := c.Param("service")
