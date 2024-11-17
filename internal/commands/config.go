@@ -37,11 +37,13 @@ func ConfigCommand() *cobra.Command {
 
 func ConfigImportCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "import",
+		Use:   "import [file]",
 		Short: "import",
 		Long:  `import`,
-		Example: `  dashbrr config import
+		Example: `  dashbrr config import services.yaml
+  dashbrr config import services.json
   dashbrr config import --help`,
+		Args: cobra.ExactArgs(1),
 		//SilenceUsage: true,
 	}
 
