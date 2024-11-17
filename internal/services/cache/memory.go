@@ -164,6 +164,7 @@ func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) er
 	s.local.RLock()
 	item, exists := s.local.items[key]
 	if exists && time.Now().Before(item.expiration) {
+		// Make a copy of the value while holding the read lock
 		data := make([]byte, len(item.value))
 		copy(data, item.value)
 		s.local.RUnlock()
@@ -171,12 +172,14 @@ func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) er
 	}
 	s.local.RUnlock()
 
-	// If item exists but is expired, remove it under a write lock
 	if exists {
+		// Need write lock for deletion
 		s.local.Lock()
-		// Double check expiration after acquiring write lock
-		if item, exists = s.local.items[key]; exists && time.Now().After(item.expiration) {
-			delete(s.local.items, key)
+		// Check again after acquiring write lock as state might have changed
+		if item, stillExists := s.local.items[key]; stillExists {
+			if time.Now().After(item.expiration) {
+				delete(s.local.items, key)
+			}
 		}
 		s.local.Unlock()
 	}
