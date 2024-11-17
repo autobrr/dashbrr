@@ -23,6 +23,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
+	"encoding/json"
 )
 
 const (
@@ -114,18 +115,57 @@ func (h *PlexHandler) fetchSessionsWithCache(ctx context.Context, cacheKey strin
 		return nil, err
 	}
 
-	// Convert the cached data to PlexSessionsResponse
-	converted, err := utils.SafeStructConvert[types.PlexSessionsResponse](data)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("cache_key", cacheKey).
-			Str("type", utils.GetTypeString(data)).
-			Msg("[Plex] Failed to convert cached data")
-		return nil, fmt.Errorf("failed to convert cached data: %w", err)
+	// Handle conversion based on the type of data
+	var sessions types.PlexSessionsResponse
+	switch v := data.(type) {
+	case *types.PlexSessionsResponse:
+		// If it's already the correct type, return it
+		return v, nil
+	case map[string]interface{}, []byte, string:
+		// Convert to JSON bytes if it's a map or already JSON
+		var jsonBytes []byte
+		var err error
+		
+		switch vt := v.(type) {
+		case []byte:
+			jsonBytes = vt
+		case string:
+			jsonBytes = []byte(vt)
+		default:
+			jsonBytes, err = json.Marshal(v)
+			if err != nil {
+				log.Error().
+					Err(err).
+					Str("cache_key", cacheKey).
+					Str("type", utils.GetTypeString(data)).
+					Msg("[Plex] Failed to marshal cached data to JSON")
+				return nil, fmt.Errorf("failed to marshal cached data: %w", err)
+			}
+		}
+		
+		// Unmarshal into the target struct
+		if err := json.Unmarshal(jsonBytes, &sessions); err != nil {
+			log.Error().
+				Err(err).
+				Str("cache_key", cacheKey).
+				Str("type", utils.GetTypeString(data)).
+				Msg("[Plex] Failed to unmarshal cached data")
+			return nil, fmt.Errorf("failed to unmarshal cached data: %w", err)
+		}
+		return &sessions, nil
+	default:
+		// For any other type, try struct conversion
+		converted, err := utils.SafeStructConvert[types.PlexSessionsResponse](data)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("cache_key", cacheKey).
+				Str("type", utils.GetTypeString(data)).
+				Msg("[Plex] Failed to convert cached data")
+			return nil, fmt.Errorf("failed to convert cached data: %w", err)
+		}
+		return &converted, nil
 	}
-
-	return &converted, nil
 }
 
 func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
