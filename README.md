@@ -130,7 +130,7 @@ After=syslog.target network-online.target
 Type=simple
 User=%i
 Group=%i
-ExecStart=/usr/local/bin/dashbrr --config=/home/%i/.config/dashbrr/config.toml
+ExecStart=/usr/local/bin/dashbrr serve --config=/home/%i/.config/dashbrr/config.toml
 
 [Install]
 WantedBy=multi-user.target
@@ -162,10 +162,10 @@ By default, the database file will be created in the same directory as your conf
 - If your config is at `/home/user/.config/dashbrr/config.toml`, the database will be at `/home/user/.config/dashbrr/data/dashbrr.db`
 - If your config is at `/etc/dashbrr/config.toml`, the database will be at `/etc/dashbrr/data/dashbrr.db`
 
-You can override this behavior by using the `-db` flag to specify a different database location:
+You can override this behavior by using the `--db-file` flag to specify a different database location:
 
 ```bash
-dashbrr -config=/etc/dashbrr/config.toml -db=/var/lib/dashbrr/dashbrr.db
+dashbrr serve --config=/etc/dashbrr/config.toml --db-file=/var/lib/dashbrr/dashbrr.db
 ```
 
 ### Environment Variables
