@@ -18,7 +18,9 @@ import {
   FaMobile,
   FaTablet,
   FaExchangeAlt,
+  FaPlayCircle,
 } from "react-icons/fa";
+import { ChevronUpIcon } from "@heroicons/react/24/outline";
 
 interface PlexStatsProps {
   instanceId: string;
@@ -41,19 +43,22 @@ const getMediaTypeIcon = (
   type: string | undefined,
   playerState: string | undefined
 ) => {
+
   if (playerState?.toLowerCase() === "paused") {
-    return <FaPause className="text-yellow-500 dark:text-yellow-400" />;
+    return <FaPause className="text-gray-500 dark:text-gray-400 h-4 w-4" />;
   }
 
   switch (type?.toLowerCase()) {
     case "track":
-      return <FaMusic className="text-blue-600 dark:text-blue-400" />;
+      return <FaMusic className="text-blue-600 dark:text-blue-400 h-4 w-4" />;
     case "movie":
-      return <FaFilm className="text-amber-500 dark:text-amber-300" />;
+      return <FaFilm className="text-amber-500 dark:text-amber-300 h-4 w-4" />;
     case "episode":
-      return <FaTv className="text-green-600 dark:text-green-400" />;
+      return <FaTv className="text-green-600 dark:text-green-400 h-4 w-4" />;
+    case "clip":
+      return <FaPlayCircle className="text-purple-500 dark:text-purple-400 h-4 w-4" />;
     default:
-      return <FaPlay className="text-gray-500" />;
+      return <FaPlay className="text-gray-500 h-4 w-4" />;
   }
 };
 
@@ -62,16 +67,16 @@ const getDeviceIcon = (platform: string) => {
     case "windows":
     case "macos":
     case "linux":
-      return <FaDesktop className="text-gray-600 dark:text-gray-400" />;
+      return <FaDesktop className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
     case "ios":
     case "android":
-      return <FaMobile className="text-gray-600 dark:text-gray-400" />;
+      return <FaMobile className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
     case "tvos":
     case "roku":
     case "androidtv":
-      return <FaTv className="text-gray-600 dark:text-gray-400" />;
+      return <FaTv className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
     default:
-      return <FaTablet className="text-gray-600 dark:text-gray-400" />;
+      return <FaTablet className="text-gray-600 dark:text-gray-400 w-4" />;
   }
 };
 
@@ -108,6 +113,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   const [playbackStates, setPlaybackStates] = useState<{
     [key: string]: TimerState;
   }>({});
+  const [isExpanded, setIsExpanded] = useState(true);
   const service = services.find((s) => s.instanceId === instanceId);
   const isLoading = service?.status === "loading";
   const sessions = useMemo(
@@ -174,6 +180,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     }, 1000);
 
     return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions]); // Removed playbackStates from dependencies
 
   const getCurrentOffset = (session: PlexSession): number => {
@@ -231,125 +238,117 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
       <PlexMessage status={service.status} message={message} />
 
       {activeStreams > 0 && (
-        <div>
-          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-3">
-            Active Streams:
-          </div>
-
-          <div className="rounded-lg bg-white dark:bg-gray-800">
-            <div className="grid grid-cols-2 gap-4 p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Total Streams
-                </span>
-                <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {activeStreams}
-                </span>
+        <div className="space-y-3">
+          <div
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="relative cursor-pointer select-none w-full flex items-center justify-between"
+          >
+            <div className="flex items-center justify-between flex-1">
+              <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                Active Streams:
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Transcoding
-                </span>
-                <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                  {transcodingCount}
-                </span>
+              <div className="flex items-center gap-4 pr-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Total:</span>
+                  <span className="text-xs font-medium text-blue-500 dark:text-blue-400">{activeStreams}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Transcoding:</span>
+                  <span className="text-xs font-medium text-amber-500 dark:text-amber-400">{transcodingCount}</span>
+                </div>
               </div>
             </div>
+            <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
+              <ChevronUpIcon
+                className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
+                  isExpanded ? "rotate-180" : ""
+                } group-hover:text-gray-400`}
+              />
+            </div>
+          </div>
 
-            <div>
+          <div
+            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
+              isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="space-y-2">
               {sessions.map((session: PlexSession, index: number) => (
                 <div
                   key={index}
-                  className="p-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                  className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors"
                 >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        {getMediaTypeIcon(
-                          session.type || "",
-                          session.Player?.state
-                        )}
-                        <span className="text-sm font-sm text-gray-900 dark:text-gray-100 overflow-hidden">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className={session.Player?.state?.toLowerCase() === "paused" ? "text-yellow-500" : "text-blue-500"}>
+                        {getMediaTypeIcon(session.type || "", session.Player?.state)}
+                      </span>
+                      <div className="flex items-center justify-between flex-1">
+                        <span className="text-xs font-medium text-gray-200 truncate" title={session.title}>
                           {session.type?.toLowerCase() === "movie"
                             ? session.grandparentTitle
                               ? `${session.grandparentTitle} - ${session.title}`
                               : session.title
                             : session.grandparentTitle
                             ? `${session.grandparentTitle} - ${session.title}`
-                            : session.title ?? ""}
+                            : session.title ?? ""} 
+                          {session.type?.toLowerCase() === "clip" && (
+                            <span className="text-purple-400 ml-1">(Trailer)</span>
+                          )}
                         </span>
                         {isTranscoding(session) && (
-                          <div className="flex items-center space-x-1 text-amber-500 dark:text-amber-400">
+                          <div className="flex items-center gap-1 ml-4 text-amber-500 dark:text-amber-400">
                             <FaExchangeAlt className="h-3 w-3" />
-                            <span className="text-xs">Transcoding</span>
+                            <span className="text-[10px]">Transcoding</span>
                           </div>
                         )}
                       </div>
-                      {session.parentTitle && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {session.parentTitle}
-                        </div>
-                      )}
                     </div>
-                  </div>
 
-                  {session.duration &&
-                    session.viewOffset &&
-                    getCurrentOffset(session) > 0 && (
-                      <div className="mb-3">
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                    {session.duration > 0 && (
+                      <div className="px-6">
+                        <div className="w-full bg-gray-700/50 rounded-full h-1">
                           <div
                             className="bg-blue-500 h-1 rounded-full transition-all duration-300"
                             style={{
                               width: `${getProgressPercentage(
                                 getCurrentOffset(session),
-                                session.duration || 0
+                                session.duration
                               )}%`,
                             }}
                           />
                         </div>
-                        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          <span>
-                            {formatDuration(getCurrentOffset(session))}
-                          </span>
-                          <span>{formatDuration(session.duration || 0)}</span>
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                          <span>{formatDuration(getCurrentOffset(session))}</span>
+                          <span>{formatDuration(session.duration)}</span>
                         </div>
                       </div>
                     )}
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-2">
-                      {session.User && (
-                        <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                          <FaUser className="flex-shrink-0" />
-                          <span
-                            className="cursor-pointer"
-                            title={session.Player?.address || ""}
-                          >
-                            {session.User.title}
+                    <div className="flex items-center justify-between -ml-2">
+                      <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
+                        {session.User && (
+                          <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                            <FaUser className="h-4 w-4 text-gray-400" />
+                            <span title={session.Player?.address || ""}>{session.User.title}</span>
                           </span>
-                        </div>
-                      )}
-                      {session.Player && (
-                        <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                          {getDeviceIcon(session.Player.platform)}
-                          <span className="truncate">
-                            {session.Player.product}
+                        )}
+                        {session.Player && (
+                          <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                            {getDeviceIcon(session.Player.platform)}
+                            <span className="truncate">{session.Player.product}</span>
                           </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2">
+                        )}
+                      </div>
                       {session.Media && session.Media[0] && (
-                        <>
-                          <div className="text-gray-600 dark:text-gray-400">
-                            Bitrate: {formatBitrate(session.Media[0].bitrate)}
-                          </div>
-                          <div className="text-gray-600 dark:text-gray-400">
-                            Audio: {session.Media[0].audioCodec.toUpperCase()}{" "}
-                            {session.Media[0].audioChannels}ch
-                          </div>
-                        </>
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                            {formatBitrate(session.Media[0].bitrate)}
+                          </span>
+                          <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                            {session.Media[0].audioCodec.toUpperCase()} {session.Media[0].audioChannels}ch
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>

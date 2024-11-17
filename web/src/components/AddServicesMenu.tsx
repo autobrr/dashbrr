@@ -296,7 +296,7 @@ export function AddServicesMenu({
         {({ open }) => (
           <>
             <div>
-              <Menu.Button className="px-2 py-2 text-sm bg-gray-800 text-white rounded-md hover:bg-blue-800 transition-colors flex items-center gap-1">
+              <Menu.Button className="px-2 py-2 text-sm bg-gray-800 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1">
                 <span>Add Service</span>
                 <svg
                   className="w-4 h-4"

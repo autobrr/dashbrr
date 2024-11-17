@@ -165,149 +165,103 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
       {service.stats?.sonarr?.queue &&
         service.stats.sonarr.queue.totalRecords > 0 && (
           <div>
-            <div className="text-xs pb-2 font-semibold text-gray-700 dark:text-gray-300">
+            <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
               Queue ({service.stats.sonarr.queue.totalRecords}):
             </div>
-            <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2">
+            <div className="space-y-2">
               {service.stats.sonarr.queue.records
                 .slice(0, 3)
-                .map(
-                  (
-                    record: SonarrQueueItem,
-                    index: number,
-                    array: SonarrQueueItem[]
-                  ) => (
-                    <div
-                      key={record.id}
-                      className={`flex flex-col space-y-1 overflow-hidden px-0 ${
-                        index !== array.length - 1
-                          ? "border-b border-gray-750 pb-2"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex justify-between items-center w-full">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs opacity-75 flex items-center justify-between w-full">
-                            <div className="flex items-center min-w-0 flex-1">
-                              <span className="flex-shrink-0 font-medium text-xs text-gray-600 dark:text-gray-300">
-                                Release:{" "}
-                              </span>
-                              <span
-                                className="truncate text-xs ml-1 cursor-help"
-                                title={record.title}
-                              >
-                                {record.title}
-                              </span>
-                            </div>
-                            <div className="flex space-x-2 flex-shrink-0 ml-2">
-                              <a
-                                href={`${openUrl}/activity/queue`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-                                title="View in Sonarr"
-                              >
-                                <ArrowTopRightOnSquareIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                              </a>
-                              <button
-                                onClick={() => {
-                                  setSelectedItem(record);
-                                  setShowDeleteModal(true);
-                                }}
-                                disabled={
-                                  record.trackedDownloadState !==
-                                  "importBlocked"
-                                }
-                                className={`p-1 rounded-md transition-colors ${
-                                  record.trackedDownloadState ===
-                                  "importBlocked"
-                                    ? "hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                                    : "opacity-50 cursor-not-allowed"
-                                }`}
-                                title={
-                                  record.trackedDownloadState ===
-                                  "importBlocked"
-                                    ? "Manage queue"
-                                    : "Can only remove items that are import blocked"
-                                }
-                              >
-                                <Cog6ToothIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                              </button>
-                            </div>
-                          </div>
-                          <div className="text-xs opacity-75">
-                            <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                              State:{" "}
-                            </span>
-                            {record.trackedDownloadState}
-                          </div>
-                          {record.indexer && (
-                            <div className="text-xs opacity-75">
-                              <span className="truncate flex-1 font-medium text-xs text-gray-600 dark:text-gray-300">
-                                Indexer:{" "}
-                              </span>
-                              {record.indexer}
-                            </div>
-                          )}
-                          {record.customFormatScore != null && (
-                            <div className="text-xs opacity-75">
-                              <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
-                                Custom Format Score:{" "}
-                              </span>
-                              {record.customFormatScore}
-                            </div>
-                          )}
-                          <div className="text-xs opacity-75">
-                            <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
-                              Client:{" "}
-                            </span>
-                            {record.downloadClient}
-                          </div>
-                          <div className="text-xs opacity-75">
-                            <span className="font-medium text-xs text-gray-600 dark:text-gray-300">
-                              Protocol:{" "}
-                            </span>
-                            {record.protocol}
-                          </div>
-                          {record.statusMessages &&
-                            record.statusMessages.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {record.statusMessages.map((msg, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex items-start space-x-1 "
-                                  >
-                                    <div className="flex-1 min-w-0 space-y-1 ">
-                                      {msg.messages &&
-                                        msg.messages.map((message, msgIdx) => {
-                                          const [firstPart, ...rest] =
-                                            message.split(".");
-                                          return (
-                                            <div
-                                              key={msgIdx}
-                                              className="text-xs space-y-1 p-2 rounded-lg transition-all duration-200 backdrop-blur-sm text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40"
-                                            >
-                                              <div className="font-normal">
-                                                {firstPart}.
-                                              </div>
-                                              {rest.length > 0 && (
-                                                <div className="">
-                                                  {rest.join(".")}
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                        </div>
+                .map((record: SonarrQueueItem) => (
+                  <div
+                    key={record.id}
+                    className="flex flex-col p-3 text-sm rounded-lg bg-gray-850/95 dark:bg-gray-850/95"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="min-w-0 flex-1 mr-2">
+                        <span
+                          className="block truncate text-xs font-medium text-gray-300 cursor-default"
+                          title={record.title}
+                        >
+                          {record.title}
+                        </span>
+                      </div>
+                      <div className="flex-shrink-0 flex items-center space-x-1">
+                        <a
+                          href={`${openUrl}/activity/queue`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-md hover:bg-gray-700 dark:hover:bg-gray-700 transition-colors"
+                          title="View in Sonarr"
+                        >
+                          <ArrowTopRightOnSquareIcon className="h-4 w-4 text-gray-400" />
+                        </a>
+                        <button
+                          onClick={() => {
+                            setSelectedItem(record);
+                            setShowDeleteModal(true);
+                          }}
+                          disabled={record.trackedDownloadState !== "importBlocked"}
+                          className={`p-1.5 rounded-md transition-colors ${
+                            record.trackedDownloadState === "importBlocked"
+                              ? "hover:bg-gray-700 dark:hover:bg-gray-700"
+                              : "opacity-50 cursor-not-allowed"
+                          }`}
+                          title={
+                            record.trackedDownloadState === "importBlocked"
+                              ? "Manage queue"
+                              : "Can only remove items that are import blocked"
+                          }
+                        >
+                          <Cog6ToothIcon className="h-4 w-4 text-gray-400" />
+                        </button>
                       </div>
                     </div>
-                  )
-                )}
+                    <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-gray-400 pointer-events-none">
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium text-gray-500">State:</span>
+                        <span>{record.trackedDownloadState}</span>
+                      </div>
+                      {record.indexer && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-gray-500">Indexer:</span>
+                          <span>{record.indexer}</span>
+                        </div>
+                      )}
+                      {record.customFormatScore != null && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-gray-500">CF Score:</span>
+                          <span>{record.customFormatScore}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium text-gray-500">Client:</span>
+                        <span>{record.downloadClient}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium text-gray-500">Protocol:</span>
+                        <span className="capitalize">{record.protocol}</span>
+                      </div>
+                    </div>
+                    {record.statusMessages &&
+                      record.statusMessages.length > 0 && (
+                        <div className="mt-2 w-full space-y-1 pointer-events-none">
+                          {record.statusMessages.map((msg, idx) => (
+                            <div key={idx} className="space-y-1 w-full">
+                              {msg.messages &&
+                                msg.messages.map((message, msgIdx) => (
+                                  <div
+                                    key={msgIdx}
+                                    className="text-xs p-2 w-full rounded-lg text-amber-300 bg-amber-900/20 border border-amber-800/40"
+                                  >
+                                    {message}
+                                  </div>
+                                ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                ))}
             </div>
           </div>
         )}

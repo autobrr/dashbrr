@@ -274,8 +274,8 @@ export interface OverseerrMediaRequest {
   media: {
     id: number;
     mediaType: string;
-    tmdbId: number;
-    tvdbId: number;
+    tmdbId?: number;
+    tvdbId?: number;
     status: number;
     requests: string[];
     createdAt: string;
