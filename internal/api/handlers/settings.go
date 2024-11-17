@@ -17,7 +17,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/manager"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -28,20 +27,18 @@ const (
 )
 
 type SettingsHandler struct {
-	db             *database.DB
-	health         *services.HealthService
-	cache          cache.Store
-	serviceManager *manager.ServiceManager
-	lastDebugLog   time.Time
+	db           *database.DB
+	health       *services.HealthService
+	cache        cache.Store
+	lastDebugLog time.Time
 }
 
 func NewSettingsHandler(db *database.DB, health *services.HealthService, cache cache.Store) *SettingsHandler {
 	return &SettingsHandler{
-		db:             db,
-		health:         health,
-		cache:          cache,
-		serviceManager: manager.NewServiceManager(db, cache),
-		lastDebugLog:   time.Now().Add(-configDebugLogTTL), // Initialize to ensure first log happens
+		db:           db,
+		health:       health,
+		cache:        cache,
+		lastDebugLog: time.Now().Add(-configDebugLogTTL), // Initialize to ensure first log happens
 	}
 }
 
@@ -149,9 +146,6 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 		return
 	}
-
-	// Initialize service data
-	h.serviceManager.InitializeService(c.Request.Context(), &config)
 
 	// Invalidate cache
 	if err := h.cache.Delete(context.Background(), configCacheKey); err != nil {
