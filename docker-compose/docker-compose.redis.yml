@@ -35,7 +35,6 @@ services:
     restart: unless-stopped
     networks:
       - dashbrr-network
-    command: ["/dashbrr"]
 
   redis:
     container_name: dashbrr-redis

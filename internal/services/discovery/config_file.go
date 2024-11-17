@@ -20,6 +20,7 @@ type ConfigFile struct {
 // ServiceConfig represents a service configuration in the external file
 type ServiceConfig struct {
 	URL         string            `json:"url" yaml:"url"`
+	AccessURL   string            `json:"access_url,omitempty" yaml:"access_url,omitempty"`
 	APIKey      string            `json:"apikey" yaml:"apikey"`
 	DisplayName string            `json:"name,omitempty" yaml:"name,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
@@ -76,6 +77,7 @@ func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
 				InstanceID:  instanceID,
 				DisplayName: displayName,
 				URL:         cfg.URL,
+				AccessURL:   cfg.AccessURL,
 				APIKey:      apiKey,
 			})
 		}
@@ -99,6 +101,7 @@ func ExportConfig(services []models.ServiceConfiguration, path string, maskSecre
 		// Create service config
 		config := ServiceConfig{
 			URL:         service.URL,
+			AccessURL:   service.AccessURL,
 			DisplayName: service.DisplayName,
 		}
 

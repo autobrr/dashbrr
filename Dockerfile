@@ -60,3 +60,4 @@ RUN addgroup -S dashbrr && \
 USER dashbrr
 
 ENTRYPOINT ["dashbrr"]
+CMD ["serve"]

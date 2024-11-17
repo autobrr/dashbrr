@@ -121,7 +121,7 @@ dev: redis-dev
 	@echo "Starting development servers with Redis cache..."
 	@echo "Redis is running on localhost:6379"
 	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db ./data/dashbrr.db & \
+	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db-file ./data/dashbrr.db & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -135,7 +135,7 @@ dev: redis-dev
 dev-memory:
 	@echo "Starting development servers with memory cache..."
 	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db ./data/dashbrr.db & \
+	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db-file ./data/dashbrr.db & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \

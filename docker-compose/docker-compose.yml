@@ -30,7 +30,6 @@ services:
     restart: unless-stopped
     networks:
       - dashbrr-network
-    command: ["/dashbrr"]
 
   postgres:
     container_name: dashbrr-postgres

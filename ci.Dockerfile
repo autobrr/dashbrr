@@ -56,3 +56,4 @@ COPY --link --from=app-builder /out/bin/dashbrr /usr/local/bin/dashbrr
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/dashbrr"]
+CMD ["serve"]
