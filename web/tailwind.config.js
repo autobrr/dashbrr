@@ -23,6 +23,12 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
+      screens: {
+        lg: "1024px",
+        xl: "1440px",
+        "2xl": "1836px",
+        "3xl": "2900px",
+      },
       colors: {
         ...extendedColors,
         gray: {

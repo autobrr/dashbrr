@@ -3,16 +3,22 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { OverseerrMessage } from "./OverseerrMessage";
 import { OverseerrMediaRequest } from "../../../types/service";
 import { OverseerrRequestModal } from "./OverseerrRequestModal";
-import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import {
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
+} from "@heroicons/react/24/outline";
 import { api } from "../../../utils/api";
 import { toast } from "react-hot-toast";
 import Toast from "../../Toast";
-import { FaFilm, FaTv } from "react-icons/fa";
+import { FaFilm, FaTv, FaUser } from "react-icons/fa";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { ChevronUpIcon } from "@heroicons/react/24/outline";
 
 interface OverseerrStatsProps {
   instanceId: string;
@@ -40,6 +46,11 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   const [modalAction, setModalAction] = useState<"approve" | "reject" | null>(
     null
   );
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  useEffect(() => {
+    localStorage.setItem("overseerr-recent-expanded", JSON.stringify(isExpanded));
+  }, [isExpanded]);
 
   const handleAction = async (
     request: OverseerrMediaRequest,
@@ -137,9 +148,6 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
     return date.toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
     });
   };
 
@@ -156,7 +164,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   };
 
   const getMediaType = (request: OverseerrMediaRequest) => {
-    return request.media.tvdbId ? "TV" : "Movie";
+    return request.media.tvdbId ? "Show" : "Movie";
   };
 
   const getMediaTitle = (request: OverseerrMediaRequest) => {
@@ -168,51 +176,124 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       : `Movie (TMDB: ${request.media.tmdbId})`;
   };
 
-  const RequestItem = ({ request }: { request: OverseerrMediaRequest }) => (
-    <div className="border-b border-gray-800 last:border-0 pb-2 last:pb-0 space-y-1">
-      <div className="flex justify-between items-start">
-        <div className="space-y-1.5">
-          <div className="font-medium flex items-center gap-2 pointer-events-none">
-            {getMediaType(request) === "TV" ? (
-              <FaTv className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-            ) : (
-              <FaFilm className="h-3.5 w-3.5 text-purple-400 shrink-0" />
-            )}
-            {getMediaTitle(request)}
-          </div>
-          <div className="text-gray-500 text-[11px] flex items-center gap-2 pointer-events-none">
-            <span>{getUserDisplayName(request.requestedBy)}</span>
-            <span>•</span>
-            <span>{formatDate(request.createdAt)}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 ml-4 shrink-0">
+  const RequestItem = ({
+    request,
+    isPending,
+  }: {
+    request: OverseerrMediaRequest;
+    isPending?: boolean;
+  }) => (
+    <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
           {request.status === 1 ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleAction(request, "approve")}
-                className="rounded-full bg-gray-800 hover:bg-gray-700 p-1.5 text-green-500 transition-colors"
-                title="Approve request"
-              >
-                <CheckCircleIcon className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => handleAction(request, "reject")}
-                className="rounded-full bg-gray-800 hover:bg-gray-700 p-1.5 text-red-500 transition-colors"
-                title="Reject request"
-              >
-                <XCircleIcon className="h-4 w-4" />
-              </button>
-            </div>
+            <span className="text-yellow-500">
+              <ClockIcon className="h-4 w-4" />
+            </span>
+          ) : request.status === 2 ? (
+            <span className="text-green-500">
+              <CheckCircleIcon className="h-4 w-4" />
+            </span>
           ) : (
-            <span
-              className={`${getStatusColor(
-                request.status
-              )} text-xs font-medium px-2 py-1 rounded-full bg-gray-800`}
-            >
-              {getStatusLabel(request.status)}
+            <span className="text-red-500">
+              <XCircleIcon className="h-4 w-4" />
             </span>
           )}
+          {isPending ? (
+            <div className="flex items-center justify-between flex-1">
+              <span
+                className="text-xs font-medium text-gray-200 truncate"
+                title={getMediaTitle(request)}
+              >
+                {getMediaTitle(request)}
+              </span>
+              <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                {request.media.tmdbId !== 0 && (
+                  <a
+                    href={`https://www.themoviedb.org/${
+                      request.media.mediaType === "tv" ? "tv" : "movie"
+                    }/${request.media.tmdbId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-gray-800/50 border border-gray-700/50 text-gray-300 hover:text-blue-400"
+                  >
+                    TMDB
+                    <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                  </a>
+                )}
+                {request.media.tvdbId !== 0 && (
+                  <a
+                    href={`https://www.thetvdb.com/dereferrer/series/${request.media.tvdbId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-gray-800/50 border border-gray-700/50 text-gray-300 hover:text-blue-400"
+                  >
+                    TVDB
+                    <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : (
+            <a
+              href={request.media.serviceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-gray-200 truncate hover:text-blue-400 transition-colors flex items-center"
+              title="View Details"
+            >
+              {getMediaTitle(request)}
+              <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 ml-1 text-blue-400" />
+            </a>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
+            <span className="flex items-center gap-2 bg-gray-800/50 -ml-1 px-1.5 py-0.5 rounded">
+              {getMediaType(request) === "Show" ? (
+                <FaTv className="h-3.5 w-3.5 text-gray-400" />
+              ) : (
+                <FaFilm className="h-3.5 w-3.5 text-gray-400" />
+              )}
+              {getMediaType(request)}
+            </span>
+            <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+              <FaUser className="h-3.5 w-3.5 text-gray-400" />
+              {getUserDisplayName(request.requestedBy)}
+            </span>
+            <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+              <ClockIcon className="h-3.5 w-3.5 text-gray-400" />
+              {formatDate(request.createdAt)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {request.status === 1 ? (
+              <>
+                <button
+                  onClick={() => handleAction(request, "approve")}
+                  className="text-green-500 hover:text-green-400 p-1.5 hover:bg-gray-700/50 rounded transition-colors"
+                  title="Approve request"
+                >
+                  <CheckCircleIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleAction(request, "reject")}
+                  className="text-red-500 hover:text-red-400 p-1.5 hover:bg-gray-700/50 rounded transition-colors"
+                  title="Reject request"
+                >
+                  <XCircleIcon className="h-4 w-4" />
+                </button>
+              </>
+            ) : (
+              <span
+                className={`${getStatusColor(
+                  request.status
+                )} bg-gray-800/50 px-2 py-0.5 rounded font-medium`}
+              >
+                {getStatusLabel(request.status)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -220,37 +301,71 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Status and Messages */}
       <OverseerrMessage status={service.status} message={message} />
 
       {/* Pending Requests */}
       {pendingCount > 0 && (
         <div>
-          <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
+          <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
             Pending Requests:
           </div>
-          <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 overflow-hidden space-y-2">
-            {pendingRequests.map((request) => (
-              <RequestItem key={request.id} request={request} />
-            ))}
+          <div className="space-y-2">
+            {pendingRequests
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime()
+              )
+              .map((request) => (
+                <RequestItem
+                  key={request.id}
+                  request={request}
+                  isPending={true}
+                />
+              ))}
           </div>
         </div>
       )}
 
-      {/* Recent Requests List */}
-      {requests.length > 0 && (
+      {/* Recent Requests */}
+      {requests.length > 0 ? (
         <div>
-          <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
-            Recent Requests:
+          <div
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="relative cursor-pointer select-none w-full flex items-center justify-between text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 group"
+          >
+            <span>Recent Requests ({requests.filter((request) => request.status !== 1).length})</span>
+            <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
+              <ChevronUpIcon
+                className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
+                  isExpanded ? "rotate-180" : ""
+                } group-hover:text-gray-400`}
+              />
+            </div>
           </div>
-          <div className="text-xs rounded-md text-gray-700 dark:text-gray-400 bg-gray-850/95 p-4 space-y-2 pointer-events-none">
-            {requests
-              .filter((request) => request.status !== 1)
-              .slice(0, 5)
-              .map((request) => (
-                <RequestItem key={request.id} request={request} />
-              ))}
+          <div
+            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
+              isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="space-y-2">
+              {requests
+                .filter((request) => request.status !== 1)
+                .sort(
+                  (a, b) =>
+                    new Date(b.createdAt).getTime() -
+                    new Date(a.createdAt).getTime()
+                )
+                .slice(0, 5)
+                .map((request) => (
+                  <RequestItem key={request.id} request={request} />
+                ))}
+            </div>
           </div>
+        </div>
+      ) : (
+        <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
+          No recent requests
         </div>
       )}
 

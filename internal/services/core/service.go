@@ -68,9 +68,9 @@ func getHTTPClient(timeout time.Duration) *http.Client {
 	// Create new client if not found
 	client := &http.Client{
 		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
+			MaxIdleConns:        10,               // Reduced from 100
+			MaxIdleConnsPerHost: 2,                // Reduced from 10
+			IdleConnTimeout:     30 * time.Second, // Reduced from 90s
 			DisableKeepAlives:   false,
 		},
 		Timeout: timeout,
@@ -106,19 +106,13 @@ func (s *ServiceCore) initCache() error {
 		cfg.RedisAddr = host + ":" + port
 	}
 
-	// Initialize cache using the cache package's initialization logic
+	// Use the global cache instance
 	store, err := cache.InitCache(context.Background(), cfg)
 	if err != nil {
-		// If initialization fails, we'll still get a memory cache from InitCache
-		// We can continue with the memory cache but should return the error
-		// for logging purposes
-		s.cache = store
 		log.Warn().Err(err).Msg("Failed to initialize preferred cache, using memory cache")
-		return err
 	}
-
 	s.cache = store
-	return nil
+	return err
 }
 
 // MakeRequestWithContext makes an HTTP request with the provided context and timeout
@@ -300,6 +294,23 @@ func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 	}
 
 	return version
+}
+
+// GetUpdateStatusFromCache retrieves the update status from cache
+func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
+	if err := s.initCache(); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		return false
+	}
+
+	var updateStatus string
+	cacheKey := fmt.Sprintf("%s:update", baseURL)
+	err := s.cache.Get(context.Background(), cacheKey, &updateStatus)
+	if err != nil {
+		return false
+	}
+
+	return updateStatus == "true"
 }
 
 // CacheVersion stores the version in cache with the specified TTL

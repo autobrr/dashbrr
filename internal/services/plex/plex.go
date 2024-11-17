@@ -114,6 +114,38 @@ func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*typ
 	return &sessionsResponse, nil
 }
 
+func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (string, error) {
+	healthEndpoint := s.GetHealthEndpoint(url)
+	headers := s.getPlexHeaders(apiKey)
+
+	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
+	if err != nil {
+		return "", fmt.Errorf("failed to connect: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %v", err)
+	}
+
+	var plexResponse types.PlexResponse
+	if err := json.Unmarshal(body, &plexResponse); err != nil {
+		var mediaContainer types.MediaContainer
+		if xmlErr := xml.Unmarshal(body, &mediaContainer); xmlErr != nil {
+			return "", fmt.Errorf("failed to parse server response")
+		}
+		plexResponse.MediaContainer = mediaContainer
+	}
+
+	// Validate version to prevent "true" being shown
+	if plexResponse.MediaContainer.Version == "true" || plexResponse.MediaContainer.Version == "" {
+		return "unknown", nil
+	}
+
+	return plexResponse.MediaContainer.Version, nil
+}
+
 func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
@@ -142,6 +174,14 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Server returned error: %d", resp.StatusCode)), http.StatusOK
 	}
 
+	// Get version using GetCachedVersion for better caching
+	version, err := s.GetCachedVersion(ctx, url, apiKey, func(baseURL, key string) (string, error) {
+		return s.getVersion(ctx, baseURL, key)
+	})
+	if err != nil {
+		version = "unknown"
+	}
+
 	var plexResponse types.PlexResponse
 	if err := json.Unmarshal(body, &plexResponse); err != nil {
 		var mediaContainer types.MediaContainer
@@ -152,8 +192,9 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 	}
 
 	extras := map[string]interface{}{
-		"version":      plexResponse.MediaContainer.Version,
-		"responseTime": responseTime,
+		"version":         version,
+		"responseTime":    responseTime,
+		"updateAvailable": s.GetUpdateStatusFromCache(url), // Add update status from cache
 	}
 
 	// Always set status to "online" when healthy and include a message

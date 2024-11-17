@@ -19,7 +19,7 @@ type RequestsResponse struct {
 		Results  int `json:"results"`
 		Page     int `json:"page"`
 	} `json:"pageInfo"`
-	Results []interface{} `json:"results"`
+	Results []MediaRequest `json:"results"`
 }
 
 type MediaRequest struct {
@@ -75,4 +75,23 @@ type MediaRequest struct {
 type RequestsStats struct {
 	PendingCount int            `json:"pendingCount"`
 	Requests     []MediaRequest `json:"requests"`
+}
+
+type OverseerrStats struct {
+	Requests     []MediaRequest `json:"requests"`
+	PendingCount int            `json:"pendingCount"`
+}
+
+type OverseerrDetails struct {
+	PendingCount  int `json:"pendingCount"`
+	TotalRequests int `json:"totalRequests"`
+}
+
+type OverseerrServiceHealth struct {
+	ServiceID   string           `json:"serviceId"`
+	Status      string           `json:"status"`
+	Message     string           `json:"message"`
+	LastChecked time.Time        `json:"lastChecked"`
+	Stats       OverseerrStats   `json:"stats"`
+	Details     OverseerrDetails `json:"details"`
 }

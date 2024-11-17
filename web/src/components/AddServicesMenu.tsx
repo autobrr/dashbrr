@@ -110,11 +110,11 @@ export function AddServicesMenu({
     } else if (pendingService) {
       setDisplayName(pendingService.displayName);
       // Set default URL for Tailscale only if URL is empty
-      if (pendingService.type === "tailscale" && url === "") {
+      if (pendingService.type === "tailscale") {
         setUrl("https://api.tailscale.com");
       }
     }
-  }, [showServiceConfig, pendingService, url]);
+  }, [showServiceConfig, pendingService]);
 
   const validateTailscaleApiToken = async (token: string) => {
     try {
@@ -296,7 +296,7 @@ export function AddServicesMenu({
         {({ open }) => (
           <>
             <div>
-              <Menu.Button className="px-2 py-2 text-sm bg-gray-800 text-white rounded-md hover:bg-blue-800 transition-colors flex items-center gap-1">
+              <Menu.Button className="px-2 py-2 text-sm bg-gray-800 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1">
                 <span>Add Service</span>
                 <svg
                   className="w-4 h-4"

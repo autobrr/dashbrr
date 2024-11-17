@@ -34,14 +34,15 @@ interface ServiceData {
   releases?: AutobrrReleases;
 }
 
-// Background polling intervals
-const STATS_CHECK_INTERVAL = 300000;   // 5 minutes for service stats
-const PLEX_SESSIONS_INTERVAL = 5000;   // 5 seconds for Plex sessions (fallback)
-const OVERSEERR_REQUESTS_INTERVAL = 30000; // 30 seconds for Overseerr requests (fallback)
-const RADARR_QUEUE_INTERVAL = 30000;    // 30 seconds for Radarr queue (fallback)
-const SONARR_QUEUE_INTERVAL = 30000;    // 30 seconds for Sonarr queue (fallback)
-const PROWLARR_STATS_INTERVAL = 60000;  // 1 minute for Prowlarr stats (fallback)
-const AUTOBRR_INTERVAL = 60000;         // 30 seconds for autobrr (fallback)
+// Background polling intervals - Optimized for better performance
+const STATS_CHECK_INTERVAL = 300000;   // 5 minutes for service stats (unchanged)
+const PLEX_SESSIONS_INTERVAL = 10000;  // 10 seconds for Plex sessions (increased from 5s)
+const OVERSEERR_REQUESTS_INTERVAL = 60000; // 1 minute for Overseerr (increased from 30s)
+const RADARR_QUEUE_INTERVAL = 60000;    // 1 minute for Radarr queue (increased from 30s)
+const SONARR_QUEUE_INTERVAL = 60000;    // 1 minute for Sonarr queue (increased from 30s)
+const PROWLARR_STATS_INTERVAL = 120000;  // 2 minutes for Prowlarr stats (increased from 1m)
+const AUTOBRR_INTERVAL = 120000;         // 2 minutes for autobrr (increased from 1m)
+
 
 function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   fn: T,
@@ -262,13 +263,24 @@ export const useServiceData = () => {
             api.get<AutobrrIRC[]>(`/api/autobrr/irc?instanceId=${service.instanceId}`),
             api.get<AutobrrReleases>(`/api/autobrr/releases?instanceId=${service.instanceId}`)
           ]);
+
+          // Initialize data with stats and IRC info if available
           if (statsData && ircData) {
-            data = { 
-              stats: { autobrr: statsData }, 
-              details: { autobrr: { 
-                irc: ircData,
-                base_url: service.url || ''
-              }},
+            data = {
+              stats: { autobrr: statsData },
+              details: {
+                autobrr: {
+                  irc: ircData,
+                  base_url: service.url || ''
+                }
+              }
+            };
+          }
+
+          // Add releases data if available
+          if (releasesData) {
+            data = {
+              ...data,
               releases: releasesData
             };
           }
@@ -478,28 +490,75 @@ export const useServiceData = () => {
     return service;
   }, []);
 
-  const updateService = useCallback((service: Service) => {
-    clearServiceTimeout(service.instanceId);
+const updateService = useCallback((service: Service) => {
+  clearServiceTimeout(service.instanceId);
 
-    Promise.all([
-      fetchHealthStatus(service),
-      fetchServiceStats(service)
-    ]).catch(console.error);
+  // Batch all service data fetching into a single Promise.all
+  const fetchPromises = [];
 
-    const interval = service.type === 'plex' ? PLEX_SESSIONS_INTERVAL :
-                    service.type === 'overseerr' ? OVERSEERR_REQUESTS_INTERVAL :
-                    service.type === 'radarr' ? RADARR_QUEUE_INTERVAL :
-                    service.type === 'sonarr' ? SONARR_QUEUE_INTERVAL :
-                    service.type === 'prowlarr' ? PROWLARR_STATS_INTERVAL :
-                    service.type === 'autobrr' ? AUTOBRR_INTERVAL :
-                    STATS_CHECK_INTERVAL;
+  // Add health status fetch with appropriate interval
+  if (service.type === 'plex') {
+    // For Plex, we need more frequent updates
+    fetchPromises.push(fetchHealthStatus(service));
+    fetchPromises.push(fetchPlexSessions(service));
+  } else if (service.type === 'overseerr') {
+    // For Overseerr, batch health and requests
+    fetchPromises.push(
+      Promise.all([
+        fetchHealthStatus(service),
+        fetchOverseerrRequests(service)
+      ])
+    );
+  } else if (service.type === 'radarr') {
+    // For Radarr, batch health and queue
+    fetchPromises.push(
+      Promise.all([
+        fetchHealthStatus(service),
+        fetchRadarrQueue(service)
+      ])
+    );
+  } else if (service.type === 'sonarr') {
+    // For Sonarr, batch health and queue
+    fetchPromises.push(
+      Promise.all([
+        fetchHealthStatus(service),
+        fetchSonarrQueue(service)
+      ])
+    );
+  } else if (service.type === 'prowlarr' || service.type === 'autobrr' || service.type === 'maintainerr') {
+    // For other services, batch health and stats
+    fetchPromises.push(
+      Promise.all([
+        fetchHealthStatus(service),
+        fetchServiceStats(service)
+      ])
+    );
+  } else {
+    // For all other services, just fetch health
+    fetchPromises.push(fetchHealthStatus(service));
+  }
 
-    const timeoutId = setTimeout(() => {
-      updateService(service);
-    }, interval);
+  // Execute all fetches in parallel and handle errors gracefully
+  Promise.all(fetchPromises).catch(error => {
+    console.error(`Error updating service ${service.instanceId}:`, error);
+  });
 
-    updateTimeoutsRef.current.set(service.instanceId, timeoutId);
-  }, [clearServiceTimeout, fetchHealthStatus, fetchServiceStats]);
+  // Determine next update interval based on service type
+  const interval = service.type === 'plex' ? PLEX_SESSIONS_INTERVAL :
+                  service.type === 'overseerr' ? OVERSEERR_REQUESTS_INTERVAL :
+                  service.type === 'radarr' ? RADARR_QUEUE_INTERVAL :
+                  service.type === 'sonarr' ? SONARR_QUEUE_INTERVAL :
+                  service.type === 'prowlarr' ? PROWLARR_STATS_INTERVAL :
+                  service.type === 'autobrr' ? AUTOBRR_INTERVAL :
+                  STATS_CHECK_INTERVAL;
+
+  // Schedule next update
+  const timeoutId = setTimeout(() => {
+    updateService(service);
+  }, interval);
+
+  updateTimeoutsRef.current.set(service.instanceId, timeoutId);
+}, [clearServiceTimeout, fetchHealthStatus, fetchPlexSessions, fetchOverseerrRequests, fetchRadarrQueue, fetchSonarrQueue, fetchServiceStats]);
 
   const initializeSSE = useCallback(() => {
     if (eventSourceRef.current) {
@@ -544,11 +603,13 @@ export const useServiceData = () => {
             break;
           }
           case 'autobrr_releases': {
-            if (health.stats?.autobrr && 'data' in health.stats.autobrr) {
+            if (health.stats?.autobrr) {
               const releases = health.stats.autobrr as unknown as AutobrrReleases;
-              updateServiceData(health.serviceId, {
-                releases
-              });
+              if (releases && releases.data) {
+                updateServiceData(health.serviceId, {
+                  releases
+                });
+              }
             }
             break;
           }
@@ -809,3 +870,5 @@ export const useServiceData = () => {
     refreshService: debouncedRefreshService
   };
 };
+
+

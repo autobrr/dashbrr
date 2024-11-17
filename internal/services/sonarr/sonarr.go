@@ -284,8 +284,8 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
 
-	// Check cache first
-	if version := s.GetVersionFromCache(url); version != "" {
+	// Check cache first, ensuring we don't return "true" as a version
+	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
 		return version, nil
 	}
 
@@ -325,43 +325,7 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 
 // CheckForUpdates checks if there are any updates available for Sonarr
 func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	if url == "" {
-		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("URL is required")}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
-	defer cancel()
-
-	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
-
-	resp, err := s.makeRequest(ctx, http.MethodGet, updateURL, apiKey, nil)
-	if err != nil {
-		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to make request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return false, &ErrSonarr{Op: "check_for_updates", HttpCode: resp.StatusCode}
-	}
-
-	body, err := s.ReadBody(resp)
-	if err != nil {
-		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to read response: %w", err)}
-	}
-
-	var updates []types.SonarrUpdateResponse
-	if err := json.Unmarshal(body, &updates); err != nil {
-		return false, &ErrSonarr{Op: "check_for_updates", Err: fmt.Errorf("failed to parse response: %w", err)}
-	}
-
-	// Check if there's any update available
-	for _, update := range updates {
-		if !update.Installed && update.Installable {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return arr.CheckArrForUpdates("sonarr", url, apiKey)
 }
 
 func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {

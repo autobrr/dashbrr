@@ -12,8 +12,6 @@ import Toast from "./components/Toast";
 import { AddServicesMenu } from "./components/AddServicesMenu";
 import { useServiceManagement } from "./hooks/useServiceManagement";
 import { TailscaleStatusBar } from "./components/services/TailscaleStatusBar";
-import { Suspense } from "react";
-import LoadingSkeleton from "./components/shared/LoadingSkeleton";
 import logo from "./assets/logo.svg";
 import { serviceTemplates } from "./config/serviceTemplates";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -34,25 +32,23 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <ConfigurationProvider>
-          <Suspense fallback={<LoadingSkeleton />}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/auth/callback" element={<CallbackPage />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <AppContent />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/auth/login"
-                element={<Navigate to="/login" replace />}
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/callback" element={<CallbackPage />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <AppContent />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/auth/login"
+              element={<Navigate to="/login" replace />}
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </ConfigurationProvider>
       </AuthProvider>
     </BrowserRouter>
@@ -86,25 +82,44 @@ function AppContent() {
       <div className="p-2 flex-1">
         <header className="mb-4 pt-2">
           {/* Top header section with logo and controls */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-2">
-            <div
-              className="flex items-center"
-              style={{
-                pointerEvents: "none",
-                userSelect: "none",
-                WebkitUserSelect: "none",
-                MozUserSelect: "none",
-                msUserSelect: "none",
-              }}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              <img src={logo} alt="Logo" className="h-8 mr-3" />
-              <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">
-                Dashbrr
-              </h1>
+          <div className="relative">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+              <div
+                className="flex flex-col sm:flex-row items-center"
+                style={{
+                  pointerEvents: "none",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  MozUserSelect: "none",
+                  msUserSelect: "none",
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <img src={logo} alt="Logo" className="h-8 sm:mr-3 mb-2 sm:mb-0" />
+                <span className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
+                  <h1 className="text-2xl sm:text-3xl font-bold dark:text-white leading-none">
+                    Dashbrr
+                  </h1>
+                  <span className="flex items-center">
+                    <p className="dark:text-gray-400 text-xs tracking-wide lowercase mt-1 sm:mt-1">
+                      Service Health Monitor
+                    </p>
+                  </span>
+                </span>
+              </div>
+              <div className="hidden sm:flex items-center gap-4">
+                <TailscaleStatusBar onConfigOpen={handleTailscaleConfig} />
+                <button
+                  onClick={logout}
+                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                  title="Logout"
+                >
+                  <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center justify-between sm:justify-end gap-4">
-              <TailscaleStatusBar onConfigOpen={handleTailscaleConfig} />
+            {/* Mobile-only logout button */}
+            <div className="sm:hidden absolute top-0 right-0">
               <button
                 onClick={logout}
                 className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
@@ -113,26 +128,23 @@ function AppContent() {
                 <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
               </button>
             </div>
-          </div>
-
-          {/* Subtitle and instruction text */}
-          <div className="space-y-2">
-            <p className="dark:text-gray-400 text-sm sm:text-base">
-              Service Health Monitor - and then some
-            </p>
+            {/* Mobile-only Tailscale (centered) */}
+            <div className="sm:hidden flex justify-center w-full mt-2">
+              <TailscaleStatusBar onConfigOpen={handleTailscaleConfig} />
+            </div>
           </div>
         </header>
 
         <main>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mt-4 mb-0">
-            <div className="w-full sm:w-auto">
+          <div className="flex justify-between items-center w-full">
+            <div className="flex-grow">
               {services && (
                 <span className="p-2 bg-gray-800 rounded-md inline-block select-none pointer-events-none">
                   <StatusCounters services={services} />
                 </span>
               )}
             </div>
-            <div className="w-full sm:w-auto">
+            <div className="ml-4">
               <AddServicesMenu
                 serviceTemplates={serviceTemplates}
                 onAddService={(type: ServiceType, name: string) =>

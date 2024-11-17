@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,35 +20,126 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
+	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
 )
 
-const radarrQueuePrefix = "radarr:queue:"
+const (
+	radarrQueuePrefix       = "radarr:queue:"
+	radarrStaleDataDuration = 5 * time.Minute
+)
 
 type RadarrHandler struct {
-	db    *database.DB
-	cache cache.Store
-	sf    singleflight.Group
+	db              *database.DB
+	cache           cache.Store
+	sf              *singleflight.Group
+	circuitBreaker  *resilience.CircuitBreaker
+	lastQueueHash   map[string]string
+	lastQueueHashMu sync.Mutex
 }
 
 func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
 	return &RadarrHandler{
-		db:    db,
-		cache: cache,
+		db:             db,
+		cache:          cache,
+		sf:             &singleflight.Group{},
+		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
+		lastQueueHash:  make(map[string]string),
 	}
+}
+
+// fetchDataWithCache implements a stale-while-revalidate pattern
+func (h *RadarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
+	var cachedData interface{}
+
+	// Try to get from cache first
+	err := h.cache.Get(ctx, cacheKey, &cachedData)
+	if err == nil {
+		// Data found in cache
+		go func() {
+			// Refresh cache in background if close to expiration
+			if time.Now().After(time.Now().Add(-middleware.CacheDurations.RadarrStatus + 5*time.Second)) {
+				if newData, err := fetchFn(); err == nil {
+					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.RadarrStatus)
+				}
+			}
+		}()
+		return cachedData, nil
+	}
+
+	// Check circuit breaker before making request
+	if h.circuitBreaker.IsOpen() {
+		// Try to get stale data when circuit is open
+		var staleData interface{}
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+			return staleData, nil
+		}
+		return nil, fmt.Errorf("circuit breaker is open")
+	}
+
+	// Cache miss or error, fetch fresh data with retry
+	var data interface{}
+	var fetchErr error
+	err = resilience.RetryWithBackoff(ctx, func() error {
+		data, fetchErr = fetchFn()
+		return fetchErr
+	})
+
+	if err != nil {
+		h.circuitBreaker.RecordFailure()
+		// Try to get stale data
+		var staleData interface{}
+		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
+			return staleData, nil
+		}
+		return nil, err
+	}
+
+	h.circuitBreaker.RecordSuccess()
+
+	// Cache the fresh data
+	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.RadarrStatus); err == nil {
+		// Also cache as stale data with longer duration
+		_ = h.cache.Set(ctx, cacheKey+":stale", data, radarrStaleDataDuration)
+	}
+
+	return data, nil
+}
+
+// fetchQueueWithCache is a type-safe wrapper around fetchDataWithCache for RadarrQueueResponse
+func (h *RadarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.RadarrQueueResponse, error)) (types.RadarrQueueResponse, error) {
+	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
+		return fetchFn()
+	})
+	if err != nil {
+		return types.RadarrQueueResponse{}, err
+	}
+
+	// Convert the cached data to RadarrQueueResponse
+	converted, err := utils.SafeStructConvert[types.RadarrQueueResponse](data)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("cache_key", cacheKey).
+			Str("type", utils.GetTypeString(data)).
+			Msg("[Radarr] Failed to convert cached data")
+		return types.RadarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
+	}
+
+	return converted, nil
 }
 
 func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
+		log.Error().Msg("[Radarr] No instanceId provided")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
 		return
 	}
 
-	// Verify this is a Radarr instance
 	if instanceId[:6] != "radarr" {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Radarr instance ID")
+		log.Error().Str("instanceId", instanceId).Msg("[Radarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Radarr instance ID"})
 		return
 	}
@@ -55,31 +147,8 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	cacheKey := radarrQueuePrefix + instanceId
 	ctx := context.Background()
 
-	// Try to get from cache first
-	var queueResp types.RadarrQueueResponse
-	err := h.cache.Get(ctx, cacheKey, &queueResp)
-	if err == nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Serving Radarr queue from cache")
-		c.JSON(http.StatusOK, queueResp)
-
-		// Refresh cache in background using singleflight
-		go func() {
-			refreshKey := fmt.Sprintf("queue_refresh:%s", instanceId)
-			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
-				h.refreshQueueCache(instanceId, cacheKey)
-				return nil, nil
-			})
-		}()
-		return
-	}
-
-	// If not in cache, fetch from service using singleflight
-	sfKey := fmt.Sprintf("queue:%s", instanceId)
-	queueRespI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchAndCacheQueue(instanceId, cacheKey)
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
+		return h.fetchQueue(instanceId)
 	})
 
 	if err != nil {
@@ -87,7 +156,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
-				Msg("Failed to fetch Radarr queue")
+				Msg("[Radarr] Failed to fetch queue")
 
 			if arrErr.HttpCode > 0 {
 				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
@@ -98,26 +167,22 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	queueResp = queueRespI.(types.RadarrQueueResponse)
+	// Add hash-based change detection
+	h.compareAndLogQueueChanges(instanceId, &result)
 
-	if queueResp.Records != nil {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Successfully retrieved and cached Radarr queue")
-
+	if result.Records != nil {
 		// Broadcast queue update via SSE
-		h.broadcastRadarrQueue(instanceId, &queueResp)
+		h.broadcastRadarrQueue(instanceId, &result)
 	} else {
 		log.Debug().
 			Str("instanceId", instanceId).
-			Msg("Retrieved empty Radarr queue")
+			Msg("[Radarr] Retrieved empty queue")
 	}
 
-	c.JSON(http.StatusOK, queueResp)
+	c.JSON(http.StatusOK, result)
 }
 
-func (h *RadarrHandler) fetchAndCacheQueue(instanceId, cacheKey string) (types.RadarrQueueResponse, error) {
+func (h *RadarrHandler) fetchQueue(instanceId string) (types.RadarrQueueResponse, error) {
 	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.RadarrQueueResponse{}, err
@@ -137,45 +202,30 @@ func (h *RadarrHandler) fetchAndCacheQueue(instanceId, cacheKey string) (types.R
 	}
 
 	// Create response
-	queueResp := types.RadarrQueueResponse{
+	return types.RadarrQueueResponse{
 		Records:      records,
 		TotalRecords: len(records),
-	}
-
-	// Cache the results using the centralized cache duration
-	ctx := context.Background()
-	if err := h.cache.Set(ctx, cacheKey, queueResp, middleware.CacheDurations.RadarrStatus); err != nil {
-		log.Warn().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("Failed to cache Radarr queue")
-	}
-
-	return queueResp, nil
+	}, nil
 }
 
-func (h *RadarrHandler) refreshQueueCache(instanceId, cacheKey string) {
-	queueResp, err := h.fetchAndCacheQueue(instanceId, cacheKey)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("Failed to refresh Radarr queue cache")
-		return
-	}
+// compareAndLogQueueChanges tracks and logs changes in Radarr queue
+func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.RadarrQueueResponse) {
+	h.lastQueueHashMu.Lock()
+	defer h.lastQueueHashMu.Unlock()
 
-	if queueResp.Records != nil {
+	wrapped := wrapRadarrQueue(queueResp)
+	currentHash := generateQueueHash(wrapped)
+	lastHash := h.lastQueueHash[instanceId]
+
+	if currentHash != lastHash {
+		changes := detectQueueChanges(lastHash, currentHash)
 		log.Debug().
 			Str("instanceId", instanceId).
 			Int("totalRecords", queueResp.TotalRecords).
-			Msg("Successfully refreshed Radarr queue cache")
+			Str("change", changes).
+			Msg("[Radarr] Queue changed")
 
-		// Broadcast queue update via SSE
-		h.broadcastRadarrQueue(instanceId, &queueResp)
-	} else {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Refreshed cache with empty Radarr queue")
+		h.lastQueueHash[instanceId] = currentHash
 	}
 }
 
@@ -191,22 +241,27 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 		}
 	}
 
+	// Create stats and details as map[string]interface{} directly
+	stats := map[string]interface{}{
+		"radarr": queueResp,
+	}
+
+	details := map[string]interface{}{
+		"radarr": types.RadarrQueueStats{
+			TotalRecords:     queueResp.TotalRecords,
+			DownloadingCount: downloading,
+			TotalSize:        totalSize,
+		},
+	}
+
 	// Use the existing BroadcastHealth function with a special message type
 	BroadcastHealth(models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "radarr_queue",
 		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"radarr": queueResp,
-		},
-		Details: map[string]interface{}{
-			"radarr": map[string]interface{}{
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
+		Stats:       stats,
+		Details:     details,
 	})
 }
 
@@ -232,30 +287,19 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 		ChangeCategory:   c.Query("changeCategory") == "true",
 	}
 
-	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	ctx := context.Background()
+
+	err := resilience.RetryWithBackoff(ctx, func() error {
+		return h.deleteQueueItem(instanceId, queueId, options)
+	})
+
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get Radarr configuration")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Radarr configuration"})
-		return
-	}
-
-	if radarrConfig == nil {
-		log.Error().Str("instanceId", instanceId).Msg("Radarr is not configured")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Radarr is not configured"})
-		return
-	}
-
-	// Create Radarr service instance
-	service := &radarr.RadarrService{}
-
-	// Call the service method to delete the queue item
-	if err := service.DeleteQueueItem(context.Background(), radarrConfig.URL, radarrConfig.APIKey, queueId, options); err != nil {
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
 				Str("queueId", queueId).
-				Msg("Failed to delete queue item")
+				Msg("[Radarr] Failed to delete queue item")
 
 			if arrErr.HttpCode > 0 {
 				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
@@ -268,20 +312,35 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 
 	// Clear cache after successful deletion
 	cacheKey := radarrQueuePrefix + instanceId
-	if err := h.cache.Delete(context.Background(), cacheKey); err != nil {
-		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after queue item deletion")
+	if err := h.cache.Delete(ctx, cacheKey); err != nil {
+		log.Warn().Err(err).Str("instanceId", instanceId).Msg("[Radarr] Failed to clear cache after queue item deletion")
 	}
 
-	// Fetch fresh data and broadcast update using singleflight
-	sfKey := fmt.Sprintf("queue:%s", instanceId)
-	queueRespI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchAndCacheQueue(instanceId, cacheKey)
+	// Fetch fresh queue data
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
+		return h.fetchQueue(instanceId)
 	})
 
 	if err == nil {
-		queueResp := queueRespI.(types.RadarrQueueResponse)
-		h.broadcastRadarrQueue(instanceId, &queueResp)
+		h.broadcastRadarrQueue(instanceId, &result)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
+}
+
+func (h *RadarrHandler) deleteQueueItem(instanceId, queueId string, options types.RadarrQueueDeleteOptions) error {
+	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	if err != nil {
+		return err
+	}
+
+	if radarrConfig == nil {
+		return fmt.Errorf("radarr is not configured")
+	}
+
+	// Create Radarr service instance
+	service := &radarr.RadarrService{}
+
+	// Call the service method to delete the queue item
+	return service.DeleteQueueItem(context.Background(), radarrConfig.URL, radarrConfig.APIKey, queueId, options)
 }

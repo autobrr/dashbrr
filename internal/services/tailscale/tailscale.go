@@ -105,7 +105,35 @@ func (s *TailscaleService) getDevicesWithContext(ctx context.Context, apiKey str
 	return &apiResponse, responseTime, nil
 }
 
-func (s *TailscaleService) CheckHealth(ctx context.Context, _ string, apiKey string) (models.ServiceHealth, int) {
+func (s *TailscaleService) getVersion(ctx context.Context, apiKey string) (string, error) {
+	apiResponse, _, err := s.getDevicesWithContext(ctx, apiKey)
+	if err != nil {
+		return "", err
+	}
+
+	if len(apiResponse.Devices) == 0 {
+		return "unknown", nil
+	}
+
+	// Get version from first device
+	version := apiResponse.Devices[0].ClientVersion
+	updateAvailable := apiResponse.Devices[0].UpdateAvailable
+
+	// Validate version
+	if version == "true" || version == "" {
+		version = "unknown"
+	}
+
+	// Cache update status using ServiceCore's CacheVersion method with ":update" suffix
+	if err := s.CacheVersion(s.DefaultURL+":update", fmt.Sprintf("%v", updateAvailable), time.Hour); err != nil {
+		// Log error but don't fail the request
+		fmt.Printf("Failed to cache update status: %v\n", err)
+	}
+
+	return version, nil
+}
+
+func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey string) (models.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if apiKey == "" {
@@ -116,36 +144,14 @@ func (s *TailscaleService) CheckHealth(ctx context.Context, _ string, apiKey str
 	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
-	versionChan := make(chan string, 1)
-	errChan := make(chan error, 1)
-	go func() {
-		apiResponse, _, err := s.getDevicesWithContext(healthCtx, apiKey)
-		if err != nil {
-			errChan <- err
-			versionChan <- ""
-			return
-		}
-
-		var version string
-		if len(apiResponse.Devices) > 0 {
-			version = apiResponse.Devices[0].ClientVersion
-		}
-		versionChan <- version
-		errChan <- nil
-	}()
+	// Get version using GetCachedVersion for better caching
+	version, err := s.GetCachedVersion(healthCtx, url, apiKey, func(baseURL, key string) (string, error) {
+		return s.getVersion(healthCtx, key)
+	})
 
 	apiResponse, responseTime, err := s.getDevicesWithContext(healthCtx, apiKey)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "error", err.Error()), http.StatusServiceUnavailable
-	}
-
-	var version string
-	var versionErr error
-	select {
-	case version = <-versionChan:
-		versionErr = <-errChan
-	case <-healthCtx.Done():
-		versionErr = healthCtx.Err()
 	}
 
 	onlineCount := 0
@@ -156,14 +162,9 @@ func (s *TailscaleService) CheckHealth(ctx context.Context, _ string, apiKey str
 	}
 
 	extras := map[string]interface{}{
-		"responseTime": responseTime.Milliseconds(),
-	}
-
-	if version != "" {
-		extras["version"] = version
-	}
-	if versionErr != nil {
-		extras["versionError"] = versionErr.Error()
+		"responseTime":    responseTime.Milliseconds(),
+		"version":         version,
+		"updateAvailable": s.GetUpdateStatusFromCache(url),
 	}
 
 	return s.CreateHealthResponse(startTime, "online", fmt.Sprintf("%d devices online", onlineCount), extras), http.StatusOK

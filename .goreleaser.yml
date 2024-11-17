@@ -30,7 +30,7 @@ builds:
         goarch: arm
       - goos: freebsd
         goarch: arm64
-    main: cmd/dashbrr/main.go
+    main: ./cmd/dashbrr/main.go
     binary: dashbrr
     ldflags:
       - -s -w
@@ -63,7 +63,7 @@ release:
 
     ## What to do next?
 
-    - Read the [documentation](https://autobrr.com)
+    - Read the [documentation](https://github.com/autobrr/dashbrr/blob/main/README.md)
     - Join our [Discord server](https://discord.gg/WQ2eUycxyT)
 
 checksum:

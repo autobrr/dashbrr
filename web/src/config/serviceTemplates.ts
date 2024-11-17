@@ -8,7 +8,7 @@ import { Service } from '../types/service';
 export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   {
     name: "Autobrr",
-    displayName: "Autobrr",
+    displayName: "",
     type: "autobrr",
     status: "offline",
     url: "",
@@ -17,7 +17,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Omegabrr",
-    displayName: "Omegabrr",
+    displayName: "",
     type: "omegabrr",
     status: "offline",
     url: "",
@@ -26,7 +26,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Radarr",
-    displayName: "Radarr",
+    displayName: "",
     type: "radarr",
     status: "offline",
     url: "",
@@ -35,7 +35,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Sonarr",
-    displayName: "Sonarr",
+    displayName: "",
     type: "sonarr",
     status: "offline",
     url: "",
@@ -44,7 +44,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Prowlarr",
-    displayName: "Prowlarr",
+    displayName: "",
     type: "prowlarr",
     status: "offline",
     url: "",
@@ -53,7 +53,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Overseerr",
-    displayName: "Overseerr",
+    displayName: "",
     type: "overseerr",
     status: "offline",
     url: "",
@@ -62,7 +62,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Plex",
-    displayName: "Plex",
+    displayName: "",
     type: "plex",
     status: "offline",
     url: "",
@@ -71,7 +71,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Tailscale",
-    displayName: "Tailscale",
+    displayName: "",
     type: "tailscale",
     status: "offline",
     url: "",
@@ -79,7 +79,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "Maintainerr",
-    displayName: "Maintainerr",
+    displayName: "",
     type: "maintainerr",
     status: "offline",
     url: "",
@@ -88,13 +88,13 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   },
   {
     name: "General Service",
-    displayName: "", // Allow custom display name to be set
+    displayName: "",
     type: "general",
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "", // The URL itself is the health endpoint
-    apiKey: undefined, // Make API key optional
+    healthEndpoint: "",
+    apiKey: undefined,
   },
 ];
 
