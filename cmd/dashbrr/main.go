@@ -10,23 +10,20 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
-	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-	"github.com/spf13/cobra"
-
-	"github.com/autobrr/dashbrr/internal/api/middleware"
-	"github.com/autobrr/dashbrr/internal/api/routes"
+	"github.com/autobrr/dashbrr/internal/api"
 	"github.com/autobrr/dashbrr/internal/buildinfo"
 	"github.com/autobrr/dashbrr/internal/commands"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/web"
+	"github.com/autobrr/dashbrr/internal/services/cache"
+
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -159,77 +156,75 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 	}
 	defer db.Close()
 
-	healthService := services.NewHealthService()
+	// Create a root context for cache initialization
+	ctx := context.Background()
 
-	if os.Getenv("GIN_MODE") == "debug" {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
+	// Initialize cache with database directory for session storage
+	cacheConfig := cache.Config{
+		DataDir: filepath.Dir(os.Getenv("DASHBRR__DB_PATH")), // Use same directory as database
+		Type:    cache.CacheTypeMemory,
+	}
+	// Determine cache type based on environment and Redis configuration
+	log.Debug().Str("type", string(cacheConfig.Type)).Msg("Cache initialized")
+
+	// Configure Redis if enabled
+	// TODO move into config
+	if os.Getenv("REDIS_HOST") != "" {
+		host := os.Getenv("REDIS_HOST")
+		port := os.Getenv("REDIS_PORT")
+		if port == "" {
+			port = "6379"
+		}
+		cacheConfig.RedisAddr = host + ":" + port
+
+		if os.Getenv("CACHE_TYPE") == "redis" && os.Getenv("REDIS_HOST") != "" {
+			cacheConfig.Type = cache.CacheTypeRedis
+		}
 	}
 
-	r := gin.New()
-	r.Use(middleware.Logger())
-	r.Use(gin.Recovery())
-
-	if gin.Mode() == gin.DebugMode {
-		err = r.SetTrustedProxies(nil)
-	} else {
-		err = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
-	}
+	store, err := cache.InitCache(ctx, cacheConfig)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to set trusted proxies")
-	}
-
-	r.Use(middleware.SetupCORS())
-
-	cacheStore := routes.SetupRoutes(r, db, healthService)
-	defer func() {
-		if err := cacheStore.Close(); err != nil {
-			cacheType := strings.ToLower(os.Getenv("CACHE_TYPE"))
-			if cacheType == "redis" {
-				log.Error().Err(err).Msg("Failed to close Redis cache connection")
-			} else {
-				log.Debug().Err(err).Msg("Cache cleanup completed")
-			}
-		}
-	}()
-
-	web.ServeStatic(r)
-
-	srv := &http.Server{
-		Addr:         cfg.Server.ListenAddr,
-		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
-	go func() {
-		log.Info().
-			Str("address", cfg.Server.ListenAddr).
-			Str("mode", gin.Mode()).
-			Str("database", cfg.Database.Path).
-			Msg("Starting server")
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("Failed to start server")
-			return
-		}
-	}()
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	log.Info().Msg("Shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Error().Err(err).Msg("Server forced to shutdown")
+		// This should never happen as InitCache always returns a valid store
+		log.Error().Err(err).Msg("Failed to initialize cache")
 		return err
 	}
 
-	log.Info().Msg("Server exiting")
+	healthService := services.NewHealthService()
+
+	srv := api.NewServer(cfg, db, store, healthService)
+
+	errorChannel := make(chan error)
+	go func() {
+		listenErr := srv.ListenAndServe()
+		if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+			errorChannel <- listenErr
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+
+	select {
+	case sig := <-sigCh:
+		log.Info().Msgf("got signal %v, shutting down server", sig.String())
+	case err := <-errorChannel:
+		log.Error().Err(err).Msg("got unexpected error from server")
+	}
+
+	//ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	//defer cancel()
+
+	if err := srv.Shutdown(context.Background()); err != nil {
+		log.Error().Err(err).Msg("got error during graceful http shutdown")
+
+		os.Exit(1)
+	}
+
+	if err := store.Close(); err != nil {
+		log.Error().Err(err).Msg("failed to close cache connection")
+	}
+
+	os.Exit(0)
 
 	return nil
 }
