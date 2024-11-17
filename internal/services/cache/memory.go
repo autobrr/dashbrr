@@ -164,13 +164,22 @@ func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) er
 	s.local.RLock()
 	item, exists := s.local.items[key]
 	if exists && time.Now().Before(item.expiration) {
+		data := make([]byte, len(item.value))
+		copy(data, item.value)
 		s.local.RUnlock()
-		return json.Unmarshal(item.value, value)
-	}
-	if exists {
-		delete(s.local.items, key)
+		return json.Unmarshal(data, value)
 	}
 	s.local.RUnlock()
+
+	// If item exists but is expired, remove it under a write lock
+	if exists {
+		s.local.Lock()
+		// Double check expiration after acquiring write lock
+		if item, exists = s.local.items[key]; exists && time.Now().After(item.expiration) {
+			delete(s.local.items, key)
+		}
+		s.local.Unlock()
+	}
 
 	return ErrKeyNotFound
 }
