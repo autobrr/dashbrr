@@ -14,23 +14,23 @@ Dashbrr supports automatic service discovery and configuration management throug
 
 ```bash
 # Discover services from Docker containers
-dashbrr run config discover --docker
+dashbrr config discover --docker
 
 # Discover services from Kubernetes
-dashbrr run config discover --k8s
+dashbrr config discover --k8s
 
 # Discover from both Docker and Kubernetes
-dashbrr run config discover
+dashbrr config discover
 ```
 
 ### Configuration Import/Export
 
 ```bash
 # Import services from configuration file
-dashbrr run config import services.yaml
+dashbrr config import services.yaml
 
 # Export current configuration
-dashbrr run config export --format=yaml --mask-secrets --output=services.yaml
+dashbrr config export --format=yaml --mask-secrets --output=services.yaml
 ```
 
 ## Docker Label Configuration
