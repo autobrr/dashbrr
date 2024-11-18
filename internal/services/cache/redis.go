@@ -65,68 +65,18 @@ func (s *RedisStore) Ping(ctx context.Context) error {
 	return s.client.Ping(ctx).Err()
 }
 
-// Get retrieves a value from cache with local cache first
+// Get retrieves a value from cache
 func (s *RedisStore) Get(ctx context.Context, key string, value interface{}) error {
-	//s.mu.RLock()
-	//if s.closed {
-	//	s.mu.RUnlock()
-	//	return ErrClosed
-	//}
-	//s.mu.RUnlock()
-
-	//// Try local cache first
-	//if data, ok := s.getFromLocalCache(key); ok {
-	//	if err := json.Unmarshal(data, value); err != nil {
-	//		log.Error().Err(err).Str("key", key).Msg("Failed to unmarshal local cached value")
-	//	} else {
-	//		return nil
-	//	}
-	//}
-
-	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			data, err := s.client.Get(timeoutCtx, key).Bytes()
-			cancel()
-
-			if err == nil {
-				// Store in local cache with same TTL as Redis
-				ttl := s.client.TTL(ctx, key).Val()
-				if ttl < 0 {
-					if strings.HasPrefix(key, PrefixHealth) {
-						ttl = HealthTTL
-					} else if strings.HasPrefix(key, "sessions:") {
-						ttl = SessionsTTL
-					} else if strings.HasPrefix(key, "stats:") {
-						ttl = StatsTTL
-					} else {
-						ttl = DefaultTTL
-					}
-				}
-				//s.setInLocalCache(key, data, ttl)
-				return json.Unmarshal(data, value)
-			}
-
-			lastErr = err
-			if errors.Is(err, redis.Nil) {
-				break
-			}
-
-			if i < RetryAttempts-1 {
-				time.Sleep(RetryDelay)
-			}
+	data, err := s.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return ErrKeyNotFound
 		}
+
+		return err
 	}
 
-	if errors.Is(lastErr, redis.Nil) {
-		return ErrKeyNotFound
-	}
-
-	return lastErr
+	return json.Unmarshal(data, value)
 }
 
 // Set stores a value in both Redis and local cache
@@ -156,29 +106,12 @@ func (s *RedisStore) Set(ctx context.Context, key string, value interface{}, exp
 		return err
 	}
 
-	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			err := s.client.Set(timeoutCtx, key, data, expiration).Err()
-			cancel()
-
-			if err == nil {
-				//s.setInLocalCache(key, data, expiration)
-				return nil
-			}
-
-			lastErr = err
-			if i < RetryAttempts-1 {
-				time.Sleep(RetryDelay)
-			}
-		}
+	err = s.client.Set(ctx, key, data, expiration).Err()
+	if err != nil {
+		return err
 	}
 
-	return lastErr
+	return nil
 }
 
 // Delete removes a value from both Redis and local cache
@@ -190,33 +123,12 @@ func (s *RedisStore) Delete(ctx context.Context, key string) error {
 	//}
 	//s.mu.RUnlock()
 
-	//// Remove from local cache immediately
-	//s.local.Lock()
-	//delete(s.local.items, key)
-	//s.local.Unlock()
-
-	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			err := s.client.Del(timeoutCtx, key).Err()
-			cancel()
-
-			if err == nil {
-				return nil
-			}
-
-			lastErr = err
-			if i < RetryAttempts-1 {
-				time.Sleep(RetryDelay)
-			}
-		}
+	err := s.client.Del(ctx, key).Err()
+	if err != nil {
+		return err
 	}
 
-	return lastErr
+	return nil
 }
 
 // Rate limiting methods
@@ -228,31 +140,16 @@ func (s *RedisStore) Increment(ctx context.Context, key string, timestamp int64)
 	//}
 	//s.mu.RUnlock()
 
-	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			member := strconv.FormatInt(timestamp, 10)
-			err := s.client.ZAdd(timeoutCtx, key, redis.Z{
-				Score:  float64(timestamp),
-				Member: member,
-			}).Err()
-			cancel()
-
-			if err == nil {
-				return nil
-			}
-
-			lastErr = err
-			if i < RetryAttempts-1 {
-				time.Sleep(RetryDelay)
-			}
-		}
+	member := strconv.FormatInt(timestamp, 10)
+	err := s.client.ZAdd(ctx, key, redis.Z{
+		Score:  float64(timestamp),
+		Member: member,
+	}).Err()
+	if err != nil {
+		return err
 	}
-	return lastErr
+
+	return nil
 }
 
 func (s *RedisStore) CleanAndCount(ctx context.Context, key string, windowStart int64) error {
@@ -263,27 +160,12 @@ func (s *RedisStore) CleanAndCount(ctx context.Context, key string, windowStart 
 	//}
 	//s.mu.RUnlock()
 
-	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			err := s.client.ZRemRangeByScore(timeoutCtx, key, "-inf", "("+strconv.FormatInt(windowStart, 10)).Err()
-			cancel()
-
-			if err == nil {
-				return nil
-			}
-
-			lastErr = err
-			if i < RetryAttempts-1 {
-				time.Sleep(RetryDelay)
-			}
-		}
+	err := s.client.ZRemRangeByScore(ctx, key, "-inf", "("+strconv.FormatInt(windowStart, 10)).Err()
+	if err != nil {
+		return err
 	}
-	return lastErr
+
+	return nil
 }
 
 func (s *RedisStore) GetCount(ctx context.Context, key string) (int64, error) {
@@ -293,28 +175,12 @@ func (s *RedisStore) GetCount(ctx context.Context, key string) (int64, error) {
 	//	return 0, ErrClosed
 	//}
 	//s.mu.RUnlock()
-
-	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		default:
-			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			count, err := s.client.ZCard(timeoutCtx, key).Result()
-			cancel()
-
-			if err == nil {
-				return count, nil
-			}
-
-			lastErr = err
-			if i < RetryAttempts-1 {
-				time.Sleep(RetryDelay)
-			}
-		}
+	count, err := s.client.ZCard(ctx, key).Result()
+	if err != nil {
+		return 0, err
 	}
-	return 0, lastErr
+
+	return count, nil
 }
 
 func (s *RedisStore) Expire(ctx context.Context, key string, expiration time.Duration) error {
@@ -329,27 +195,12 @@ func (s *RedisStore) Expire(ctx context.Context, key string, expiration time.Dur
 		expiration = DefaultTTL
 	}
 
-	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			timeoutCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-			err := s.client.Expire(timeoutCtx, key, expiration).Err()
-			cancel()
-
-			if err == nil {
-				return nil
-			}
-
-			lastErr = err
-			if i < RetryAttempts-1 {
-				time.Sleep(RetryDelay)
-			}
-		}
+	err := s.client.Expire(ctx, key, expiration).Err()
+	if err != nil {
+		return err
 	}
-	return lastErr
+
+	return nil
 }
 
 // Close closes the Redis connection and stops the cleanup goroutine
@@ -374,9 +225,9 @@ func getRedisOptions(addr string) *redis.Options {
 
 	// Base configuration optimized for single user
 	opts := &redis.Options{
-		Addr:            addr,
-		MinIdleConns:    1,
-		MaxRetries:      RetryAttempts,
+		Addr: addr,
+		//MinIdleConns: 1,
+		//MaxRetries:      RetryAttempts,
 		MinRetryBackoff: RetryDelay,
 		MaxRetryBackoff: time.Second,
 		// Reduced pool size for single user scenario
