@@ -153,13 +153,13 @@ func (s *MemoryStore) persistSessions() {
 }
 
 // Get retrieves a value from cache
-func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) error {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return ErrClosed
-	}
-	s.mu.RUnlock()
+func (s *MemoryStore) Get(_ context.Context, key string, value interface{}) error {
+	//s.mu.RLock()
+	//if s.closed {
+	//	s.mu.RUnlock()
+	//	return ErrClosed
+	//}
+	//s.mu.RUnlock()
 
 	s.local.RLock()
 	item, exists := s.local.items[key]
@@ -176,13 +176,13 @@ func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) er
 }
 
 // Set stores a value in cache
-func (s *MemoryStore) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return ErrClosed
-	}
-	s.mu.RUnlock()
+func (s *MemoryStore) Set(_ context.Context, key string, value interface{}, expiration time.Duration) error {
+	//s.mu.RLock()
+	//if s.closed {
+	//	s.mu.RUnlock()
+	//	return ErrClosed
+	//}
+	//s.mu.RUnlock()
 
 	if expiration == 0 {
 		expiration = DefaultTTL
@@ -210,13 +210,13 @@ func (s *MemoryStore) Set(ctx context.Context, key string, value interface{}, ex
 }
 
 // Delete removes a value from cache
-func (s *MemoryStore) Delete(ctx context.Context, key string) error {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return ErrClosed
-	}
-	s.mu.RUnlock()
+func (s *MemoryStore) Delete(_ context.Context, key string) error {
+	//s.mu.RLock()
+	//if s.closed {
+	//	s.mu.RUnlock()
+	//	return ErrClosed
+	//}
+	//s.mu.RUnlock()
 
 	s.local.Lock()
 	delete(s.local.items, key)
@@ -231,13 +231,13 @@ func (s *MemoryStore) Delete(ctx context.Context, key string) error {
 }
 
 // Increment adds a timestamp to the rate limit window
-func (s *MemoryStore) Increment(ctx context.Context, key string, timestamp int64) error {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return ErrClosed
-	}
-	s.mu.RUnlock()
+func (s *MemoryStore) Increment(_ context.Context, key string, timestamp int64) error {
+	//s.mu.RLock()
+	//if s.closed {
+	//	s.mu.RUnlock()
+	//	return ErrClosed
+	//}
+	//s.mu.RUnlock()
 
 	window, _ := s.rateLimits.LoadOrStore(key, &rateWindow{
 		timestamps: make(map[string]int64),
@@ -259,13 +259,13 @@ func (s *MemoryStore) Increment(ctx context.Context, key string, timestamp int64
 }
 
 // CleanAndCount removes old timestamps and returns the count of remaining ones
-func (s *MemoryStore) CleanAndCount(ctx context.Context, key string, windowStart int64) error {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return ErrClosed
-	}
-	s.mu.RUnlock()
+func (s *MemoryStore) CleanAndCount(_ context.Context, key string, windowStart int64) error {
+	//s.mu.RLock()
+	//if s.closed {
+	//	s.mu.RUnlock()
+	//	return ErrClosed
+	//}
+	//s.mu.RUnlock()
 
 	if window, ok := s.rateLimits.Load(key); ok {
 		w := window.(*rateWindow)
@@ -290,13 +290,13 @@ func (s *MemoryStore) CleanAndCount(ctx context.Context, key string, windowStart
 }
 
 // GetCount returns the number of timestamps in the current window
-func (s *MemoryStore) GetCount(ctx context.Context, key string) (int64, error) {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return 0, ErrClosed
-	}
-	s.mu.RUnlock()
+func (s *MemoryStore) GetCount(_ context.Context, key string) (int64, error) {
+	//s.mu.RLock()
+	//if s.closed {
+	//	s.mu.RUnlock()
+	//	return 0, ErrClosed
+	//}
+	//s.mu.RUnlock()
 
 	if window, ok := s.rateLimits.Load(key); ok {
 		w := window.(*rateWindow)
@@ -315,13 +315,13 @@ func (s *MemoryStore) GetCount(ctx context.Context, key string) (int64, error) {
 }
 
 // Expire updates the expiration time for a key
-func (s *MemoryStore) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return ErrClosed
-	}
-	s.mu.RUnlock()
+func (s *MemoryStore) Expire(_ context.Context, key string, expiration time.Duration) error {
+	//s.mu.RLock()
+	//if s.closed {
+	//	s.mu.RUnlock()
+	//	return ErrClosed
+	//}
+	//s.mu.RUnlock()
 
 	// Handle rate limit windows
 	if window, ok := s.rateLimits.Load(key); ok {
@@ -349,13 +349,13 @@ func (s *MemoryStore) Expire(ctx context.Context, key string, expiration time.Du
 
 // Close cleans up resources
 func (s *MemoryStore) Close() error {
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return ErrClosed
-	}
-	s.closed = true
-	s.mu.Unlock()
+	//s.mu.Lock()
+	//if s.closed {
+	//	s.mu.Unlock()
+	//	return ErrClosed
+	//}
+	//s.closed = true
+	//s.mu.Unlock()
 
 	s.cancel()
 	s.wg.Wait()
