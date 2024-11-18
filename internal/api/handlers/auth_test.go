@@ -6,7 +6,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -25,111 +25,76 @@ type MockStore struct {
 	mock.Mock
 }
 
-// safeArgs ensures we always return a valid mock.Arguments
-func (m *MockStore) safeArgs(args mock.Arguments) mock.Arguments {
-	if args == nil {
-		return mock.Arguments{errors.New("mock not configured")}
-	}
-	return args
-}
-
 func (m *MockStore) Get(ctx context.Context, key string, value interface{}) error {
-	args := m.safeArgs(m.Called(ctx, key, value))
-	if args.Get(0) == nil {
-		return nil
-	}
-	if err, ok := args.Get(0).(error); ok {
-		return err
-	}
-	return errors.New("unknown error")
+	args := m.Called(ctx, key, value)
+	return args.Error(0)
 }
 
-func (m *MockStore) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	args := m.safeArgs(m.Called(ctx, key, value, expiration))
-	if args.Get(0) == nil {
-		return nil
-	}
-	if err, ok := args.Get(0).(error); ok {
-		return err
-	}
-	return errors.New("unknown error")
+func (m *MockStore) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	args := m.Called(ctx, key, value, ttl)
+	return args.Error(0)
 }
 
 func (m *MockStore) Delete(ctx context.Context, key string) error {
-	args := m.safeArgs(m.Called(ctx, key))
-	if args.Get(0) == nil {
-		return nil
-	}
-	if err, ok := args.Get(0).(error); ok {
-		return err
-	}
-	return errors.New("unknown error")
-}
-
-func (m *MockStore) Increment(ctx context.Context, key string, timestamp int64) error {
-	args := m.safeArgs(m.Called(ctx, key, timestamp))
-	if args.Get(0) == nil {
-		return nil
-	}
-	if err, ok := args.Get(0).(error); ok {
-		return err
-	}
-	return errors.New("unknown error")
-}
-
-func (m *MockStore) CleanAndCount(ctx context.Context, key string, windowStart int64) error {
-	args := m.safeArgs(m.Called(ctx, key, windowStart))
-	if args.Get(0) == nil {
-		return nil
-	}
-	if err, ok := args.Get(0).(error); ok {
-		return err
-	}
-	return errors.New("unknown error")
-}
-
-func (m *MockStore) GetCount(ctx context.Context, key string) (int64, error) {
-	args := m.safeArgs(m.Called(ctx, key))
-	var count int64
-	if args.Get(0) != nil {
-		if c, ok := args.Get(0).(int64); ok {
-			count = c
-		}
-	}
-	var err error
-	if args.Get(1) != nil {
-		if e, ok := args.Get(1).(error); ok {
-			err = e
-		}
-	}
-	return count, err
-}
-
-func (m *MockStore) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	args := m.safeArgs(m.Called(ctx, key, expiration))
-	if args.Get(0) == nil {
-		return nil
-	}
-	if err, ok := args.Get(0).(error); ok {
-		return err
-	}
-	return errors.New("unknown error")
+	args := m.Called(ctx, key)
+	return args.Error(0)
 }
 
 func (m *MockStore) Close() error {
-	args := m.safeArgs(m.Called())
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockStore) Increment(ctx context.Context, key string, timestamp int64) error {
+	args := m.Called(ctx, key, timestamp)
+	return args.Error(0)
+}
+
+func (m *MockStore) CleanAndCount(ctx context.Context, key string, windowStart int64) error {
+	args := m.Called(ctx, key, windowStart)
+	return args.Error(0)
+}
+
+func (m *MockStore) GetCount(ctx context.Context, key string) (int64, error) {
+	args := m.Called(ctx, key)
 	if args.Get(0) == nil {
-		return nil
+		return 0, args.Error(1)
 	}
-	if err, ok := args.Get(0).(error); ok {
-		return err
-	}
-	return errors.New("unknown error")
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockStore) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	args := m.Called(ctx, key, expiration)
+	return args.Error(0)
 }
 
 func TestNewAuthHandler(t *testing.T) {
+	var serverURL string
+
+	// Create a test server that responds to OIDC discovery
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/openid-configuration" {
+			t.Errorf("Expected request to /.well-known/openid-configuration, got %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		// Create discovery response with proper endpoints
+		response := fmt.Sprintf(`{
+			"issuer": "%s",
+			"authorization_endpoint": "%s/authorize",
+			"token_endpoint": "%s/oauth/token",
+			"userinfo_endpoint": "%s/userinfo"
+		}`, serverURL, serverURL, serverURL, serverURL)
+		w.Write([]byte(response))
+	}))
+	defer ts.Close()
+	serverURL = ts.URL
+
 	config := &types.AuthConfig{
-		Issuer:       "https://test.auth0.com",
+		Issuer:       serverURL,
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
 		RedirectURL:  "http://localhost:3000/callback",
@@ -144,6 +109,28 @@ func TestNewAuthHandler(t *testing.T) {
 	assert.Equal(t, "test-client-id", handler.oauth2Config.ClientID)
 	assert.Equal(t, "test-client-secret", handler.oauth2Config.ClientSecret)
 	assert.Equal(t, "http://localhost:3000/callback", handler.oauth2Config.RedirectURL)
+}
+
+func TestNewAuthHandler_DiscoveryFailed(t *testing.T) {
+	var serverURL string
+
+	// Create a test server that returns an error
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+	serverURL = ts.URL
+
+	config := &types.AuthConfig{
+		Issuer:       serverURL,
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		RedirectURL:  "http://localhost:3000/callback",
+	}
+	mockStore := new(MockStore)
+
+	handler := NewAuthHandler(config, mockStore)
+	assert.Nil(t, handler, "Handler should be nil when discovery fails")
 }
 
 func TestLogin_NoFrontendURL(t *testing.T) {

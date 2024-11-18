@@ -31,11 +31,8 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
-	// Create HTTP client with timeout
-	httpClient := &http.Client{Timeout: 10 * time.Second}
-
-	// Create context with timeout for provider configuration
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	httpClient := &http.Client{Timeout: 1 * time.Second}
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	log.Debug().
@@ -481,7 +478,7 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 
 	// Just return the basic session info we already have
 	c.JSON(http.StatusOK, gin.H{
-		"user_id": sessionData.UserID,
+		"user_id":   sessionData.UserID,
 		"auth_type": sessionData.AuthType,
 	})
 }
