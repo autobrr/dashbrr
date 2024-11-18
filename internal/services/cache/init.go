@@ -16,6 +16,9 @@ import (
 
 // Config holds cache configuration options
 type Config struct {
+	// Cache type
+	Type CacheType
+
 	// Redis configuration
 	RedisAddr string
 

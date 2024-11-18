@@ -1,94 +1,122 @@
-// Copyright (c) 2024, s0up and the autobrr contributors.
-// SPDX-License-Identifier: GPL-2.0-or-later
-
-package routes
+package api
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"os"
-	"path/filepath"
 	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/api/handlers"
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/web"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 )
 
-// SetupRoutes configures all the routes for the application
-func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService) cache.Store {
-	// Use custom logger instead of default Gin logger
+type Server struct {
+	cfg        *config.Config
+	db         *database.DB
+	cache      cache.Store
+	healthSvc  *services.HealthService
+	httpServer *http.Server
+}
+
+func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, healthSvc *services.HealthService) *Server {
+	return &Server{
+		cfg:       cfg,
+		db:        db,
+		cache:     cache,
+		healthSvc: healthSvc,
+	}
+}
+
+func (s *Server) ListenAndServe() error {
+	listener, err := net.Listen("tcp", s.cfg.Server.ListenAddr)
+	if err != nil {
+		return err
+	}
+
+	log.Info().
+		Str("address", listener.Addr().String()).
+		Str("mode", gin.Mode()).
+		Str("database", s.cfg.Database.Path).
+		Msg("Starting server")
+
+	s.httpServer = &http.Server{
+		Addr:         s.cfg.Server.ListenAddr,
+		Handler:      s.Handler(),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	return s.httpServer.Serve(listener)
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	//s.cache.Close()
+	return s.httpServer.Shutdown(ctx)
+}
+
+func (s *Server) Handler() http.Handler {
+	ginMode := gin.ReleaseMode
+	if os.Getenv("GIN_MODE") == "debug" {
+		ginMode = gin.DebugMode
+	}
+	gin.SetMode(ginMode)
+
+	r := gin.New()
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
+
+	trustedProxies := []string{"127.0.0.1", "::1"}
+	if gin.Mode() == gin.DebugMode {
+		trustedProxies = []string{}
+	}
+
+	if err := r.SetTrustedProxies(trustedProxies); err != nil {
+		log.Error().Err(err).Msg("Failed to set trusted proxies")
+	}
+
 	r.Use(middleware.SetupCORS())
-	r.Use(middleware.Secure(nil)) // Add secure middleware with default config
-
-	// Create a root context for cache initialization
-	ctx := context.Background()
-
-	// Initialize cache with database directory for session storage
-	cacheConfig := cache.Config{
-		DataDir: filepath.Dir(os.Getenv("DASHBRR__DB_PATH")), // Use same directory as database
-	}
-
-	// Configure Redis if enabled
-	if os.Getenv("REDIS_HOST") != "" {
-		host := os.Getenv("REDIS_HOST")
-		port := os.Getenv("REDIS_PORT")
-		if port == "" {
-			port = "6379"
-		}
-		cacheConfig.RedisAddr = host + ":" + port
-	}
-
-	store, err := cache.InitCache(ctx, cacheConfig)
-	if err != nil {
-		// This should never happen as InitCache always returns a valid store
-		log.Debug().Err(err).Msg("Using memory cache")
-		store = cache.NewMemoryStore(ctx, cacheConfig.DataDir)
-	}
-
-	// Determine cache type based on environment and Redis configuration
-	cacheType := "memory"
-	if os.Getenv("CACHE_TYPE") == "redis" && os.Getenv("REDIS_HOST") != "" {
-		cacheType = "redis"
-	}
-	log.Debug().Str("type", cacheType).Msg("Cache initialized")
 
 	// Create rate limiters with different configurations
-	apiRateLimiter := middleware.NewRateLimiter(store, time.Minute, 60, "api:")       // 60 requests per minute for API
-	healthRateLimiter := middleware.NewRateLimiter(store, time.Minute, 30, "health:") // 30 health checks per minute
-	authRateLimiter := middleware.NewRateLimiter(store, time.Minute, 30, "auth:")     // 30 auth requests per minute
+	apiRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 60, "api:")       // 60 requests per minute for API
+	healthRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "health:") // 30 health checks per minute
+	authRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "auth:")     // 30 auth requests per minute
 
 	// Special rate limiter for Tailscale services
-	tailscaleRateLimiter := middleware.NewRateLimiter(store, 2*time.Minute, 20, "tailscale:") // 20 requests per 2 minutes
+	tailscaleRateLimiter := middleware.NewRateLimiter(s.cache, 2*time.Minute, 20, "tailscale:") // 20 requests per 2 minutes
 
 	// Create cache middleware (now handles TTLs internally)
-	cacheMiddleware := middleware.NewCacheMiddleware(store)
+	cacheMiddleware := middleware.NewCacheMiddleware(s.cache)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(db, health, store)
-	healthHandler := handlers.NewHealthHandler(db, health)
-	eventsHandler := handlers.NewEventsHandler(db, health)
-	autobrrHandler := handlers.NewAutobrrHandler(db, store)
-	omegabrrHandler := handlers.NewOmegabrrHandler(db, store)
-	maintainerrHandler := handlers.NewMaintainerrHandler(db, store)
-	plexHandler := handlers.NewPlexHandler(db, store)
-	tailscaleHandler := handlers.NewTailscaleHandler(db, store)
-	overseerrHandler := handlers.NewOverseerrHandler(db, store)
-	sonarrHandler := handlers.NewSonarrHandler(db, store)
-	radarrHandler := handlers.NewRadarrHandler(db, store)
-	prowlarrHandler := handlers.NewProwlarrHandler(db, store)
+	settingsHandler := handlers.NewSettingsHandler(s.db, s.healthSvc, s.cache)
+	//serviceHandler := handlers.NewServiceHandler(db, health, store)
+	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc)
+	eventsHandler := handlers.NewEventsHandler(s.db, s.healthSvc)
+	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache)
+	omegabrrHandler := handlers.NewOmegabrrHandler(s.db, s.cache)
+	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache)
+	plexHandler := handlers.NewPlexHandler(s.db, s.cache)
+	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
+	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache)
+	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache)
+	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache)
+	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache)
 
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
-	builtinAuthHandler := handlers.NewBuiltinAuthHandler(db, store)
-	authMiddleware := middleware.NewAuthMiddleware(store)
+	builtinAuthHandler := handlers.NewBuiltinAuthHandler(s.db, s.cache)
+	authMiddleware := middleware.NewAuthMiddleware(s.cache)
 
 	// Initialize OIDC if configuration is provided
 	if hasOIDCConfig() {
@@ -98,7 +126,7 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 			ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),
 			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/callback"),
 		}
-		oidcAuthHandler = handlers.NewAuthHandler(authConfig, store)
+		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
 	}
 
 	// Start the health monitor
@@ -173,6 +201,18 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 			health.GET("/:service", healthHandler.CheckHealth)
 			health.GET("/events", eventsHandler.StreamHealth)
 		}
+
+		//serviceRoutes := api.Group("/services")
+		//serviceRoutes.Use(cacheMiddleware.Cache())
+		//{
+		//
+		//	serviceRoutes.POST("/", serviceHandler.Create)
+		//
+		//	autobrr := serviceRoutes.Group("/autobrr/:id")
+		//	autobrr.GET("/stats", autobrrHandler.GetAutobrrReleaseStats)
+		//	autobrr.GET("/irc", autobrrHandler.GetAutobrrIRCStatus)
+		//	autobrr.GET("/releases", autobrrHandler.GetAutobrrReleases)
+		//}
 
 		// Service endpoints with specific rate limits and caches
 		services := api.Group("")
@@ -250,7 +290,9 @@ func SetupRoutes(r *gin.Engine, db *database.DB, health *services.HealthService)
 		}
 	}
 
-	return store
+	web.ServeStatic(r)
+
+	return r
 }
 
 // hasOIDCConfig checks if all required OIDC configuration is provided
