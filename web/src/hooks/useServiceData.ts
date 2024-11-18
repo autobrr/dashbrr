@@ -837,13 +837,17 @@ const updateService = useCallback((service: Service) => {
     setIsLoading(false);
     isInitialLoadRef.current = false;
 
+    // Store refs in variables to ensure we have the correct values during cleanup
+    const currentPlexTimeout = plexTimeoutRef.current;
+    const currentEventSource = eventSourceRef.current;
+
     return () => {
       Array.from(services.keys()).forEach(clearServiceTimeout);
-      if (plexTimeoutRef.current) {
-        clearTimeout(plexTimeoutRef.current);
+      if (currentPlexTimeout) {
+        clearTimeout(currentPlexTimeout);
       }
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (currentEventSource) {
+        currentEventSource.close();
       }
       mountedRef.current = false;
     };
