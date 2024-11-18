@@ -413,3 +413,14 @@ func (s *MemoryStore) localCacheCleanup() {
 		}
 	}
 }
+
+// LocalCache provides in-memory caching to reduce Redis hits
+type LocalCache struct {
+	sync.RWMutex
+	items map[string]*localCacheItem
+}
+
+type localCacheItem struct {
+	value      []byte
+	expiration time.Time
+}
