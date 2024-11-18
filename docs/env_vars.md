@@ -99,5 +99,5 @@
 
 - `OIDC_REDIRECT_URL`
   - Purpose: Callback URL for OIDC authentication
-  - Example: `http://localhost:3000/auth/callback`
+  - Example: `http://localhost:3000/api/auth/callback`
   - Required if using OIDC

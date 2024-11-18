@@ -147,6 +147,9 @@ const isAuthEndpoint = (path: string): boolean => {
   return authPaths.some(authPath => path.includes(authPath));
 };
 
+// Track auth state changes to prevent cascading 401 handlers
+let isHandlingAuth = false;
+
 const handleRequest = async <T>(
   path: string,
   options: RequestOptions,
@@ -171,14 +174,24 @@ const handleRequest = async <T>(
     clearTimeout(timeoutId);
 
     if (response.status === 401) {
-      // Only trigger logout for authentication-related 401s
+      // Prevent multiple auth handlers from running simultaneously
+      if (isHandlingAuth) {
+        throw new Error('Authentication in progress');
+      }
+
+      // Only handle auth once
       if (isAuthEndpoint(path)) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('id_token');
-        localStorage.removeItem('auth_type');
-        await unregisterServiceWorker();
-        window.location.href = '/login';
-        throw new Error('Authentication required');
+        isHandlingAuth = true;
+        try {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('id_token');
+          localStorage.removeItem('auth_type');
+          await unregisterServiceWorker();
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        } finally {
+          isHandlingAuth = false;
+        }
       } else {
         // For service-related 401s (like invalid API keys), just throw an error
         const errorData = await response.json().catch(() => ({ error: 'Unauthorized' }));
