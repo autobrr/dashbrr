@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -231,7 +232,7 @@ func TestGetProviderEndpoints(t *testing.T) {
 			name:       "google provider",
 			issuer:     "https://accounts.google.com",
 			mockStatus: http.StatusOK,
-			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","token_endpoint":"https://oauth2.googleapis.com/token"}`,
+			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","token_endpoint":"https://oauth2.googleapis.com/token","userinfo_endpoint":"https://openidconnect.googleapis.com/v1/userinfo"}`,
 			wantPath:   "/.well-known/openid-configuration",
 			wantErr:    false,
 		},
@@ -239,7 +240,7 @@ func TestGetProviderEndpoints(t *testing.T) {
 			name:       "keycloak provider with path",
 			issuer:     "https://auth.example.com/realms/myrealm/",
 			mockStatus: http.StatusOK,
-			mockBody:   `{"authorization_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/auth","token_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/token"}`,
+			mockBody:   `{"authorization_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/auth","token_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/token","userinfo_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/userinfo"}`,
 			wantPath:   "/realms/myrealm/.well-known/openid-configuration",
 			wantErr:    false,
 		},
@@ -265,14 +266,26 @@ func TestGetProviderEndpoints(t *testing.T) {
 			testIssuer := u.String()
 
 			// Test the function
-			got, err := getProviderEndpoints(context.Background(), http.DefaultClient, testIssuer)
+			endpoint, userinfoURL, err := getProviderEndpoints(context.Background(), http.DefaultClient, testIssuer)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 			assert.NoError(t, err)
-			assert.NotEmpty(t, got.AuthURL)
-			assert.NotEmpty(t, got.TokenURL)
+
+			// Parse mock response to get expected values
+			var config struct {
+				AuthURL     string `json:"authorization_endpoint"`
+				TokenURL    string `json:"token_endpoint"`
+				UserinfoURL string `json:"userinfo_endpoint"`
+			}
+			err = json.Unmarshal([]byte(tt.mockBody), &config)
+			assert.NoError(t, err)
+
+			// Verify endpoints match
+			assert.Equal(t, config.AuthURL, endpoint.AuthURL)
+			assert.Equal(t, config.TokenURL, endpoint.TokenURL)
+			assert.Equal(t, config.UserinfoURL, userinfoURL)
 		})
 	}
 }
