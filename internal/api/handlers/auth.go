@@ -42,25 +42,18 @@ func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 		Str("issuer", config.Issuer).
 		Msg("initializing auth handler")
 
-	// Try discovery first
+	// Get provider endpoints through OIDC discovery
 	endpoints, userinfoURL, err := getProviderEndpoints(ctx, httpClient, config.Issuer)
 	if err != nil {
-		// Fall back to default endpoints
-		endpoints = oauth2.Endpoint{
-			AuthURL:  config.Issuer + "/authorize",
-			TokenURL: config.Issuer + "/oauth/token",
-		}
-		log.Debug().
-			Err(err).
-			Str("auth_url", endpoints.AuthURL).
-			Str("token_url", endpoints.TokenURL).
-			Msg("discovery failed, using default endpoints")
-	} else {
-		log.Debug().
-			Str("auth_url", endpoints.AuthURL).
-			Str("token_url", endpoints.TokenURL).
-			Msg("using discovered endpoints")
+		log.Error().Err(err).
+			Msg("OIDC discovery failed. Please ensure your provider supports OpenID Connect discovery as specified in https://openid.net/specs/openid-connect-discovery-1_0.html")
+		return nil
 	}
+
+	log.Debug().
+		Str("auth_url", endpoints.AuthURL).
+		Str("token_url", endpoints.TokenURL).
+		Msg("using discovered endpoints")
 
 	oauth2Config := &oauth2.Config{
 		ClientID:     config.ClientID,
