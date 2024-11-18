@@ -32,9 +32,15 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchConfigurations = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !localStorage.getItem("access_token")) {
       setConfigurations({});
       setIsLoading(false);
+      return;
+    }
+
+    // Skip fetch if we already have configurations
+    if (Object.keys(configurations).length > 0) {
+      console.log("[ConfigurationProvider] Already have configurations, skipping fetch");
       return;
     }
 
@@ -48,6 +54,10 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setConfigurations({});
+          return;
+        }
         throw new Error(`Failed to fetch configurations: ${response.status}`);
       }
 
@@ -61,7 +71,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, buildUrl, getAuthHeaders]);
+  }, [isAuthenticated, buildUrl, getAuthHeaders, configurations]);
 
   useEffect(() => {
     fetchConfigurations();

@@ -65,6 +65,7 @@ export const useServiceData = () => {
   const configHashRef = useRef<string>('');
   const isInitialLoadRef = useRef(true);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const mountedRef = useRef(true);
 
   const clearServiceTimeout = useCallback((serviceId: string) => {
     const timeoutId = updateTimeoutsRef.current.get(serviceId);
@@ -774,12 +775,17 @@ const updateService = useCallback((service: Service) => {
 
     eventSource.onerror = (error) => {
       console.error('SSE connection error:', error);
-      eventSource.close();
-      setTimeout(initializeSSE, 5000);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      // Only retry if we're still mounted and authenticated
+      if (isAuthenticated && mountedRef.current) {
+        initializeSSE();  // Retry immediately instead of waiting
+      }
     };
 
     eventSourceRef.current = eventSource;
-  }, [updateServiceData, services]);
+  }, [updateServiceData, services, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated || !configurations) {
@@ -788,15 +794,16 @@ const updateService = useCallback((service: Service) => {
       return;
     }
 
-    const currentPlexTimeout = plexTimeoutRef.current;
     const configHash = JSON.stringify(configurations);
-    
     if (configHash === configHashRef.current && !isInitialLoadRef.current) {
       return;
     }
     
     configHashRef.current = configHash;
-    initializeSSE();
+    
+    if (isAuthenticated) {
+      initializeSSE();
+    }
 
     Object.entries(configurations).forEach(([instanceId, config]) => {
       const existingService = services.get(instanceId);
@@ -832,12 +839,13 @@ const updateService = useCallback((service: Service) => {
 
     return () => {
       Array.from(services.keys()).forEach(clearServiceTimeout);
-      if (currentPlexTimeout) {
-        clearTimeout(currentPlexTimeout);
+      if (plexTimeoutRef.current) {
+        clearTimeout(plexTimeoutRef.current);
       }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
+      mountedRef.current = false;
     };
   }, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService, services, initializeSSE]);
 
@@ -870,5 +878,3 @@ const updateService = useCallback((service: Service) => {
     refreshService: debouncedRefreshService
   };
 };
-
-
