@@ -8,16 +8,16 @@ When starting Dashbrr, you can use the following flags to control its configurat
 
 ```bash
 # Start Dashbrr with default settings
-dashbrr
+dashbrr serve
 
 # Specify a custom config file location
-dashbrr -config=/path/to/config.toml
+dashbrr serve --config=/path/to/config.toml
 
 # Specify a custom database location
-dashbrr -db=/path/to/database.db
+dashbrr serve --db-file=/path/to/database.db
 
 # Specify a custom listen address
-dashbrr -listen=:8081
+dashbrr serve --listen-addr=:8081
 ```
 
 By default:
@@ -30,11 +30,11 @@ For example:
 
 ```bash
 # Using config in /etc/dashbrr
-dashbrr -config=/etc/dashbrr/config.toml
+dashbrr serve --config=/etc/dashbrr/config.toml
 # Database will be created at /etc/dashbrr/data/dashbrr.db
 
 # Override default database location
-dashbrr -config=/etc/dashbrr/config.toml -db=/var/lib/dashbrr/dashbrr.db
+dashbrr serve --config=/etc/dashbrr/config.toml --db-file=/var/lib/dashbrr/dashbrr.db
 ```
 
 ## Core Commands
@@ -43,28 +43,28 @@ dashbrr -config=/etc/dashbrr/config.toml -db=/var/lib/dashbrr/dashbrr.db
 
 ```bash
 # Create a new user
-dashbrr run user create <username> <password> [email]
-Example: dashbrr run user create admin password123
-Example: dashbrr run user create admin password123 admin@example.com
+dashbrr user create <username> <password> [email]
+Example: dashbrr user create admin password123
+Example: dashbrr user create admin password123 admin@example.com
 
 # Change user password
-dashbrr run user change-password <username> <new_password>
-Example: dashbrr run user change-password admin newpassword123
+dashbrr user change-password <username> <new_password>
+Example: dashbrr user change-password admin newpassword123
 ```
 
 ### Health Checks
 
 ```bash
 # Check system and service health
-dashbrr run health [--services] [--system] [--json]
+dashbrr health [--services] [--system] [--json]
 
 Options:
   --services  Check health of configured services
   --system    Check system health (database and config)
   --json      Output results in JSON format
 
-Example: dashbrr run health --services --system
-Example: dashbrr run health --json
+Example: dashbrr health --services --system
+Example: dashbrr health --json
 ```
 
 The health command provides information about:
@@ -80,14 +80,14 @@ The health command provides information about:
 
 ```bash
 # Display version information
-dashbrr run version [--check-github] [--json]
+dashbrr version [--check-github] [--json]
 
 Options:
   --check-github  Check for latest version on GitHub
   --json         Output results in JSON format
 
-Example: dashbrr run version --check-github
-Example: dashbrr run version --json
+Example: dashbrr version --check-github
+Example: dashbrr version --json
 ```
 
 The version command shows:
@@ -109,151 +109,151 @@ Each service type supports the following operations:
 
 ```bash
 # Add an Autobrr service
-dashbrr run service autobrr add <url> <api-key>
-Example: dashbrr run service autobrr add http://localhost:7474 your-api-key
+dashbrr service autobrr add <url> <api-key>
+Example: dashbrr service autobrr add http://localhost:7474 your-api-key
 
 # Remove an Autobrr service
-dashbrr run service autobrr remove <url>
-Example: dashbrr run service autobrr remove http://localhost:7474
+dashbrr service autobrr remove <url>
+Example: dashbrr service autobrr remove http://localhost:7474
 
 # List Autobrr services
-dashbrr run service autobrr list
+dashbrr service autobrr list
 ```
 
 ### General Services
 
 ```bash
 # Add a General service
-dashbrr run service general add <url> [name] [api-key]
-Example: dashbrr run service general add http://my.general.service/healthz/liveness MyService
-Example: dashbrr run service general add http://my.general.service/healthz/liveness MyService optional-api-key
+dashbrr service general add <url> [name] [api-key]
+Example: dashbrr service general add http://my.general.service/healthz/liveness MyService
+Example: dashbrr service general add http://my.general.service/healthz/liveness MyService optional-api-key
 
 # Remove a General service
-dashbrr run service general remove <url>
-Example: dashbrr run service general remove http://localhost:7475
+dashbrr service general remove <url>
+Example: dashbrr service general remove http://localhost:7475
 
 # List General services
-dashbrr run service general list
+dashbrr service general list
 ```
 
 ### Maintainerr
 
 ```bash
 # Add a Maintainerr service
-dashbrr run service maintainerr add <url> <api-key>
-Example: dashbrr run service maintainerr add http://localhost:7476 your-api-key
+dashbrr service maintainerr add <url> <api-key>
+Example: dashbrr service maintainerr add http://localhost:7476 your-api-key
 
 # Remove a Maintainerr service
-dashbrr run service maintainerr remove <url>
-Example: dashbrr run service maintainerr remove http://localhost:7476
+dashbrr service maintainerr remove <url>
+Example: dashbrr service maintainerr remove http://localhost:7476
 
 # List Maintainerr services
-dashbrr run service maintainerr list
+dashbrr service maintainerr list
 ```
 
 ### Omegabrr
 
 ```bash
 # Add an Omegabrr service
-dashbrr run service omegabrr add <url> <api-key>
-Example: dashbrr run service omegabrr add http://localhost:7477 your-api-key
+dashbrr service omegabrr add <url> <api-key>
+Example: dashbrr service omegabrr add http://localhost:7477 your-api-key
 
 # Remove an Omegabrr service
-dashbrr run service omegabrr remove <url>
-Example: dashbrr run service omegabrr remove http://localhost:7477
+dashbrr service omegabrr remove <url>
+Example: dashbrr service omegabrr remove http://localhost:7477
 
 # List Omegabrr services
-dashbrr run service omegabrr list
+dashbrr service omegabrr list
 ```
 
 ### Overseerr
 
 ```bash
 # Add an Overseerr service
-dashbrr run service overseerr add <url> <api-key>
-Example: dashbrr run service overseerr add http://localhost:5055 your-api-key
+dashbrr service overseerr add <url> <api-key>
+Example: dashbrr service overseerr add http://localhost:5055 your-api-key
 
 # Remove an Overseerr service
-dashbrr run service overseerr remove <url>
-Example: dashbrr run service overseerr remove http://localhost:5055
+dashbrr service overseerr remove <url>
+Example: dashbrr service overseerr remove http://localhost:5055
 
 # List Overseerr services
-dashbrr run service overseerr list
+dashbrr service overseerr list
 ```
 
 ### Plex
 
 ```bash
 # Add a Plex service
-dashbrr run service plex add <url> <token>
-Example: dashbrr run service plex add http://localhost:32400 your-plex-token
+dashbrr service plex add <url> <token>
+Example: dashbrr service plex add http://localhost:32400 your-plex-token
 
 # Remove a Plex service
-dashbrr run service plex remove <url>
-Example: dashbrr run service plex remove http://localhost:32400
+dashbrr service plex remove <url>
+Example: dashbrr service plex remove http://localhost:32400
 
 # List Plex services
-dashbrr run service plex list
+dashbrr service plex list
 ```
 
 ### Prowlarr
 
 ```bash
 # Add a Prowlarr service
-dashbrr run service prowlarr add <url> <api-key>
-Example: dashbrr run service prowlarr add http://localhost:9696 your-api-key
+dashbrr service prowlarr add <url> <api-key>
+Example: dashbrr service prowlarr add http://localhost:9696 your-api-key
 
 # Remove a Prowlarr service
-dashbrr run service prowlarr remove <url>
-Example: dashbrr run service prowlarr remove http://localhost:9696
+dashbrr service prowlarr remove <url>
+Example: dashbrr service prowlarr remove http://localhost:9696
 
 # List Prowlarr services
-dashbrr run service prowlarr list
+dashbrr service prowlarr list
 ```
 
 ### Radarr
 
 ```bash
 # Add a Radarr service
-dashbrr run service radarr add <url> <api-key>
-Example: dashbrr run service radarr add http://localhost:7878 your-api-key
+dashbrr service radarr add <url> <api-key>
+Example: dashbrr service radarr add http://localhost:7878 your-api-key
 
 # Remove a Radarr service
-dashbrr run service radarr remove <url>
-Example: dashbrr run service radarr remove http://localhost:7878
+dashbrr service radarr remove <url>
+Example: dashbrr service radarr remove http://localhost:7878
 
 # List Radarr services
-dashbrr run service radarr list
+dashbrr service radarr list
 ```
 
 ### Sonarr
 
 ```bash
 # Add a Sonarr service
-dashbrr run service sonarr add <url> <api-key>
-Example: dashbrr run service sonarr add http://localhost:8989 your-api-key
+dashbrr service sonarr add <url> <api-key>
+Example: dashbrr service sonarr add http://localhost:8989 your-api-key
 
 # Remove a Sonarr service
-dashbrr run service sonarr remove <url>
-Example: dashbrr run service sonarr remove http://localhost:8989
+dashbrr service sonarr remove <url>
+Example: dashbrr service sonarr remove http://localhost:8989
 
 # List Sonarr services
-dashbrr run service sonarr list
+dashbrr service sonarr list
 ```
 
 ### Tailscale
 
 ```bash
 # Add a Tailscale service
-dashbrr run service tailscale add <url> <api-key>
-Example: dashbrr run service tailscale add http://localhost:8088 your-api-key
+dashbrr service tailscale add <url> <api-key>
+Example: dashbrr service tailscale add http://localhost:8088 your-api-key
 
 # Remove a Tailscale service
-dashbrr run service tailscale remove <url>
-Example: dashbrr run service tailscale remove http://localhost:8088
+dashbrr service tailscale remove <url>
+Example: dashbrr service tailscale remove http://localhost:8088
 
 # List Tailscale services
-dashbrr run service tailscale list
+dashbrr service tailscale list
 ```
 
 ## Common Parameters
