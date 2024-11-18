@@ -132,24 +132,21 @@ export const useEventSource = <T extends EventData>(
   // Connection health check
   useEffect(() => {
     const healthCheckInterval = setInterval(() => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || !eventSourceRef.current) return;
 
-      const now = Date.now();
-      const messageAge = now - lastMessageTimeRef.current;
+      const messageAge = Date.now() - lastMessageTimeRef.current;
 
-      // If no message received in MESSAGE_TIMEOUT, reconnect
-      if (isConnected && messageAge > MESSAGE_TIMEOUT && eventSourceRef.current) {
-        console.warn('[EventSource] No messages received for 5 minutes, reconnecting...');
+      // Only log and cleanup if we're not authenticated - prevents unnecessary userinfo requests
+      if (messageAge > MESSAGE_TIMEOUT && !isAuthenticated) {
+        console.warn('[EventSource] Connection stale and not authenticated, cleaning up...');
         cleanup();
-        retryCountRef.current = 0; // Reset retry count for fresh connection
-        authErrorRef.current = false; // Reset auth error flag
       }
     }, HEALTH_CHECK_INTERVAL);
 
     return () => {
       clearInterval(healthCheckInterval);
     };
-  }, [isConnected, cleanup]);
+  }, [isAuthenticated, cleanup]);
 
   // Main EventSource connection logic
   useEffect(() => {
@@ -194,7 +191,10 @@ export const useEventSource = <T extends EventData>(
           setIsConnected(true);
           retryCountRef.current = 0; // Reset retry count on successful connection
           lastMessageTimeRef.current = Date.now();
-          authErrorRef.current = false;
+          if (authErrorRef.current) {
+            console.log('[EventSource] Resetting auth error after successful connection');
+            authErrorRef.current = false;
+          }
         };
 
         eventSource.onmessage = (event) => {
@@ -253,6 +253,8 @@ export const useEventSource = <T extends EventData>(
             
             if (status === 401 || status === 403 || !isAuthenticated || !localStorage.getItem('access_token')) {
               errorType = EventSourceErrorType.AUTH;
+              console.log('[EventSource] Auth error detected, preventing reconnection attempts');
+              authErrorRef.current = true;
             } else if (status === 429) {
               errorType = EventSourceErrorType.RATE_LIMIT;
               const retryHeader = target.getResponseHeader?.('Retry-After');
@@ -279,14 +281,13 @@ export const useEventSource = <T extends EventData>(
           switch (errorType) {
             case EventSourceErrorType.AUTH: {
               console.error('[EventSource] Authentication error detected');
-              authErrorRef.current = true;
-              return;
+              return; // Don't attempt to reconnect on auth errors
             }
 
             case EventSourceErrorType.RATE_LIMIT: {
               if (retryAfter) {
                 reconnectTimeoutRef.current = window.setTimeout(() => {
-                  if (mountedRef.current) {
+                  if (mountedRef.current && !authErrorRef.current) {
                     console.log('[EventSource] Retrying after rate limit');
                     connectionLockRef.current = false;
                     connect();
@@ -307,7 +308,7 @@ export const useEventSource = <T extends EventData>(
                 retryCountRef.current++;
                 
                 reconnectTimeoutRef.current = window.setTimeout(() => {
-                  if (mountedRef.current) {
+                  if (mountedRef.current && !authErrorRef.current) {
                     console.log(`[EventSource] Attempting reconnection (${retryCountRef.current}/${maxRetries})`);
                     connectionLockRef.current = false;
                     connect();
@@ -343,10 +344,10 @@ export const useEventSource = <T extends EventData>(
     };
   }, [path, isAuthenticated, onMessage, onError, maxRetries, reconnectInterval, cleanup, getBackoffDelay, processPendingUpdates]);
 
-  // Reset auth error flag when auth state changes
+  // Only reset auth error when we get a successful connection
   useEffect(() => {
-    if (isAuthenticated) {
-      authErrorRef.current = false;
+    if (!isAuthenticated) {
+      authErrorRef.current = true;
     }
   }, [isAuthenticated]);
 

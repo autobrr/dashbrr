@@ -134,14 +134,7 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
         setError("Not configured");
       }
     }
-  }, [
-    config?.url,
-    config?.apiKey,
-    fetchDevices,
-    isAuthenticated,
-    loading,
-    config,
-  ]);
+  }, [config?.url, config?.apiKey, fetchDevices, isAuthenticated, loading]);
 
   const handleRemoveClick = () => {
     setIsRemoveModalOpen(true);
