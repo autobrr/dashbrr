@@ -9,7 +9,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -29,29 +31,123 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
-	// Ensure issuer URL doesn't have trailing slash
-	issuer := strings.TrimRight(config.Issuer, "/")
+	// Create HTTP client with timeout
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+
+	// Create context with timeout for provider configuration
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	log.Debug().
+		Str("issuer", config.Issuer).
+		Msg("initializing auth handler")
+
+	// Try discovery first
+	provider, err := getProviderEndpoints(ctx, httpClient, config.Issuer)
+	if err != nil {
+		// Fall back to default endpoints
+		provider = oauth2.Endpoint{
+			AuthURL:  config.Issuer + "/authorize",
+			TokenURL: config.Issuer + "/oauth/token",
+		}
+		log.Debug().
+			Err(err).
+			Str("auth_url", provider.AuthURL).
+			Str("token_url", provider.TokenURL).
+			Msg("discovery failed, using default endpoints")
+	} else {
+		log.Debug().
+			Str("auth_url", provider.AuthURL).
+			Str("token_url", provider.TokenURL).
+			Msg("using discovered endpoints")
+	}
 
 	oauth2Config := &oauth2.Config{
 		ClientID:     config.ClientID,
 		ClientSecret: config.ClientSecret,
 		RedirectURL:  config.RedirectURL,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  fmt.Sprintf("%s/authorize", issuer),
-			TokenURL: fmt.Sprintf("%s/oauth/token", issuer),
-		},
-		Scopes: []string{"openid", "profile", "email"},
+		Endpoint:     provider,
+		Scopes:       []string{"openid", "profile", "email"},
 	}
 
 	return &AuthHandler{
 		config:       config,
 		cache:        store,
 		oauth2Config: oauth2Config,
-		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		httpClient:   httpClient,
 	}
 }
 
-// generateSecureRandomString generates a cryptographically secure random string
+// getProviderEndpoints fetches provider configuration and returns oauth2.Endpoint
+// Examples:
+// Simple issuer (Google):
+//   Input:  https://accounts.google.com
+//   Result: https://accounts.google.com/.well-known/openid-configuration
+//
+// Path-based (e.g. Keycloak realm):
+//   Input:  https://auth.example.com/realms/myrealm
+//   Result: https://auth.example.com/realms/myrealm/.well-known/openid-configuration
+func getProviderEndpoints(ctx context.Context, client *http.Client, issuer string) (oauth2.Endpoint, error) {
+
+	issuer = strings.TrimRight(issuer, "/")
+
+	// Construct well-known URL according to spec
+	var wellKnown string
+	u, err := url.Parse(issuer)
+	if err != nil {
+		return oauth2.Endpoint{}, fmt.Errorf("invalid issuer URL: %w", err)
+	}
+
+	if u.Path == "" || u.Path == "/" {
+		// No path component: /.well-known/openid-configuration
+		wellKnown = issuer + "/.well-known/openid-configuration"
+	} else {
+		// Has path component: /path/.well-known/openid-configuration
+		base := strings.TrimRight(u.Path, "/")
+		u.Path = base + "/.well-known/openid-configuration"
+		wellKnown = u.String()
+	}
+
+	log.Debug().
+		Str("issuer", issuer).
+		Str("well_known_url", wellKnown).
+		Msg("attempting to fetch provider configuration")
+
+	req, err := http.NewRequestWithContext(ctx, "GET", wellKnown, nil)
+	if err != nil {
+		return oauth2.Endpoint{}, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return oauth2.Endpoint{}, fmt.Errorf("failed to fetch provider config: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return oauth2.Endpoint{}, fmt.Errorf("discovery request failed: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var config struct {
+		AuthURL  string `json:"authorization_endpoint"`
+		TokenURL string `json:"token_endpoint"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+		return oauth2.Endpoint{}, fmt.Errorf("failed to decode provider config: %w", err)
+	}
+
+	if config.AuthURL == "" || config.TokenURL == "" {
+		return oauth2.Endpoint{}, fmt.Errorf("provider config missing required endpoints: auth_url=%s, token_url=%s", config.AuthURL, config.TokenURL)
+	}
+
+	return oauth2.Endpoint{
+		AuthURL:  config.AuthURL,
+		TokenURL: config.TokenURL,
+	}, nil
+}
+
 func generateSecureRandomString(length int) (string, error) {
 	bytes := make([]byte, length)
 	if _, err := rand.Read(bytes); err != nil {
@@ -60,7 +156,6 @@ func generateSecureRandomString(length int) (string, error) {
 	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
 }
 
-// Login initiates the OIDC authentication flow
 func (h *AuthHandler) Login(c *gin.Context) {
 	// Create context with timeout for login flow
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -130,7 +225,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, authURL)
 }
 
-// Callback handles the OIDC provider callback
 func (h *AuthHandler) Callback(c *gin.Context) {
 	// Create context with timeout for callback handling
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
@@ -169,8 +263,10 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	if err := h.cache.Delete(ctx, stateKey); err != nil && err != cache.ErrKeyNotFound {
-		log.Error().Err(err).Msg("failed to delete state from cache")
+	if err := h.cache.Delete(ctx, stateKey); err != nil {
+		if err != cache.ErrKeyNotFound {
+			log.Error().Err(err).Msg("failed to delete state from cache")
+		}
 	}
 
 	// Exchange code for token using context
@@ -233,7 +329,6 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	))
 }
 
-// Logout handles user logout
 func (h *AuthHandler) Logout(c *gin.Context) {
 	// Create context with timeout for logout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -285,7 +380,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
 }
 
-// VerifyToken verifies a JWT token
 func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	// Create context with timeout for token verification
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -320,7 +414,6 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	})
 }
 
-// RefreshToken handles token refresh
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	// Create context with timeout for token refresh
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
@@ -411,7 +504,6 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	})
 }
 
-// UserInfo returns the current user's information
 func (h *AuthHandler) UserInfo(c *gin.Context) {
 	// Create context with timeout for userinfo request
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)

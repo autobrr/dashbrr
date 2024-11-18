@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -215,4 +216,63 @@ func TestLogout_NoFrontendURL(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	mockStore.AssertExpectations(t)
+}
+
+func TestGetProviderEndpoints(t *testing.T) {
+	tests := []struct {
+		name       string
+		issuer     string
+		mockStatus int
+		mockBody   string
+		wantPath   string
+		wantErr    bool
+	}{
+		{
+			name:       "google provider",
+			issuer:     "https://accounts.google.com",
+			mockStatus: http.StatusOK,
+			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","token_endpoint":"https://oauth2.googleapis.com/token"}`,
+			wantPath:   "/.well-known/openid-configuration",
+			wantErr:    false,
+		},
+		{
+			name:       "keycloak provider with path",
+			issuer:     "https://auth.example.com/realms/myrealm/",
+			mockStatus: http.StatusOK,
+			mockBody:   `{"authorization_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/auth","token_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/token"}`,
+			wantPath:   "/realms/myrealm/.well-known/openid-configuration",
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test server
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tt.wantPath, r.URL.Path, "unexpected request path")
+				w.WriteHeader(tt.mockStatus)
+				w.Write([]byte(tt.mockBody))
+			}))
+			defer ts.Close()
+
+			// Replace the issuer host with our test server
+			u, err := url.Parse(tt.issuer)
+			assert.NoError(t, err)
+			tsURL, err := url.Parse(ts.URL)
+			assert.NoError(t, err)
+			u.Host = tsURL.Host
+			u.Scheme = tsURL.Scheme
+			testIssuer := u.String()
+
+			// Test the function
+			got, err := getProviderEndpoints(context.Background(), http.DefaultClient, testIssuer)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotEmpty(t, got.AuthURL)
+			assert.NotEmpty(t, got.TokenURL)
+		})
+	}
 }
