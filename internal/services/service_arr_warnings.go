@@ -10,7 +10,7 @@ const (
 	SystemCategory       WarningCategory = "System"
 	DownloadCategory     WarningCategory = "Download"
 	IndexerCategory      WarningCategory = "Indexer"
-	MediaCategory        WarningCategory = "MaintainerrMedia"
+	MediaCategory        WarningCategory = "Media"
 	NotificationCategory WarningCategory = "Notification"
 	ApplicationCategory  WarningCategory = "Application"
 )
