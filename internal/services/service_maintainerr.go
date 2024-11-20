@@ -13,7 +13,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 // ErrMaintainerr Custom error types for better error handling
@@ -75,9 +75,9 @@ type MaintainerrCollection struct {
 	Media             []MaintainerrMedia `json:"media"`
 }
 
-func NewMaintainerrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewMaintainerrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &MaintainerrService{}
-	service.Type = types.ServiceTypeMaintainerr
+	service.Type = domain.ServiceTypeMaintainerr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Maintainerr instance"
 	service.DefaultURL = "http://localhost:6246"
@@ -136,7 +136,7 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	return statusResponse.Version, nil
 }
 
-func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

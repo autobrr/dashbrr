@@ -16,9 +16,9 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -277,7 +277,7 @@ func (h *MaintainerrHandler) fetchCollections(ctx context.Context, instanceId st
 	timeoutCtx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
 
-	maintainerrConfig, err := h.db.FindServiceBy(timeoutCtx, types.FindServiceParams{InstanceID: instanceId})
+	maintainerrConfig, err := h.db.FindServiceBy(timeoutCtx, domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service config: %w", err)
 	}
@@ -353,7 +353,7 @@ func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, c
 
 // broadcastMaintainerrCollections broadcasts collections updates to all connected SSE clients
 func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []services.MaintainerrCollection) {
-	BroadcastHealth(types.ServiceHealth{
+	BroadcastHealth(domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "maintainerr_collections",

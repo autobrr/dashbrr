@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/spf13/cobra"
 )
@@ -138,7 +138,7 @@ func ServiceProwlarrAddCommand() *cobra.Command {
 		}
 
 		// Check if service already exists
-		existing, err := db.FindServiceBy(cmd.Context(), types.FindServiceParams{URL: serviceURL})
+		existing, err := db.FindServiceBy(cmd.Context(), domain.FindServiceParams{URL: serviceURL})
 		if err != nil {
 			return fmt.Errorf("failed to check for existing service: %v", err)
 		}
@@ -163,7 +163,7 @@ func ServiceProwlarrAddCommand() *cobra.Command {
 		}
 
 		// Create service configuration
-		service := &types.ServiceConfiguration{
+		service := &domain.ServiceConfiguration{
 			InstanceID:  instanceID,
 			DisplayName: "Prowlarr",
 			URL:         serviceURL,
@@ -205,7 +205,7 @@ func ServiceProwlarrRemoveCommand() *cobra.Command {
 		serviceURL := args[0]
 
 		// Find service by URL
-		service, err := db.FindServiceBy(cmd.Context(), types.FindServiceParams{URL: serviceURL})
+		service, err := db.FindServiceBy(cmd.Context(), domain.FindServiceParams{URL: serviceURL})
 		if err != nil {
 			return fmt.Errorf("failed to find service: %v", err)
 		}

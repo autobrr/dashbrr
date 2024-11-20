@@ -7,13 +7,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 // ServiceDiscoverer defines the interface for service discovery implementations
 type ServiceDiscoverer interface {
 	// DiscoverServices finds and returns service configurations
-	DiscoverServices(ctx context.Context) ([]types.ServiceConfiguration, error)
+	DiscoverServices(ctx context.Context) ([]domain.ServiceConfiguration, error)
 	// Close cleans up any resources used by the discoverer
 	Close() error
 }
@@ -47,8 +47,8 @@ func NewManager() (*Manager, error) {
 }
 
 // DiscoverAll finds services using all available discovery methods
-func (m *Manager) DiscoverAll(ctx context.Context) ([]types.ServiceConfiguration, error) {
-	var allServices []types.ServiceConfiguration
+func (m *Manager) DiscoverAll(ctx context.Context) ([]domain.ServiceConfiguration, error) {
+	var allServices []domain.ServiceConfiguration
 
 	for _, discoverer := range m.discoverers {
 		services, err := discoverer.DiscoverServices(ctx)
@@ -75,7 +75,7 @@ func (m *Manager) Close() error {
 }
 
 // ValidateService checks if a discovered service configuration is valid
-func ValidateService(service types.ServiceConfiguration) error {
+func ValidateService(service domain.ServiceConfiguration) error {
 	if service.InstanceID == "" {
 		return fmt.Errorf("instance ID is required")
 	}

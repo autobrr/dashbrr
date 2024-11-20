@@ -15,8 +15,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -45,7 +45,7 @@ func NewSettingsHandler(db *database.DB, cache cache.Store, serviceManager *serv
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	// Try to get configurations from cache
-	var configurations []types.ServiceConfiguration
+	var configurations []domain.ServiceConfiguration
 	err := h.cache.Get(context.Background(), configCacheKey, &configurations)
 	if err == nil {
 		// Only log debug messages every 30 seconds to reduce spam
@@ -60,7 +60,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 			h.lastDebugLog = time.Now()
 		}
 
-		configMap := make(map[string]types.ServiceConfiguration)
+		configMap := make(map[string]domain.ServiceConfiguration)
 		for _, config := range configurations {
 			configMap[config.InstanceID] = config
 		}
@@ -93,7 +93,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 		h.lastDebugLog = time.Now()
 	}
 
-	configMap := make(map[string]types.ServiceConfiguration)
+	configMap := make(map[string]domain.ServiceConfiguration)
 	for _, config := range configurations {
 		configMap[config.InstanceID] = config
 	}
@@ -103,7 +103,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
 
-	var config types.ServiceConfiguration
+	var config domain.ServiceConfiguration
 	if err := c.BindJSON(&config); err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error binding JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -119,7 +119,7 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		Msg("Saving configuration")
 
 	// Check if configuration exists
-	existing, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceID})
+	existing, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceID})
 	if err != nil && err != sql.ErrNoRows {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})
@@ -164,7 +164,7 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
 
 	// Check if configuration exists before deleting
-	existing, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceID})
+	existing, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceID})
 	if err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})

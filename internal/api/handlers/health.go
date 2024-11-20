@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -18,7 +18,7 @@ import (
 
 // DatabaseService defines the database operations needed by HealthHandler
 type DatabaseService interface {
-	FindServiceBy(ctx context.Context, params types.FindServiceParams) (*types.ServiceConfiguration, error)
+	FindServiceBy(ctx context.Context, params domain.FindServiceParams) (*domain.ServiceConfiguration, error)
 }
 
 type HealthHandler struct {
@@ -52,18 +52,18 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	url := c.Query("url")
 	apiKey := c.Query("apiKey")
 
-	var service *types.ServiceConfiguration
+	var service *domain.ServiceConfiguration
 	var err error
 
 	if url != "" {
-		service = &types.ServiceConfiguration{
+		service = &domain.ServiceConfiguration{
 			InstanceID: serviceID,
 			URL:        url,
 			APIKey:     apiKey,
 		}
 	} else {
 		// Use context with timeout for database operation
-		service, err = h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
+		service, err = h.db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: serviceID})
 		if err != nil {
 			// Check for context cancellation
 			if ctx.Err() != nil {
@@ -84,7 +84,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 
 	// Check if service is configured
 	if service.URL == "" {
-		c.JSON(http.StatusOK, types.ServiceHealth{
+		c.JSON(http.StatusOK, domain.ServiceHealth{
 			Status:      "unconfigured",
 			Message:     "Service is not configured",
 			ServiceID:   serviceID,

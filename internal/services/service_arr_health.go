@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/singleflight"
@@ -45,7 +45,7 @@ type HealthChecker interface {
 }
 
 // ArrHealthCheck provides a common implementation of health checking for *arr services
-func ArrHealthCheck(s *ServiceCore, url, apiKey string, checker HealthChecker) (types.ServiceHealth, int) {
+func ArrHealthCheck(s *ServiceCore, url, apiKey string, checker HealthChecker) (domain.ServiceHealth, int) {
 	log.Debug().Str("service", "arr").Str("url", url).Str("name", s.DisplayName).Msg("Performing arr health check")
 
 	if url == "" {
@@ -58,7 +58,7 @@ func ArrHealthCheck(s *ServiceCore, url, apiKey string, checker HealthChecker) (
 
 	// Try to get cached health response
 	cacheKey := arrCachePrefix + "health:" + url
-	var cachedHealth types.ServiceHealth
+	var cachedHealth domain.ServiceHealth
 	if _, err := s.GetCachedVersion(ctx, cacheKey, "", func(_, _ string) (string, error) {
 		return "", nil // Cache miss, will handle below
 	}); err == nil && cachedHealth.Status != "" {
@@ -83,12 +83,12 @@ func ArrHealthCheck(s *ServiceCore, url, apiKey string, checker HealthChecker) (
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
 	}
 
-	health := result.(types.ServiceHealth)
+	health := result.(domain.ServiceHealth)
 	return health, http.StatusOK
 }
 
 // performHealthCheck executes the actual health check
-func performHealthCheck(ctx context.Context, s *ServiceCore, url, apiKey string, checker HealthChecker) (types.ServiceHealth, error) {
+func performHealthCheck(ctx context.Context, s *ServiceCore, url, apiKey string, checker HealthChecker) (domain.ServiceHealth, error) {
 	startTime := time.Now()
 
 	log.Debug().Str("url", url).Msg("Performing health check")
@@ -111,16 +111,16 @@ func performHealthCheck(ctx context.Context, s *ServiceCore, url, apiKey string,
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, apiKey, headers)
 	if err != nil {
-		return types.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
+		return domain.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
 	}
 	if resp == nil {
-		return types.ServiceHealth{}, fmt.Errorf("nil response")
+		return domain.ServiceHealth{}, fmt.Errorf("nil response")
 	}
 
 	defer resp.Body.Close()
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return types.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
+		return domain.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	// Get response time from header (stored as milliseconds)
@@ -151,7 +151,7 @@ func performHealthCheck(ctx context.Context, s *ServiceCore, url, apiKey string,
 	// Process health response
 	var healthIssues []HealthResponse
 	if err := json.Unmarshal(body, &healthIssues); err != nil {
-		return types.ServiceHealth{}, fmt.Errorf("failed to parse response: %v", err)
+		return domain.ServiceHealth{}, fmt.Errorf("failed to parse response: %v", err)
 	}
 
 	// Build response

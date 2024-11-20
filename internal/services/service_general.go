@@ -14,12 +14,12 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
-func NewGeneralService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewGeneralService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &GeneralService{}
-	service.Type = types.ServiceTypeGeneral
+	service.Type = domain.ServiceTypeGeneral
 	service.DisplayName = config.DisplayName
 	service.Description = "Generic health check service for any URL endpoint"
 	service.URL = config.URL
@@ -35,7 +35,7 @@ type GeneralService struct {
 	ServiceCore
 }
 
-func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

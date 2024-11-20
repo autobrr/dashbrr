@@ -12,7 +12,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 // setupPostgresDB sets up a PostgreSQL test database
@@ -89,7 +89,7 @@ func TestPostgresUserOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// Test user creation
-	user := &types.User{
+	user := &domain.User{
 		Username:     "testuser",
 		Email:        "test@example.com",
 		PasswordHash: "hashedpassword",
@@ -105,7 +105,7 @@ func TestPostgresUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by username
-	retrieved, err := db.FindUser(ctx, types.FindUserParams{Username: "testuser"})
+	retrieved, err := db.FindUser(ctx, domain.FindUserParams{Username: "testuser"})
 	if err != nil {
 		t.Fatalf("Failed to get user by username: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestPostgresUserOperations(t *testing.T) {
 	}
 
 	// Test user retrieval by email
-	retrieved, err = db.FindUser(ctx, types.FindUserParams{Email: "test@example.com"})
+	retrieved, err = db.FindUser(ctx, domain.FindUserParams{Email: "test@example.com"})
 	if err != nil {
 		t.Fatalf("Failed to get user by email: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestPostgresServiceOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// Test service creation
-	service := &types.ServiceConfiguration{
+	service := &domain.ServiceConfiguration{
 		InstanceID:  "test-service-1",
 		DisplayName: "Test Service",
 		URL:         "http://localhost:8080",
@@ -167,7 +167,7 @@ func TestPostgresServiceOperations(t *testing.T) {
 	}
 
 	// Test service retrieval by instance ID
-	retrieved, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err := db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get service by instance ID: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestPostgresServiceOperations(t *testing.T) {
 		t.Fatalf("Failed to update service: %v", err)
 	}
 
-	retrieved, err = db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err = db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to get updated service: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestPostgresServiceOperations(t *testing.T) {
 		t.Fatalf("Failed to delete service: %v", err)
 	}
 
-	retrieved, err = db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "test-service-1"})
+	retrieved, err = db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: "test-service-1"})
 	if err != nil {
 		t.Fatalf("Failed to check deleted service: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestPostgresConcurrentOperations(t *testing.T) {
 
 	for i := 0; i < numServices; i++ {
 		go func(i int) {
-			service := &types.ServiceConfiguration{
+			service := &domain.ServiceConfiguration{
 				InstanceID:  fmt.Sprintf("concurrent-service-%d", i),
 				DisplayName: fmt.Sprintf("Concurrent Service %d", i),
 				URL:         fmt.Sprintf("http://localhost:808%d", i),
@@ -269,7 +269,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 	ctx := context.Background()
 
 	// Test duplicate user creation
-	user1 := &types.User{
+	user1 := &domain.User{
 		Username:     "duplicate",
 		Email:        "duplicate@example.com",
 		PasswordHash: "hashedpassword",
@@ -280,7 +280,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to create first user: %v", err)
 	}
 
-	user2 := &types.User{
+	user2 := &domain.User{
 		Username:     "duplicate",
 		Email:        "duplicate@example.com",
 		PasswordHash: "hashedpassword",
@@ -292,7 +292,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 	}
 
 	// Test duplicate service creation
-	service1 := &types.ServiceConfiguration{
+	service1 := &domain.ServiceConfiguration{
 		InstanceID:  "duplicate-service",
 		DisplayName: "Duplicate Service",
 		URL:         "http://localhost:8080",
@@ -304,7 +304,7 @@ func TestPostgresErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to create first service: %v", err)
 	}
 
-	service2 := &types.ServiceConfiguration{
+	service2 := &domain.ServiceConfiguration{
 		InstanceID:  "duplicate-service",
 		DisplayName: "Duplicate Service",
 		URL:         "http://localhost:8080",

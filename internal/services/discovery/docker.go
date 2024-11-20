@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -34,7 +34,7 @@ func NewDockerDiscovery() (*DockerDiscovery, error) {
 }
 
 // DiscoverServices finds services configured via Docker labels
-func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]types.ServiceConfiguration, error) {
+func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]domain.ServiceConfiguration, error) {
 	// Create a filter for dashbrr service labels
 	f := filters.NewArgs()
 	f.Add("label", GetLabelKey(labelTypeKey))
@@ -47,7 +47,7 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]types.Service
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	var services []types.ServiceConfiguration
+	var services []domain.ServiceConfiguration
 
 	for _, container := range containers {
 		service, err := d.parseContainerLabels(container.Labels)
@@ -64,7 +64,7 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]types.Service
 }
 
 // parseContainerLabels extracts service configuration from container labels
-func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*types.ServiceConfiguration, error) {
+func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*domain.ServiceConfiguration, error) {
 	serviceType := labels[GetLabelKey(labelTypeKey)]
 	if serviceType == "" {
 		return nil, fmt.Errorf("service type label not found")
@@ -99,7 +99,7 @@ func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*types
 	// Generate instance ID based on service type
 	instanceID := fmt.Sprintf("%s-docker", serviceType)
 
-	return &types.ServiceConfiguration{
+	return &domain.ServiceConfiguration{
 		InstanceID:  instanceID,
 		DisplayName: displayName,
 		URL:         url,

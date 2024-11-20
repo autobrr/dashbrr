@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services/discovery"
-	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/spf13/cobra"
 )
@@ -193,7 +193,7 @@ func ConfigDiscoverCommand() *cobra.Command {
 }
 
 // handleDiscoveredServices processes discovered services
-func handleDiscoveredServices(ctx context.Context, db *database.DB, services []types.ServiceConfiguration) error {
+func handleDiscoveredServices(ctx context.Context, db *database.DB, services []domain.ServiceConfiguration) error {
 	if len(services) == 0 {
 		fmt.Println("No services discovered.")
 		return nil
@@ -229,7 +229,7 @@ func handleDiscoveredServices(ctx context.Context, db *database.DB, services []t
 	// Add services to database
 	for _, service := range services {
 		// Check if service already exists
-		existing, err := db.FindServiceBy(ctx, types.FindServiceParams{URL: service.URL})
+		existing, err := db.FindServiceBy(ctx, domain.FindServiceParams{URL: service.URL})
 		if err != nil {
 			fmt.Printf("Warning: Failed to check for existing service %s: %v\n", service.URL, err)
 			continue

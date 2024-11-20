@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/database/migrations"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
@@ -280,7 +280,7 @@ func (db *DB) HasUsers(ctx context.Context) (bool, error) {
 // User Management Functions
 
 // CreateUser creates a new user in the database
-func (db *DB) CreateUser(ctx context.Context, user *types.User) error {
+func (db *DB) CreateUser(ctx context.Context, user *domain.User) error {
 	now := time.Now()
 
 	queryBuilder := db.squirrel.Insert("users").
@@ -299,7 +299,7 @@ func (db *DB) CreateUser(ctx context.Context, user *types.User) error {
 }
 
 // FindUser retrieves a user by FindUserParams
-func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types.User, error) {
+func (db *DB) FindUser(ctx context.Context, params domain.FindUserParams) (*domain.User, error) {
 	queryBuilder := db.squirrel.Select("id", "username", "email", "password_hash", "created_at", "updated_at").From("users")
 
 	or := sq.Or{}
@@ -321,7 +321,7 @@ func (db *DB) FindUser(ctx context.Context, params types.FindUserParams) (*types
 		return nil, err
 	}
 
-	var user types.User
+	var user domain.User
 	err = db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -359,7 +359,7 @@ func (db *DB) UpdateUserPassword(ctx context.Context, userID int64, newPasswordH
 // Service Management Functions
 
 // FindServiceBy retrieves a service configuration by FindServiceParams
-func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*types.ServiceConfiguration, error) {
+func (db *DB) FindServiceBy(ctx context.Context, params domain.FindServiceParams) (*domain.ServiceConfiguration, error) {
 	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
 		From("service_configurations")
 
@@ -384,7 +384,7 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 		return nil, err
 	}
 
-	var service types.ServiceConfiguration
+	var service domain.ServiceConfiguration
 	var url, apiKey, accessURL sql.NullString
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(
@@ -418,8 +418,8 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 }
 
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
-func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*types.ServiceConfiguration, error) {
-	var service types.ServiceConfiguration
+func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*domain.ServiceConfiguration, error) {
+	var service domain.ServiceConfiguration
 	var url, apiKey, accessURL sql.NullString
 
 	var query string
@@ -468,7 +468,7 @@ func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*t
 }
 
 // GetAllServices retrieves all service configurations
-func (db *DB) GetAllServices(ctx context.Context) ([]types.ServiceConfiguration, error) {
+func (db *DB) GetAllServices(ctx context.Context) ([]domain.ServiceConfiguration, error) {
 	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
 		From("service_configurations")
 
@@ -483,9 +483,9 @@ func (db *DB) GetAllServices(ctx context.Context) ([]types.ServiceConfiguration,
 	}
 	defer rows.Close()
 
-	var services []types.ServiceConfiguration
+	var services []domain.ServiceConfiguration
 	for rows.Next() {
-		var service types.ServiceConfiguration
+		var service domain.ServiceConfiguration
 		var url, apiKey, accessURL sql.NullString
 
 		err := rows.Scan(
@@ -517,7 +517,7 @@ func (db *DB) GetAllServices(ctx context.Context) ([]types.ServiceConfiguration,
 }
 
 // CreateService creates a new service configuration
-func (db *DB) CreateService(ctx context.Context, service *types.ServiceConfiguration) error {
+func (db *DB) CreateService(ctx context.Context, service *domain.ServiceConfiguration) error {
 	queryBuilder := db.squirrel.Insert("service_configurations").
 		Columns("instance_id", "display_name", "url", "api_key", "access_url").
 		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL).
@@ -531,7 +531,7 @@ func (db *DB) CreateService(ctx context.Context, service *types.ServiceConfigura
 }
 
 // UpdateService updates an existing service configuration
-func (db *DB) UpdateService(ctx context.Context, service *types.ServiceConfiguration) error {
+func (db *DB) UpdateService(ctx context.Context, service *domain.ServiceConfiguration) error {
 	queryBuilder := db.squirrel.Update("service_configurations").
 		Set("display_name", service.DisplayName).
 		Set("url", sql.NullString{String: service.URL, Valid: service.URL != ""}).

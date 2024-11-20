@@ -12,7 +12,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/rs/zerolog/log"
 )
@@ -21,9 +21,9 @@ type RadarrService struct {
 	ServiceCore
 }
 
-func NewRadarrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewRadarrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &RadarrService{}
-	service.Type = types.ServiceTypeRadarr
+	service.Type = domain.ServiceTypeRadarr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Radarr instance"
 	service.DefaultURL = "http://localhost:7878"
@@ -43,7 +43,7 @@ func (s *RadarrService) GetHealthEndpoint(baseURL string) string {
 }
 
 // DeleteQueueItem deletes a queue item with the specified options
-func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.RadarrQueueDeleteOptions) error {
+func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options domain.RadarrQueueDeleteOptions) error {
 	if baseURL == "" {
 		return &ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -141,7 +141,7 @@ func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 		return nil, &ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var queue types.RadarrQueueResponse
+	var queue domain.RadarrQueueResponse
 	if err := json.Unmarshal(body, &queue); err != nil {
 		return nil, &ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -149,8 +149,8 @@ func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 	return queue.Records, nil
 }
 
-// GetQueueForHealth is a wrapper around GetQueue that returns []types.RadarrQueueRecord
-func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
+// GetQueueForHealth is a wrapper around GetQueue that returns []domain.RadarrQueueRecord
+func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]domain.RadarrQueueRecord, error) {
 	records, err := s.GetQueue(ctx, url, apiKey)
 	if err != nil {
 		return nil, err
@@ -158,11 +158,11 @@ func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey strin
 	if records == nil {
 		return nil, nil
 	}
-	return records.([]types.RadarrQueueRecord), nil
+	return records.([]domain.RadarrQueueRecord), nil
 }
 
 // LookupByTmdbId fetches movie details from Radarr by TMDB ID
-func (s *RadarrService) LookupByTmdbId(ctx context.Context, baseURL, apiKey string, tmdbId int) (*types.RadarrMovieResponse, error) {
+func (s *RadarrService) LookupByTmdbId(ctx context.Context, baseURL, apiKey string, tmdbId int) (*domain.RadarrMovieResponse, error) {
 	if baseURL == "" {
 		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("URL is required")}
 	}
@@ -188,7 +188,7 @@ func (s *RadarrService) LookupByTmdbId(ctx context.Context, baseURL, apiKey stri
 		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var movie types.RadarrMovieResponse
+	var movie domain.RadarrMovieResponse
 	if err := json.Unmarshal(body, &movie); err != nil {
 		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -197,7 +197,7 @@ func (s *RadarrService) LookupByTmdbId(ctx context.Context, baseURL, apiKey stri
 }
 
 // GetMovie fetches movie details from Radarr by ID
-func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, movieID int) (*types.RadarrMovieResponse, error) {
+func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, movieID int) (*domain.RadarrMovieResponse, error) {
 	if baseURL == "" {
 		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("URL is required")}
 	}
@@ -223,7 +223,7 @@ func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, mo
 		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var movie types.RadarrMovieResponse
+	var movie domain.RadarrMovieResponse
 	if err := json.Unmarshal(body, &movie); err != nil {
 		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -241,6 +241,6 @@ func (s *RadarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 	return CheckArrForUpdates("radarr", url, apiKey)
 }
 
-func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	return ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

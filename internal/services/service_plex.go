@@ -14,17 +14,17 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 type PlexService struct {
 	ServiceCore
 }
 
-func NewPlexService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewPlexService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &PlexService{
 		ServiceCore: ServiceCore{
-			Type:           types.ServiceTypePlex,
+			Type:           domain.ServiceTypePlex,
 			DisplayName:    config.DisplayName,
 			Description:    "Monitor and manage your Plex MaintainerrMedia Server",
 			DefaultURL:     "http://localhost:32400",
@@ -57,7 +57,7 @@ func (s *PlexService) getPlexHeaders(apiKey string) map[string]string {
 	}
 }
 
-func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*types.PlexSessionsResponse, error) {
+func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*domain.PlexSessionsResponse, error) {
 	if url == "" {
 		return nil, fmt.Errorf("URL is required")
 	}
@@ -80,14 +80,14 @@ func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*typ
 		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
-	var sessionsResponse types.PlexSessionsResponse
+	var sessionsResponse domain.PlexSessionsResponse
 	if err := json.Unmarshal(body, &sessionsResponse); err != nil {
 		return nil, fmt.Errorf("failed to parse sessions response: %v", err)
 	}
 
 	// Initialize empty slice if Metadata is nil
 	if sessionsResponse.MediaContainer.Metadata == nil {
-		sessionsResponse.MediaContainer.Metadata = []types.PlexSession{}
+		sessionsResponse.MediaContainer.Metadata = []domain.PlexSession{}
 	}
 
 	// Process each session to check for transcoding
@@ -98,7 +98,7 @@ func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*typ
 		}
 
 		// Initialize TranscodeSession if needed
-		sessionsResponse.MediaContainer.Metadata[i].TranscodeSession = &types.PlexTranscodeSession{}
+		sessionsResponse.MediaContainer.Metadata[i].TranscodeSession = &domain.PlexTranscodeSession{}
 
 		for _, media := range session.Media {
 			for _, part := range media.Part {
@@ -130,9 +130,9 @@ func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (strin
 		return "", fmt.Errorf("failed to read response: %v", err)
 	}
 
-	var plexResponse types.PlexResponse
+	var plexResponse domain.PlexResponse
 	if err := json.Unmarshal(body, &plexResponse); err != nil {
-		var mediaContainer types.MediaContainer
+		var mediaContainer domain.MediaContainer
 		if xmlErr := xml.Unmarshal(body, &mediaContainer); xmlErr != nil {
 			return "", fmt.Errorf("failed to parse server response")
 		}
@@ -147,7 +147,7 @@ func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (strin
 	return plexResponse.MediaContainer.Version, nil
 }
 
-func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
@@ -183,9 +183,9 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (type
 		version = "unknown"
 	}
 
-	var plexResponse types.PlexResponse
+	var plexResponse domain.PlexResponse
 	if err := json.Unmarshal(body, &plexResponse); err != nil {
-		var mediaContainer types.MediaContainer
+		var mediaContainer domain.MediaContainer
 		if xmlErr := xml.Unmarshal(body, &mediaContainer); xmlErr != nil {
 			return s.CreateHealthResponse(startTime, "warning", "Failed to parse server response"), http.StatusOK
 		}

@@ -18,8 +18,8 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -219,7 +219,7 @@ func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId,
 	if apiKey != "" {
 		devices, err = service.GetDevices(ctx, "", apiKey)
 	} else {
-		tailscaleConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+		tailscaleConfig, err := h.db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: instanceId})
 		if err != nil {
 			return nil, fmt.Errorf("[Tailscale] failed to fetch configuration: %v", err)
 		}

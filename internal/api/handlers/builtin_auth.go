@@ -11,7 +11,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -58,7 +58,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	var req types.RegisterRequest
+	var req domain.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
@@ -71,7 +71,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	}
 
 	// Check if username exists
-	existingUser, err := h.db.FindUser(context.Background(), types.FindUserParams{Username: req.Username})
+	existingUser, err := h.db.FindUser(context.Background(), domain.FindUserParams{Username: req.Username})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check username")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -83,7 +83,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	}
 
 	// Check if email exists
-	existingUser, err = h.db.FindUser(context.Background(), types.FindUserParams{Email: req.Email})
+	existingUser, err = h.db.FindUser(context.Background(), domain.FindUserParams{Email: req.Email})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check email")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -103,7 +103,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	}
 
 	// Create user
-	user := &types.User{
+	user := &domain.User{
 		Username:     req.Username,
 		Email:        req.Email,
 		PasswordHash: hashedPassword,
@@ -127,14 +127,14 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 
 // Login handles user login
 func (h *BuiltinAuthHandler) Login(c *gin.Context) {
-	var req types.LoginRequest
+	var req domain.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
 
 	// Get user by username
-	user, err := h.db.FindUser(context.Background(), types.FindUserParams{Username: req.Username})
+	user, err := h.db.FindUser(context.Background(), domain.FindUserParams{Username: req.Username})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -161,7 +161,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 
 	// Create session
 	expiresAt := time.Now().Add(24 * time.Hour)
-	sessionData := types.SessionData{
+	sessionData := domain.SessionData{
 		AccessToken: sessionToken,
 		TokenType:   "Bearer",
 		ExpiresAt:   expiresAt,
@@ -213,7 +213,7 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 
 	// Get session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	var sessionData types.SessionData
+	var sessionData domain.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
@@ -279,7 +279,7 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 
 	// Get session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	var sessionData types.SessionData
+	var sessionData domain.SessionData
 	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
@@ -291,7 +291,7 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 	}
 
 	// Get user from database
-	user, err := h.db.FindUser(context.Background(), types.FindUserParams{ID: sessionData.UserID})
+	user, err := h.db.FindUser(context.Background(), domain.FindUserParams{ID: sessionData.UserID})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})

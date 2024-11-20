@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/cache"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -66,7 +66,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 
 		// Check session in Redis
 		var sessionKey string
-		var sessionData types.SessionData
+		var sessionData domain.SessionData
 
 		// Try OIDC session format first
 		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)
@@ -128,7 +128,7 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 		}
 
 		var sessionKey string
-		var sessionData types.SessionData
+		var sessionData domain.SessionData
 
 		// Try OIDC session format first
 		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)

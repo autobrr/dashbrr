@@ -13,9 +13,9 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -106,23 +106,23 @@ func (h *RadarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 }
 
 // fetchQueueWithCache is a type-safe wrapper around fetchDataWithCache for RadarrQueueResponse
-func (h *RadarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.RadarrQueueResponse, error)) (types.RadarrQueueResponse, error) {
+func (h *RadarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (domain.RadarrQueueResponse, error)) (domain.RadarrQueueResponse, error) {
 	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
 		return fetchFn()
 	})
 	if err != nil {
-		return types.RadarrQueueResponse{}, err
+		return domain.RadarrQueueResponse{}, err
 	}
 
 	// Convert the cached data to RadarrQueueResponse
-	converted, err := utils.SafeStructConvert[types.RadarrQueueResponse](data)
+	converted, err := utils.SafeStructConvert[domain.RadarrQueueResponse](data)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("cache_key", cacheKey).
 			Str("type", utils.GetTypeString(data)).
 			Msg("[Radarr] Failed to convert cached data")
-		return types.RadarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
+		return domain.RadarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
 	}
 
 	return converted, nil
@@ -145,7 +145,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	cacheKey := radarrQueuePrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (domain.RadarrQueueResponse, error) {
 		return h.fetchQueue(instanceId)
 	})
 
@@ -180,14 +180,14 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *RadarrHandler) fetchQueue(instanceId string) (types.RadarrQueueResponse, error) {
-	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *RadarrHandler) fetchQueue(instanceId string) (domain.RadarrQueueResponse, error) {
+	radarrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return types.RadarrQueueResponse{}, err
+		return domain.RadarrQueueResponse{}, err
 	}
 
 	if radarrConfig == nil {
-		return types.RadarrQueueResponse{}, fmt.Errorf("radarr is not configured")
+		return domain.RadarrQueueResponse{}, fmt.Errorf("radarr is not configured")
 	}
 
 	// Create Radarr service instance
@@ -196,18 +196,18 @@ func (h *RadarrHandler) fetchQueue(instanceId string) (types.RadarrQueueResponse
 	// Get queue records using the service
 	records, err := service.GetQueueForHealth(context.Background(), radarrConfig.URL, radarrConfig.APIKey)
 	if err != nil {
-		return types.RadarrQueueResponse{}, err
+		return domain.RadarrQueueResponse{}, err
 	}
 
 	// Create response
-	return types.RadarrQueueResponse{
+	return domain.RadarrQueueResponse{
 		Records:      records,
 		TotalRecords: len(records),
 	}, nil
 }
 
 // compareAndLogQueueChanges tracks and logs changes in Radarr queue
-func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.RadarrQueueResponse) {
+func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *domain.RadarrQueueResponse) {
 	h.lastQueueHashMu.Lock()
 	defer h.lastQueueHashMu.Unlock()
 
@@ -228,7 +228,7 @@ func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *
 }
 
 // broadcastRadarrQueue broadcasts Radarr queue updates to all connected SSE clients
-func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types.RadarrQueueResponse) {
+func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *domain.RadarrQueueResponse) {
 	// Calculate additional statistics
 	var totalSize int64
 	var downloading int
@@ -245,7 +245,7 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 	}
 
 	details := map[string]interface{}{
-		"radarr": types.RadarrQueueStats{
+		"radarr": domain.RadarrQueueStats{
 			TotalRecords:     queueResp.TotalRecords,
 			DownloadingCount: downloading,
 			TotalSize:        totalSize,
@@ -253,7 +253,7 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 	}
 
 	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(types.ServiceHealth{
+	BroadcastHealth(domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "radarr_queue",
@@ -278,7 +278,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	}
 
 	// Get options from query parameters
-	options := types.RadarrQueueDeleteOptions{
+	options := domain.RadarrQueueDeleteOptions{
 		RemoveFromClient: c.Query("removeFromClient") == "true",
 		Blocklist:        c.Query("blocklist") == "true",
 		SkipRedownload:   c.Query("skipRedownload") == "true",
@@ -315,7 +315,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	}
 
 	// Fetch fresh queue data
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (domain.RadarrQueueResponse, error) {
 		return h.fetchQueue(instanceId)
 	})
 
@@ -326,8 +326,8 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }
 
-func (h *RadarrHandler) deleteQueueItem(instanceId, queueId string, options types.RadarrQueueDeleteOptions) error {
-	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *RadarrHandler) deleteQueueItem(instanceId, queueId string, options domain.RadarrQueueDeleteOptions) error {
+	radarrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return err
 	}

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 type TailscaleService struct {
@@ -51,9 +51,9 @@ type TailscaleAPIResponse struct {
 	} `json:"devices"`
 }
 
-func NewTailscaleService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewTailscaleService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &TailscaleService{}
-	service.Type = types.ServiceTypeTailscale
+	service.Type = domain.ServiceTypeTailscale
 	service.DisplayName = config.DisplayName
 	service.Description = "Manage and monitor your Tailscale network"
 	service.DefaultURL = "https://api.tailscale.com"
@@ -135,7 +135,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, apiKey string) (strin
 	return version, nil
 }
 
-func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey string) (types.ServiceHealth, int) {
+func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey string) (domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if apiKey == "" {

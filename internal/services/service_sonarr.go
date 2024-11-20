@@ -14,7 +14,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/rs/zerolog/log"
 )
@@ -44,9 +44,9 @@ type SonarrService struct {
 	ServiceCore
 }
 
-func NewSonarrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewSonarrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &SonarrService{}
-	service.Type = types.ServiceTypeSonarr
+	service.Type = domain.ServiceTypeSonarr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Sonarr instance"
 	service.DefaultURL = "http://localhost:8989"
@@ -82,7 +82,7 @@ func (s *SonarrService) makeRequest(ctx context.Context, method, url, apiKey str
 }
 
 // DeleteQueueItem deletes a queue item with the specified options
-func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.SonarrQueueDeleteOptions) error {
+func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options domain.SonarrQueueDeleteOptions) error {
 	if baseURL == "" {
 		return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -179,7 +179,7 @@ func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var queue types.SonarrQueueResponse
+	var queue domain.SonarrQueueResponse
 	if err := json.Unmarshal(body, &queue); err != nil {
 		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -187,8 +187,8 @@ func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 	return queue.Records, nil
 }
 
-// GetQueueForHealth is a wrapper around GetQueue that returns []types.QueueRecord
-func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
+// GetQueueForHealth is a wrapper around GetQueue that returns []domain.QueueRecord
+func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]domain.QueueRecord, error) {
 	records, err := s.GetQueue(ctx, url, apiKey)
 	if err != nil {
 		return nil, err
@@ -196,11 +196,11 @@ func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey strin
 	if records == nil {
 		return nil, nil
 	}
-	return records.([]types.QueueRecord), nil
+	return records.([]domain.QueueRecord), nil
 }
 
 // LookupByTvdbId fetches series details from Sonarr by TVDB ID
-func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey string, tvdbId int) (*types.Series, error) {
+func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey string, tvdbId int) (*domain.Series, error) {
 	if baseURL == "" {
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("URL is required")}
 	}
@@ -226,7 +226,7 @@ func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey stri
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var series []types.Series
+	var series []domain.Series
 	if err := json.Unmarshal(body, &series); err != nil {
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -240,7 +240,7 @@ func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey stri
 }
 
 // GetSeries fetches series details from Sonarr by ID
-func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, seriesID int) (*types.Series, error) {
+func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, seriesID int) (*domain.Series, error) {
 	if baseURL == "" {
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("URL is required")}
 	}
@@ -266,7 +266,7 @@ func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, s
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var series types.Series
+	var series domain.Series
 	if err := json.Unmarshal(body, &series); err != nil {
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -324,6 +324,6 @@ func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 	return CheckArrForUpdates("sonarr", url, apiKey)
 }
 
-func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	return ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

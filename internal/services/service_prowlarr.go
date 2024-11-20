@@ -14,7 +14,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 // ErrProwlarr Custom error types for better error handling
@@ -46,9 +46,9 @@ type ProwlarrSystemStatusResponse struct {
 	Version string `json:"version"`
 }
 
-func NewProwlarrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewProwlarrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &ProwlarrService{}
-	service.Type = types.ServiceTypeProwlarr
+	service.Type = domain.ServiceTypeProwlarr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Prowlarr instance"
 	service.DefaultURL = "http://localhost:9696"
@@ -121,7 +121,7 @@ func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
 }
 
 // GetIndexerStats fetches indexer statistics from Prowlarr
-func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey string) (*types.ProwlarrIndexerStatsResponse, error) {
+func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey string) (*domain.ProwlarrIndexerStatsResponse, error) {
 	if baseURL == "" {
 		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("URL is required")}
 	}
@@ -150,7 +150,7 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var stats types.ProwlarrIndexerStatsResponse
+	var stats domain.ProwlarrIndexerStatsResponse
 	if err := json.Unmarshal(body, &stats); err != nil {
 		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -175,6 +175,6 @@ func (s *ProwlarrService) GetHealthEndpoint(baseURL string) string {
 	return fmt.Sprintf("%s/api/v1/health", baseURL)
 }
 
-func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	return ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

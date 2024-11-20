@@ -9,7 +9,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -53,7 +53,7 @@ func (m *ServiceManager) InitializeServices(ctx context.Context) error {
 }
 
 // InitializeService handles initial data fetching for a newly configured service
-func (m *ServiceManager) InitializeService(ctx context.Context, config *types.ServiceConfiguration) error {
+func (m *ServiceManager) InitializeService(ctx context.Context, config *domain.ServiceConfiguration) error {
 	// Extract service type from instance ID (e.g., "overseerr-1" -> "overseerr")
 	//if config.Type == "" {
 	//	return errors.New("missing service type")
@@ -75,47 +75,47 @@ func (m *ServiceManager) InitializeService(ctx context.Context, config *types.Se
 	}
 
 	switch config.Type {
-	case types.ServiceTypeAutobrr:
+	case domain.ServiceTypeAutobrr:
 		svc := NewAutobrrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 
-	case types.ServiceTypeGeneral:
+	case domain.ServiceTypeGeneral:
 		svc := NewGeneralService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 
-	case types.ServiceTypeMaintainerr:
+	case domain.ServiceTypeMaintainerr:
 		svc := NewMaintainerrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 
-	case types.ServiceTypeOmegabrr:
+	case domain.ServiceTypeOmegabrr:
 		svc := NewOmegabrrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 
-	case types.ServiceTypeOverseerr:
+	case domain.ServiceTypeOverseerr:
 		svc := NewOverseerrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 		//m.initializeOverseerr(ctx, config)
 
-	case types.ServiceTypePlex:
+	case domain.ServiceTypePlex:
 		svc := NewPlexService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 	//m.initializePlex(ctx, config)
 
-	case types.ServiceTypeProwlarr:
+	case domain.ServiceTypeProwlarr:
 		svc := NewProwlarrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 
-	case types.ServiceTypeRadarr:
+	case domain.ServiceTypeRadarr:
 		svc := NewRadarrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 	//     m.initializeRadarr(ctx, config)
 
-	case types.ServiceTypeSonarr:
+	case domain.ServiceTypeSonarr:
 		svc := NewSonarrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 	//     m.initializeSonarr(ctx, config)
 
-	case types.ServiceTypeTailscale:
+	case domain.ServiceTypeTailscale:
 		svc := NewTailscaleService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 
@@ -131,7 +131,7 @@ func (m *ServiceManager) InitializeService(ctx context.Context, config *types.Se
 }
 
 // initializeOverseerr handles Overseerr-specific initialization
-func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *types.ServiceConfiguration) {
+func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *domain.ServiceConfiguration) {
 	// Check if we already have fresh data in cache
 	cacheKey := "overseerr:requests:" + config.InstanceID
 	var cachedData interface{}
@@ -173,7 +173,7 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *types.
 }
 
 // initializePlex handles Plex-specific initialization
-func (m *ServiceManager) initializePlex(ctx context.Context, config *types.ServiceConfiguration) {
+func (m *ServiceManager) initializePlex(ctx context.Context, config *domain.ServiceConfiguration) {
 	// Check if we already have fresh data in cache
 	cacheKey := "plex:sessions:" + config.InstanceID
 	var cachedData interface{}

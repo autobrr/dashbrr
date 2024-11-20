@@ -13,7 +13,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/rs/zerolog/log"
 )
@@ -56,10 +56,10 @@ type AutobrrService struct {
 	ServiceCore
 }
 
-func NewAutobrrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) *AutobrrService {
+func NewAutobrrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) *AutobrrService {
 	log.Debug().Msg("Creating new Autobrr service")
 	service := &AutobrrService{}
-	service.Type = types.ServiceTypeAutobrr
+	service.Type = domain.ServiceTypeAutobrr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Autobrr instance"
 	service.DefaultURL = "http://localhost:7474"
@@ -78,9 +78,9 @@ func (s *AutobrrService) getEndpoint(baseURL, path string) string {
 	return fmt.Sprintf("%s%s", baseURL, path)
 }
 
-func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (types.ReleasesResponse, error) {
+func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (domain.ReleasesResponse, error) {
 	if url == "" || apiKey == "" {
-		return types.ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
+		return domain.ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
 	releasesURL := s.getEndpoint(url, "/api/release")
@@ -91,30 +91,30 @@ func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (t
 
 	resp, err := s.MakeRequestWithContext(ctx, releasesURL, apiKey, headers)
 	if err != nil {
-		return types.ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
+		return domain.ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return types.ReleasesResponse{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return domain.ReleasesResponse{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return types.ReleasesResponse{}, fmt.Errorf("failed to read response body: %v", err)
+		return domain.ReleasesResponse{}, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var releases types.ReleasesResponse
+	var releases domain.ReleasesResponse
 	if err := json.Unmarshal(body, &releases); err != nil {
-		return types.ReleasesResponse{}, fmt.Errorf("failed to decode response: %v", err)
+		return domain.ReleasesResponse{}, fmt.Errorf("failed to decode response: %v", err)
 	}
 
 	return releases, nil
 }
 
-func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string) (types.AutobrrStats, error) {
+func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string) (domain.AutobrrStats, error) {
 	if url == "" || apiKey == "" {
-		return types.AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
+		return domain.AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
 	statsURL := s.getEndpoint(url, "/api/release/stats")
@@ -125,25 +125,25 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 
 	resp, err := s.MakeRequestWithContext(ctx, statsURL, apiKey, headers)
 	if err != nil {
-		return types.AutobrrStats{}, fmt.Errorf("request failed: %v", err)
+		return domain.AutobrrStats{}, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return types.AutobrrStats{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return domain.AutobrrStats{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return types.AutobrrStats{}, fmt.Errorf("failed to read response body: %v", err)
+		return domain.AutobrrStats{}, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var stats types.AutobrrStats
+	var stats domain.AutobrrStats
 	decoder := json.NewDecoder(strings.NewReader(string(body)))
 	decoder.UseNumber()
 
 	if err := decoder.Decode(&stats); err != nil {
-		return types.AutobrrStats{}, fmt.Errorf("failed to decode response: %v, body: %s", err, string(body))
+		return domain.AutobrrStats{}, fmt.Errorf("failed to decode response: %v, body: %s", err, string(body))
 	}
 
 	return stats, nil
@@ -160,14 +160,14 @@ func (s *AutobrrService) CacheIRCStatus(url, status string) error {
 	return s.CacheVersion(url+"_irc", status, 5*time.Minute)
 }
 
-func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]types.IRCStatus, error) {
+func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]domain.IRCStatus, error) {
 	if url == "" || apiKey == "" {
 		return nil, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
 	// Check cache first
 	if cached := s.GetIRCStatusFromCache(url); cached != "" {
-		var status []types.IRCStatus
+		var status []domain.IRCStatus
 		if err := json.Unmarshal([]byte(cached), &status); err == nil {
 			return status, nil
 		}
@@ -181,23 +181,23 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 
 	resp, err := s.MakeRequestWithContext(ctx, ircURL, apiKey, headers)
 	if err != nil {
-		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("request failed: %v", err)
+		return []domain.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return []domain.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to read response body: %v", err)
+		return []domain.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	// Try to decode as array first
-	var allStatus []types.IRCStatus
+	var allStatus []domain.IRCStatus
 	if err := json.Unmarshal(body, &allStatus); err == nil {
-		var unhealthyStatus []types.IRCStatus
+		var unhealthyStatus []domain.IRCStatus
 		for _, status := range allStatus {
 			if !status.Healthy && status.Enabled {
 				unhealthyStatus = append(unhealthyStatus, status)
@@ -213,11 +213,11 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 	}
 
 	// If array decode fails, try to decode as single object
-	var singleStatus types.IRCStatus
+	var singleStatus domain.IRCStatus
 	if err := json.Unmarshal(body, &singleStatus); err == nil {
 		// Only return if unhealthy AND enabled
 		if !singleStatus.Healthy && singleStatus.Enabled {
-			status := []types.IRCStatus{singleStatus}
+			status := []domain.IRCStatus{singleStatus}
 			// Cache the result
 			if cached, err := json.Marshal(status); err == nil {
 				if err := s.CacheIRCStatus(url, string(cached)); err != nil {
@@ -230,10 +230,10 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		if err := s.CacheIRCStatus(url, "[]"); err != nil {
 			fmt.Printf("Failed to cache IRC status: %v\n", err)
 		}
-		return []types.IRCStatus{}, nil
+		return []domain.IRCStatus{}, nil
 	}
 
-	return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to decode response: %s", string(body))
+	return []domain.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to decode response: %s", string(body))
 }
 
 func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
@@ -263,7 +263,7 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 		return "", err
 	}
 
-	var versionData types.VersionResponse
+	var versionData domain.VersionResponse
 	if err := json.Unmarshal(body, &versionData); err != nil {
 		return "", err
 	}
@@ -319,7 +319,7 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 	return hasUpdate, nil
 }
 
-func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey string) (types.ServiceHealth, int) {
+func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey string) (domain.ServiceHealth, int) {
 	log.Trace().Str("url", url).Msg("Checking autobrr service health")
 
 	startTime := time.Now()

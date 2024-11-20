@@ -1,4 +1,4 @@
-package types
+package domain
 
 import (
 	"encoding/json"

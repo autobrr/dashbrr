@@ -14,7 +14,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/rs/zerolog/log"
 )
@@ -39,9 +39,9 @@ type OverseerrService struct {
 	ServiceCore
 }
 
-func NewOverseerrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewOverseerrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &OverseerrService{}
-	service.Type = types.ServiceTypeOverseerr
+	service.Type = domain.ServiceTypeOverseerr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Overseerr instance"
 	service.DefaultURL = "http://localhost:5055"
@@ -102,12 +102,12 @@ func (s *OverseerrService) UpdateRequestStatus(ctx context.Context, url, apiKey 
 }
 
 // fetchMediaTitle fetches the title from either Radarr or Sonarr based on mediaType
-func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.MediaRequest) (string, error) {
+func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request domain.MediaRequest) (string, error) {
 	if s.db == nil {
 		return "", fmt.Errorf("database not initialized")
 	}
 
-	var service *types.ServiceConfiguration
+	var service *domain.ServiceConfiguration
 	var err error
 
 	switch request.Media.MediaType {
@@ -152,7 +152,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 	}
 }
 
-func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) (*types.RequestsStats, error) {
+func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) (*domain.RequestsStats, error) {
 	if url == "" {
 		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
@@ -175,13 +175,13 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 		return nil, &ErrOverseerr{Message: "Service error", Errors: []string{err.Error()}}
 	}
 
-	var requestsResponse types.RequestsResponse
+	var requestsResponse domain.RequestsResponse
 	if err := json.Unmarshal(body, &requestsResponse); err != nil {
 		return nil, &ErrOverseerr{Message: "Response error", Errors: []string{"Failed to parse requests response"}}
 	}
 
 	// Convert the generic results to MediaRequest structs and count pending
-	mediaRequests := make([]types.MediaRequest, 0)
+	mediaRequests := make([]domain.MediaRequest, 0)
 	pendingCount := 0
 
 	for _, result := range requestsResponse.Results {
@@ -190,7 +190,7 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 			continue
 		}
 
-		var mediaRequest types.MediaRequest
+		var mediaRequest domain.MediaRequest
 		if err := json.Unmarshal(resultBytes, &mediaRequest); err != nil {
 			continue
 		}
@@ -208,13 +208,13 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 		mediaRequests = append(mediaRequests, mediaRequest)
 	}
 
-	return &types.RequestsStats{
+	return &domain.RequestsStats{
 		PendingCount: pendingCount,
 		Requests:     mediaRequests,
 	}, nil
 }
 
-func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
@@ -257,7 +257,7 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 	}
 
 	// Parse the response
-	var statusResponse types.StatusResponse
+	var statusResponse domain.StatusResponse
 	if err := json.Unmarshal(body, &statusResponse); err != nil {
 		return s.CreateHealthResponse(startTime, "warning", (&ErrOverseerr{
 			Message: "Response error",

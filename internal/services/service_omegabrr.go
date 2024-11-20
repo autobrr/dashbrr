@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 type OmegabrrService struct {
@@ -24,9 +24,9 @@ type OmegabrrVersionResponse struct {
 	Version string `json:"version"`
 }
 
-func NewOmegabrrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
+func NewOmegabrrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) ServiceHealthChecker {
 	service := &OmegabrrService{}
-	service.Type = types.ServiceTypeOmegabrr
+	service.Type = domain.ServiceTypeOmegabrr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Omegabrr instance"
 	service.DefaultURL = "http://localhost:7474"
@@ -81,7 +81,7 @@ func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (s
 	return version.Version, nil
 }
 
-func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

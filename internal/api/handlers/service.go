@@ -7,8 +7,8 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -35,7 +35,7 @@ func NewServiceHandler(db *database.DB, cache cache.Store, serviceManager *servi
 func (h *ServiceHandler) Create(c *gin.Context) {
 	//instanceID := c.Param("instance")
 
-	var config types.ServiceConfiguration
+	var config domain.ServiceConfiguration
 	if err := c.BindJSON(&config); err != nil {
 		//log.Error().Err(err).Str("instance", instanceID).Msg("Error binding JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})

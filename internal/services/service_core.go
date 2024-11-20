@@ -15,7 +15,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/buildinfo"
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/rs/zerolog/log"
 )
@@ -36,7 +36,7 @@ var (
 
 type ServiceCore struct {
 	InstanceID     string
-	Type           types.ServiceType
+	Type           domain.ServiceType
 	DisplayName    string
 	Description    string
 	DefaultURL     string
@@ -302,8 +302,8 @@ func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) e
 }
 
 // CreateHealthResponse creates a standardized health response
-func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) types.ServiceHealth {
-	response := types.ServiceHealth{
+func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) domain.ServiceHealth {
+	response := domain.ServiceHealth{
 		Status:      status,
 		LastChecked: lastChecked,
 		Message:     message,

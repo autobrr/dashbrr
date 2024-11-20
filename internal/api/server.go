@@ -15,8 +15,8 @@ import (
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/web"
 
 	"github.com/gin-gonic/gin"
@@ -125,7 +125,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Initialize OIDC if configuration is provided
 	if hasOIDCConfig() {
-		authConfig := &types.AuthConfig{
+		authConfig := &domain.AuthConfig{
 			Issuer:       getEnvOrDefault("OIDC_ISSUER", ""),
 			ClientID:     getEnvOrDefault("OIDC_CLIENT_ID", ""),
 			ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),

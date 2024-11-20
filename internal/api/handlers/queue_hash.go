@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 // QueueRecordWrapper is a common wrapper for queue records
@@ -19,7 +19,7 @@ type QueueRecordWrapper struct {
 }
 
 // wrapRadarrQueue converts RadarrQueueResponse to slice of QueueRecordWrapper
-func wrapRadarrQueue(queue *types.RadarrQueueResponse) []QueueRecordWrapper {
+func wrapRadarrQueue(queue *domain.RadarrQueueResponse) []QueueRecordWrapper {
 	if queue == nil || len(queue.Records) == 0 {
 		return nil
 	}
@@ -37,7 +37,7 @@ func wrapRadarrQueue(queue *types.RadarrQueueResponse) []QueueRecordWrapper {
 }
 
 // wrapSonarrQueue converts SonarrQueueResponse to slice of QueueRecordWrapper
-func wrapSonarrQueue(queue *types.SonarrQueueResponse) []QueueRecordWrapper {
+func wrapSonarrQueue(queue *domain.SonarrQueueResponse) []QueueRecordWrapper {
 	if queue == nil || len(queue.Records) == 0 {
 		return nil
 	}

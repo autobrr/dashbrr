@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/cache"
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -23,14 +23,14 @@ import (
 )
 
 type AuthHandler struct {
-	config       *types.AuthConfig
+	config       *domain.AuthConfig
 	cache        cache.Store
 	oauth2Config *oauth2.Config
 	httpClient   *http.Client
 	userinfoURL  string
 }
 
-func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
+func NewAuthHandler(config *domain.AuthConfig, store cache.Store) *AuthHandler {
 	httpClient := &http.Client{Timeout: 1 * time.Second}
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -276,7 +276,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	sessionData := types.SessionData{
+	sessionData := domain.SessionData{
 		AccessToken:  token.AccessToken,
 		TokenType:    token.TokenType,
 		RefreshToken: token.RefreshToken,
@@ -380,7 +380,7 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	defer cancel()
 
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
+	var sessionData domain.SessionData
 	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while verifying token")
@@ -410,7 +410,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	}
 
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
+	var sessionData domain.SessionData
 	if err := h.cache.Get(c.Request.Context(), sessionKey, &sessionData); err != nil {
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
@@ -470,7 +470,7 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 	}
 
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
+	var sessionData domain.SessionData
 	if err := h.cache.Get(c.Request.Context(), sessionKey, &sessionData); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
 		return

@@ -12,9 +12,9 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -111,23 +111,23 @@ func (h *OmegabrrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 }
 
 // fetchStatusWithCache is a type-safe wrapper around fetchDataWithCache for ServiceHealth
-func (h *OmegabrrHandler) fetchStatusWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.ServiceHealth, error)) (types.ServiceHealth, error) {
+func (h *OmegabrrHandler) fetchStatusWithCache(ctx context.Context, cacheKey string, fetchFn func() (domain.ServiceHealth, error)) (domain.ServiceHealth, error) {
 	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
 		return fetchFn()
 	})
 	if err != nil {
-		return types.ServiceHealth{}, err
+		return domain.ServiceHealth{}, err
 	}
 
 	// Convert the cached data to ServiceHealth using SafeStructConvert
-	converted, err := utils.SafeStructConvert[types.ServiceHealth](data)
+	converted, err := utils.SafeStructConvert[domain.ServiceHealth](data)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("cache_key", cacheKey).
 			Str("type", utils.GetTypeString(data)).
 			Msg("[Omegabrr] Failed to convert cached data")
-		return types.ServiceHealth{}, fmt.Errorf("failed to convert cached data: %w", err)
+		return domain.ServiceHealth{}, fmt.Errorf("failed to convert cached data: %w", err)
 	}
 
 	return converted, nil
@@ -149,14 +149,14 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("status:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchStatusWithCache(ctx, cacheKey, func() (types.ServiceHealth, error) {
+		return h.fetchStatusWithCache(ctx, cacheKey, func() (domain.ServiceHealth, error) {
 			return h.fetchStatus(ctx, instanceId)
 		})
 	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, types.ServiceHealth{})
+			c.JSON(http.StatusOK, domain.ServiceHealth{})
 			return
 		}
 
@@ -171,18 +171,18 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 		return
 	}
 
-	health := result.(types.ServiceHealth)
+	health := result.(domain.ServiceHealth)
 	c.JSON(http.StatusOK, health)
 }
 
-func (h *OmegabrrHandler) fetchStatus(ctx context.Context, instanceId string) (types.ServiceHealth, error) {
-	omegabrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+func (h *OmegabrrHandler) fetchStatus(ctx context.Context, instanceId string) (domain.ServiceHealth, error) {
+	omegabrrConfig, err := h.db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return types.ServiceHealth{}, err
+		return domain.ServiceHealth{}, err
 	}
 
 	if omegabrrConfig == nil {
-		return types.ServiceHealth{}, fmt.Errorf("service not configured")
+		return domain.ServiceHealth{}, fmt.Errorf("service not configured")
 	}
 
 	service := &services.OmegabrrService{
@@ -191,7 +191,7 @@ func (h *OmegabrrHandler) fetchStatus(ctx context.Context, instanceId string) (t
 
 	health, statusCode := service.CheckHealth(ctx, omegabrrConfig.URL, omegabrrConfig.APIKey)
 	if statusCode != http.StatusOK {
-		return types.ServiceHealth{}, fmt.Errorf("failed to get status")
+		return domain.ServiceHealth{}, fmt.Errorf("failed to get status")
 	}
 
 	return health, nil

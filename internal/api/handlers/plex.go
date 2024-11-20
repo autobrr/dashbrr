@@ -14,9 +14,9 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -105,7 +105,7 @@ func (h *PlexHandler) fetchDataWithCache(ctx context.Context, cacheKey string, f
 }
 
 // fetchSessionsWithCache is a type-safe wrapper around fetchDataWithCache for PlexSessionsResponse
-func (h *PlexHandler) fetchSessionsWithCache(ctx context.Context, cacheKey string, fetchFn func() (*types.PlexSessionsResponse, error)) (*types.PlexSessionsResponse, error) {
+func (h *PlexHandler) fetchSessionsWithCache(ctx context.Context, cacheKey string, fetchFn func() (*domain.PlexSessionsResponse, error)) (*domain.PlexSessionsResponse, error) {
 	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
 		return fetchFn()
 	})
@@ -114,7 +114,7 @@ func (h *PlexHandler) fetchSessionsWithCache(ctx context.Context, cacheKey strin
 	}
 
 	// Convert the cached data to PlexSessionsResponse
-	converted, err := utils.SafeStructConvert[types.PlexSessionsResponse](data)
+	converted, err := utils.SafeStructConvert[domain.PlexSessionsResponse](data)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -148,7 +148,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("sessions:%s", instanceId)
 	sessionsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchSessionsWithCache(ctx, cacheKey, func() (*types.PlexSessionsResponse, error) {
+		return h.fetchSessionsWithCache(ctx, cacheKey, func() (*domain.PlexSessionsResponse, error) {
 			return h.fetchSessions(ctx, instanceId)
 		})
 	})
@@ -156,9 +156,9 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
-			emptyResponse := &types.PlexSessionsResponse{}
+			emptyResponse := &domain.PlexSessionsResponse{}
 			emptyResponse.MediaContainer.Size = 0
-			emptyResponse.MediaContainer.Metadata = []types.PlexSession{}
+			emptyResponse.MediaContainer.Metadata = []domain.PlexSession{}
 			c.JSON(http.StatusOK, emptyResponse)
 			return
 		}
@@ -174,7 +174,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
-	sessions := sessionsI.(*types.PlexSessionsResponse)
+	sessions := sessionsI.(*domain.PlexSessionsResponse)
 
 	if sessions != nil {
 		h.compareAndLogSessionChanges(instanceId, sessions)
@@ -188,8 +188,8 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
-func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*types.PlexSessionsResponse, error) {
-	plexConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*domain.PlexSessionsResponse, error) {
+	plexConfig, err := h.db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
@@ -210,16 +210,16 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*ty
 
 	// Initialize empty metadata if nil
 	if sessions.MediaContainer.Metadata == nil {
-		sessions.MediaContainer.Metadata = []types.PlexSession{}
+		sessions.MediaContainer.Metadata = []domain.PlexSession{}
 	}
 
 	return sessions, nil
 }
 
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
-func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.PlexSessionsResponse) {
+func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *domain.PlexSessionsResponse) {
 	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(types.ServiceHealth{
+	BroadcastHealth(domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "plex_sessions",
@@ -239,8 +239,8 @@ func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.P
 }
 
 // filterTranscodingSessions returns sessions that are being transcoded
-func filterTranscodingSessions(sessions []types.PlexSession) []types.PlexSession {
-	transcoding := make([]types.PlexSession, 0)
+func filterTranscodingSessions(sessions []domain.PlexSession) []domain.PlexSession {
+	transcoding := make([]domain.PlexSession, 0)
 	for _, session := range sessions {
 		if session.TranscodeSession != nil {
 			transcoding = append(transcoding, session)
@@ -253,7 +253,7 @@ func filterTranscodingSessions(sessions []types.PlexSession) []types.PlexSession
 // The hash includes key session details like session key, media title, user, and playback state
 // This allows for efficient detection of session changes without deep comparison
 // Also helps reduce log spam by only logging when meaningful changes occur in sessions
-func createSessionHash(sessions *types.PlexSessionsResponse) string {
+func createSessionHash(sessions *domain.PlexSessionsResponse) string {
 	if sessions == nil || len(sessions.MediaContainer.Metadata) == 0 {
 		return ""
 	}
@@ -292,7 +292,7 @@ func (h *PlexHandler) detectSessionChanges(oldHash, newHash string) string {
 // compareAndLogSessionChanges tracks and logs changes in Plex media sessions
 // It compares the current session state with the previous state for a specific Plex instance
 // Helps detect session state changes like new streams starting, streams ending, or playback state changes
-func (h *PlexHandler) compareAndLogSessionChanges(instanceId string, sessions *types.PlexSessionsResponse) {
+func (h *PlexHandler) compareAndLogSessionChanges(instanceId string, sessions *domain.PlexSessionsResponse) {
 	h.lastSessionHashMu.Lock()
 	defer h.lastSessionHashMu.Unlock()
 

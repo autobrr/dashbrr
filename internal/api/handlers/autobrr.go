@@ -14,9 +14,9 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -161,14 +161,14 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 
 	// Use singleflight to prevent duplicate requests
 	result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
-		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.ReleasesResponse, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (domain.ReleasesResponse, error) {
 			return h.fetchReleases(instanceId)
 		})
 	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, types.ReleasesResponse{})
+			c.JSON(http.StatusOK, domain.ReleasesResponse{})
 			return
 		}
 
@@ -183,7 +183,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		return
 	}
 
-	releases, err := utils.SafeConvert[types.ReleasesResponse](result)
+	releases, err := utils.SafeConvert[domain.ReleasesResponse](result)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to convert releases response")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
@@ -227,14 +227,14 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 
 	// Use singleflight to prevent duplicate requests
 	result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
-		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.AutobrrStats, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (domain.AutobrrStats, error) {
 			return h.fetchStats(context.Background(), instanceId)
 		})
 	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, types.AutobrrStats{})
+			c.JSON(http.StatusOK, domain.AutobrrStats{})
 			return
 		}
 
@@ -249,7 +249,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := utils.SafeConvert[types.AutobrrStats](result)
+	stats, err := utils.SafeConvert[domain.AutobrrStats](result)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to convert stats response")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
@@ -293,14 +293,14 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 
 	// Use singleflight to prevent duplicate requests
 	result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
-		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() ([]types.IRCStatus, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() ([]domain.IRCStatus, error) {
 			return h.fetchIRC(instanceId)
 		})
 	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, []types.IRCStatus{})
+			c.JSON(http.StatusOK, []domain.IRCStatus{})
 			return
 		}
 
@@ -315,7 +315,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		return
 	}
 
-	status, err := utils.SafeConvert[[]types.IRCStatus](result)
+	status, err := utils.SafeConvert[[]domain.IRCStatus](result)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to convert IRC status response")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
@@ -340,19 +340,19 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (types.AutobrrStats, error) {
-	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (domain.AutobrrStats, error) {
+	autobrrConfig, err := h.db.FindServiceBy(ctx, domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return types.AutobrrStats{}, err
+		return domain.AutobrrStats{}, err
 	}
 
 	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return types.AutobrrStats{}, fmt.Errorf("service not configured")
+		return domain.AutobrrStats{}, fmt.Errorf("service not configured")
 	}
 
 	service, err := h.serviceManager.GetService(instanceId)
 	if err != nil {
-		return types.AutobrrStats{}, err
+		return domain.AutobrrStats{}, err
 	}
 
 	serviceInstance := service.(*services.AutobrrService)
@@ -361,19 +361,19 @@ func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (typ
 	return serviceInstance.GetReleaseStats(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
-func (h *AutobrrHandler) fetchReleases(instanceId string) (types.ReleasesResponse, error) {
-	autobrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *AutobrrHandler) fetchReleases(instanceId string) (domain.ReleasesResponse, error) {
+	autobrrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return types.ReleasesResponse{}, err
+		return domain.ReleasesResponse{}, err
 	}
 
 	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return types.ReleasesResponse{}, fmt.Errorf("service not configured")
+		return domain.ReleasesResponse{}, fmt.Errorf("service not configured")
 	}
 
 	service, err := h.serviceManager.GetService(instanceId)
 	if err != nil {
-		return types.ReleasesResponse{}, err
+		return domain.ReleasesResponse{}, err
 	}
 
 	serviceInstance := service.(*services.AutobrrService)
@@ -381,8 +381,8 @@ func (h *AutobrrHandler) fetchReleases(instanceId string) (types.ReleasesRespons
 	return serviceInstance.GetReleases(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
-func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) {
-	autobrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *AutobrrHandler) fetchIRC(instanceId string) ([]domain.IRCStatus, error) {
+	autobrrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +393,7 @@ func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) 
 
 	service, err := h.serviceManager.GetService(instanceId)
 	if err != nil {
-		return []types.IRCStatus{}, err
+		return []domain.IRCStatus{}, err
 	}
 
 	serviceInstance := service.(*services.AutobrrService)
@@ -402,8 +402,8 @@ func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) 
 }
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
-func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.ReleasesResponse) {
-	health := types.ServiceHealth{
+func (h *AutobrrHandler) broadcastReleases(instanceId string, releases domain.ReleasesResponse) {
+	health := domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_releases",
@@ -417,8 +417,8 @@ func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.Rel
 }
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
-func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrStats) {
-	health := types.ServiceHealth{
+func (h *AutobrrHandler) broadcastStats(instanceId string, stats domain.AutobrrStats) {
+	health := domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_stats",
@@ -432,7 +432,7 @@ func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrSt
 }
 
 // broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
-func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IRCStatus) {
+func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []domain.IRCStatus) {
 	// Check for unhealthy IRC connections
 	serviceStatus := "online"
 	message := "autobrr_irc_status"
@@ -445,13 +445,13 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 		}
 	}
 
-	health := types.ServiceHealth{
+	health := domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      serviceStatus,
 		Message:     message,
 		LastChecked: time.Now(),
 		Details: map[string]interface{}{
-			"autobrr": types.AutobrrDetails{
+			"autobrr": domain.AutobrrDetails{
 				IRC: status,
 			},
 		},
@@ -461,7 +461,7 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 }
 
 // Hash generation functions
-func createAutobrrReleaseHash(releases types.ReleasesResponse) string {
+func createAutobrrReleaseHash(releases domain.ReleasesResponse) string {
 	if len(releases.Data) == 0 {
 		return ""
 	}
@@ -476,7 +476,7 @@ func createAutobrrReleaseHash(releases types.ReleasesResponse) string {
 	return sb.String()
 }
 
-func createAutobrrStatsHash(stats types.AutobrrStats) string {
+func createAutobrrStatsHash(stats domain.AutobrrStats) string {
 	return fmt.Sprintf("%d:%d:%d:%d:%d",
 		stats.TotalCount,
 		stats.FilteredCount,
@@ -485,7 +485,7 @@ func createAutobrrStatsHash(stats types.AutobrrStats) string {
 		stats.PushRejectedCount)
 }
 
-func createIRCStatusHash(status []types.IRCStatus) string {
+func createIRCStatusHash(status []domain.IRCStatus) string {
 	if len(status) == 0 {
 		return ""
 	}

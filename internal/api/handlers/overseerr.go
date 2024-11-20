@@ -16,9 +16,9 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -51,8 +51,8 @@ func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
 	}
 }
 
-func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (*types.RequestsStats, error)) (*types.RequestsStats, error) {
-	var data types.RequestsStats
+func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (*domain.RequestsStats, error)) (*domain.RequestsStats, error) {
+	var data domain.RequestsStats
 
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
@@ -72,7 +72,7 @@ func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey stri
 	// Check circuit breaker before making request
 	if h.circuitBreaker.IsOpen() {
 		// Try to get stale data when circuit is open
-		var staleData types.RequestsStats
+		var staleData domain.RequestsStats
 		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
 			return &staleData, nil
 		}
@@ -80,7 +80,7 @@ func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey stri
 	}
 
 	// Cache miss or error, fetch fresh data with retry
-	var freshData *types.RequestsStats
+	var freshData *domain.RequestsStats
 	err = resilience.RetryWithBackoff(ctx, func() error {
 		var fetchErr error
 		freshData, fetchErr = fetchFn()
@@ -90,7 +90,7 @@ func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey stri
 	if err != nil {
 		h.circuitBreaker.RecordFailure()
 		// Try to get stale data
-		var staleData types.RequestsStats
+		var staleData domain.RequestsStats
 		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
 			return &staleData, nil
 		}
@@ -147,7 +147,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	}
 
 	// Get service configuration
-	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	overseerrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get service configuration")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
@@ -204,7 +204,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	})
 
 	if err == nil && result != nil {
-		stats, err := utils.SafeConvert[*types.RequestsStats](result)
+		stats, err := utils.SafeConvert[*domain.RequestsStats](result)
 		if err == nil {
 			h.broadcastOverseerrRequests(instanceId, stats)
 		}
@@ -234,7 +234,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("requests:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchDataWithCache(ctx, cacheKey, func() (*types.RequestsStats, error) {
+		return h.fetchDataWithCache(ctx, cacheKey, func() (*domain.RequestsStats, error) {
 			return h.fetchRequests(instanceId)
 		})
 	})
@@ -242,9 +242,9 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
-			c.JSON(http.StatusOK, &types.RequestsStats{
+			c.JSON(http.StatusOK, &domain.RequestsStats{
 				PendingCount: 0,
-				Requests:     []types.MediaRequest{},
+				Requests:     []domain.MediaRequest{},
 			})
 			return
 		}
@@ -260,7 +260,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
-	stats, err := utils.SafeConvert[*types.RequestsStats](result)
+	stats, err := utils.SafeConvert[*domain.RequestsStats](result)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
 		return
@@ -296,8 +296,8 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStats, error) {
-	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *OverseerrHandler) fetchRequests(instanceId string) (*domain.RequestsStats, error) {
+	overseerrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
@@ -320,13 +320,13 @@ func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStat
 
 	// Initialize empty requests if nil
 	if stats.Requests == nil {
-		stats.Requests = []types.MediaRequest{}
+		stats.Requests = []domain.MediaRequest{}
 	}
 
 	return stats, nil
 }
 
-func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *types.RequestsStats) {
+func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *domain.RequestsStats) {
 	if stats == nil {
 		return
 	}
@@ -340,19 +340,19 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 		message = fmt.Sprintf("%d pending requests", stats.PendingCount)
 	}
 
-	health := types.ServiceHealth{
+	health := domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      serviceStatus,
 		Message:     message,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
-			"overseerr": types.OverseerrStats{
+			"overseerr": domain.OverseerrStats{
 				Requests:     stats.Requests,
 				PendingCount: stats.PendingCount,
 			},
 		},
 		Details: map[string]interface{}{
-			"overseerr": types.OverseerrDetails{
+			"overseerr": domain.OverseerrDetails{
 				PendingCount:  stats.PendingCount,
 				TotalRequests: len(stats.Requests),
 			},
@@ -363,7 +363,7 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 }
 
 // createOverseerrRequestsHash generates a deterministic hash of the requests state
-func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) {
+func createOverseerrRequestsHash(stats *domain.RequestsStats) (string, []string) {
 	if stats == nil || len(stats.Requests) == 0 {
 		return "", nil
 	}
@@ -374,7 +374,7 @@ func createOverseerrRequestsHash(stats *types.RequestsStats) (string, []string) 
 	changes := make([]string, 0, len(stats.Requests))
 
 	// Sort requests by ID for consistent hashing
-	sortedRequests := make([]types.MediaRequest, len(stats.Requests))
+	sortedRequests := make([]domain.MediaRequest, len(stats.Requests))
 	copy(sortedRequests, stats.Requests)
 	sort.Slice(sortedRequests, func(i, j int) bool {
 		return sortedRequests[i].ID < sortedRequests[j].ID

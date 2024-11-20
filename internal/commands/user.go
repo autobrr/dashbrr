@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -68,7 +68,7 @@ func UserCreateCommand() *cobra.Command {
 		}
 
 		// Check if username or email already exists
-		existingUser, err := db.FindUser(cmd.Context(), types.FindUserParams{Username: username, Email: email})
+		existingUser, err := db.FindUser(cmd.Context(), domain.FindUserParams{Username: username, Email: email})
 		if err != nil {
 			return fmt.Errorf("error checking username: %v", err)
 		}
@@ -92,7 +92,7 @@ func UserCreateCommand() *cobra.Command {
 		}
 
 		// Create user
-		user := &types.User{
+		user := &domain.User{
 			Username:     username,
 			Email:        email,
 			PasswordHash: string(passwordHash),
@@ -136,7 +136,7 @@ func UserChangePasswordCommand() *cobra.Command {
 		}
 
 		// Retrieve user
-		user, err := db.FindUser(cmd.Context(), types.FindUserParams{Username: username})
+		user, err := db.FindUser(cmd.Context(), domain.FindUserParams{Username: username})
 		if err != nil {
 			return fmt.Errorf("failed to find user: %v", err)
 		}

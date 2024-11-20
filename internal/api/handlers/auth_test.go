@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/domain"
 )
 
 // MockStore is a mock implementation of cache.Store
@@ -93,7 +93,7 @@ func TestNewAuthHandler(t *testing.T) {
 	defer ts.Close()
 	serverURL = ts.URL
 
-	config := &types.AuthConfig{
+	config := &domain.AuthConfig{
 		Issuer:       serverURL,
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
@@ -121,7 +121,7 @@ func TestNewAuthHandler_DiscoveryFailed(t *testing.T) {
 	defer ts.Close()
 	serverURL = ts.URL
 
-	config := &types.AuthConfig{
+	config := &domain.AuthConfig{
 		Issuer:       serverURL,
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
@@ -164,7 +164,7 @@ func TestCallback_NoCode(t *testing.T) {
 	// No mock expectations needed for this test as no cache methods are called
 
 	handler := &AuthHandler{
-		config: &types.AuthConfig{
+		config: &domain.AuthConfig{
 			Issuer:       "https://test.auth0.com",
 			ClientID:     "test-client-id",
 			ClientSecret: "test-client-secret",
@@ -191,7 +191,7 @@ func TestLogout_NoFrontendURL(t *testing.T) {
 	// No mock expectations needed for this test as no cache methods are called
 
 	handler := &AuthHandler{
-		config: &types.AuthConfig{
+		config: &domain.AuthConfig{
 			Issuer:       "https://test.auth0.com",
 			ClientID:     "test-client-id",
 			ClientSecret: "test-client-secret",

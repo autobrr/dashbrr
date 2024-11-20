@@ -18,8 +18,8 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 )
 
@@ -109,23 +109,23 @@ func (h *SonarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 }
 
 // fetchQueueWithCache is a type-safe wrapper around fetchDataWithCache for SonarrQueueResponse
-func (h *SonarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.SonarrQueueResponse, error)) (types.SonarrQueueResponse, error) {
+func (h *SonarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (domain.SonarrQueueResponse, error)) (domain.SonarrQueueResponse, error) {
 	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
 		return fetchFn()
 	})
 	if err != nil {
-		return types.SonarrQueueResponse{}, err
+		return domain.SonarrQueueResponse{}, err
 	}
 
 	// Convert the cached data to SonarrQueueResponse
-	converted, err := utils.SafeStructConvert[types.SonarrQueueResponse](data)
+	converted, err := utils.SafeStructConvert[domain.SonarrQueueResponse](data)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("cache_key", cacheKey).
 			Str("type", utils.GetTypeString(data)).
 			Msg("[Sonarr] Failed to convert cached data")
-		return types.SonarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
+		return domain.SonarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
 	}
 
 	return converted, nil
@@ -133,10 +133,10 @@ func (h *SonarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string
 
 // fetchStatsWithCache is a type-safe wrapper around fetchDataWithCache for SonarrStatsResponse
 func (h *SonarrHandler) fetchStatsWithCache(ctx context.Context, cacheKey string, fetchFn func() (struct {
-	Stats   types.SonarrStatsResponse
+	Stats   domain.SonarrStatsResponse
 	Version string
 }, error)) (struct {
-	Stats   types.SonarrStatsResponse
+	Stats   domain.SonarrStatsResponse
 	Version string
 }, error) {
 	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
@@ -144,14 +144,14 @@ func (h *SonarrHandler) fetchStatsWithCache(ctx context.Context, cacheKey string
 	})
 	if err != nil {
 		return struct {
-			Stats   types.SonarrStatsResponse
+			Stats   domain.SonarrStatsResponse
 			Version string
 		}{}, err
 	}
 
 	// Convert the cached data
 	converted, err := utils.SafeStructConvert[struct {
-		Stats   types.SonarrStatsResponse
+		Stats   domain.SonarrStatsResponse
 		Version string
 	}](data)
 	if err != nil {
@@ -161,7 +161,7 @@ func (h *SonarrHandler) fetchStatsWithCache(ctx context.Context, cacheKey string
 			Str("type", utils.GetTypeString(data)).
 			Msg("[Sonarr] Failed to convert cached stats data")
 		return struct {
-			Stats   types.SonarrStatsResponse
+			Stats   domain.SonarrStatsResponse
 			Version string
 		}{}, fmt.Errorf("failed to convert cached stats data: %w", err)
 	}
@@ -186,7 +186,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	cacheKey := sonarrQueuePrefix + instanceId
 	ctx := context.Background()
 
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (domain.SonarrQueueResponse, error) {
 		return h.fetchQueue(instanceId)
 	})
 
@@ -222,14 +222,14 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *SonarrHandler) fetchQueue(instanceId string) (types.SonarrQueueResponse, error) {
-	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *SonarrHandler) fetchQueue(instanceId string) (domain.SonarrQueueResponse, error) {
+	sonarrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return types.SonarrQueueResponse{}, err
+		return domain.SonarrQueueResponse{}, err
 	}
 
 	if sonarrConfig == nil {
-		return types.SonarrQueueResponse{}, fmt.Errorf("sonarr is not configured")
+		return domain.SonarrQueueResponse{}, fmt.Errorf("sonarr is not configured")
 	}
 
 	// Create Sonarr service instance
@@ -238,13 +238,13 @@ func (h *SonarrHandler) fetchQueue(instanceId string) (types.SonarrQueueResponse
 	// Get queue records using the service
 	records, err := service.GetQueueForHealth(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
-		return types.SonarrQueueResponse{}, err
+		return domain.SonarrQueueResponse{}, err
 	}
 
 	// Ensure Episodes array is populated for each record
 	for i := range records {
-		if records[i].Episode != (types.Episode{}) {
-			records[i].Episodes = []types.EpisodeBasic{{
+		if records[i].Episode != (domain.Episode{}) {
+			records[i].Episodes = []domain.EpisodeBasic{{
 				ID:            records[i].Episode.ID,
 				EpisodeNumber: records[i].Episode.EpisodeNumber,
 				SeasonNumber:  records[i].Episode.SeasonNumber,
@@ -253,7 +253,7 @@ func (h *SonarrHandler) fetchQueue(instanceId string) (types.SonarrQueueResponse
 	}
 
 	// Create response
-	return types.SonarrQueueResponse{
+	return domain.SonarrQueueResponse{
 		Records:      records,
 		TotalRecords: len(records),
 	}, nil
@@ -277,7 +277,7 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	ctx := context.Background()
 
 	result, err := h.fetchStatsWithCache(ctx, cacheKey, func() (struct {
-		Stats   types.SonarrStatsResponse
+		Stats   domain.SonarrStatsResponse
 		Version string
 	}, error) {
 		return h.fetchStats(instanceId)
@@ -312,20 +312,20 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 }
 
 func (h *SonarrHandler) fetchStats(instanceId string) (struct {
-	Stats   types.SonarrStatsResponse
+	Stats   domain.SonarrStatsResponse
 	Version string
 }, error) {
-	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	sonarrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return struct {
-			Stats   types.SonarrStatsResponse
+			Stats   domain.SonarrStatsResponse
 			Version string
 		}{}, err
 	}
 
 	if sonarrConfig == nil {
 		return struct {
-			Stats   types.SonarrStatsResponse
+			Stats   domain.SonarrStatsResponse
 			Version string
 		}{}, fmt.Errorf("sonarr is not configured")
 	}
@@ -337,16 +337,16 @@ func (h *SonarrHandler) fetchStats(instanceId string) (struct {
 	version, err := service.GetSystemStatus(sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
 		return struct {
-			Stats   types.SonarrStatsResponse
+			Stats   domain.SonarrStatsResponse
 			Version string
 		}{}, err
 	}
 
 	return struct {
-		Stats   types.SonarrStatsResponse
+		Stats   domain.SonarrStatsResponse
 		Version string
 	}{
-		Stats:   types.SonarrStatsResponse{},
+		Stats:   domain.SonarrStatsResponse{},
 		Version: version,
 	}, nil
 }
@@ -372,7 +372,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	options := types.SonarrQueueDeleteOptions{
+	options := domain.SonarrQueueDeleteOptions{
 		RemoveFromClient: c.Query("removeFromClient") == "true",
 		Blocklist:        c.Query("blocklist") == "true",
 		SkipRedownload:   c.Query("skipRedownload") == "true",
@@ -412,7 +412,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	}
 
 	// Fetch fresh queue data
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
+	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (domain.SonarrQueueResponse, error) {
 		return h.fetchQueue(instanceId)
 	})
 
@@ -423,8 +423,8 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }
 
-func (h *SonarrHandler) deleteQueueItem(instanceId, queueId string, options types.SonarrQueueDeleteOptions) error {
-	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *SonarrHandler) deleteQueueItem(instanceId, queueId string, options domain.SonarrQueueDeleteOptions) error {
+	sonarrConfig, err := h.db.FindServiceBy(context.Background(), domain.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return err
 	}
@@ -441,7 +441,7 @@ func (h *SonarrHandler) deleteQueueItem(instanceId, queueId string, options type
 }
 
 // Helper methods for change detection
-func (h *SonarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.SonarrQueueResponse) {
+func (h *SonarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *domain.SonarrQueueResponse) {
 	h.lastQueueHashMu.Lock()
 	defer h.lastQueueHashMu.Unlock()
 
@@ -461,7 +461,7 @@ func (h *SonarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *
 	}
 }
 
-func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *types.SonarrStatsResponse) {
+func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *domain.SonarrStatsResponse) {
 	h.lastStatsHashMu.Lock()
 	defer h.lastStatsHashMu.Unlock()
 
@@ -483,7 +483,7 @@ func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *type
 	}
 }
 
-func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types.SonarrQueueResponse) {
+func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *domain.SonarrQueueResponse) {
 	var totalSize int64
 	var downloading int
 	var episodeCount int
@@ -495,7 +495,7 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 		episodeCount += len(record.Episodes)
 	}
 
-	BroadcastHealth(types.ServiceHealth{
+	BroadcastHealth(domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "sonarr_queue",
@@ -515,8 +515,8 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 	})
 }
 
-func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types.SonarrStatsResponse, version string) {
-	BroadcastHealth(types.ServiceHealth{
+func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *domain.SonarrStatsResponse, version string) {
+	BroadcastHealth(domain.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "sonarr_stats",

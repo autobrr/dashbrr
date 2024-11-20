@@ -14,8 +14,8 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +40,7 @@ func NewEventsHandler(db *database.DB, cache cache.Store, serviceManager *servic
 }
 
 type client struct {
-	send        chan types.ServiceHealth
+	send        chan domain.ServiceHealth
 	done        chan struct{}
 	connectedAt time.Time
 	lastActive  time.Time // Track last successful message send
@@ -163,7 +163,7 @@ func extractServiceType(instanceID string) (string, error) {
 }
 
 // processServiceBatch handles health checks for a batch of services
-func (h *EventsHandler) processServiceBatch(ctx context.Context, services []types.ServiceConfiguration, results chan<- types.ServiceHealth, wg *sync.WaitGroup) {
+func (h *EventsHandler) processServiceBatch(ctx context.Context, services []domain.ServiceConfiguration, results chan<- domain.ServiceHealth, wg *sync.WaitGroup) {
 	// Process services sequentially within batch to prevent connection spikes
 	for _, service := range services {
 		if service.URL == "" {
@@ -182,7 +182,7 @@ func (h *EventsHandler) processServiceBatch(ctx context.Context, services []type
 }
 
 // checkSingleService performs health check for a single service
-func (h *EventsHandler) checkSingleService(ctx context.Context, svc types.ServiceConfiguration, results chan<- types.ServiceHealth, wg *sync.WaitGroup) {
+func (h *EventsHandler) checkSingleService(ctx context.Context, svc domain.ServiceConfiguration, results chan<- domain.ServiceHealth, wg *sync.WaitGroup) {
 	log.Trace().Str("service", svc.InstanceID).Msg("EventsHandler: Checking single service")
 	defer wg.Done()
 
@@ -207,7 +207,7 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc types.Servic
 		serviceType, err := extractServiceType(svc.InstanceID)
 		if err != nil {
 			log.Error().Err(err).Str("instance_id", svc.InstanceID).Msg("Failed to extract service type")
-			results <- types.ServiceHealth{
+			results <- domain.ServiceHealth{
 				ServiceID:   svc.InstanceID,
 				Status:      "error",
 				Message:     "Invalid service ID format",
@@ -216,7 +216,7 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc types.Servic
 			return
 		}
 
-		serviceHealth := types.ServiceHealth{
+		serviceHealth := domain.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      "checking",
 			LastChecked: time.Now(),
@@ -241,7 +241,7 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc types.Servic
 		health, statusCode := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
 
 		// Safely convert health to ServiceHealth
-		convertedHealth, err := utils.SafeStructConvert[types.ServiceHealth](health)
+		convertedHealth, err := utils.SafeStructConvert[domain.ServiceHealth](health)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -284,8 +284,8 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc types.Servic
 }
 
 // collectResults gathers health check results with timeout
-func (h *EventsHandler) collectResults(ctx context.Context, results <-chan types.ServiceHealth) []types.ServiceHealth {
-	var allResults []types.ServiceHealth
+func (h *EventsHandler) collectResults(ctx context.Context, results <-chan domain.ServiceHealth) []domain.ServiceHealth {
+	var allResults []domain.ServiceHealth
 	resultsTimer := time.NewTimer(5 * time.Second)
 	defer resultsTimer.Stop()
 
@@ -308,7 +308,7 @@ func (h *EventsHandler) collectResults(ctx context.Context, results <-chan types
 }
 
 // checkAndBroadcastHealth performs health checks for all services and broadcasts results
-func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []types.ServiceHealth {
+func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []domain.ServiceHealth {
 	log.Trace().Msg("check and broadcast health")
 
 	allServices, err := h.db.GetAllServices(ctx)
@@ -322,7 +322,7 @@ func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []types.Ser
 	}
 
 	var wg sync.WaitGroup
-	results := make(chan types.ServiceHealth, len(allServices))
+	results := make(chan domain.ServiceHealth, len(allServices))
 	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second) // Increased timeout for sequential processing
 	defer cancel()
 
@@ -349,7 +349,7 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 
 	// Create new client with buffered channel and done signal
 	client := &client{
-		send:        make(chan types.ServiceHealth, clientBufferSize),
+		send:        make(chan domain.ServiceHealth, clientBufferSize),
 		done:        make(chan struct{}),
 		connectedAt: time.Now(),
 		lastActive:  time.Now(),
@@ -445,7 +445,7 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 }
 
 // BroadcastHealth sends health updates to all connected clients
-func BroadcastHealth(health types.ServiceHealth) {
+func BroadcastHealth(health domain.ServiceHealth) {
 	clientsMu.RLock()
 	defer clientsMu.RUnlock()
 
