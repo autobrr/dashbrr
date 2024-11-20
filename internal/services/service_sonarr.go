@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package sonarr
+package services
 
 import (
 	"bytes"
@@ -12,15 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/types"
+
+	"github.com/rs/zerolog/log"
 )
 
-// Custom error types for better error handling
+// ErrSonarr Custom error types for better error handling
 type ErrSonarr struct {
 	Op       string // Operation that failed
 	Err      error  // Underlying error
@@ -42,25 +41,22 @@ func (e *ErrSonarr) Unwrap() error {
 }
 
 type SonarrService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-type SystemStatusResponse struct {
-	Version string `json:"version"`
-}
-
-func init() {
-	models.NewSonarrService = NewSonarrService
-}
-
-func NewSonarrService() models.ServiceHealthChecker {
+func NewSonarrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &SonarrService{}
-	service.Type = "sonarr"
-	service.DisplayName = "Sonarr"
+	service.Type = types.ServiceTypeSonarr
+	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Sonarr instance"
 	service.DefaultURL = "http://localhost:8989"
 	service.HealthEndpoint = "/api/v3/health"
-	service.SetTimeout(core.DefaultTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -289,7 +285,7 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return version, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
 	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
@@ -309,7 +305,7 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var status SystemStatusResponse
+	var status ArrSystemStatusResponse
 	if err := json.Unmarshal(body, &status); err != nil {
 		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -325,9 +321,9 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 
 // CheckForUpdates checks if there are any updates available for Sonarr
 func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates("sonarr", url, apiKey)
+	return CheckArrForUpdates("sonarr", url, apiKey)
 }
 
-func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+	return ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

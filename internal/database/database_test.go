@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -152,7 +151,7 @@ func TestServiceOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// Test service creation
-	service := &models.ServiceConfiguration{
+	service := &types.ServiceConfiguration{
 		InstanceID:  "test-service-1",
 		DisplayName: "Test Service",
 		URL:         "http://localhost:8080",
@@ -272,7 +271,7 @@ func TestErrorHandling(t *testing.T) {
 	}
 
 	// Test duplicate service creation
-	service1 := &models.ServiceConfiguration{
+	service1 := &types.ServiceConfiguration{
 		InstanceID:  "duplicate-service",
 		DisplayName: "Duplicate Service",
 		URL:         "http://localhost:8080",
@@ -284,7 +283,7 @@ func TestErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to create first service: %v", err)
 	}
 
-	service2 := &models.ServiceConfiguration{
+	service2 := &types.ServiceConfiguration{
 		InstanceID:  "duplicate-service",
 		DisplayName: "Duplicate Service",
 		URL:         "http://localhost:8080",

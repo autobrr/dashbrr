@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package commands
 
 import (
@@ -7,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/discovery"
 	"github.com/autobrr/dashbrr/internal/types"
 
@@ -191,7 +193,7 @@ func ConfigDiscoverCommand() *cobra.Command {
 }
 
 // handleDiscoveredServices processes discovered services
-func handleDiscoveredServices(ctx context.Context, db *database.DB, services []models.ServiceConfiguration) error {
+func handleDiscoveredServices(ctx context.Context, db *database.DB, services []types.ServiceConfiguration) error {
 	if len(services) == 0 {
 		fmt.Println("No services discovered.")
 		return nil

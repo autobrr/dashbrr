@@ -1,42 +1,42 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package omegabrr
+package services
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type OmegabrrService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-type VersionResponse struct {
+type OmegabrrVersionResponse struct {
 	Version string `json:"version"`
 }
 
-func init() {
-	models.NewOmegabrrService = func() models.ServiceHealthChecker {
-		return &OmegabrrService{}
-	}
-}
-
-func NewOmegabrrService() models.ServiceHealthChecker {
+func NewOmegabrrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &OmegabrrService{}
-	service.Type = "omegabrr"
-	service.DisplayName = "Omegabrr"
+	service.Type = types.ServiceTypeOmegabrr
+	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Omegabrr instance"
 	service.DefaultURL = "http://localhost:7474"
 	service.HealthEndpoint = "/api/healthz/liveness"
-	service.SetTimeout(core.DefaultLongTimeout) // Set longer timeout for Omegabrr
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultLongTimeout) // Set longer timeout for Omegabrr
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -68,7 +68,7 @@ func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (s
 		return "", err
 	}
 
-	var version VersionResponse
+	var version OmegabrrVersionResponse
 	if err := json.Unmarshal(body, &version); err != nil {
 		return "", err
 	}
@@ -81,7 +81,7 @@ func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (s
 	return version.Version, nil
 }
 
-func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
@@ -89,7 +89,7 @@ func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (
 	}
 
 	// Create a child context with longer timeout if needed
-	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultLongTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, DefaultLongTimeout)
 	defer cancel()
 
 	// Get version using GetCachedVersion for better caching

@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package core
+package services
 
 import (
 	"context"
@@ -9,17 +9,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/autobrr/dashbrr/internal/buildinfo"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/types"
+
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -37,10 +35,12 @@ var (
 )
 
 type ServiceCore struct {
-	Type           string
+	InstanceID     string
+	Type           types.ServiceType
 	DisplayName    string
 	Description    string
 	DefaultURL     string
+	URL            string
 	ApiKey         string
 	HealthEndpoint string
 	Timeout        time.Duration // Added configurable timeout
@@ -48,9 +48,24 @@ type ServiceCore struct {
 	db             *database.DB
 }
 
+// SetURL sets the URL for the service instance.
+func (s *ServiceCore) SetURL(url string) {
+	s.URL = url
+}
+
+// SetApiKey sets the API key for the service instance based on the provided key.
+func (s *ServiceCore) SetApiKey(apiKey string) {
+	s.ApiKey = apiKey
+}
+
 // SetDB sets the database instance for the service
 func (s *ServiceCore) SetDB(db *database.DB) {
 	s.db = db
+}
+
+// SetCache sets the cache instance for the service
+func (s *ServiceCore) SetCache(cache cache.Store) {
+	s.cache = cache
 }
 
 // SetTimeout sets a custom timeout for the service
@@ -79,40 +94,6 @@ func getHTTPClient(timeout time.Duration) *http.Client {
 	// Store in pool
 	httpClients.Store(timeout, client)
 	return client
-}
-
-func (s *ServiceCore) initCache() error {
-	if s.cache != nil {
-		return nil
-	}
-
-	// Get database directory from environment
-	dataDir := filepath.Dir(os.Getenv("DASHBRR__DB_PATH"))
-	if dataDir == "." {
-		dataDir = "./data" // Default to ./data if not set
-	}
-
-	// Initialize cache config
-	cfg := cache.Config{
-		DataDir: dataDir,
-	}
-
-	// Add Redis configuration if available
-	if host := os.Getenv("REDIS_HOST"); host != "" {
-		port := os.Getenv("REDIS_PORT")
-		if port == "" {
-			port = "6379"
-		}
-		cfg.RedisAddr = host + ":" + port
-	}
-
-	// Use the global cache instance
-	store, err := cache.InitCache(context.Background(), cfg)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize preferred cache, using memory cache")
-	}
-	s.cache = store
-	return err
 }
 
 // MakeRequestWithContext makes an HTTP request with the provided context and timeout
@@ -280,10 +261,7 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 
 // GetVersionFromCache retrieves the version from cache
 func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
-	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
-		return ""
-	}
+	log.Debug().Str("url", baseURL).Msg("Retrieving version from cache")
 
 	var version string
 	cacheKey := "version:" + baseURL
@@ -298,10 +276,7 @@ func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 
 // GetUpdateStatusFromCache retrieves the update status from cache
 func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
-	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
-		return false
-	}
+	log.Trace().Str("url", baseURL).Msg("Retrieving update status from cache")
 
 	var updateStatus string
 	cacheKey := fmt.Sprintf("%s:update", baseURL)
@@ -315,10 +290,7 @@ func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
 
 // CacheVersion stores the version in cache with the specified TTL
 func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) error {
-	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
-		return err
-	}
+	log.Trace().Str("url", baseURL).Str("version", version).Msg("Caching version")
 
 	cacheKey := "version:" + baseURL
 	if err := s.cache.Set(context.Background(), cacheKey, version, ttl); err != nil {
@@ -330,8 +302,8 @@ func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) e
 }
 
 // CreateHealthResponse creates a standardized health response
-func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) models.ServiceHealth {
-	response := models.ServiceHealth{
+func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) types.ServiceHealth {
+	response := types.ServiceHealth{
 		Status:      status,
 		LastChecked: lastChecked,
 		Message:     message,
@@ -360,10 +332,7 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 
 // GetCachedVersion attempts to get version from cache or fetches it if not found
 func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
-	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Cache initialization failed")
-		return "", err
-	}
+	log.Trace().Str("url", baseURL).Msg("Retrieving version from cache")
 
 	cacheKey := "version:" + baseURL
 	var version string

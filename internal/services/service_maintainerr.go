@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package maintainerr
+package services
 
 import (
 	"context"
@@ -11,11 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
-// Custom error types for better error handling
+// ErrMaintainerr Custom error types for better error handling
 type ErrMaintainerr struct {
 	Op       string // Operation that failed
 	Err      error  // Underlying error
@@ -37,7 +38,7 @@ func (e *ErrMaintainerr) Unwrap() error {
 }
 
 type MaintainerrService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
 type StatusResponse struct {
@@ -45,7 +46,7 @@ type StatusResponse struct {
 	UpdateAvailable bool   `json:"updateAvailable"`
 }
 
-type Media struct {
+type MaintainerrMedia struct {
 	ID           int       `json:"id"`
 	CollectionID int       `json:"collectionId"`
 	PlexID       int       `json:"plexId"`
@@ -55,37 +56,38 @@ type Media struct {
 	IsManual     bool      `json:"isManual"`
 }
 
-type Collection struct {
-	ID                int     `json:"id"`
-	PlexID            int     `json:"plexId"`
-	LibraryID         int     `json:"libraryId"`
-	Title             string  `json:"title"`
-	Description       string  `json:"description"`
-	IsActive          bool    `json:"isActive"`
-	ArrAction         int     `json:"arrAction"`
-	VisibleOnHome     bool    `json:"visibleOnHome"`
-	DeleteAfterDays   int     `json:"deleteAfterDays"`
-	ManualCollection  bool    `json:"manualCollection"`
-	ListExclusions    bool    `json:"listExclusions"`
-	ForceOverseerr    bool    `json:"forceOverseerr"`
-	Type              int     `json:"type"`
-	KeepLogsForMonths int     `json:"keepLogsForMonths"`
-	AddDate           string  `json:"addDate"`
-	Media             []Media `json:"media"`
+type MaintainerrCollection struct {
+	ID                int                `json:"id"`
+	PlexID            int                `json:"plexId"`
+	LibraryID         int                `json:"libraryId"`
+	Title             string             `json:"title"`
+	Description       string             `json:"description"`
+	IsActive          bool               `json:"isActive"`
+	ArrAction         int                `json:"arrAction"`
+	VisibleOnHome     bool               `json:"visibleOnHome"`
+	DeleteAfterDays   int                `json:"deleteAfterDays"`
+	ManualCollection  bool               `json:"manualCollection"`
+	ListExclusions    bool               `json:"listExclusions"`
+	ForceOverseerr    bool               `json:"forceOverseerr"`
+	Type              int                `json:"type"`
+	KeepLogsForMonths int                `json:"keepLogsForMonths"`
+	AddDate           string             `json:"addDate"`
+	Media             []MaintainerrMedia `json:"media"`
 }
 
-func init() {
-	models.NewMaintainerrService = NewMaintainerrService
-}
-
-func NewMaintainerrService() models.ServiceHealthChecker {
+func NewMaintainerrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &MaintainerrService{}
-	service.Type = "maintainerr"
-	service.DisplayName = "Maintainerr"
+	service.Type = types.ServiceTypeMaintainerr
+	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Maintainerr instance"
 	service.DefaultURL = "http://localhost:6246"
 	service.HealthEndpoint = "/api/app/status"
-	service.SetTimeout(core.DefaultLongTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultLongTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -134,7 +136,7 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	return statusResponse.Version, nil
 }
 
-func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
@@ -142,7 +144,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 	}
 
 	// Create a child context with longer timeout if needed
-	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultLongTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, DefaultLongTimeout)
 	defer cancel()
 
 	versionChan := make(chan string, 1)
@@ -231,7 +233,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK
 }
 
-func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey string) ([]Collection, error) {
+func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey string) ([]MaintainerrCollection, error) {
 	if url == "" {
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("URL is required")}
 	}
@@ -261,21 +263,21 @@ func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey str
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var collections []Collection
+	var collections []MaintainerrCollection
 	if err := json.Unmarshal(body, &collections); err != nil {
 		// Try parsing as single collection if array parse fails
-		var singleCollection Collection
+		var singleCollection MaintainerrCollection
 		if err := json.Unmarshal(body, &singleCollection); err != nil {
 			return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("failed to parse response: %w", err)}
 		}
 		if singleCollection.IsActive {
-			collections = []Collection{singleCollection}
+			collections = []MaintainerrCollection{singleCollection}
 		} else {
-			collections = []Collection{}
+			collections = []MaintainerrCollection{}
 		}
 	}
 
-	activeCollections := make([]Collection, 0)
+	activeCollections := make([]MaintainerrCollection, 0)
 	for _, collection := range collections {
 		if collection.IsActive {
 			activeCollections = append(activeCollections, collection)

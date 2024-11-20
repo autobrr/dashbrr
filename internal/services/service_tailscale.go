@@ -1,25 +1,26 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package tailscale
+package services
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type TailscaleService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-type Device struct {
+type TailscaleDevice struct {
 	Name            string   `json:"name"`
 	ID              string   `json:"id"`
 	IPAddress       string   `json:"ipAddress"`
@@ -50,18 +51,19 @@ type TailscaleAPIResponse struct {
 	} `json:"devices"`
 }
 
-func init() {
-	models.NewTailscaleService = NewTailscaleService
-}
-
-func NewTailscaleService() models.ServiceHealthChecker {
+func NewTailscaleService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &TailscaleService{}
-	service.Type = "tailscale"
-	service.DisplayName = "Tailscale"
+	service.Type = types.ServiceTypeTailscale
+	service.DisplayName = config.DisplayName
 	service.Description = "Manage and monitor your Tailscale network"
 	service.DefaultURL = "https://api.tailscale.com"
 	service.HealthEndpoint = "/api/v2/tailnet/-/devices"
-	service.SetTimeout(core.DefaultTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -133,7 +135,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, apiKey string) (strin
 	return version, nil
 }
 
-func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey string) (models.ServiceHealth, int) {
+func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey string) (types.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if apiKey == "" {
@@ -141,7 +143,7 @@ func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey s
 	}
 
 	// Create a child context with timeout if needed
-	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
 	// Get version using GetCachedVersion for better caching
@@ -180,13 +182,13 @@ func isDeviceOnline(lastSeen string) bool {
 	return lastSeenTime.After(fiveMinutesAgo)
 }
 
-func (s *TailscaleService) GetDevices(ctx context.Context, _ string, apiKey string) ([]Device, error) {
+func (s *TailscaleService) GetDevices(ctx context.Context, _ string, apiKey string) ([]TailscaleDevice, error) {
 	apiResponse, _, err := s.getDevicesWithContext(ctx, apiKey)
 	if err != nil {
 		return nil, err
 	}
 
-	var devices []Device
+	var devices []TailscaleDevice
 	for _, d := range apiResponse.Devices {
 		var ipAddress string
 		if len(d.Addresses) > 0 {
@@ -195,7 +197,7 @@ func (s *TailscaleService) GetDevices(ctx context.Context, _ string, apiKey stri
 
 		online := isDeviceOnline(d.LastSeen)
 
-		devices = append(devices, Device{
+		devices = append(devices, TailscaleDevice{
 			Name:            d.Name,
 			ID:              d.ID,
 			IPAddress:       ipAddress,

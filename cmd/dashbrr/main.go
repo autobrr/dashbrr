@@ -14,12 +14,12 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api"
 	"github.com/autobrr/dashbrr/internal/buildinfo"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/commands"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -189,9 +189,17 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 		return err
 	}
 
+	serviceManager := services.NewServiceManager(db, store)
+	if err := serviceManager.InitializeServices(ctx); err != nil {
+		log.Error().Err(err).Msg("Failed to initialize services")
+	}
+
+	serviceManager.StartHealthMonitor()
+
+	// TODO remove
 	healthService := services.NewHealthService()
 
-	srv := api.NewServer(cfg, db, store, healthService)
+	srv := api.NewServer(cfg, db, store, serviceManager, healthService)
 
 	errorChannel := make(chan error)
 	go func() {

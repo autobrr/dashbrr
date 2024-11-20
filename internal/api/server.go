@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package api
 
 import (
@@ -9,10 +12,10 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/handlers"
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/web"
 
@@ -21,19 +24,21 @@ import (
 )
 
 type Server struct {
-	cfg        *config.Config
-	db         *database.DB
-	cache      cache.Store
-	healthSvc  *services.HealthService
-	httpServer *http.Server
+	cfg            *config.Config
+	db             *database.DB
+	cache          cache.Store
+	serviceManager *services.ServiceManager
+	healthSvc      *services.HealthService
+	httpServer     *http.Server
 }
 
-func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, healthSvc *services.HealthService) *Server {
+func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, serviceManager *services.ServiceManager, healthSvc *services.HealthService) *Server {
 	return &Server{
-		cfg:       cfg,
-		db:        db,
-		cache:     cache,
-		healthSvc: healthSvc,
+		cfg:            cfg,
+		db:             db,
+		cache:          cache,
+		serviceManager: serviceManager,
+		healthSvc:      healthSvc,
 	}
 }
 
@@ -99,11 +104,11 @@ func (s *Server) Handler() http.Handler {
 	cacheMiddleware := middleware.NewCacheMiddleware(s.cache)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(s.db, s.healthSvc, s.cache)
+	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache, s.serviceManager, s.healthSvc)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
-	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc)
-	eventsHandler := handlers.NewEventsHandler(s.db, s.healthSvc)
-	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache)
+	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc, s.serviceManager)
+	eventsHandler := handlers.NewEventsHandler(s.db, s.cache, s.serviceManager, s.healthSvc)
+	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, s.serviceManager)
 	omegabrrHandler := handlers.NewOmegabrrHandler(s.db, s.cache)
 	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache)
 	plexHandler := handlers.NewPlexHandler(s.db, s.cache)
@@ -130,7 +135,7 @@ func (s *Server) Handler() http.Handler {
 	}
 
 	// Start the health monitor
-	eventsHandler.StartHealthMonitor()
+	//eventsHandler.StartHealthMonitor()
 
 	// Public routes (no auth required)
 	public := r.Group("")

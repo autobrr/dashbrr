@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/types"
+
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // Custom context keys

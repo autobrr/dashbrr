@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package arr
+package services
 
 import (
 	"bytes"
@@ -10,16 +10,13 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
-// Global HTTP client pool
-var httpClients sync.Map
+//// Global HTTP client pool
+//var httpClients sync.Map
 
-// Custom error type for *arr services
+// ErrArr Custom error type for *arr services
 type ErrArr struct {
 	Service  string // Service name (e.g., "radarr", "sonarr")
 	Op       string // Operation that failed
@@ -41,32 +38,32 @@ func (e *ErrArr) Unwrap() error {
 	return e.Err
 }
 
-type SystemStatusResponse struct {
+type ArrSystemStatusResponse struct {
 	Version string `json:"version"`
 }
 
 // getHTTPClient returns a client with the specified timeout
-func getHTTPClient(timeout time.Duration) *http.Client {
-	// Use the timeout as the key
-	if client, ok := httpClients.Load(timeout); ok {
-		return client.(*http.Client)
-	}
-
-	// Create new client if not found
-	client := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
-			DisableKeepAlives:   false,
-		},
-		Timeout: timeout,
-	}
-
-	// Store in pool
-	httpClients.Store(timeout, client)
-	return client
-}
+//func getHTTPClient(timeout time.Duration) *http.Client {
+//	// Use the timeout as the key
+//	if client, ok := httpClients.Load(timeout); ok {
+//		return client.(*http.Client)
+//	}
+//
+//	// Create new client if not found
+//	client := &http.Client{
+//		Transport: &http.Transport{
+//			MaxIdleConns:        100,
+//			MaxIdleConnsPerHost: 10,
+//			IdleConnTimeout:     90 * time.Second,
+//			DisableKeepAlives:   false,
+//		},
+//		Timeout: timeout,
+//	}
+//
+//	// Store in pool
+//	httpClients.Store(timeout, client)
+//	return client
+//}
 
 // MakeArrRequest is a helper function to make requests with proper headers
 func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte) (*http.Response, error) {
@@ -81,7 +78,7 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	req.Header.Set("Content-Type", "application/json")
 
 	// Get timeout from context or use default
-	timeout := core.DefaultTimeout
+	timeout := DefaultTimeout
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = time.Until(deadline)
 	}
@@ -121,7 +118,7 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 	}
 
 	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, statusURL, apiKey, nil)
@@ -134,7 +131,7 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 		return "", &ErrArr{Service: service, Op: "get_system_status", HttpCode: resp.StatusCode}
 	}
 
-	var status SystemStatusResponse
+	var status ArrSystemStatusResponse
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 		return "", &ErrArr{Service: service, Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -155,7 +152,7 @@ func CheckArrForUpdates(service, url, apiKey string) (bool, error) {
 	}
 
 	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, updateURL, apiKey, nil)

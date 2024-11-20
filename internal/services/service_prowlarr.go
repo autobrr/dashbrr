@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package prowlarr
+package services
 
 import (
 	"context"
@@ -12,13 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-// Custom error types for better error handling
+// ErrProwlarr Custom error types for better error handling
 type ErrProwlarr struct {
 	Op       string // Operation that failed
 	Err      error  // Underlying error
@@ -40,25 +39,26 @@ func (e *ErrProwlarr) Unwrap() error {
 }
 
 type ProwlarrService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-type SystemStatusResponse struct {
+type ProwlarrSystemStatusResponse struct {
 	Version string `json:"version"`
 }
 
-func init() {
-	models.NewProwlarrService = NewProwlarrService
-}
-
-func NewProwlarrService() models.ServiceHealthChecker {
+func NewProwlarrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &ProwlarrService{}
-	service.Type = "prowlarr"
-	service.DisplayName = "Prowlarr"
+	service.Type = types.ServiceTypeProwlarr
+	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Prowlarr instance"
 	service.DefaultURL = "http://localhost:9696"
 	service.HealthEndpoint = "/api/v1/health"
-	service.SetTimeout(core.DefaultTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -87,7 +87,7 @@ func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return version, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
 	statusURL := fmt.Sprintf("%s/api/v1/system/status", strings.TrimRight(url, "/"))
@@ -106,7 +106,7 @@ func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var status SystemStatusResponse
+	var status ProwlarrSystemStatusResponse
 	if err := json.Unmarshal(body, &status); err != nil {
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
@@ -160,7 +160,7 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 
 // CheckForUpdates checks if there are any updates available
 func (s *ProwlarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates("prowlarr", url, apiKey)
+	return CheckArrForUpdates("prowlarr", url, apiKey)
 }
 
 // GetQueue gets the current queue status
@@ -175,6 +175,6 @@ func (s *ProwlarrService) GetHealthEndpoint(baseURL string) string {
 	return fmt.Sprintf("%s/api/v1/health", baseURL)
 }
 
-func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+	return ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

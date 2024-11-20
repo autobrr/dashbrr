@@ -5,14 +5,14 @@ package types
 
 import "time"
 
-type ServiceHealth struct {
-	Status          string    `json:"status"`
-	ResponseTime    int64     `json:"responseTime"`
-	LastChecked     time.Time `json:"lastChecked"`
-	Message         string    `json:"message"`
-	UpdateAvailable bool      `json:"updateAvailable"`
-	Version         string    `json:"version,omitempty"`
-}
+//type ServiceHealth struct {
+//	Status          string    `json:"status"`
+//	ResponseTime    int64     `json:"responseTime"`
+//	LastChecked     time.Time `json:"lastChecked"`
+//	Message         string    `json:"message"`
+//	UpdateAvailable bool      `json:"updateAvailable"`
+//	Version         string    `json:"version,omitempty"`
+//}
 
 type ServiceConfigResponse struct {
 	InstanceID  string `json:"instanceId"`

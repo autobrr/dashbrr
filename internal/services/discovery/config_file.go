@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package discovery
 
 import (
@@ -7,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/autobrr/dashbrr/internal/types"
 
-	"github.com/autobrr/dashbrr/internal/models"
+	"gopkg.in/yaml.v3"
 )
 
 // ConfigFile represents the structure of the external configuration file
@@ -27,7 +30,7 @@ type ServiceConfig struct {
 }
 
 // ImportConfig imports service configurations from a file
-func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
+func ImportConfig(path string) ([]types.ServiceConfiguration, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -49,7 +52,7 @@ func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
 		return nil, fmt.Errorf("unsupported file format: %s", filepath.Ext(path))
 	}
 
-	var services []models.ServiceConfiguration
+	var services []types.ServiceConfiguration
 
 	// Convert config file services to service configurations
 	for serviceType, configs := range config.Services {
@@ -73,7 +76,7 @@ func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
 				displayName = strings.Title(serviceType)
 			}
 
-			services = append(services, models.ServiceConfiguration{
+			services = append(services, types.ServiceConfiguration{
 				InstanceID:  instanceID,
 				DisplayName: displayName,
 				URL:         cfg.URL,
@@ -87,7 +90,7 @@ func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
 }
 
 // ExportConfig exports service configurations to a file
-func ExportConfig(services []models.ServiceConfiguration, path string, maskSecrets bool) error {
+func ExportConfig(services []types.ServiceConfiguration, path string, maskSecrets bool) error {
 	// Group services by type
 	servicesByType := make(map[string][]ServiceConfig)
 	for _, service := range services {

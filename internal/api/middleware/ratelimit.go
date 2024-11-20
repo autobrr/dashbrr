@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/cache"
+
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/services/cache"
 )
 
 type RateLimiter struct {

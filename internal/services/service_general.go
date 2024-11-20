@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package general
+package services
 
 import (
 	"context"
@@ -12,28 +12,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
-func init() {
-	models.NewGeneralService = NewGeneralService
-}
-
-func NewGeneralService() models.ServiceHealthChecker {
+func NewGeneralService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &GeneralService{}
-	service.Type = "general"
-	service.DisplayName = "" // Allow display name to be set via configuration
+	service.Type = types.ServiceTypeGeneral
+	service.DisplayName = config.DisplayName
 	service.Description = "Generic health check service for any URL endpoint"
-	service.SetTimeout(core.DefaultTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
 type GeneralService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {
@@ -41,7 +43,7 @@ func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (m
 	}
 
 	// Create a child context with timeout if needed
-	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
 	headers := make(map[string]string)

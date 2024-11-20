@@ -6,6 +6,8 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/services"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,9 +18,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -96,8 +96,8 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 
 	// Try to get from cache first
 	var response struct {
-		Devices []tailscale.Device `json:"devices"`
-		Status  string             `json:"status"`
+		Devices []services.TailscaleDevice `json:"devices"`
+		Status  string                     `json:"status"`
 	}
 	err := h.cache.Get(ctx, cacheKey, &response)
 	if err == nil {
@@ -120,7 +120,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	// If not in cache, fetch from service using singleflight
 	sfKey := fmt.Sprintf("devices:%s", strings.TrimPrefix(cacheKey, devicesCachePrefix))
 	devicesI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		var devices []tailscale.Device
+		var devices []services.TailscaleDevice
 		err := resilience.RetryWithBackoff(ctx, func() error {
 			var fetchErr error
 			devices, fetchErr = h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
@@ -155,7 +155,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		return
 	}
 
-	devices := devicesI.([]tailscale.Device)
+	devices := devicesI.([]services.TailscaleDevice)
 
 	if devices == nil {
 		// Return empty array instead of null
@@ -183,8 +183,8 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		Msg("[Tailscale] Successfully retrieved and cached devices")
 
 	response = struct {
-		Devices []tailscale.Device `json:"devices"`
-		Status  string             `json:"status"`
+		Devices []services.TailscaleDevice `json:"devices"`
+		Status  string                     `json:"status"`
 	}{
 		Devices: devices,
 		Status:  "success",
@@ -195,8 +195,8 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 
 func (h *TailscaleHandler) serveStaleData(c *gin.Context, cacheKey string) error {
 	var response struct {
-		Devices []tailscale.Device `json:"devices"`
-		Status  string             `json:"status"`
+		Devices []services.TailscaleDevice `json:"devices"`
+		Status  string                     `json:"status"`
 	}
 
 	staleCacheKey := cacheKey + ":stale"
@@ -210,10 +210,10 @@ func (h *TailscaleHandler) serveStaleData(c *gin.Context, cacheKey string) error
 	return nil
 }
 
-func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId, apiKey, cacheKey string) ([]tailscale.Device, error) {
-	service := &tailscale.TailscaleService{}
+func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId, apiKey, cacheKey string) ([]services.TailscaleDevice, error) {
+	service := &services.TailscaleService{}
 
-	var devices []tailscale.Device
+	var devices []services.TailscaleDevice
 	var err error
 
 	if apiKey != "" {
@@ -240,8 +240,8 @@ func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId,
 
 	// Cache the results
 	response := struct {
-		Devices []tailscale.Device `json:"devices"`
-		Status  string             `json:"status"`
+		Devices []services.TailscaleDevice `json:"devices"`
+		Status  string                     `json:"status"`
 	}{
 		Devices: devices,
 		Status:  "success",
@@ -290,7 +290,7 @@ func (h *TailscaleHandler) refreshDevicesCache(instanceId, apiKey, cacheKey stri
 		Msg("[Tailscale] Successfully refreshed devices cache")
 }
 
-func createDevicesHash(devices []tailscale.Device) string {
+func createDevicesHash(devices []services.TailscaleDevice) string {
 	if len(devices) == 0 {
 		return ""
 	}
@@ -324,7 +324,7 @@ func (h *TailscaleHandler) detectDeviceChanges(oldHash, newHash string) string {
 	return "device_state_changed"
 }
 
-func (h *TailscaleHandler) compareAndLogDeviceChanges(instanceId string, devices []tailscale.Device) {
+func (h *TailscaleHandler) compareAndLogDeviceChanges(instanceId string, devices []services.TailscaleDevice) {
 	h.lastDevicesHashMu.Lock()
 	defer h.lastDevicesHashMu.Unlock()
 
@@ -346,7 +346,7 @@ func (h *TailscaleHandler) compareAndLogDeviceChanges(instanceId string, devices
 	}
 }
 
-func countOnlineDevices(devices []tailscale.Device) int {
+func countOnlineDevices(devices []services.TailscaleDevice) int {
 	onlineCount := 0
 	for _, device := range devices {
 		if device.Online {

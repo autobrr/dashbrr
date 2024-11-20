@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package commands
 
 import (
@@ -8,17 +11,9 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/autobrr"
-	"github.com/autobrr/dashbrr/internal/services/general"
-	"github.com/autobrr/dashbrr/internal/services/maintainerr"
-	"github.com/autobrr/dashbrr/internal/services/omegabrr"
-	"github.com/autobrr/dashbrr/internal/services/overseerr"
-	"github.com/autobrr/dashbrr/internal/services/plex"
-	"github.com/autobrr/dashbrr/internal/services/prowlarr"
-	"github.com/autobrr/dashbrr/internal/services/radarr"
-	"github.com/autobrr/dashbrr/internal/services/sonarr"
-	"github.com/autobrr/dashbrr/internal/services/tailscale"
+	"github.com/autobrr/dashbrr/internal/services"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -58,6 +53,11 @@ func HealthCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
+		store, err := initializeCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %v", err)
+		}
+
 		// System health checks
 		if checkSystem {
 			// Check database
@@ -76,57 +76,56 @@ func HealthCommand() *cobra.Command {
 		// Service health checks
 		if checkServices {
 			// Get all configured services
-			services, err := db.GetAllServices(ctx)
+			allServices, err := db.GetAllServices(ctx)
 			if err != nil {
 				// Log error but continue with empty services map
 				fmt.Printf("Failed to retrieve checkServices: %v\n", err)
-			} else {
-				autobrrService := autobrr.NewAutobrrService()
-				omegabrrService := omegabrr.NewOmegabrrService()
-				radarrService := radarr.NewRadarrService()
-				sonarrService := sonarr.NewSonarrService()
-				prowlarrService := prowlarr.NewProwlarrService()
-				plexService := plex.NewPlexService()
-				overseerrService := overseerr.NewOverseerrService()
-				maintainerrService := maintainerr.NewMaintainerrService()
-				tailscaleService := tailscale.NewTailscaleService()
-				generalService := general.NewGeneralService()
-				// TODO: Add other services
+				return errors.Wrap(err, "failed to retrieve services")
+			}
 
-				for _, service := range services {
-					// Check all supported services
-					switch {
-					case strings.HasPrefix(service.InstanceID, "autobrr-"):
-						health, _ := autobrrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "omegabrr-"):
-						health, _ := omegabrrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "radarr-"):
-						health, _ := radarrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "sonarr-"):
-						health, _ := sonarrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "prowlarr-"):
-						health, _ := prowlarrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "plex-"):
-						health, _ := plexService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "overseerr-"):
-						health, _ := overseerrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "maintainerr-"):
-						health, _ := maintainerrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "tailscale-"):
-						health, _ := tailscaleService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "general-"):
-						health, _ := generalService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					}
+			for _, service := range allServices {
+				// Check all supported services
+				switch {
+				case strings.HasPrefix(service.InstanceID, "autobrr-"):
+					autobrrService := services.NewAutobrrService(db, store, &service)
+					health, _ := autobrrService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "omegabrr-"):
+					omegabrrService := services.NewOmegabrrService(db, store, &service)
+					health, _ := omegabrrService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "radarr-"):
+					radarrService := services.NewRadarrService(db, store, &service)
+					health, _ := radarrService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "sonarr-"):
+					sonarrService := services.NewSonarrService(db, store, &service)
+					health, _ := sonarrService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "prowlarr-"):
+					prowlarrService := services.NewProwlarrService(db, store, &service)
+					health, _ := prowlarrService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "plex-"):
+					plexService := services.NewPlexService(db, store, &service)
+					health, _ := plexService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "overseerr-"):
+					overseerrService := services.NewOverseerrService(db, store, &service)
+					health, _ := overseerrService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "maintainerr-"):
+					maintainerrService := services.NewMaintainerrService(db, store, &service)
+					health, _ := maintainerrService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "tailscale-"):
+					tailscaleService := services.NewTailscaleService(db, store, &service)
+					health, _ := tailscaleService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+				case strings.HasPrefix(service.InstanceID, "general-"):
+					generalService := services.NewGeneralService(db, store, &service)
+					health, _ := generalService.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				}
 			}
 		}

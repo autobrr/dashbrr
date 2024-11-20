@@ -5,16 +5,11 @@ package services
 
 import (
 	"context"
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/models"
 )
-
-var serviceRegistry = models.NewServiceRegistry()
 
 type HealthService struct {
 	mu                sync.RWMutex
@@ -39,37 +34,41 @@ func NewHealthService() *HealthService {
 }
 
 // CheckServiceHealth performs the health check for a given service using the registry pattern
-func CheckServiceHealth(serviceType, url, apiKey string) (models.ServiceHealth, int) {
-	startTime := time.Now()
-
-	if url == "" {
-		return models.ServiceHealth{
-			Status:      "error",
-			LastChecked: time.Now(),
-			Message:     "URL is required",
-		}, http.StatusBadRequest
-	}
-
-	// Get the appropriate service checker from the registry
-	serviceChecker := serviceRegistry.CreateService(serviceType)
-	if serviceChecker == nil {
-		log.Warn().Str("service_type", serviceType).Msg("No service checker found for type")
-		return models.ServiceHealth{
-			Status:       "error",
-			ResponseTime: time.Since(startTime).Milliseconds(),
-			LastChecked:  time.Now(),
-			Message:      "Unsupported service type: " + serviceType,
-		}, http.StatusBadRequest
-	}
-
-	// Create a context with timeout for the health check
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Use the service-specific implementation to check health
-	health, statusCode := serviceChecker.CheckHealth(ctx, url, apiKey)
-	return health, statusCode
-}
+// TODO unused
+//func CheckServiceHealth(serviceType, url, apiKey string) (types.ServiceHealth, int) {
+//	log.Debug().Str("service_type", serviceType).Str("url", url).Msg("Performing health check")
+//
+//	startTime := time.Now()
+//
+//	if url == "" {
+//		return types.ServiceHealth{
+//			Status:      "error",
+//			LastChecked: time.Now(),
+//			Message:     "URL is required",
+//		}, http.StatusBadRequest
+//	}
+//
+//	// Get the appropriate service checker from the registry
+//	// TODO set nil
+//	serviceChecker := serviceRegistry.CreateService(nil, nil, serviceType)
+//	if serviceChecker == nil {
+//		log.Warn().Str("service_type", serviceType).Msg("No service checker found for type")
+//		return types.ServiceHealth{
+//			Status:       "error",
+//			ResponseTime: time.Since(startTime).Milliseconds(),
+//			LastChecked:  time.Now(),
+//			Message:      "Unsupported service type: " + serviceType,
+//		}, http.StatusBadRequest
+//	}
+//
+//	// Create a context with timeout for the health check
+//	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+//	defer cancel()
+//
+//	// Use the service-specific implementation to check health
+//	health, statusCode := serviceChecker.CheckHealth(ctx, url, apiKey)
+//	return health, statusCode
+//}
 
 func (h *HealthService) StartMonitoring(instanceID string, checkFn func(context.Context) (*HealthCheck, error)) {
 	h.mu.Lock()
@@ -106,6 +105,7 @@ func (h *HealthService) StartMonitoring(instanceID string, checkFn func(context.
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				log.Debug().Str("instance_id", instanceID).Msg("HealthService: monitoring service")
 				health, err := checkFn(ctx)
 				h.mu.Lock()
 				if err != nil {

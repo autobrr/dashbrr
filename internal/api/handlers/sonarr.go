@@ -6,6 +6,8 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/services"
 	"net/http"
 	"sync"
 	"time"
@@ -16,11 +18,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 )
@@ -193,7 +191,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	})
 
 	if err != nil {
-		if arrErr, ok := err.(*arr.ErrArr); ok {
+		if arrErr, ok := err.(*services.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
@@ -235,7 +233,7 @@ func (h *SonarrHandler) fetchQueue(instanceId string) (types.SonarrQueueResponse
 	}
 
 	// Create Sonarr service instance
-	service := &sonarr.SonarrService{}
+	service := &services.SonarrService{}
 
 	// Get queue records using the service
 	records, err := service.GetQueueForHealth(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey)
@@ -286,7 +284,7 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	})
 
 	if err != nil {
-		if arrErr, ok := err.(*arr.ErrArr); ok {
+		if arrErr, ok := err.(*services.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
@@ -333,7 +331,7 @@ func (h *SonarrHandler) fetchStats(instanceId string) (struct {
 	}
 
 	// Create Sonarr service instance
-	service := &sonarr.SonarrService{}
+	service := &services.SonarrService{}
 
 	// Get system status using the service
 	version, err := service.GetSystemStatus(sonarrConfig.URL, sonarrConfig.APIKey)
@@ -388,7 +386,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	})
 
 	if err != nil {
-		if arrErr, ok := err.(*arr.ErrArr); ok {
+		if arrErr, ok := err.(*services.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
@@ -436,7 +434,7 @@ func (h *SonarrHandler) deleteQueueItem(instanceId, queueId string, options type
 	}
 
 	// Create Sonarr service instance
-	service := &sonarr.SonarrService{}
+	service := &services.SonarrService{}
 
 	// Call the service method to delete the queue item
 	return service.DeleteQueueItem(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey, queueId, options)
@@ -497,7 +495,7 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 		episodeCount += len(record.Episodes)
 	}
 
-	BroadcastHealth(models.ServiceHealth{
+	BroadcastHealth(types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "sonarr_queue",
@@ -518,7 +516,7 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 }
 
 func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types.SonarrStatsResponse, version string) {
-	BroadcastHealth(models.ServiceHealth{
+	BroadcastHealth(types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "sonarr_stats",

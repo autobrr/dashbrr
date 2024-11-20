@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package discovery
 
 import (
@@ -7,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/autobrr/dashbrr/internal/types"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
-
-	"github.com/autobrr/dashbrr/internal/models"
 )
 
 // KubernetesDiscovery handles service discovery from Kubernetes labels
@@ -51,7 +54,7 @@ func NewKubernetesDiscovery() (*KubernetesDiscovery, error) {
 }
 
 // DiscoverServices finds services configured via Kubernetes labels
-func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.ServiceConfiguration, error) {
+func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]types.ServiceConfiguration, error) {
 	// List all services in all namespaces with dashbrr labels
 	services, err := k.client.CoreV1().Services("").List(ctx, metav1.ListOptions{
 		LabelSelector: GetLabelKey(labelTypeKey),
@@ -60,7 +63,7 @@ func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.Se
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
 
-	var configurations []models.ServiceConfiguration
+	var configurations []types.ServiceConfiguration
 
 	for _, service := range services.Items {
 		config, err := k.parseServiceLabels(service.Labels, service.Namespace)
@@ -78,7 +81,7 @@ func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.Se
 }
 
 // parseServiceLabels extracts service configuration from Kubernetes labels
-func (k *KubernetesDiscovery) parseServiceLabels(labels map[string]string, namespace string) (*models.ServiceConfiguration, error) {
+func (k *KubernetesDiscovery) parseServiceLabels(labels map[string]string, namespace string) (*types.ServiceConfiguration, error) {
 	serviceType := labels[GetLabelKey(labelTypeKey)]
 	if serviceType == "" {
 		return nil, fmt.Errorf("service type label not found")
@@ -113,7 +116,7 @@ func (k *KubernetesDiscovery) parseServiceLabels(labels map[string]string, names
 	// Generate instance ID based on service type and namespace
 	instanceID := fmt.Sprintf("%s-k8s-%s", serviceType, namespace)
 
-	return &models.ServiceConfiguration{
+	return &types.ServiceConfiguration{
 		InstanceID:  instanceID,
 		DisplayName: displayName,
 		URL:         url,

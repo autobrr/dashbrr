@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package plex
+package services
 
 import (
 	"context"
@@ -12,30 +12,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type PlexService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-func init() {
-	models.NewPlexService = NewPlexService
-}
-
-func NewPlexService() models.ServiceHealthChecker {
+func NewPlexService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &PlexService{
-		ServiceCore: core.ServiceCore{
-			Type:           "plex",
-			DisplayName:    "Plex",
-			Description:    "Monitor and manage your Plex Media Server",
+		ServiceCore: ServiceCore{
+			Type:           types.ServiceTypePlex,
+			DisplayName:    config.DisplayName,
+			Description:    "Monitor and manage your Plex MaintainerrMedia Server",
 			DefaultURL:     "http://localhost:32400",
 			HealthEndpoint: "/identity",
+			URL:            config.URL,
+			ApiKey:         config.APIKey,
+			InstanceID:     config.InstanceID,
 		},
 	}
-	service.SetTimeout(core.DefaultTimeout)
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -146,7 +147,7 @@ func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (strin
 	return plexResponse.MediaContainer.Version, nil
 }
 
-func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

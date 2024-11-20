@@ -1,4 +1,7 @@
-package arr
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+package services
 
 // WarningCategory represents the category of a warning message
 type WarningCategory string
@@ -7,7 +10,7 @@ const (
 	SystemCategory       WarningCategory = "System"
 	DownloadCategory     WarningCategory = "Download"
 	IndexerCategory      WarningCategory = "Indexer"
-	MediaCategory        WarningCategory = "Media"
+	MediaCategory        WarningCategory = "MaintainerrMedia"
 	NotificationCategory WarningCategory = "Notification"
 	ApplicationCategory  WarningCategory = "Application"
 )

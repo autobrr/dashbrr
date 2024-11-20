@@ -11,15 +11,14 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/database/migrations"
+	"github.com/autobrr/dashbrr/internal/types"
+
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	_ "modernc.org/sqlite"
-
-	"github.com/autobrr/dashbrr/internal/database/migrations"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // DB represents the database connection
@@ -360,7 +359,7 @@ func (db *DB) UpdateUserPassword(ctx context.Context, userID int64, newPasswordH
 // Service Management Functions
 
 // FindServiceBy retrieves a service configuration by FindServiceParams
-func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*types.ServiceConfiguration, error) {
 	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
 		From("service_configurations")
 
@@ -385,7 +384,7 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 		return nil, err
 	}
 
-	var service models.ServiceConfiguration
+	var service types.ServiceConfiguration
 	var url, apiKey, accessURL sql.NullString
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(
@@ -419,8 +418,8 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 }
 
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
-func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*models.ServiceConfiguration, error) {
-	var service models.ServiceConfiguration
+func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*types.ServiceConfiguration, error) {
+	var service types.ServiceConfiguration
 	var url, apiKey, accessURL sql.NullString
 
 	var query string
@@ -469,7 +468,7 @@ func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*m
 }
 
 // GetAllServices retrieves all service configurations
-func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration, error) {
+func (db *DB) GetAllServices(ctx context.Context) ([]types.ServiceConfiguration, error) {
 	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
 		From("service_configurations")
 
@@ -484,9 +483,9 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 	}
 	defer rows.Close()
 
-	var services []models.ServiceConfiguration
+	var services []types.ServiceConfiguration
 	for rows.Next() {
-		var service models.ServiceConfiguration
+		var service types.ServiceConfiguration
 		var url, apiKey, accessURL sql.NullString
 
 		err := rows.Scan(
@@ -518,7 +517,7 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 }
 
 // CreateService creates a new service configuration
-func (db *DB) CreateService(ctx context.Context, service *models.ServiceConfiguration) error {
+func (db *DB) CreateService(ctx context.Context, service *types.ServiceConfiguration) error {
 	queryBuilder := db.squirrel.Insert("service_configurations").
 		Columns("instance_id", "display_name", "url", "api_key", "access_url").
 		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL).
@@ -532,7 +531,7 @@ func (db *DB) CreateService(ctx context.Context, service *models.ServiceConfigur
 }
 
 // UpdateService updates an existing service configuration
-func (db *DB) UpdateService(ctx context.Context, service *models.ServiceConfiguration) error {
+func (db *DB) UpdateService(ctx context.Context, service *types.ServiceConfiguration) error {
 	queryBuilder := db.squirrel.Update("service_configurations").
 		Set("display_name", service.DisplayName).
 		Set("url", sql.NullString{String: service.URL, Valid: service.URL != ""}).

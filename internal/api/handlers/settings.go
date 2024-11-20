@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"net/http"
 	"strings"
 	"time"
@@ -14,10 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/manager"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -31,23 +29,23 @@ type SettingsHandler struct {
 	db             *database.DB
 	health         *services.HealthService
 	cache          cache.Store
-	serviceManager *manager.ServiceManager
+	serviceManager *services.ServiceManager
 	lastDebugLog   time.Time
 }
 
-func NewSettingsHandler(db *database.DB, health *services.HealthService, cache cache.Store) *SettingsHandler {
+func NewSettingsHandler(db *database.DB, cache cache.Store, serviceManager *services.ServiceManager, health *services.HealthService) *SettingsHandler {
 	return &SettingsHandler{
 		db:             db,
 		health:         health,
 		cache:          cache,
-		serviceManager: manager.NewServiceManager(db, cache),
+		serviceManager: serviceManager,
 		lastDebugLog:   time.Now().Add(-configDebugLogTTL), // Initialize to ensure first log happens
 	}
 }
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	// Try to get configurations from cache
-	var configurations []models.ServiceConfiguration
+	var configurations []types.ServiceConfiguration
 	err := h.cache.Get(context.Background(), configCacheKey, &configurations)
 	if err == nil {
 		// Only log debug messages every 30 seconds to reduce spam
@@ -62,7 +60,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 			h.lastDebugLog = time.Now()
 		}
 
-		configMap := make(map[string]models.ServiceConfiguration)
+		configMap := make(map[string]types.ServiceConfiguration)
 		for _, config := range configurations {
 			configMap[config.InstanceID] = config
 		}
@@ -95,7 +93,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 		h.lastDebugLog = time.Now()
 	}
 
-	configMap := make(map[string]models.ServiceConfiguration)
+	configMap := make(map[string]types.ServiceConfiguration)
 	for _, config := range configurations {
 		configMap[config.InstanceID] = config
 	}
@@ -105,7 +103,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
 
-	var config models.ServiceConfiguration
+	var config types.ServiceConfiguration
 	if err := c.BindJSON(&config); err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error binding JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})

@@ -12,30 +12,35 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/types"
+	"github.com/autobrr/dashbrr/internal/utils"
+
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services"
-	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 type EventsHandler struct {
-	db     *database.DB
-	health *services.HealthService
+	db             *database.DB
+	cache          cache.Store
+	serviceManager *services.ServiceManager
+	health         *services.HealthService
 }
 
-func NewEventsHandler(db *database.DB, health *services.HealthService) *EventsHandler {
+func NewEventsHandler(db *database.DB, cache cache.Store, serviceManager *services.ServiceManager, health *services.HealthService) *EventsHandler {
 	handler := &EventsHandler{
-		db:     db,
-		health: health,
+		db:             db,
+		cache:          cache,
+		serviceManager: serviceManager,
+		health:         health,
 	}
 	return handler
 }
 
 type client struct {
-	send        chan models.ServiceHealth
+	send        chan types.ServiceHealth
 	done        chan struct{}
 	connectedAt time.Time
 	lastActive  time.Time // Track last successful message send
@@ -158,7 +163,7 @@ func extractServiceType(instanceID string) (string, error) {
 }
 
 // processServiceBatch handles health checks for a batch of services
-func (h *EventsHandler) processServiceBatch(ctx context.Context, services []models.ServiceConfiguration, results chan<- models.ServiceHealth, wg *sync.WaitGroup) {
+func (h *EventsHandler) processServiceBatch(ctx context.Context, services []types.ServiceConfiguration, results chan<- types.ServiceHealth, wg *sync.WaitGroup) {
 	// Process services sequentially within batch to prevent connection spikes
 	for _, service := range services {
 		if service.URL == "" {
@@ -177,7 +182,8 @@ func (h *EventsHandler) processServiceBatch(ctx context.Context, services []mode
 }
 
 // checkSingleService performs health check for a single service
-func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.ServiceConfiguration, results chan<- models.ServiceHealth, wg *sync.WaitGroup) {
+func (h *EventsHandler) checkSingleService(ctx context.Context, svc types.ServiceConfiguration, results chan<- types.ServiceHealth, wg *sync.WaitGroup) {
+	log.Trace().Str("service", svc.InstanceID).Msg("EventsHandler: Checking single service")
 	defer wg.Done()
 
 	// Skip if checked recently
@@ -201,7 +207,7 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 		serviceType, err := extractServiceType(svc.InstanceID)
 		if err != nil {
 			log.Error().Err(err).Str("instance_id", svc.InstanceID).Msg("Failed to extract service type")
-			results <- models.ServiceHealth{
+			results <- types.ServiceHealth{
 				ServiceID:   svc.InstanceID,
 				Status:      "error",
 				Message:     "Invalid service ID format",
@@ -210,60 +216,67 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 			return
 		}
 
-		serviceHealth := models.ServiceHealth{
+		serviceHealth := types.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      "checking",
 			LastChecked: time.Now(),
 		}
 
-		if serviceChecker := models.NewServiceRegistry().CreateService(serviceType); serviceChecker != nil {
-			health, statusCode := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
+		log.Trace().Str("service", svc.InstanceID).Str("type", serviceType).Msg("EventsHandler: checkSingleService")
 
-			// Safely convert health to ServiceHealth
-			convertedHealth, err := utils.SafeStructConvert[models.ServiceHealth](health)
-			if err != nil {
-				log.Error().
-					Err(err).
-					Str("service", svc.InstanceID).
-					Str("type", utils.GetTypeString(health)).
-					Msg("Failed to convert health check result")
-
-				serviceHealth.Status = "error"
-				serviceHealth.Message = "Failed to process health check result"
-				select {
-				case results <- serviceHealth:
-				case <-checkCtx.Done():
-				}
-				return
-			}
-
-			convertedHealth.ServiceID = svc.InstanceID
-
-			if statusCode != 200 {
-				log.Debug().
-					Int("status_code", statusCode).
-					Str("service", svc.InstanceID).
-					Msg("Health check failed")
-				convertedHealth.Status = "error"
-				convertedHealth.Message = "Service returned non-200 status code"
-			}
-
-			lastChecksMu.Lock()
-			lastChecks[svc.InstanceID] = time.Now()
-			lastChecksMu.Unlock()
-
-			select {
-			case results <- convertedHealth:
-			case <-checkCtx.Done():
-				return
-			}
-		} else {
+		// TODO move all this to service manager itself?
+		serviceChecker, err := h.serviceManager.GetServiceHealthChecker(svc.InstanceID)
+		if err != nil {
+			log.Error().Err(err).Str("service", svc.InstanceID).Str("type", serviceType).Msg("Failed to get service checker")
 			serviceHealth.Status = "error"
 			serviceHealth.Message = "Unsupported service type: " + serviceType
 			select {
 			case results <- serviceHealth:
 			case <-checkCtx.Done():
 			}
+
+			return
+		}
+
+		health, statusCode := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
+
+		// Safely convert health to ServiceHealth
+		convertedHealth, err := utils.SafeStructConvert[types.ServiceHealth](health)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("service", svc.InstanceID).
+				Str("type", utils.GetTypeString(health)).
+				Msg("Failed to convert health check result")
+
+			serviceHealth.Status = "error"
+			serviceHealth.Message = "Failed to process health check result"
+			select {
+			case results <- serviceHealth:
+			case <-checkCtx.Done():
+			}
+			return
+		}
+
+		convertedHealth.ServiceID = svc.InstanceID
+
+		if statusCode != 200 {
+			log.Debug().
+				Int("status_code", statusCode).
+				Str("service", svc.InstanceID).
+				Msg("Health check failed")
+			convertedHealth.Status = "error"
+			convertedHealth.Message = "Service returned non-200 status code"
+		}
+
+		lastChecksMu.Lock()
+		lastChecks[svc.InstanceID] = time.Now()
+		lastChecksMu.Unlock()
+
+		select {
+		case results <- convertedHealth:
+		case <-checkCtx.Done():
+			return
 		}
 	case <-checkCtx.Done():
 		log.Debug().Str("service", svc.InstanceID).Msg("Health check cancelled")
@@ -271,8 +284,8 @@ func (h *EventsHandler) checkSingleService(ctx context.Context, svc models.Servi
 }
 
 // collectResults gathers health check results with timeout
-func (h *EventsHandler) collectResults(ctx context.Context, results <-chan models.ServiceHealth) []models.ServiceHealth {
-	var allResults []models.ServiceHealth
+func (h *EventsHandler) collectResults(ctx context.Context, results <-chan types.ServiceHealth) []types.ServiceHealth {
+	var allResults []types.ServiceHealth
 	resultsTimer := time.NewTimer(5 * time.Second)
 	defer resultsTimer.Stop()
 
@@ -295,26 +308,28 @@ func (h *EventsHandler) collectResults(ctx context.Context, results <-chan model
 }
 
 // checkAndBroadcastHealth performs health checks for all services and broadcasts results
-func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []models.ServiceHealth {
-	services, err := h.db.GetAllServices(ctx)
+func (h *EventsHandler) checkAndBroadcastHealth(ctx context.Context) []types.ServiceHealth {
+	log.Trace().Msg("check and broadcast health")
+
+	allServices, err := h.db.GetAllServices(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Error fetching services")
+		log.Error().Err(err).Msg("Error fetching allServices")
 		return nil
 	}
 
-	if len(services) == 0 {
+	if len(allServices) == 0 {
 		return nil
 	}
 
 	var wg sync.WaitGroup
-	results := make(chan models.ServiceHealth, len(services))
+	results := make(chan types.ServiceHealth, len(allServices))
 	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second) // Increased timeout for sequential processing
 	defer cancel()
 
-	// Process all services in a single batch
-	h.processServiceBatch(checkCtx, services, results, &wg)
+	// Process all allServices in a single batch
+	h.processServiceBatch(checkCtx, allServices, results, &wg)
 
-	// Close results channel after all services are processed
+	// Close results channel after all allServices are processed
 	go func() {
 		wg.Wait()
 		close(results)
@@ -334,7 +349,7 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 
 	// Create new client with buffered channel and done signal
 	client := &client{
-		send:        make(chan models.ServiceHealth, clientBufferSize),
+		send:        make(chan types.ServiceHealth, clientBufferSize),
 		done:        make(chan struct{}),
 		connectedAt: time.Now(),
 		lastActive:  time.Now(),
@@ -430,7 +445,7 @@ func (h *EventsHandler) StreamHealth(c *gin.Context) {
 }
 
 // BroadcastHealth sends health updates to all connected clients
-func BroadcastHealth(health models.ServiceHealth) {
+func BroadcastHealth(health types.ServiceHealth) {
 	clientsMu.RLock()
 	defer clientsMu.RUnlock()
 
@@ -464,6 +479,7 @@ func (h *EventsHandler) StartHealthMonitor() {
 		// Start client cleanup
 		startClientCleanup()
 
+		// TODO remove?
 		go h.checkAndBroadcastHealth(monitorCtx)
 
 		healthMonitor = time.NewTicker(minCheckInterval)
@@ -471,6 +487,7 @@ func (h *EventsHandler) StartHealthMonitor() {
 			for {
 				select {
 				case <-healthMonitor.C:
+					log.Trace().Msg("Health monitor tick, check and broadcast health")
 					h.checkAndBroadcastHealth(monitorCtx)
 				case <-monitorCtx.Done():
 					return

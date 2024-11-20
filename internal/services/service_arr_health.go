@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package arr
+package services
 
 import (
 	"context"
@@ -13,11 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/types"
+
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/singleflight"
-
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 const (
@@ -46,18 +45,20 @@ type HealthChecker interface {
 }
 
 // ArrHealthCheck provides a common implementation of health checking for *arr services
-func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, int) {
+func ArrHealthCheck(s *ServiceCore, url, apiKey string, checker HealthChecker) (types.ServiceHealth, int) {
+	log.Debug().Str("service", "arr").Str("url", url).Str("name", s.DisplayName).Msg("Performing arr health check")
+
 	if url == "" {
 		return s.CreateHealthResponse(time.Now(), "error", "URL is required"), http.StatusBadRequest
 	}
 
 	startTime := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
 	// Try to get cached health response
 	cacheKey := arrCachePrefix + "health:" + url
-	var cachedHealth models.ServiceHealth
+	var cachedHealth types.ServiceHealth
 	if _, err := s.GetCachedVersion(ctx, cacheKey, "", func(_, _ string) (string, error) {
 		return "", nil // Cache miss, will handle below
 	}); err == nil && cachedHealth.Status != "" {
@@ -82,13 +83,15 @@ func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthCheck
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
 	}
 
-	health := result.(models.ServiceHealth)
+	health := result.(types.ServiceHealth)
 	return health, http.StatusOK
 }
 
 // performHealthCheck executes the actual health check
-func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, error) {
+func performHealthCheck(ctx context.Context, s *ServiceCore, url, apiKey string, checker HealthChecker) (types.ServiceHealth, error) {
 	startTime := time.Now()
+
+	log.Debug().Str("url", url).Msg("Performing health check")
 
 	// Get version synchronously first
 	version := s.GetVersionFromCache(url)
@@ -108,16 +111,16 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, apiKey, headers)
 	if err != nil {
-		return models.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
+		return types.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
 	}
 	if resp == nil {
-		return models.ServiceHealth{}, fmt.Errorf("nil response")
+		return types.ServiceHealth{}, fmt.Errorf("nil response")
 	}
 
 	defer resp.Body.Close()
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return models.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
+		return types.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	// Get response time from header (stored as milliseconds)
@@ -148,7 +151,7 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	// Process health response
 	var healthIssues []HealthResponse
 	if err := json.Unmarshal(body, &healthIssues); err != nil {
-		return models.ServiceHealth{}, fmt.Errorf("failed to parse response: %v", err)
+		return types.ServiceHealth{}, fmt.Errorf("failed to parse response: %v", err)
 	}
 
 	// Build response

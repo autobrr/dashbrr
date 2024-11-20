@@ -9,19 +9,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/core"
-	"github.com/autobrr/dashbrr/internal/services/omegabrr"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -113,23 +111,23 @@ func (h *OmegabrrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 }
 
 // fetchStatusWithCache is a type-safe wrapper around fetchDataWithCache for ServiceHealth
-func (h *OmegabrrHandler) fetchStatusWithCache(ctx context.Context, cacheKey string, fetchFn func() (models.ServiceHealth, error)) (models.ServiceHealth, error) {
+func (h *OmegabrrHandler) fetchStatusWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.ServiceHealth, error)) (types.ServiceHealth, error) {
 	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
 		return fetchFn()
 	})
 	if err != nil {
-		return models.ServiceHealth{}, err
+		return types.ServiceHealth{}, err
 	}
 
 	// Convert the cached data to ServiceHealth using SafeStructConvert
-	converted, err := utils.SafeStructConvert[models.ServiceHealth](data)
+	converted, err := utils.SafeStructConvert[types.ServiceHealth](data)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("cache_key", cacheKey).
 			Str("type", utils.GetTypeString(data)).
 			Msg("[Omegabrr] Failed to convert cached data")
-		return models.ServiceHealth{}, fmt.Errorf("failed to convert cached data: %w", err)
+		return types.ServiceHealth{}, fmt.Errorf("failed to convert cached data: %w", err)
 	}
 
 	return converted, nil
@@ -151,14 +149,14 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("status:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchStatusWithCache(ctx, cacheKey, func() (models.ServiceHealth, error) {
+		return h.fetchStatusWithCache(ctx, cacheKey, func() (types.ServiceHealth, error) {
 			return h.fetchStatus(ctx, instanceId)
 		})
 	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
-			c.JSON(http.StatusOK, models.ServiceHealth{})
+			c.JSON(http.StatusOK, types.ServiceHealth{})
 			return
 		}
 
@@ -173,27 +171,27 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 		return
 	}
 
-	health := result.(models.ServiceHealth)
+	health := result.(types.ServiceHealth)
 	c.JSON(http.StatusOK, health)
 }
 
-func (h *OmegabrrHandler) fetchStatus(ctx context.Context, instanceId string) (models.ServiceHealth, error) {
+func (h *OmegabrrHandler) fetchStatus(ctx context.Context, instanceId string) (types.ServiceHealth, error) {
 	omegabrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return models.ServiceHealth{}, err
+		return types.ServiceHealth{}, err
 	}
 
 	if omegabrrConfig == nil {
-		return models.ServiceHealth{}, fmt.Errorf("service not configured")
+		return types.ServiceHealth{}, fmt.Errorf("service not configured")
 	}
 
-	service := &omegabrr.OmegabrrService{
-		ServiceCore: core.ServiceCore{},
+	service := &services.OmegabrrService{
+		ServiceCore: services.ServiceCore{},
 	}
 
 	health, statusCode := service.CheckHealth(ctx, omegabrrConfig.URL, omegabrrConfig.APIKey)
 	if statusCode != http.StatusOK {
-		return models.ServiceHealth{}, fmt.Errorf("failed to get status")
+		return types.ServiceHealth{}, fmt.Errorf("failed to get status")
 	}
 
 	return health, nil
@@ -291,8 +289,8 @@ func (h *OmegabrrHandler) TriggerWebhookArrs(c *gin.Context) {
 		return
 	}
 
-	service := &omegabrr.OmegabrrService{
-		ServiceCore: core.ServiceCore{},
+	service := &services.OmegabrrService{
+		ServiceCore: services.ServiceCore{},
 	}
 	h.executeWebhook(c, "ARRs", *req, func() int {
 		return service.TriggerARRsWebhook(c, req.TargetURL, req.APIKey)
@@ -307,8 +305,8 @@ func (h *OmegabrrHandler) TriggerWebhookLists(c *gin.Context) {
 		return
 	}
 
-	service := &omegabrr.OmegabrrService{
-		ServiceCore: core.ServiceCore{},
+	service := &services.OmegabrrService{
+		ServiceCore: services.ServiceCore{},
 	}
 	h.executeWebhook(c, "Lists", *req, func() int {
 		return service.TriggerListsWebhook(c, req.TargetURL, req.APIKey)
@@ -323,8 +321,8 @@ func (h *OmegabrrHandler) TriggerWebhookAll(c *gin.Context) {
 		return
 	}
 
-	service := &omegabrr.OmegabrrService{
-		ServiceCore: core.ServiceCore{},
+	service := &services.OmegabrrService{
+		ServiceCore: services.ServiceCore{},
 	}
 	h.executeWebhook(c, "All", *req, func() int {
 		return service.TriggerAllWebhooks(c, req.TargetURL, req.APIKey)

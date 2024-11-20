@@ -13,17 +13,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/services/resilience"
+	"github.com/autobrr/dashbrr/internal/types"
+
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/singleflight"
-
-	"github.com/autobrr/dashbrr/internal/api/middleware"
-	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/maintainerr"
-	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -52,25 +51,25 @@ func NewMaintainerrHandler(db *database.DB, cache cache.Store) *MaintainerrHandl
 	}
 }
 
-// convertCachedCollection converts a cached map to a maintainerr.Collection
-func convertCachedCollection(input map[string]interface{}) (maintainerr.Collection, error) {
+// convertCachedCollection converts a cached map to a maintainerr.MaintainerrCollection
+func convertCachedCollection(input map[string]interface{}) (services.MaintainerrCollection, error) {
 	// Marshal the map back to JSON
 	jsonData, err := json.Marshal(input)
 	if err != nil {
-		return maintainerr.Collection{}, fmt.Errorf("failed to marshal cached data: %w", err)
+		return services.MaintainerrCollection{}, fmt.Errorf("failed to marshal cached data: %w", err)
 	}
 
-	// Unmarshal into Collection struct
-	var collection maintainerr.Collection
+	// Unmarshal into MaintainerrCollection struct
+	var collection services.MaintainerrCollection
 	if err := json.Unmarshal(jsonData, &collection); err != nil {
-		return maintainerr.Collection{}, fmt.Errorf("failed to unmarshal to Collection: %w", err)
+		return services.MaintainerrCollection{}, fmt.Errorf("failed to unmarshal to MaintainerrCollection: %w", err)
 	}
 
 	return collection, nil
 }
 
 // fetchCollectionsWithCache is a type-safe wrapper around fetchDataWithCache for Collections
-func (h *MaintainerrHandler) fetchCollectionsWithCache(ctx context.Context, cacheKey string, fetchFn func() ([]maintainerr.Collection, error)) ([]maintainerr.Collection, error) {
+func (h *MaintainerrHandler) fetchCollectionsWithCache(ctx context.Context, cacheKey string, fetchFn func() ([]services.MaintainerrCollection, error)) ([]services.MaintainerrCollection, error) {
 	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
 		return fetchFn()
 	})
@@ -80,10 +79,10 @@ func (h *MaintainerrHandler) fetchCollectionsWithCache(ctx context.Context, cach
 
 	// Handle the cached data based on its type
 	switch v := data.(type) {
-	case []maintainerr.Collection:
+	case []services.MaintainerrCollection:
 		return v, nil
 	case []interface{}:
-		collections := make([]maintainerr.Collection, 0, len(v))
+		collections := make([]services.MaintainerrCollection, 0, len(v))
 		for i, item := range v {
 			if mapData, ok := item.(map[string]interface{}); ok {
 				collection, err := convertCachedCollection(mapData)
@@ -185,7 +184,7 @@ func handleHTTPStatusCode(code int) (int, string) {
 
 // determineErrorResponse maps errors to appropriate HTTP status codes and user-friendly messages
 func determineErrorResponse(err error) (int, string) {
-	var maintErr *maintainerr.ErrMaintainerr
+	var maintErr *services.ErrMaintainerr
 	if errors.As(err, &maintErr) {
 		if maintErr.HttpCode > 0 {
 			return handleHTTPStatusCode(maintErr.HttpCode)
@@ -235,7 +234,7 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("collections:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchCollectionsWithCache(ctx, cacheKey, func() ([]maintainerr.Collection, error) {
+		return h.fetchCollectionsWithCache(ctx, cacheKey, func() ([]services.MaintainerrCollection, error) {
 			return h.fetchCollections(ctx, instanceId)
 		})
 	})
@@ -243,7 +242,7 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "service not configured" {
 			// Return empty response for unconfigured service
-			c.JSON(http.StatusOK, []maintainerr.Collection{})
+			c.JSON(http.StatusOK, []services.MaintainerrCollection{})
 			return
 		}
 
@@ -262,7 +261,7 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 		return
 	}
 
-	collections := result.([]maintainerr.Collection)
+	collections := result.([]services.MaintainerrCollection)
 
 	// Add change detection logging
 	h.compareAndLogCollectionChanges(instanceId, collections)
@@ -273,7 +272,7 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	c.JSON(http.StatusOK, collections)
 }
 
-func (h *MaintainerrHandler) fetchCollections(ctx context.Context, instanceId string) ([]maintainerr.Collection, error) {
+func (h *MaintainerrHandler) fetchCollections(ctx context.Context, instanceId string) ([]services.MaintainerrCollection, error) {
 	// Create a child context with timeout
 	timeoutCtx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
@@ -287,7 +286,7 @@ func (h *MaintainerrHandler) fetchCollections(ctx context.Context, instanceId st
 		return nil, fmt.Errorf("service not configured")
 	}
 
-	service := &maintainerr.MaintainerrService{}
+	service := &services.MaintainerrService{}
 	collections, err := service.GetCollections(timeoutCtx, maintainerrConfig.URL, maintainerrConfig.APIKey)
 	if err != nil {
 		return nil, err // Pass through the ErrMaintainerr
@@ -297,7 +296,7 @@ func (h *MaintainerrHandler) fetchCollections(ctx context.Context, instanceId st
 }
 
 // createCollectionsHash generates a unique hash representing the current Maintainerr collections
-func createCollectionsHash(collections []maintainerr.Collection) string {
+func createCollectionsHash(collections []services.MaintainerrCollection) string {
 	if len(collections) == 0 {
 		return ""
 	}
@@ -331,7 +330,7 @@ func (h *MaintainerrHandler) detectCollectionChanges(oldHash, newHash string) st
 }
 
 // compareAndLogCollectionChanges tracks and logs changes in Maintainerr collections
-func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, collections []maintainerr.Collection) {
+func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, collections []services.MaintainerrCollection) {
 	h.lastCollectionsHashMu.Lock()
 	defer h.lastCollectionsHashMu.Unlock()
 
@@ -353,8 +352,8 @@ func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, c
 }
 
 // broadcastMaintainerrCollections broadcasts collections updates to all connected SSE clients
-func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []maintainerr.Collection) {
-	BroadcastHealth(models.ServiceHealth{
+func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []services.MaintainerrCollection) {
+	BroadcastHealth(types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "maintainerr_collections",

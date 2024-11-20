@@ -5,21 +5,20 @@ package testing
 
 import (
 	"context"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // MockDB implements database operations for testing
 type MockDB struct {
-	FindServiceByFunc  func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
-	GetAllServicesFunc func() ([]models.ServiceConfiguration, error)
-	CreateServiceFunc  func(*models.ServiceConfiguration) error
-	UpdateServiceFunc  func(*models.ServiceConfiguration) error
+	FindServiceByFunc  func(ctx context.Context, params types.FindServiceParams) (*types.ServiceConfiguration, error)
+	GetAllServicesFunc func() ([]types.ServiceConfiguration, error)
+	CreateServiceFunc  func(*types.ServiceConfiguration) error
+	UpdateServiceFunc  func(*types.ServiceConfiguration) error
 	DeleteServiceFunc  func(string) error
 }
 
 // FindServiceBy implements the database method
-func (m *MockDB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+func (m *MockDB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*types.ServiceConfiguration, error) {
 	if m.FindServiceByFunc != nil {
 		return m.FindServiceByFunc(ctx, params)
 	}
@@ -27,15 +26,15 @@ func (m *MockDB) FindServiceBy(ctx context.Context, params types.FindServicePara
 }
 
 // GetAllServices implements the database method
-func (m *MockDB) GetAllServices() ([]models.ServiceConfiguration, error) {
+func (m *MockDB) GetAllServices() ([]types.ServiceConfiguration, error) {
 	if m.GetAllServicesFunc != nil {
 		return m.GetAllServicesFunc()
 	}
-	return []models.ServiceConfiguration{}, nil
+	return []types.ServiceConfiguration{}, nil
 }
 
 // CreateService implements the database method
-func (m *MockDB) CreateService(config *models.ServiceConfiguration) error {
+func (m *MockDB) CreateService(config *types.ServiceConfiguration) error {
 	if m.CreateServiceFunc != nil {
 		return m.CreateServiceFunc(config)
 	}
@@ -43,7 +42,7 @@ func (m *MockDB) CreateService(config *models.ServiceConfiguration) error {
 }
 
 // UpdateService implements the database method
-func (m *MockDB) UpdateService(config *models.ServiceConfiguration) error {
+func (m *MockDB) UpdateService(config *types.ServiceConfiguration) error {
 	if m.UpdateServiceFunc != nil {
 		return m.UpdateServiceFunc(config)
 	}

@@ -9,41 +9,35 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/types"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 )
 
 // DatabaseService defines the database operations needed by HealthHandler
 type DatabaseService interface {
-	FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
+	FindServiceBy(ctx context.Context, params types.FindServiceParams) (*types.ServiceConfiguration, error)
 }
 
 type HealthHandler struct {
 	db             DatabaseService
 	health         *services.HealthService
-	serviceCreator models.ServiceCreator
+	serviceManager *services.ServiceManager
 }
 
-func NewHealthHandler(db DatabaseService, health *services.HealthService, creator ...models.ServiceCreator) *HealthHandler {
-	var sc models.ServiceCreator
-	if len(creator) > 0 {
-		sc = creator[0]
-	} else {
-		sc = models.NewServiceRegistry()
-	}
-
+func NewHealthHandler(db DatabaseService, health *services.HealthService, serviceManager *services.ServiceManager) *HealthHandler {
 	return &HealthHandler{
 		db:             db,
 		health:         health,
-		serviceCreator: sc,
+		serviceManager: serviceManager,
 	}
 }
 
 func (h *HealthHandler) CheckHealth(c *gin.Context) {
+	log.Debug().Msg("Checking health in health handler")
+
 	// Create a context with timeout for the entire health check operation
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
@@ -58,11 +52,11 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	url := c.Query("url")
 	apiKey := c.Query("apiKey")
 
-	var service *models.ServiceConfiguration
+	var service *types.ServiceConfiguration
 	var err error
 
 	if url != "" {
-		service = &models.ServiceConfiguration{
+		service = &types.ServiceConfiguration{
 			InstanceID: serviceID,
 			URL:        url,
 			APIKey:     apiKey,
@@ -90,7 +84,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 
 	// Check if service is configured
 	if service.URL == "" {
-		c.JSON(http.StatusOK, models.ServiceHealth{
+		c.JSON(http.StatusOK, types.ServiceHealth{
 			Status:      "unconfigured",
 			Message:     "Service is not configured",
 			ServiceID:   serviceID,
@@ -107,8 +101,8 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	}
 	serviceType := parts[0]
 
-	serviceChecker := h.serviceCreator.CreateService(serviceType)
-	if serviceChecker == nil {
+	serviceChecker, err := h.serviceManager.GetServiceHealthChecker(serviceID)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported service type: " + serviceType})
 		return
 	}

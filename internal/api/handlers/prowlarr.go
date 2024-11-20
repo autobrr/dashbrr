@@ -12,19 +12,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/prowlarr"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -230,7 +228,7 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 		// Stats request
 		func() (interface{}, error) {
 			apiURL := fmt.Sprintf("%s/api/v1/system/status", prowlarrConfig.URL)
-			resp, err := arr.MakeArrRequest(ctx, http.MethodGet, apiURL, prowlarrConfig.APIKey, nil)
+			resp, err := services.MakeArrRequest(ctx, http.MethodGet, apiURL, prowlarrConfig.APIKey, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -245,7 +243,7 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 		// Indexers request
 		func() (interface{}, error) {
 			apiURL := fmt.Sprintf("%s/api/v1/indexer", prowlarrConfig.URL)
-			resp, err := arr.MakeArrRequest(ctx, http.MethodGet, apiURL, prowlarrConfig.APIKey, nil)
+			resp, err := services.MakeArrRequest(ctx, http.MethodGet, apiURL, prowlarrConfig.APIKey, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -262,7 +260,8 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 		},
 		// Indexer stats request
 		func() (interface{}, error) {
-			prowlarrService := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
+			// TODO what to do here
+			prowlarrService := services.NewProwlarrService(nil, nil, nil).(*services.ProwlarrService)
 			return prowlarrService.GetIndexerStats(ctx, prowlarrConfig.URL, prowlarrConfig.APIKey)
 		},
 	}
@@ -597,7 +596,7 @@ func (h *ProwlarrHandler) compareAndLogIndexerStatsChanges(instanceId string, st
 }
 
 func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.ProwlarrStatsResponse) {
-	BroadcastHealth(models.ServiceHealth{
+	BroadcastHealth(types.ServiceHealth{
 		ServiceID: instanceId,
 		Status:    "ok",
 		Message:   "prowlarr_stats",
@@ -610,7 +609,7 @@ func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.Prowlarr
 }
 
 func (h *ProwlarrHandler) broadcastIndexers(instanceId string, indexers []types.ProwlarrIndexer) {
-	BroadcastHealth(models.ServiceHealth{
+	BroadcastHealth(types.ServiceHealth{
 		ServiceID: instanceId,
 		Status:    "ok",
 		Message:   "prowlarr_indexers",

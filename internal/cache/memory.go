@@ -83,6 +83,7 @@ func NewMemoryStore(ctx context.Context, dataDir string) Store {
 
 // loadSessions loads persisted sessions from disk
 func (s *MemoryStore) loadSessions() {
+	log.Trace().Str("module", "MemoryStore").Str("method", "loadSessions").Msg("load sessions")
 	data, err := os.ReadFile(s.persistPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -162,15 +163,17 @@ func (s *MemoryStore) Get(_ context.Context, key string, value interface{}) erro
 	//s.mu.RUnlock()
 
 	s.local.RLock()
+	defer s.local.RUnlock()
+
 	item, exists := s.local.items[key]
 	if exists && time.Now().Before(item.expiration) {
-		s.local.RUnlock()
+		//s.local.RUnlock()
 		return json.Unmarshal(item.value, value)
 	}
-	if exists {
-		delete(s.local.items, key)
-	}
-	s.local.RUnlock()
+	//if !exists {
+	//	delete(s.local.items, key)
+	//}
+	//s.local.RUnlock()
 
 	return ErrKeyNotFound
 }

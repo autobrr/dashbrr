@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package commands
 
 import (
@@ -8,8 +11,7 @@ import (
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/autobrr"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/spf13/cobra"
@@ -57,25 +59,30 @@ func ServiceAutobrrListCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
-		services, err := db.GetAllServices(cmd.Context())
+		store, err := initializeCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %v", err)
+		}
+
+		serviceList, err := db.GetAllServices(cmd.Context())
 		if err != nil {
 			return fmt.Errorf("failed to retrieve services: %v", err)
 		}
 
-		if len(services) == 0 {
+		if len(serviceList) == 0 {
 			fmt.Println("No Autobrr services configured.")
 			return nil
 		}
 
 		fmt.Println("Configured Autobrr Services:")
-		for _, service := range services {
+		for _, service := range serviceList {
 
 			if strings.HasPrefix(service.InstanceID, "autobrr-") {
 				fmt.Printf("  - URL: %s\n", service.URL)
 				fmt.Printf("    Instance ID: %s\n", service.InstanceID)
 
 				// Try to get health info which includes version
-				autobrrService := autobrr.NewAutobrrService()
+				autobrrService := services.NewAutobrrService(db, store, &service)
 				if health, _ := autobrrService.CheckHealth(cmd.Context(), service.URL, service.APIKey); health.Status == "online" {
 					fmt.Printf("    Version: %s\n", health.Version)
 					fmt.Printf("    Status: %s\n", health.Status)
@@ -109,6 +116,11 @@ func ServiceAutobrrAddCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
+		store, err := initializeCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %v", err)
+		}
+
 		serviceURL := args[0]
 		apiKey := args[1]
 
@@ -131,16 +143,6 @@ func ServiceAutobrrAddCommand() *cobra.Command {
 			return fmt.Errorf("service with URL %s already exists", serviceURL)
 		}
 
-		// Create Autobrr service
-		autobrrService := autobrr.NewAutobrrService()
-
-		// Perform health check to validate connection
-		health, _ := autobrrService.CheckHealth(cmd.Context(), serviceURL, apiKey)
-
-		if health.Status != "online" {
-			return fmt.Errorf("failed to connect to Autobrr service: %s", health.Message)
-		}
-
 		// Get next available instance ID
 		instanceID, err := getNextInstanceID(cmd.Context(), db, "autobrr-")
 		if err != nil {
@@ -148,11 +150,20 @@ func ServiceAutobrrAddCommand() *cobra.Command {
 		}
 
 		// Create service configuration
-		service := &models.ServiceConfiguration{
+		service := &types.ServiceConfiguration{
 			InstanceID:  instanceID,
 			DisplayName: "Autobrr",
 			URL:         serviceURL,
 			APIKey:      apiKey,
+		}
+		// Create Autobrr service
+		autobrrService := services.NewAutobrrService(db, store, service)
+
+		// Perform health check to validate connection
+		health, _ := autobrrService.CheckHealth(cmd.Context(), serviceURL, apiKey)
+
+		if health.Status != "online" {
+			return fmt.Errorf("failed to connect to Autobrr service: %s", health.Message)
 		}
 
 		if err := db.CreateService(cmd.Context(), service); err != nil {
@@ -217,7 +228,7 @@ func ServiceAutobrrRemoveCommand() *cobra.Command {
 }
 
 func getNextInstanceID(ctx context.Context, db *database.DB, prefix string) (string, error) {
-	services, err := db.GetAllServices(ctx)
+	allServices, err := db.GetAllServices(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get services: %v", err)
 	}
@@ -225,7 +236,7 @@ func getNextInstanceID(ctx context.Context, db *database.DB, prefix string) (str
 	maxNum := 0
 	//prefix := "autobrr-"
 
-	for _, service := range services {
+	for _, service := range allServices {
 		if strings.HasPrefix(service.InstanceID, prefix) {
 			numStr := strings.TrimPrefix(service.InstanceID, prefix)
 			if num, err := strconv.Atoi(numStr); err == nil && num > maxNum {

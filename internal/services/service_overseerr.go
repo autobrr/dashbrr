@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package overseerr
+package services
 
 import (
 	"bytes"
@@ -12,14 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
-	"github.com/autobrr/dashbrr/internal/services/radarr"
-	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/types"
+
+	"github.com/rs/zerolog/log"
 )
 
 // ErrOverseerr is a custom error type for Overseerr-specific errors
@@ -39,33 +36,28 @@ func (e *ErrOverseerr) Error() string {
 }
 
 type OverseerrService struct {
-	core.ServiceCore
-	db *database.DB
+	ServiceCore
 }
 
-func init() {
-	models.NewOverseerrService = NewOverseerrService
-}
-
-func NewOverseerrService() models.ServiceHealthChecker {
+func NewOverseerrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &OverseerrService{}
-	service.Type = "overseerr"
-	service.DisplayName = "Overseerr"
+	service.Type = types.ServiceTypeOverseerr
+	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Overseerr instance"
 	service.DefaultURL = "http://localhost:5055"
 	service.HealthEndpoint = "/api/v1/status"
-	service.SetTimeout(core.DefaultTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
 func (s *OverseerrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/api/v1/status", baseURL)
-}
-
-// SetDB sets the database instance for the service
-func (s *OverseerrService) SetDB(db *database.DB) {
-	s.db = db
 }
 
 // UpdateRequestStatus updates the status of a media request (approve/reject)
@@ -115,13 +107,13 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 		return "", fmt.Errorf("database not initialized")
 	}
 
-	var service *models.ServiceConfiguration
+	var service *types.ServiceConfiguration
 	var err error
 
 	switch request.Media.MediaType {
 	case "movie":
 		// Find Radarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "radarr")
+		service, err = s.db.GetServiceByInstancePrefix(ctx, "radarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Radarr service: %w", err)
 		}
@@ -129,7 +121,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 			return "", fmt.Errorf("no Radarr service found")
 		}
 
-		radarrService := &radarr.RadarrService{}
+		radarrService := &RadarrService{}
 		// Use TmdbID for movie lookups
 		movie, err := radarrService.LookupByTmdbId(ctx, service.URL, service.APIKey, request.Media.TmdbID)
 		if err != nil {
@@ -139,7 +131,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 
 	case "tv":
 		// Find Sonarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "sonarr")
+		service, err = s.db.GetServiceByInstancePrefix(ctx, "sonarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Sonarr service: %w", err)
 		}
@@ -147,7 +139,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 			return "", fmt.Errorf("no Sonarr service found")
 		}
 
-		sonarrService := &sonarr.SonarrService{}
+		sonarrService := &SonarrService{}
 		// Use TvdbID for TV show lookups
 		series, err := sonarrService.LookupByTvdbId(ctx, service.URL, service.APIKey, request.Media.TvdbID)
 		if err != nil {
@@ -222,7 +214,7 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 	}, nil
 }
 
-func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

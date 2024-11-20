@@ -11,18 +11,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/plex"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -199,7 +198,7 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*ty
 		return nil, fmt.Errorf("service not configured")
 	}
 
-	service := &plex.PlexService{}
+	service := &services.PlexService{}
 	sessions, err := service.GetSessions(ctx, plexConfig.URL, plexConfig.APIKey)
 	if err != nil {
 		return nil, err
@@ -220,7 +219,7 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*ty
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
 func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.PlexSessionsResponse) {
 	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(models.ServiceHealth{
+	BroadcastHealth(types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "plex_sessions",

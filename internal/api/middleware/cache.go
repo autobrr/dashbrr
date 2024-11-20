@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/cache"
+
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/services/cache"
 )
 
 // CacheDurations defines all cache TTLs in one place for consistency

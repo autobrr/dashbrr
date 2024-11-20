@@ -1,12 +1,14 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package commands
 
 import (
 	"fmt"
-	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"net/url"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/spf13/cobra"
@@ -56,25 +58,30 @@ func ServiceOverseerrListCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
-		services, err := db.GetAllServices(cmd.Context())
+		store, err := initializeCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %v", err)
+		}
+
+		allServices, err := db.GetAllServices(cmd.Context())
 		if err != nil {
 			return fmt.Errorf("failed to retrieve services: %v", err)
 		}
 
-		if len(services) == 0 {
+		if len(allServices) == 0 {
 			fmt.Println("No Overseerr services configured.")
 			return nil
 		}
 
 		fmt.Println("Configured Overseerr Services:")
-		for _, service := range services {
+		for _, service := range allServices {
 
 			if strings.HasPrefix(service.InstanceID, "overseerr-") {
 				fmt.Printf("  - URL: %s\n", service.URL)
 				fmt.Printf("    Instance ID: %s\n", service.InstanceID)
 
 				// Try to get health info which includes version
-				overseerrService := overseerr.NewOverseerrService()
+				overseerrService := services.NewOverseerrService(db, store, &service)
 				if health, _ := overseerrService.CheckHealth(cmd.Context(), service.URL, service.APIKey); health.Status != "" {
 					if health.Version != "" {
 						fmt.Printf("    Version: %s\n", health.Version)
@@ -112,6 +119,11 @@ func ServiceOverseerrAddCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
+		store, err := initializeCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %v", err)
+		}
+
 		serviceURL := args[0]
 		apiKey := args[1]
 
@@ -135,7 +147,7 @@ func ServiceOverseerrAddCommand() *cobra.Command {
 		}
 
 		// Create Overseerr service
-		overseerrService := overseerr.NewOverseerrService()
+		overseerrService := services.NewOverseerrService(db, store, existing)
 
 		// Perform health check to validate connection
 		health, _ := overseerrService.CheckHealth(cmd.Context(), serviceURL, apiKey)
@@ -151,7 +163,7 @@ func ServiceOverseerrAddCommand() *cobra.Command {
 		}
 
 		// Create service configuration
-		service := &models.ServiceConfiguration{
+		service := &types.ServiceConfiguration{
 			InstanceID:  instanceID,
 			DisplayName: "Overseerr",
 			URL:         serviceURL,

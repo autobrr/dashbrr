@@ -13,18 +13,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/overseerr"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -161,7 +160,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	}
 
 	// Create Overseerr service instance
-	service := &overseerr.OverseerrService{}
+	service := &services.OverseerrService{}
 	service.SetDB(h.db)
 
 	// Update request status using singleflight with retry and circuit breaker
@@ -307,7 +306,7 @@ func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStat
 		return nil, fmt.Errorf("service not configured")
 	}
 
-	service := &overseerr.OverseerrService{}
+	service := &services.OverseerrService{}
 	service.SetDB(h.db)
 
 	stats, err := service.GetRequests(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey)
@@ -341,7 +340,7 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 		message = fmt.Sprintf("%d pending requests", stats.PendingCount)
 	}
 
-	health := models.ServiceHealth{
+	health := types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      serviceStatus,
 		Message:     message,

@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package autobrr
+package services
 
 import (
 	"context"
@@ -11,27 +11,65 @@ import (
 	"strings"
 	"time"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/types"
+
+	"github.com/rs/zerolog/log"
 )
 
+// AutobrrClient represents an Autobrr service client
+type AutobrrClient struct {
+	BaseURL string
+	APIKey  string
+	http    *http.Client
+}
+
+// AutobrrHealthCheckResponse represents the response from a health check
+type AutobrrHealthCheckResponse struct {
+	Status  string `json:"status"`
+	Version string `json:"version"`
+}
+
+// NewAutobrrClient creates a new Autobrr service client
+func NewAutobrrClient(baseURL, apiKey string) *AutobrrClient {
+	return &AutobrrClient{
+		BaseURL: baseURL,
+		APIKey:  apiKey,
+		http: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+}
+
+// HealthCheck performs a health check on the Autobrr service
+func (c *AutobrrClient) HealthCheck() (*AutobrrHealthCheckResponse, error) {
+	// For now, return a mock health check response
+	// In a real implementation, you'd make an actual HTTP request
+	return &AutobrrHealthCheckResponse{
+		Status:  "OK",
+		Version: "1.0.0", // This would be dynamically retrieved in a real implementation
+	}, nil
+}
+
 type AutobrrService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-func init() {
-	models.NewAutobrrService = NewAutobrrService
-}
-
-func NewAutobrrService() models.ServiceHealthChecker {
+func NewAutobrrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) *AutobrrService {
+	log.Debug().Msg("Creating new Autobrr service")
 	service := &AutobrrService{}
-	service.Type = "autobrr"
-	service.DisplayName = "Autobrr"
+	service.Type = types.ServiceTypeAutobrr
+	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Autobrr instance"
 	service.DefaultURL = "http://localhost:7474"
 	service.HealthEndpoint = "/api/healthz/liveness"
-	service.SetTimeout(core.DefaultTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -281,7 +319,9 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 	return hasUpdate, nil
 }
 
-func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey string) (models.ServiceHealth, int) {
+func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey string) (types.ServiceHealth, int) {
+	log.Trace().Str("url", url).Msg("Checking autobrr service health")
+
 	startTime := time.Now()
 
 	if url == "" || apiKey == "" {
@@ -289,7 +329,7 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 	}
 
 	// Create a context with timeout for the entire health check
-	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
 	// Start version check in background

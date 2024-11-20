@@ -1,16 +1,19 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package discovery
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 // ServiceDiscoverer defines the interface for service discovery implementations
 type ServiceDiscoverer interface {
 	// DiscoverServices finds and returns service configurations
-	DiscoverServices(ctx context.Context) ([]models.ServiceConfiguration, error)
+	DiscoverServices(ctx context.Context) ([]types.ServiceConfiguration, error)
 	// Close cleans up any resources used by the discoverer
 	Close() error
 }
@@ -44,8 +47,8 @@ func NewManager() (*Manager, error) {
 }
 
 // DiscoverAll finds services using all available discovery methods
-func (m *Manager) DiscoverAll(ctx context.Context) ([]models.ServiceConfiguration, error) {
-	var allServices []models.ServiceConfiguration
+func (m *Manager) DiscoverAll(ctx context.Context) ([]types.ServiceConfiguration, error) {
+	var allServices []types.ServiceConfiguration
 
 	for _, discoverer := range m.discoverers {
 		services, err := discoverer.DiscoverServices(ctx)
@@ -72,7 +75,7 @@ func (m *Manager) Close() error {
 }
 
 // ValidateService checks if a discovered service configuration is valid
-func ValidateService(service models.ServiceConfiguration) error {
+func ValidateService(service types.ServiceConfiguration) error {
 	if service.InstanceID == "" {
 		return fmt.Errorf("instance ID is required")
 	}

@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package discovery
 
 import (
@@ -6,11 +9,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/autobrr/dashbrr/internal/types"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-
-	"github.com/autobrr/dashbrr/internal/models"
 )
 
 // DockerDiscovery handles service discovery from Docker labels
@@ -31,7 +34,7 @@ func NewDockerDiscovery() (*DockerDiscovery, error) {
 }
 
 // DiscoverServices finds services configured via Docker labels
-func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]models.ServiceConfiguration, error) {
+func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]types.ServiceConfiguration, error) {
 	// Create a filter for dashbrr service labels
 	f := filters.NewArgs()
 	f.Add("label", GetLabelKey(labelTypeKey))
@@ -44,7 +47,7 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]models.Servic
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	var services []models.ServiceConfiguration
+	var services []types.ServiceConfiguration
 
 	for _, container := range containers {
 		service, err := d.parseContainerLabels(container.Labels)
@@ -61,7 +64,7 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]models.Servic
 }
 
 // parseContainerLabels extracts service configuration from container labels
-func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*models.ServiceConfiguration, error) {
+func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*types.ServiceConfiguration, error) {
 	serviceType := labels[GetLabelKey(labelTypeKey)]
 	if serviceType == "" {
 		return nil, fmt.Errorf("service type label not found")
@@ -96,7 +99,7 @@ func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*model
 	// Generate instance ID based on service type
 	instanceID := fmt.Sprintf("%s-docker", serviceType)
 
-	return &models.ServiceConfiguration{
+	return &types.ServiceConfiguration{
 		InstanceID:  instanceID,
 		DisplayName: displayName,
 		URL:         url,

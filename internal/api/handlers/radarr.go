@@ -10,19 +10,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/radarr"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -152,7 +150,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	})
 
 	if err != nil {
-		if arrErr, ok := err.(*arr.ErrArr); ok {
+		if arrErr, ok := err.(*services.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
@@ -193,7 +191,7 @@ func (h *RadarrHandler) fetchQueue(instanceId string) (types.RadarrQueueResponse
 	}
 
 	// Create Radarr service instance
-	service := &radarr.RadarrService{}
+	service := &services.RadarrService{}
 
 	// Get queue records using the service
 	records, err := service.GetQueueForHealth(context.Background(), radarrConfig.URL, radarrConfig.APIKey)
@@ -255,7 +253,7 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 	}
 
 	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(models.ServiceHealth{
+	BroadcastHealth(types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "ok",
 		Message:     "radarr_queue",
@@ -294,7 +292,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	})
 
 	if err != nil {
-		if arrErr, ok := err.(*arr.ErrArr); ok {
+		if arrErr, ok := err.(*services.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
 				Str("instanceId", instanceId).
@@ -339,7 +337,7 @@ func (h *RadarrHandler) deleteQueueItem(instanceId, queueId string, options type
 	}
 
 	// Create Radarr service instance
-	service := &radarr.RadarrService{}
+	service := &services.RadarrService{}
 
 	// Call the service method to delete the queue item
 	return service.DeleteQueueItem(context.Background(), radarrConfig.URL, radarrConfig.APIKey, queueId, options)

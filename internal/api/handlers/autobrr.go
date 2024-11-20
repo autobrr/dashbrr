@@ -11,19 +11,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/autobrr"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -42,6 +40,7 @@ type AutobrrHandler struct {
 	store          cache.Store
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
+	serviceManager *services.ServiceManager
 
 	lastReleasesHash  map[string]string
 	lastStatsHash     map[string]string
@@ -49,12 +48,13 @@ type AutobrrHandler struct {
 	hashMu            sync.Mutex
 }
 
-func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
+func NewAutobrrHandler(db *database.DB, store cache.Store, serviceManager *services.ServiceManager) *AutobrrHandler {
 	return &AutobrrHandler{
 		db:             db,
 		store:          store,
 		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute),
+		serviceManager: serviceManager,
 
 		lastReleasesHash:  make(map[string]string),
 		lastStatsHash:     make(map[string]string),
@@ -216,7 +216,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:7] != "autobrr" {
+	if !strings.HasPrefix(instanceId, "autobrr") {
 		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
 		return
@@ -228,7 +228,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	// Use singleflight to prevent duplicate requests
 	result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
 		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.AutobrrStats, error) {
-			return h.fetchStats(instanceId)
+			return h.fetchStats(context.Background(), instanceId)
 		})
 	})
 
@@ -340,8 +340,8 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-func (h *AutobrrHandler) fetchStats(instanceId string) (types.AutobrrStats, error) {
-	autobrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (types.AutobrrStats, error) {
+	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.AutobrrStats{}, err
 	}
@@ -350,11 +350,15 @@ func (h *AutobrrHandler) fetchStats(instanceId string) (types.AutobrrStats, erro
 		return types.AutobrrStats{}, fmt.Errorf("service not configured")
 	}
 
-	service := &autobrr.AutobrrService{
-		ServiceCore: core.ServiceCore{},
+	service, err := h.serviceManager.GetService(instanceId)
+	if err != nil {
+		return types.AutobrrStats{}, err
 	}
 
-	return service.GetReleaseStats(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
+	serviceInstance := service.(*services.AutobrrService)
+
+	// TODO move params to be internal
+	return serviceInstance.GetReleaseStats(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
 func (h *AutobrrHandler) fetchReleases(instanceId string) (types.ReleasesResponse, error) {
@@ -367,11 +371,14 @@ func (h *AutobrrHandler) fetchReleases(instanceId string) (types.ReleasesRespons
 		return types.ReleasesResponse{}, fmt.Errorf("service not configured")
 	}
 
-	service := &autobrr.AutobrrService{
-		ServiceCore: core.ServiceCore{},
+	service, err := h.serviceManager.GetService(instanceId)
+	if err != nil {
+		return types.ReleasesResponse{}, err
 	}
 
-	return service.GetReleases(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
+	serviceInstance := service.(*services.AutobrrService)
+
+	return serviceInstance.GetReleases(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
 func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) {
@@ -384,16 +391,19 @@ func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) 
 		return nil, fmt.Errorf("service not configured")
 	}
 
-	service := &autobrr.AutobrrService{
-		ServiceCore: core.ServiceCore{},
+	service, err := h.serviceManager.GetService(instanceId)
+	if err != nil {
+		return []types.IRCStatus{}, err
 	}
 
-	return service.GetIRCStatus(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
+	serviceInstance := service.(*services.AutobrrService)
+
+	return serviceInstance.GetIRCStatus(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.ReleasesResponse) {
-	health := models.ServiceHealth{
+	health := types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_releases",
@@ -408,7 +418,7 @@ func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.Rel
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrStats) {
-	health := models.ServiceHealth{
+	health := types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_stats",
@@ -435,7 +445,7 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 		}
 	}
 
-	health := models.ServiceHealth{
+	health := types.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      serviceStatus,
 		Message:     message,

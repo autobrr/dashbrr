@@ -1,7 +1,7 @@
 // Copyright (c) 2024, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package radarr
+package services
 
 import (
 	"context"
@@ -10,30 +10,30 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rs/zerolog/log"
-
-	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/core"
+	"github.com/autobrr/dashbrr/internal/cache"
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/types"
+
+	"github.com/rs/zerolog/log"
 )
 
 type RadarrService struct {
-	core.ServiceCore
+	ServiceCore
 }
 
-func init() {
-	models.NewRadarrService = NewRadarrService
-}
-
-func NewRadarrService() models.ServiceHealthChecker {
+func NewRadarrService(db *database.DB, cache cache.Store, config *types.ServiceConfiguration) ServiceHealthChecker {
 	service := &RadarrService{}
-	service.Type = "radarr"
-	service.DisplayName = "Radarr"
+	service.Type = types.ServiceTypeRadarr
+	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Radarr instance"
 	service.DefaultURL = "http://localhost:7878"
 	service.HealthEndpoint = "/api/v3/health"
-	service.SetTimeout(core.DefaultTimeout)
+	service.URL = config.URL
+	service.ApiKey = config.APIKey
+	service.InstanceID = config.InstanceID
+	service.SetTimeout(DefaultTimeout)
+	service.SetDB(db)
+	service.SetCache(cache)
 	return service
 }
 
@@ -45,11 +45,11 @@ func (s *RadarrService) GetHealthEndpoint(baseURL string) string {
 // DeleteQueueItem deletes a queue item with the specified options
 func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.RadarrQueueDeleteOptions) error {
 	if baseURL == "" {
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("URL is required")}
+		return &ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
+		return &ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
 
 	// Build delete URL with query parameters
@@ -76,14 +76,14 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 		Msg("Attempting to delete queue item")
 
 	// Execute DELETE request
-	resp, err := arr.MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
+	resp, err := MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("url", deleteURL).
 			Str("queueId", queueId).
 			Msg("Failed to execute delete request")
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
+		return &ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
 	}
 	defer resp.Body.Close()
 
@@ -100,9 +100,9 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 			Message string `json:"message"`
 		}
 		if err := json.Unmarshal(body, &errorResponse); err == nil && errorResponse.Message != "" {
-			return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf(errorResponse.Message), HttpCode: resp.StatusCode}
+			return &ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf(errorResponse.Message), HttpCode: resp.StatusCode}
 		}
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", HttpCode: resp.StatusCode}
+		return &ErrArr{Service: "radarr", Op: "delete_queue", HttpCode: resp.StatusCode}
 	}
 
 	log.Info().
@@ -115,35 +115,35 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 // GetQueue fetches the current queue from Radarr
 func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
 	if url == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
+		return nil, &ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
+		return nil, &ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
 	}
 
 	// Build queue URL with query parameters
 	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownMovieItems=false&includeMovie=false",
 		strings.TrimRight(url, "/"))
 
-	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
+	resp, err := MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", HttpCode: resp.StatusCode}
+		return nil, &ErrArr{Service: "radarr", Op: "get_queue", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var queue types.RadarrQueueResponse
 	if err := json.Unmarshal(body, &queue); err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	return queue.Records, nil
@@ -164,33 +164,33 @@ func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey strin
 // LookupByTmdbId fetches movie details from Radarr by TMDB ID
 func (s *RadarrService) LookupByTmdbId(ctx context.Context, baseURL, apiKey string, tmdbId int) (*types.RadarrMovieResponse, error) {
 	if baseURL == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("URL is required")}
+		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("API key is required")}
+		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("API key is required")}
 	}
 
 	lookupURL := fmt.Sprintf("%s/api/v3/movie/lookup/tmdb?tmdbId=%d", strings.TrimRight(baseURL, "/"), tmdbId)
 
-	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
+	resp, err := MakeArrRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "lookup_tmdb", HttpCode: resp.StatusCode}
+		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var movie types.RadarrMovieResponse
 	if err := json.Unmarshal(body, &movie); err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to parse response: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "lookup_tmdb", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	return &movie, nil
@@ -199,33 +199,33 @@ func (s *RadarrService) LookupByTmdbId(ctx context.Context, baseURL, apiKey stri
 // GetMovie fetches movie details from Radarr by ID
 func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, movieID int) (*types.RadarrMovieResponse, error) {
 	if baseURL == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("URL is required")}
+		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("API key is required")}
+		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("API key is required")}
 	}
 
 	movieURL := fmt.Sprintf("%s/api/v3/movie/%d", strings.TrimRight(baseURL, "/"), movieID)
 
-	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, movieURL, apiKey, nil)
+	resp, err := MakeArrRequest(ctx, http.MethodGet, movieURL, apiKey, nil)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_movie", HttpCode: resp.StatusCode}
+		return nil, &ErrArr{Service: "radarr", Op: "get_movie", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var movie types.RadarrMovieResponse
 	if err := json.Unmarshal(body, &movie); err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to parse response: %w", err)}
+		return nil, &ErrArr{Service: "radarr", Op: "get_movie", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	return &movie, nil
@@ -233,14 +233,14 @@ func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, mo
 
 // GetSystemStatus fetches the system status from Radarr
 func (s *RadarrService) GetSystemStatus(url, apiKey string) (string, error) {
-	return arr.GetArrSystemStatus("radarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
+	return GetArrSystemStatus("radarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
 }
 
 // CheckForUpdates checks if there are any updates available for Radarr
 func (s *RadarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates("radarr", url, apiKey)
+	return CheckArrForUpdates("radarr", url, apiKey)
 }
 
-func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (types.ServiceHealth, int) {
+	return ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
 }

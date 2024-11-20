@@ -1,3 +1,6 @@
+// Copyright (c) 2024, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package commands
 
 import (
@@ -5,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/types"
 
 	"github.com/spf13/cobra"
@@ -55,25 +58,30 @@ func ServiceGeneralListCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
-		services, err := db.GetAllServices(cmd.Context())
+		store, err := initializeCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %v", err)
+		}
+
+		allServices, err := db.GetAllServices(cmd.Context())
 		if err != nil {
 			return fmt.Errorf("failed to retrieve services: %v", err)
 		}
 
-		if len(services) == 0 {
+		if len(allServices) == 0 {
 			fmt.Println("No General services configured.")
 			return nil
 		}
 
 		fmt.Println("Configured General Services:")
-		for _, service := range services {
+		for _, service := range allServices {
 
 			if strings.HasPrefix(service.InstanceID, "general-") {
 				fmt.Printf("  - URL: %s\n", service.URL)
 				fmt.Printf("    Instance ID: %s\n", service.InstanceID)
 
 				// Try to get health info which includes version
-				generalService := models.NewGeneralService()
+				generalService := services.NewGeneralService(db, store, &service)
 				if health, _ := generalService.CheckHealth(cmd.Context(), service.URL, service.APIKey); health.Status == "online" {
 					fmt.Printf("    Version: %s\n", health.Version)
 					fmt.Printf("    Status: %s\n", health.Status)
@@ -110,6 +118,11 @@ func ServiceGeneralAddCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
+		store, err := initializeCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %v", err)
+		}
+
 		serviceURL := args[0]
 		displayName := "General" // Default name
 		apiKey := ""             // Default empty string
@@ -143,7 +156,7 @@ func ServiceGeneralAddCommand() *cobra.Command {
 		}
 
 		// Create General service
-		generalService := models.NewGeneralService()
+		generalService := services.NewGeneralService(db, store, existing)
 
 		// Perform health check to validate connection
 		health, _ := generalService.CheckHealth(cmd.Context(), serviceURL, apiKey)
@@ -159,7 +172,7 @@ func ServiceGeneralAddCommand() *cobra.Command {
 		}
 
 		// Create service configuration
-		service := &models.ServiceConfiguration{
+		service := &types.ServiceConfiguration{
 			InstanceID:  instanceID,
 			DisplayName: displayName,
 			URL:         serviceURL,
