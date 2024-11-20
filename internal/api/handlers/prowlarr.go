@@ -260,8 +260,7 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 		},
 		// Indexer stats request
 		func() (interface{}, error) {
-			// TODO what to do here
-			prowlarrService := services.NewProwlarrService(nil, nil, nil).(*services.ProwlarrService)
+			prowlarrService := services.NewProwlarrService(h.db, h.cache, prowlarrConfig).(*services.ProwlarrService)
 			return prowlarrService.GetIndexerStats(ctx, prowlarrConfig.URL, prowlarrConfig.APIKey)
 		},
 	}
