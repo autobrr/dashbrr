@@ -327,39 +327,39 @@ func (h *OverseerrHandler) fetchRequests(instanceId string) (*domain.RequestsSta
 }
 
 func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *domain.RequestsStats) {
-	if stats == nil {
-		return
-	}
-
-	serviceStatus := "online"
-	message := "overseerr_requests"
-
-	// Set warning status if there are pending requests
-	if stats.PendingCount > 0 {
-		serviceStatus = "warning"
-		message = fmt.Sprintf("%d pending requests", stats.PendingCount)
-	}
-
-	health := domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      serviceStatus,
-		Message:     message,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"overseerr": domain.OverseerrStats{
-				Requests:     stats.Requests,
-				PendingCount: stats.PendingCount,
-			},
-		},
-		Details: map[string]interface{}{
-			"overseerr": domain.OverseerrDetails{
-				PendingCount:  stats.PendingCount,
-				TotalRequests: len(stats.Requests),
-			},
-		},
-	}
-
-	BroadcastHealth(health)
+	//if stats == nil {
+	//	return
+	//}
+	//
+	//serviceStatus := "online"
+	//message := "overseerr_requests"
+	//
+	//// Set warning status if there are pending requests
+	//if stats.PendingCount > 0 {
+	//	serviceStatus = "warning"
+	//	message = fmt.Sprintf("%d pending requests", stats.PendingCount)
+	//}
+	//
+	//health := domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      serviceStatus,
+	//	Message:     message,
+	//	LastChecked: time.Now(),
+	//	Stats: map[string]interface{}{
+	//		"overseerr": domain.OverseerrStats{
+	//			Requests:     stats.Requests,
+	//			PendingCount: stats.PendingCount,
+	//		},
+	//	},
+	//	Details: map[string]interface{}{
+	//		"overseerr": domain.OverseerrDetails{
+	//			PendingCount:  stats.PendingCount,
+	//			TotalRequests: len(stats.Requests),
+	//		},
+	//	},
+	//}
+	//
+	//BroadcastHealth(health)
 }
 
 // createOverseerrRequestsHash generates a deterministic hash of the requests state

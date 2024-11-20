@@ -219,23 +219,23 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*do
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
 func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *domain.PlexSessionsResponse) {
 	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "ok",
-		Message:     "plex_sessions",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"plex": map[string]interface{}{
-				"sessions": sessions.MediaContainer.Metadata,
-			},
-		},
-		Details: map[string]interface{}{
-			"plex": map[string]interface{}{
-				"activeStreams": len(sessions.MediaContainer.Metadata),
-				"transcoding":   len(filterTranscodingSessions(sessions.MediaContainer.Metadata)),
-			},
-		},
-	})
+	//BroadcastHealth(domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      "ok",
+	//	Message:     "plex_sessions",
+	//	LastChecked: time.Now(),
+	//	Stats: map[string]interface{}{
+	//		"plex": map[string]interface{}{
+	//			"sessions": sessions.MediaContainer.Metadata,
+	//		},
+	//	},
+	//	Details: map[string]interface{}{
+	//		"plex": map[string]interface{}{
+	//			"activeStreams": len(sessions.MediaContainer.Metadata),
+	//			"transcoding":   len(filterTranscodingSessions(sessions.MediaContainer.Metadata)),
+	//		},
+	//	},
+	//})
 }
 
 // filterTranscodingSessions returns sessions that are being transcoded

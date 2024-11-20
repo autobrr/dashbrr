@@ -104,10 +104,9 @@ func (s *Server) Handler() http.Handler {
 	cacheMiddleware := middleware.NewCacheMiddleware(s.cache)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache, s.serviceManager, s.healthSvc)
+	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache, s.serviceManager)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
 	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc, s.serviceManager)
-	eventsHandler := handlers.NewEventsHandler(s.db, s.cache, s.serviceManager, s.healthSvc)
 	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, s.serviceManager)
 	omegabrrHandler := handlers.NewOmegabrrHandler(s.db, s.cache)
 	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache)
@@ -204,7 +203,11 @@ func (s *Server) Handler() http.Handler {
 		health.Use(healthRateLimiter.RateLimit())
 		{
 			health.GET("/:service", healthHandler.CheckHealth)
-			health.GET("/events", eventsHandler.StreamHealth)
+			health.GET("/events", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{
+					"status": "ok",
+				})
+			})
 		}
 
 		//serviceRoutes := api.Group("/services")

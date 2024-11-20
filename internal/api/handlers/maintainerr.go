@@ -353,18 +353,18 @@ func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, c
 
 // broadcastMaintainerrCollections broadcasts collections updates to all connected SSE clients
 func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []services.MaintainerrCollection) {
-	BroadcastHealth(domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "maintainerr_collections",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"maintainerr": collections,
-		},
-		Details: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
-				"collectionCount": len(collections),
-			},
-		},
-	})
+	//BroadcastHealth(domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      "online",
+	//	Message:     "maintainerr_collections",
+	//	LastChecked: time.Now(),
+	//	Stats: map[string]interface{}{
+	//		"maintainerr": collections,
+	//	},
+	//	Details: map[string]interface{}{
+	//		"maintainerr": map[string]interface{}{
+	//			"collectionCount": len(collections),
+	//		},
+	//	},
+	//})
 }

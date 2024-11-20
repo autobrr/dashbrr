@@ -596,27 +596,27 @@ func (h *ProwlarrHandler) compareAndLogIndexerStatsChanges(instanceId string, st
 }
 
 func (h *ProwlarrHandler) broadcastStats(instanceId string, stats domain.ProwlarrStatsResponse) {
-	BroadcastHealth(domain.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "ok",
-		Message:   "prowlarr_stats",
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"stats": stats,
-			},
-		},
-	})
+	//BroadcastHealth(domain.ServiceHealth{
+	//	ServiceID: instanceId,
+	//	Status:    "ok",
+	//	Message:   "prowlarr_stats",
+	//	Stats: map[string]interface{}{
+	//		"prowlarr": map[string]interface{}{
+	//			"stats": stats,
+	//		},
+	//	},
+	//})
 }
 
 func (h *ProwlarrHandler) broadcastIndexers(instanceId string, indexers []domain.ProwlarrIndexer) {
-	BroadcastHealth(domain.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "ok",
-		Message:   "prowlarr_indexers",
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"indexers": indexers,
-			},
-		},
-	})
+	//BroadcastHealth(domain.ServiceHealth{
+	//	ServiceID: instanceId,
+	//	Status:    "ok",
+	//	Message:   "prowlarr_indexers",
+	//	Stats: map[string]interface{}{
+	//		"prowlarr": map[string]interface{}{
+	//			"indexers": indexers,
+	//		},
+	//	},
+	//})
 }

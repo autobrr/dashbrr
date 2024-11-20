@@ -53,7 +53,7 @@ func (m *ServiceManager) InitializeServices(ctx context.Context) error {
 }
 
 // InitializeService handles initial data fetching for a newly configured service
-func (m *ServiceManager) InitializeService(ctx context.Context, config *domain.ServiceConfiguration) error {
+func (m *ServiceManager) InitializeService(_ context.Context, config *domain.ServiceConfiguration) error {
 	// Extract service type from instance ID (e.g., "overseerr-1" -> "overseerr")
 	//if config.Type == "" {
 	//	return errors.New("missing service type")
@@ -215,7 +215,7 @@ func (m *ServiceManager) initializePlex(ctx context.Context, config *domain.Serv
 }
 
 func (m *ServiceManager) GetServiceHealthChecker(instanceID string) (ServiceHealthChecker, error) {
-	log.Info().Str("instanceID", instanceID).Msg("ServiceManager: GetServiceHealthChecker")
+	log.Trace().Str("instanceID", instanceID).Msg("ServiceManager: GetServiceHealthChecker")
 	svc, ok := m.services[instanceID]
 	if !ok {
 		return nil, errors.New("service not found")
@@ -225,11 +225,20 @@ func (m *ServiceManager) GetServiceHealthChecker(instanceID string) (ServiceHeal
 }
 
 func (m *ServiceManager) GetService(instanceID string) (any, error) {
-	log.Info().Str("service", instanceID).Msg("ServiceManager: GetService")
+	log.Trace().Str("service", instanceID).Msg("ServiceManager: GetService")
 	svc, ok := m.services[instanceID]
 	if !ok {
 		return nil, errors.New("service not found")
 	}
 
 	return svc, nil
+}
+
+func (m *ServiceManager) StopMonitoring(instanceID string) error {
+	//if cancel, exists := h.monitoredServices[instanceID]; exists {
+	//	cancel()
+	//	delete(h.monitoredServices, instanceID)
+	//	delete(h.healthChecks, instanceID)
+	//}
+	return nil
 }

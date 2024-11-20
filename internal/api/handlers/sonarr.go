@@ -484,55 +484,55 @@ func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *doma
 }
 
 func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *domain.SonarrQueueResponse) {
-	var totalSize int64
-	var downloading int
-	var episodeCount int
-	for _, record := range queueResp.Records {
-		totalSize += record.Size
-		if record.Status == "downloading" {
-			downloading++
-		}
-		episodeCount += len(record.Episodes)
-	}
-
-	BroadcastHealth(domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "ok",
-		Message:     "sonarr_queue",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"sonarr": queueResp,
-		},
-		Details: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"episodeCount":     episodeCount,
-				"totalSize":        totalSize,
-			},
-		},
-	})
+	//var totalSize int64
+	//var downloading int
+	//var episodeCount int
+	//for _, record := range queueResp.Records {
+	//	totalSize += record.Size
+	//	if record.Status == "downloading" {
+	//		downloading++
+	//	}
+	//	episodeCount += len(record.Episodes)
+	//}
+	//
+	//BroadcastHealth(domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      "ok",
+	//	Message:     "sonarr_queue",
+	//	LastChecked: time.Now(),
+	//	Stats: map[string]interface{}{
+	//		"sonarr": queueResp,
+	//	},
+	//	Details: map[string]interface{}{
+	//		"sonarr": map[string]interface{}{
+	//			"queueCount":       queueResp.TotalRecords,
+	//			"totalRecords":     queueResp.TotalRecords,
+	//			"downloadingCount": downloading,
+	//			"episodeCount":     episodeCount,
+	//			"totalSize":        totalSize,
+	//		},
+	//	},
+	//})
 }
 
 func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *domain.SonarrStatsResponse, version string) {
-	BroadcastHealth(domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "ok",
-		Message:     "sonarr_stats",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"stats":   statsResp,
-				"version": version,
-			},
-		},
-		Details: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"monitored":  statsResp.Monitored,
-				"version":    version,
-				"queueCount": statsResp.QueuedCount,
-			},
-		},
-	})
+	//BroadcastHealth(domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      "ok",
+	//	Message:     "sonarr_stats",
+	//	LastChecked: time.Now(),
+	//	Stats: map[string]interface{}{
+	//		"sonarr": map[string]interface{}{
+	//			"stats":   statsResp,
+	//			"version": version,
+	//		},
+	//	},
+	//	Details: map[string]interface{}{
+	//		"sonarr": map[string]interface{}{
+	//			"monitored":  statsResp.Monitored,
+	//			"version":    version,
+	//			"queueCount": statsResp.QueuedCount,
+	//		},
+	//	},
+	//})
 }

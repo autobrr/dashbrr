@@ -203,7 +203,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	h.hashMu.Unlock()
 
 	// Broadcast releases update via SSE
-	h.broadcastReleases(instanceId, releases)
+	//h.broadcastReleases(instanceId, releases)
 
 	c.JSON(http.StatusOK, releases)
 }
@@ -269,7 +269,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	h.hashMu.Unlock()
 
 	// Broadcast stats update via SSE
-	h.broadcastStats(instanceId, stats)
+	//h.broadcastStats(instanceId, stats)
 
 	c.JSON(http.StatusOK, stats)
 }
@@ -335,7 +335,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	h.hashMu.Unlock()
 
 	// Broadcast IRC status update via SSE
-	h.broadcastIRCStatus(instanceId, status)
+	//h.broadcastIRCStatus(instanceId, status)
 
 	c.JSON(http.StatusOK, status)
 }
@@ -403,61 +403,61 @@ func (h *AutobrrHandler) fetchIRC(instanceId string) ([]domain.IRCStatus, error)
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastReleases(instanceId string, releases domain.ReleasesResponse) {
-	health := domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "autobrr_releases",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"autobrr": releases,
-		},
-	}
+	//health := domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      "online",
+	//	Message:     "autobrr_releases",
+	//	LastChecked: time.Now(),
+	//	Stats: map[string]interface{}{
+	//		"autobrr": releases,
+	//	},
+	//}
 
-	BroadcastHealth(health)
+	//BroadcastHealth(health)
 }
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastStats(instanceId string, stats domain.AutobrrStats) {
-	health := domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "autobrr_stats",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"autobrr": stats,
-		},
-	}
-
-	BroadcastHealth(health)
+	//health := domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      "online",
+	//	Message:     "autobrr_stats",
+	//	LastChecked: time.Now(),
+	//	Stats: map[string]interface{}{
+	//		"autobrr": stats,
+	//	},
+	//}
+	//
+	//BroadcastHealth(health)
 }
 
 // broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []domain.IRCStatus) {
-	// Check for unhealthy IRC connections
-	serviceStatus := "online"
-	message := "autobrr_irc_status"
-
-	for _, s := range status {
-		if !s.Healthy && s.Enabled {
-			serviceStatus = "warning"
-			message = fmt.Sprintf("IRC network %s is unhealthy", s.Name)
-			break
-		}
-	}
-
-	health := domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      serviceStatus,
-		Message:     message,
-		LastChecked: time.Now(),
-		Details: map[string]interface{}{
-			"autobrr": domain.AutobrrDetails{
-				IRC: status,
-			},
-		},
-	}
-
-	BroadcastHealth(health)
+	//// Check for unhealthy IRC connections
+	//serviceStatus := "online"
+	//message := "autobrr_irc_status"
+	//
+	//for _, s := range status {
+	//	if !s.Healthy && s.Enabled {
+	//		serviceStatus = "warning"
+	//		message = fmt.Sprintf("IRC network %s is unhealthy", s.Name)
+	//		break
+	//	}
+	//}
+	//
+	//health := domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      serviceStatus,
+	//	Message:     message,
+	//	LastChecked: time.Now(),
+	//	Details: map[string]interface{}{
+	//		"autobrr": domain.AutobrrDetails{
+	//			IRC: status,
+	//		},
+	//	},
+	//}
+	//
+	//BroadcastHealth(health)
 }
 
 // Hash generation functions

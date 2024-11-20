@@ -229,38 +229,38 @@ func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *
 
 // broadcastRadarrQueue broadcasts Radarr queue updates to all connected SSE clients
 func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *domain.RadarrQueueResponse) {
-	// Calculate additional statistics
-	var totalSize int64
-	var downloading int
-	for _, record := range queueResp.Records {
-		totalSize += record.Size
-		if record.Status == "downloading" {
-			downloading++
-		}
-	}
-
-	// Create stats and details as map[string]interface{} directly
-	stats := map[string]interface{}{
-		"radarr": queueResp,
-	}
-
-	details := map[string]interface{}{
-		"radarr": domain.RadarrQueueStats{
-			TotalRecords:     queueResp.TotalRecords,
-			DownloadingCount: downloading,
-			TotalSize:        totalSize,
-		},
-	}
-
-	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(domain.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "ok",
-		Message:     "radarr_queue",
-		LastChecked: time.Now(),
-		Stats:       stats,
-		Details:     details,
-	})
+	//// Calculate additional statistics
+	//var totalSize int64
+	//var downloading int
+	//for _, record := range queueResp.Records {
+	//	totalSize += record.Size
+	//	if record.Status == "downloading" {
+	//		downloading++
+	//	}
+	//}
+	//
+	//// Create stats and details as map[string]interface{} directly
+	//stats := map[string]interface{}{
+	//	"radarr": queueResp,
+	//}
+	//
+	//details := map[string]interface{}{
+	//	"radarr": domain.RadarrQueueStats{
+	//		TotalRecords:     queueResp.TotalRecords,
+	//		DownloadingCount: downloading,
+	//		TotalSize:        totalSize,
+	//	},
+	//}
+	//
+	//// Use the existing BroadcastHealth function with a special message type
+	//BroadcastHealth(domain.ServiceHealth{
+	//	ServiceID:   instanceId,
+	//	Status:      "ok",
+	//	Message:     "radarr_queue",
+	//	LastChecked: time.Now(),
+	//	Stats:       stats,
+	//	Details:     details,
+	//})
 }
 
 // DeleteQueueItem handles the deletion of a queue item with specified options
