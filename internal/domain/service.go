@@ -69,21 +69,40 @@ type ServiceHealth struct {
 	Details         map[string]interface{} `json:"details,omitempty"`
 }
 
-//// ServiceHealthChecker defines the interface for service health checking
-//type ServiceHealthChecker interface {
-//	CheckHealth(ctx context.Context, url, apiKey string) (ServiceHealth, int)
-//}
+type ServiceConfigResponse struct {
+	InstanceID  string `json:"instanceId"`
+	DisplayName string `json:"displayName"`
+	URL         string `json:"url"`
+	APIKey      string `json:"apiKey,omitempty"`
+}
 
-//// Service creation function types
-//var (
-//	NewAutobrrService     func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewRadarrService      func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewSonarrService      func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewProwlarrService    func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewOverseerrService   func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewPlexService        func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewOmegabrrService    func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewTailscaleService   func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewMaintainerrService func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//	NewGeneralService     func(db *database.DB, cache *cache.Cache) ServiceHealthChecker
-//)
+type UpdateResponse struct {
+	Version     string    `json:"version"`
+	Branch      string    `json:"branch"`
+	ReleaseDate time.Time `json:"releaseDate"`
+	FileName    string    `json:"fileName"`
+	URL         string    `json:"url"`
+	Installed   bool      `json:"installed"`
+	InstalledOn time.Time `json:"installedOn"`
+	Installable bool      `json:"installable"`
+	Latest      bool      `json:"latest"`
+	Changes     Changes   `json:"changes"`
+	Hash        string    `json:"hash"`
+}
+
+type WebhookProxyRequest struct {
+	TargetUrl string `json:"targetUrl"`
+	APIKey    string `json:"apiKey"`
+}
+
+type Changes struct {
+	New   []string `json:"new"`
+	Fixed []string `json:"fixed"`
+}
+
+type FindServiceParams struct {
+	InstanceID     string
+	InstancePrefix string
+	URL            string
+	AccessURL      string
+}
