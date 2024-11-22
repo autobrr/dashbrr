@@ -334,7 +334,7 @@ func (h *SonarrHandler) fetchStats(instanceId string) (struct {
 	service := &services.SonarrService{}
 
 	// Get system status using the service
-	version, err := service.GetSystemStatus(sonarrConfig.URL, sonarrConfig.APIKey)
+	version, err := service.GetSystemStatus(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
 		return struct {
 			Stats   domain.SonarrStatsResponse

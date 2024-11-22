@@ -561,231 +561,231 @@ const updateService = useCallback((service: Service) => {
   updateTimeoutsRef.current.set(service.instanceId, timeoutId);
 }, [clearServiceTimeout, fetchHealthStatus, fetchPlexSessions, fetchOverseerrRequests, fetchRadarrQueue, fetchSonarrQueue, fetchServiceStats]);
 
-  const initializeSSE = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    const eventSource = new EventSource('/api/events');
-
-    eventSource.onmessage = (event) => {
-      try {
-        const health = JSON.parse(event.data) as ServiceHealth;
-        
-        switch (health.message) {
-          case 'plex_sessions': {
-            if (health.stats?.plex?.sessions) {
-              const sessions = health.stats.plex.sessions;
-              updateServiceData(health.serviceId, {
-                stats: { plex: { sessions } },
-                details: {
-                  plex: {
-                    activeStreams: sessions.length,
-                    transcoding: sessions.filter((s: PlexSession) => s.TranscodeSession).length
-                  }
-                }
-              });
-            }
-            break;
-          }
-          case 'autobrr_irc_status': {
-            if (health.details?.autobrr?.irc) {
-              const ircStatus = health.details.autobrr.irc as AutobrrIRC[];
-              const currentService = services.get(health.serviceId);
-              updateServiceData(health.serviceId, {
-                details: {
-                  autobrr: {
-                    irc: ircStatus,
-                    base_url: currentService?.url || ''
-                  }
-                }
-              });
-            }
-            break;
-          }
-          case 'autobrr_releases': {
-            if (health.stats?.autobrr) {
-              const releases = health.stats.autobrr as unknown as AutobrrReleases;
-              if (releases && releases.data) {
-                updateServiceData(health.serviceId, {
-                  releases
-                });
-              }
-            }
-            break;
-          }
-          case 'autobrr_stats': {
-            if (health.stats?.autobrr) {
-              const stats = health.stats.autobrr as AutobrrStats;
-              updateServiceData(health.serviceId, {
-                stats: { autobrr: stats }
-              });
-            }
-            break;
-          }
-          case 'overseerr_requests': {
-            if (health.stats?.overseerr) {
-              const stats = health.stats.overseerr;
-              updateServiceData(health.serviceId, {
-                stats: { overseerr: stats },
-                details: {
-                  overseerr: {
-                    pendingCount: stats.pendingCount,
-                    totalRequests: stats.requests.length
-                  }
-                }
-              });
-            }
-            break;
-          }
-          case 'radarr_queue': {
-            if (health.stats?.radarr?.queue) {
-              const queue = health.stats.radarr.queue;
-              const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
-              const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
-              
-              updateServiceData(health.serviceId, {
-                stats: { radarr: { queue } },
-                details: {
-                  radarr: {
-                    queueCount: queue.totalRecords,
-                    totalRecords: queue.totalRecords,
-                    downloadingCount,
-                    totalSize
-                  }
-                }
-              });
-            }
-            break;
-          }
-          case 'sonarr_queue': {
-            if (health.stats?.sonarr?.queue) {
-              const queue = health.stats.sonarr.queue;
-              const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
-              const episodeCount = queue.records.reduce((acc, r) => acc + r.episodes.length, 0);
-              const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
-              
-              updateServiceData(health.serviceId, {
-                stats: { sonarr: { queue } },
-                details: {
-                  sonarr: {
-                    queueCount: queue.totalRecords,
-                    monitored: 0,
-                    totalRecords: queue.totalRecords,
-                    downloadingCount,
-                    episodeCount,
-                    totalSize
-                  }
-                }
-              });
-            }
-            break;
-          }
-          case 'sonarr_stats': {
-            if (health.stats?.sonarr) {
-              const currentService = services.get(health.serviceId);
-              const sonarrStats = health.stats.sonarr;
-              const currentQueue = currentService?.stats?.sonarr?.queue || { totalRecords: 0, records: [] };
-              
-              updateServiceData(health.serviceId, {
-                stats: { 
-                  sonarr: {
-                    queue: currentQueue,
-                    stats: sonarrStats.stats,
-                    version: sonarrStats.version
-                  }
-                },
-                details: {
-                  sonarr: {
-                    queueCount: currentService?.details?.sonarr?.queueCount || 0,
-                    monitored: sonarrStats.stats?.monitored || 0,
-                    version: sonarrStats.version
-                  }
-                }
-              });
-            }
-            break;
-          }
-          case 'prowlarr_stats': {
-            if (health.stats?.prowlarr?.stats) {
-              const currentService = services.get(health.serviceId);
-              const prowlarrStats = health.stats.prowlarr.stats as ProwlarrStats;
-              const currentIndexers = currentService?.stats?.prowlarr?.indexers || [];
-              const currentIndexerStats = currentService?.stats?.prowlarr?.prowlarrIndexerStats || {
-                id: 1,
-                indexers: []
-              };
-              
-              updateServiceData(health.serviceId, {
-                stats: { 
-                  prowlarr: {
-                    stats: prowlarrStats,
-                    indexers: currentIndexers,
-                    prowlarrIndexerStats: currentIndexerStats
-                  }
-                },
-                details: {
-                  prowlarr: {
-                    activeIndexers: currentIndexers.filter(i => i.enable).length,
-                    totalGrabs: prowlarrStats.grabCount
-                  }
-                }
-              });
-            }
-            break;
-          }
-          case 'prowlarr_indexers': {
-            if (health.stats?.prowlarr?.indexers) {
-              const currentService = services.get(health.serviceId);
-              const prowlarrIndexers = health.stats.prowlarr.indexers;
-              const currentStats = currentService?.stats?.prowlarr?.stats as ProwlarrStats;
-              const currentIndexerStats = currentService?.stats?.prowlarr?.prowlarrIndexerStats || {
-                id: 1,
-                indexers: []
-              };
-              
-              updateServiceData(health.serviceId, {
-                stats: { 
-                  prowlarr: {
-                    stats: currentStats,
-                    indexers: prowlarrIndexers,
-                    prowlarrIndexerStats: currentIndexerStats
-                  }
-                },
-                details: {
-                  prowlarr: {
-                    activeIndexers: prowlarrIndexers.filter(i => i.enable).length,
-                    totalGrabs: currentStats?.grabCount || 0
-                  }
-                }
-              });
-            }
-            break;
-          }
-          default: {
-            if (health.serviceId) {
-              updateServiceData(health.serviceId, health);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error processing SSE message:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-      // Only retry if we're still mounted and authenticated
-      if (isAuthenticated && mountedRef.current) {
-        initializeSSE();  // Retry immediately instead of waiting
-      }
-    };
-
-    eventSourceRef.current = eventSource;
-  }, [updateServiceData, services, isAuthenticated]);
+  // const initializeSSE = useCallback(() => {
+  //   if (eventSourceRef.current) {
+  //     eventSourceRef.current.close();
+  //   }
+  //
+  //   const eventSource = new EventSource('/api/events');
+  //
+  //   eventSource.onmessage = (event) => {
+  //     try {
+  //       const health = JSON.parse(event.data) as ServiceHealth;
+  //
+  //       switch (health.message) {
+  //         case 'plex_sessions': {
+  //           if (health.stats?.plex?.sessions) {
+  //             const sessions = health.stats.plex.sessions;
+  //             updateServiceData(health.serviceId, {
+  //               stats: { plex: { sessions } },
+  //               details: {
+  //                 plex: {
+  //                   activeStreams: sessions.length,
+  //                   transcoding: sessions.filter((s: PlexSession) => s.TranscodeSession).length
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'autobrr_irc_status': {
+  //           if (health.details?.autobrr?.irc) {
+  //             const ircStatus = health.details.autobrr.irc as AutobrrIRC[];
+  //             const currentService = services.get(health.serviceId);
+  //             updateServiceData(health.serviceId, {
+  //               details: {
+  //                 autobrr: {
+  //                   irc: ircStatus,
+  //                   base_url: currentService?.url || ''
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'autobrr_releases': {
+  //           if (health.stats?.autobrr) {
+  //             const releases = health.stats.autobrr as unknown as AutobrrReleases;
+  //             if (releases && releases.data) {
+  //               updateServiceData(health.serviceId, {
+  //                 releases
+  //               });
+  //             }
+  //           }
+  //           break;
+  //         }
+  //         case 'autobrr_stats': {
+  //           if (health.stats?.autobrr) {
+  //             const stats = health.stats.autobrr as AutobrrStats;
+  //             updateServiceData(health.serviceId, {
+  //               stats: { autobrr: stats }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'overseerr_requests': {
+  //           if (health.stats?.overseerr) {
+  //             const stats = health.stats.overseerr;
+  //             updateServiceData(health.serviceId, {
+  //               stats: { overseerr: stats },
+  //               details: {
+  //                 overseerr: {
+  //                   pendingCount: stats.pendingCount,
+  //                   totalRequests: stats.requests.length
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'radarr_queue': {
+  //           if (health.stats?.radarr?.queue) {
+  //             const queue = health.stats.radarr.queue;
+  //             const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
+  //             const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
+  //
+  //             updateServiceData(health.serviceId, {
+  //               stats: { radarr: { queue } },
+  //               details: {
+  //                 radarr: {
+  //                   queueCount: queue.totalRecords,
+  //                   totalRecords: queue.totalRecords,
+  //                   downloadingCount,
+  //                   totalSize
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'sonarr_queue': {
+  //           if (health.stats?.sonarr?.queue) {
+  //             const queue = health.stats.sonarr.queue;
+  //             const downloadingCount = queue.records.filter(r => r.status === 'downloading').length;
+  //             const episodeCount = queue.records.reduce((acc, r) => acc + r.episodes.length, 0);
+  //             const totalSize = queue.records.reduce((acc, r) => acc + r.size, 0);
+  //
+  //             updateServiceData(health.serviceId, {
+  //               stats: { sonarr: { queue } },
+  //               details: {
+  //                 sonarr: {
+  //                   queueCount: queue.totalRecords,
+  //                   monitored: 0,
+  //                   totalRecords: queue.totalRecords,
+  //                   downloadingCount,
+  //                   episodeCount,
+  //                   totalSize
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'sonarr_stats': {
+  //           if (health.stats?.sonarr) {
+  //             const currentService = services.get(health.serviceId);
+  //             const sonarrStats = health.stats.sonarr;
+  //             const currentQueue = currentService?.stats?.sonarr?.queue || { totalRecords: 0, records: [] };
+  //
+  //             updateServiceData(health.serviceId, {
+  //               stats: {
+  //                 sonarr: {
+  //                   queue: currentQueue,
+  //                   stats: sonarrStats.stats,
+  //                   version: sonarrStats.version
+  //                 }
+  //               },
+  //               details: {
+  //                 sonarr: {
+  //                   queueCount: currentService?.details?.sonarr?.queueCount || 0,
+  //                   monitored: sonarrStats.stats?.monitored || 0,
+  //                   version: sonarrStats.version
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'prowlarr_stats': {
+  //           if (health.stats?.prowlarr?.stats) {
+  //             const currentService = services.get(health.serviceId);
+  //             const prowlarrStats = health.stats.prowlarr.stats as ProwlarrStats;
+  //             const currentIndexers = currentService?.stats?.prowlarr?.indexers || [];
+  //             const currentIndexerStats = currentService?.stats?.prowlarr?.prowlarrIndexerStats || {
+  //               id: 1,
+  //               indexers: []
+  //             };
+  //
+  //             updateServiceData(health.serviceId, {
+  //               stats: {
+  //                 prowlarr: {
+  //                   stats: prowlarrStats,
+  //                   indexers: currentIndexers,
+  //                   prowlarrIndexerStats: currentIndexerStats
+  //                 }
+  //               },
+  //               details: {
+  //                 prowlarr: {
+  //                   activeIndexers: currentIndexers.filter(i => i.enable).length,
+  //                   totalGrabs: prowlarrStats.grabCount
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         case 'prowlarr_indexers': {
+  //           if (health.stats?.prowlarr?.indexers) {
+  //             const currentService = services.get(health.serviceId);
+  //             const prowlarrIndexers = health.stats.prowlarr.indexers;
+  //             const currentStats = currentService?.stats?.prowlarr?.stats as ProwlarrStats;
+  //             const currentIndexerStats = currentService?.stats?.prowlarr?.prowlarrIndexerStats || {
+  //               id: 1,
+  //               indexers: []
+  //             };
+  //
+  //             updateServiceData(health.serviceId, {
+  //               stats: {
+  //                 prowlarr: {
+  //                   stats: currentStats,
+  //                   indexers: prowlarrIndexers,
+  //                   prowlarrIndexerStats: currentIndexerStats
+  //                 }
+  //               },
+  //               details: {
+  //                 prowlarr: {
+  //                   activeIndexers: prowlarrIndexers.filter(i => i.enable).length,
+  //                   totalGrabs: currentStats?.grabCount || 0
+  //                 }
+  //               }
+  //             });
+  //           }
+  //           break;
+  //         }
+  //         default: {
+  //           if (health.serviceId) {
+  //             updateServiceData(health.serviceId, health);
+  //           }
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.error('Error processing SSE message:', error);
+  //     }
+  //   };
+  //
+  //   eventSource.onerror = (error) => {
+  //     console.error('SSE connection error:', error);
+  //     if (eventSourceRef.current) {
+  //       eventSourceRef.current.close();
+  //     }
+  //     // Only retry if we're still mounted and authenticated
+  //     if (isAuthenticated && mountedRef.current) {
+  //       // initializeSSE();  // Retry immediately instead of waiting
+  //     }
+  //   };
+  //
+  //   eventSourceRef.current = eventSource;
+  // }, [updateServiceData, services, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated || !configurations) {
@@ -802,7 +802,8 @@ const updateService = useCallback((service: Service) => {
     configHashRef.current = configHash;
     
     if (isAuthenticated) {
-      initializeSSE();
+      console.log("authenticated")
+      // initializeSSE();
     }
 
     Object.entries(configurations).forEach(([instanceId, config]) => {
@@ -851,7 +852,7 @@ const updateService = useCallback((service: Service) => {
       }
       mountedRef.current = false;
     };
-  }, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService, services, initializeSSE]);
+  }, [configurations, isAuthenticated, clearServiceTimeout, initializeService, updateService, services]);
 
   const refreshService = useCallback((instanceId: string, refreshType: 'health' | 'stats' | 'all' = 'all'): void => {
     const service = services.get(instanceId);

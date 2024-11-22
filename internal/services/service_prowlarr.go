@@ -8,13 +8,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/domain"
+
+	"github.com/pkg/errors"
 )
 
 // ErrProwlarr Custom error types for better error handling
@@ -70,96 +71,169 @@ func (s *ProwlarrService) makeRequest(ctx context.Context, method, url, apiKey s
 	}
 
 	req.Header.Set("X-Api-Key", apiKey)
-	req.Header.Set("Accept", "*/*")
+	//req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept", "application/json")
 
 	client := &http.Client{}
 	return client.Do(req)
 }
 
 // GetSystemStatus fetches the system status from Prowlarr
-func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
-	if url == "" {
-		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
-	}
+// func (s *ProwlarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (*domain.ProwlarrSystemStatusResponse, error) {
+func (s *ProwlarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
+	//if url == "" {
+	//	return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
+	//}
 
 	// Check cache first, ensuring we don't return "true" as a version
 	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
-		return version, nil
+		//return nil, nil
+		return "", nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
-	defer cancel()
 
 	statusURL := fmt.Sprintf("%s/api/v1/system/status", strings.TrimRight(url, "/"))
 	resp, err := s.makeRequest(ctx, http.MethodGet, statusURL, apiKey)
 	if err != nil {
+		//return nil, &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to make request: %w", err)}
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		//return nil, &ErrProwlarr{Op: "get_system_status", HttpCode: resp.StatusCode}
 		return "", &ErrProwlarr{Op: "get_system_status", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
+		//return nil, &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to read response: %w", err)}
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
-	var status ProwlarrSystemStatusResponse
-	if err := json.Unmarshal(body, &status); err != nil {
+	var data domain.ProwlarrSystemStatusResponse
+	if err := json.Unmarshal(body, &data); err != nil {
+		//return nil, &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
+	// TODO cache full systemstatus
+
 	// Cache version for 1 hour
-	if err := s.CacheVersion(url, status.Version, time.Hour); err != nil {
+	if err := s.CacheVersion(nil, url, data.Version, time.Hour); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to cache version: %v\n", err)
 	}
 
-	return status.Version, nil
+	return data.Version, nil
 }
 
 // GetIndexerStats fetches indexer statistics from Prowlarr
-func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey string) (*domain.ProwlarrIndexerStatsResponse, error) {
-	if baseURL == "" {
+func (s *ProwlarrService) GetIndexerStats(ctx context.Context) (*domain.ProwlarrIndexerStatsResponse, error) {
+	if s.URL == "" {
 		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("URL is required")}
 	}
 
-	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
+	cacheKey := domain.CacheKeyProwlarrIndexerStatsPrefix + s.InstanceID
 
-	// Add query parameters for date range
-	// TODO MAKE THIS CONFIGURABLE IN THE UI
-	query := url.Values{}
-	query.Add("startDate", "1") // Last 1 day ago
-	query.Add("endDate", "30")  // Up to 30 days ago
-	statsURL = statsURL + "?" + query.Encode()
+	var data domain.ProwlarrIndexerStatsResponse
 
-	resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, apiKey)
-	if err != nil {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to make request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", HttpCode: resp.StatusCode}
+	// get from cache
+	err := s.cache.Get(ctx, cacheKey, &data)
+	if err == nil {
+		return &data, nil
 	}
 
-	body, err := s.ReadBody(resp)
-	if err != nil {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to read response: %w", err)}
+	if errors.Is(err, cache.ErrKeyNotFound) {
+		statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(s.URL, "/"))
+
+		// Add query parameters for date range
+		// TODO MAKE THIS CONFIGURABLE IN THE UI
+		//query := url.Values{}
+		//query.Add("startDate", "1") // Last 1 day ago
+		//query.Add("endDate", "30")  // Up to 30 days ago
+		//statsURL = statsURL + "?" + query.Encode()
+
+		resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, s.ApiKey)
+		if err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to make request: %w", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, &ErrProwlarr{Op: "get_indexer_stats", HttpCode: resp.StatusCode}
+		}
+
+		body, err := s.ReadBody(resp)
+		if err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to read response: %w", err)}
+		}
+
+		var stats domain.ProwlarrIndexerStatsResponse
+		if err := json.Unmarshal(body, &stats); err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to parse response: %w", err)}
+		}
+
+		if err := s.cache.Set(ctx, cacheKey, stats, 5*time.Minute); err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to cache response: %w", err)}
+		}
+
+		return &stats, nil
 	}
 
-	var stats domain.ProwlarrIndexerStatsResponse
-	if err := json.Unmarshal(body, &stats); err != nil {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to parse response: %w", err)}
+	return nil, err
+}
+
+// GetIndexers fetches indexers from Prowlarr
+func (s *ProwlarrService) GetIndexers(ctx context.Context) ([]domain.ProwlarrIndexer, error) {
+	if s.URL == "" {
+		return nil, &ErrProwlarr{Op: "get_indexers", Err: fmt.Errorf("URL is required")}
 	}
 
-	return &stats, nil
+	cacheKey := domain.CacheKeyProwlarrIndexerPrefix + s.InstanceID
+
+	var data []domain.ProwlarrIndexer
+
+	// get from cache
+	err := s.cache.Get(ctx, cacheKey, &data)
+	if err == nil {
+		return data, nil
+	}
+
+	if errors.Is(err, cache.ErrKeyNotFound) {
+		statsURL := fmt.Sprintf("%s/api/v1/indexer", strings.TrimRight(s.URL, "/"))
+
+		resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, s.ApiKey)
+		if err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexers", Err: fmt.Errorf("failed to make request: %w", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, &ErrProwlarr{Op: "get_indexers", HttpCode: resp.StatusCode}
+		}
+
+		body, err := s.ReadBody(resp)
+		if err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexers", Err: fmt.Errorf("failed to read response: %w", err)}
+		}
+
+		//data := []domain.ProwlarrIndexer{}
+		if err := json.Unmarshal(body, &data); err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexers", Err: fmt.Errorf("failed to parse response: %w", err)}
+		}
+
+		if err := s.cache.Set(ctx, cacheKey, data, 5*time.Minute); err != nil {
+			return nil, &ErrProwlarr{Op: "get_indexers", Err: fmt.Errorf("failed to cache response: %w", err)}
+		}
+
+		return data, nil
+	}
+
+	return nil, err
 }
 
 // CheckForUpdates checks if there are any updates available
-func (s *ProwlarrService) CheckForUpdates(url, apiKey string) (bool, error) {
+func (s *ProwlarrService) CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error) {
 	return CheckArrForUpdates("prowlarr", url, apiKey)
 }
 
@@ -176,5 +250,5 @@ func (s *ProwlarrService) GetHealthEndpoint(baseURL string) string {
 }
 
 func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
-	return ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+	return ArrHealthCheck(ctx, &s.ServiceCore, s)
 }

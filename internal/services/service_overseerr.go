@@ -286,7 +286,7 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 	}
 
 	// Cache version for 1 hour
-	if err := s.CacheVersion(url, statusResponse.Version, time.Hour); err != nil {
+	if err := s.CacheVersion(nil, url, statusResponse.Version, time.Hour); err != nil {
 		log.Warn().
 			Err(err).
 			Str("url", url).

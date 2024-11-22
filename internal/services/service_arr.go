@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"net/http"
 	"strings"
 	"time"
@@ -107,7 +108,8 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 }
 
 // GetArrSystemStatus provides a common implementation for getting system status
-func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(string) string, cacheVersion func(string, string, time.Duration) error) (string, error) {
+func GetArrSystemStatus(ctx context.Context, service, url, apiKey string, getVersionFromCache func(string) string, cacheVersion func(context.Context, string, string, time.Duration) error) (string, error) {
+	log.Trace().Str("url", url).Msg("GetArrSystemStatus")
 	if url == "" {
 		return "", &ErrArr{Service: service, Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
@@ -137,7 +139,7 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 	}
 
 	// Cache version for 1 hour
-	if err := cacheVersion(url, status.Version, time.Hour); err != nil {
+	if err := cacheVersion(ctx, url, status.Version, time.Hour); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to cache version: %v\n", err)
 	}

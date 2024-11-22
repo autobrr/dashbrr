@@ -127,7 +127,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, apiKey string) (strin
 	}
 
 	// Cache update status using ServiceCore's CacheVersion method with ":update" suffix
-	if err := s.CacheVersion(s.DefaultURL+":update", fmt.Sprintf("%v", updateAvailable), time.Hour); err != nil {
+	if err := s.CacheVersion(ctx, s.DefaultURL+":update", fmt.Sprintf("%v", updateAvailable), time.Hour); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to cache update status: %v\n", err)
 	}

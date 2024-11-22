@@ -155,6 +155,7 @@ func (s *MemoryStore) persistSessions() {
 
 // Get retrieves a value from cache
 func (s *MemoryStore) Get(_ context.Context, key string, value interface{}) error {
+	//log.Trace().Str("module", "MemoryStore").Str("method", "Get").Str("key", key).Msg("get")
 	//s.mu.RLock()
 	//if s.closed {
 	//	s.mu.RUnlock()
@@ -180,6 +181,7 @@ func (s *MemoryStore) Get(_ context.Context, key string, value interface{}) erro
 
 // Set stores a value in cache
 func (s *MemoryStore) Set(_ context.Context, key string, value interface{}, expiration time.Duration) error {
+	//log.Trace().Str("module", "MemoryStore").Str("method", "Set").Str("key", key).Msg("set")
 	//s.mu.RLock()
 	//if s.closed {
 	//	s.mu.RUnlock()

@@ -37,16 +37,18 @@ type ProwlarrHandler struct {
 	cache          cache.Store
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
+	serviceManager *services.ServiceManager
 
 	// Single hash map and mutex for all state tracking
 	lastHash   map[string]string // key format: "stats:instanceId", "indexers:instanceId", etc.
 	lastHashMu sync.Mutex
 }
 
-func NewProwlarrHandler(db *database.DB, cache cache.Store) *ProwlarrHandler {
+func NewProwlarrHandler(db *database.DB, store cache.Store, serviceManager *services.ServiceManager) *ProwlarrHandler {
 	return &ProwlarrHandler{
 		db:             db,
-		cache:          cache,
+		cache:          store,
+		serviceManager: serviceManager,
 		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastHash:       make(map[string]string),
@@ -261,7 +263,7 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 		// Indexer stats request
 		func() (interface{}, error) {
 			prowlarrService := services.NewProwlarrService(h.db, h.cache, prowlarrConfig).(*services.ProwlarrService)
-			return prowlarrService.GetIndexerStats(ctx, prowlarrConfig.URL, prowlarrConfig.APIKey)
+			return prowlarrService.GetIndexerStats(ctx)
 		},
 	}
 
@@ -365,34 +367,75 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:8] != "prowlarr" {
+	if !strings.HasPrefix(instanceId, "prowlarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
 		return
 	}
 
-	cacheKey := prowlarrStatsPrefix + instanceId
-	ctx := context.Background()
-
-	result, err := h.fetchStatsWithCache(ctx, cacheKey, func() (domain.ProwlarrStatsResponse, error) {
-		stats, _, _, err := h.fetchProwlarrData(ctx, instanceId)
-		return stats, err
-	})
-
+	//cacheKey := prowlarrStatsPrefix + instanceId
+	instance, err := h.serviceManager.GetService(instanceId)
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch stats")
-		status := http.StatusInternalServerError
-		if err.Error() == "prowlarr is not configured" {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get service")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get service"})
 		return
 	}
 
-	h.compareAndLogStatsChanges(instanceId, result)
-	h.broadcastStats(instanceId, result)
+	serviceInstance := instance.(*services.ProwlarrService)
+	stats, err := serviceInstance.GetIndexerStats(c.Request.Context())
+	if err != nil {
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get indexer stats")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get indexer stats"})
+		return
+	}
 
-	c.JSON(http.StatusOK, result)
+	//if err := h.cache.Set(c.Request.Context(), cacheKey, stats, 1*time.Minute); err != nil {
+	//	log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to set indexers in cache")
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set indexers in cache"})
+	//}
+
+	c.JSON(http.StatusOK, stats)
+	return
+
+	//var data domain.ProwlarrStatsResponse
+	//err := h.cache.Get(c.Request.Context(), cacheKey, &data)
+	//if err != nil {
+	//	if errors.Is(err, cache.ErrKeyNotFound) {
+	//		log.Trace().Str("instanceId", instanceId).Msg("[Prowlarr] Cache miss, fetching stats from Prowlarr")
+	//
+	//		instance, err := h.serviceManager.GetService(instanceId)
+	//		if err != nil {
+	//			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get service")
+	//			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get service"})
+	//			return
+	//		}
+	//
+	//		serviceInstance := instance.(*services.ProwlarrService)
+	//		stats, err := serviceInstance.GetIndexerStats(c.Request.Context())
+	//		if err != nil {
+	//			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get indexer stats")
+	//			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get indexer stats"})
+	//			return
+	//		}
+	//
+	//		if err := h.cache.Set(c.Request.Context(), cacheKey, stats, 1*time.Minute); err != nil {
+	//			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to set indexers in cache")
+	//			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set indexers in cache"})
+	//		}
+	//
+	//		c.JSON(http.StatusOK, stats)
+	//		return
+	//	}
+	//
+	//	log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch stats from cache")
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stats from cache"})
+	//	// TODO check err for non cache hit, maybe handle cache in the service
+	//	return
+	//}
+	//
+	//log.Trace().Str("instanceId", instanceId).Msg("[Prowlarr] Fetching stats from cache")
+	//
+	//c.JSON(http.StatusOK, data)
 }
 
 func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
@@ -403,34 +446,69 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:8] != "prowlarr" {
+	if !strings.HasPrefix(instanceId, "prowlarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
 		return
 	}
 
-	cacheKey := prowlarrIndexerPrefix + instanceId
-	ctx := context.Background()
-
-	result, err := h.fetchIndexersWithCache(ctx, cacheKey, func() ([]domain.ProwlarrIndexer, error) {
-		_, indexers, _, err := h.fetchProwlarrData(ctx, instanceId)
-		return indexers, err
-	})
-
+	instance, err := h.serviceManager.GetService(instanceId)
 	if err != nil {
-		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch indexers")
-		status := http.StatusInternalServerError
-		if err.Error() == "prowlarr is not configured" {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get service")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get service"})
 		return
 	}
 
-	h.compareAndLogIndexersChanges(instanceId, result)
-	h.broadcastIndexers(instanceId, result)
+	serviceInstance := instance.(*services.ProwlarrService)
+	stats, err := serviceInstance.GetIndexers(c.Request.Context())
+	if err != nil {
+		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get indexers")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get indexers"})
+		return
+	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, stats)
+	return
+
+	//cacheKey := prowlarrIndexerPrefix + instanceId
+	//var data []domain.ProwlarrIndexer
+	//err := h.cache.Get(c.Request.Context(), cacheKey, &data)
+	//if err != nil {
+	//	if errors.Is(err, cache.ErrKeyNotFound) {
+	//		log.Trace().Str("instanceId", instanceId).Msg("[Prowlarr] Cache miss, fetching stats from Prowlarr")
+	//		instance, err := h.serviceManager.GetService(instanceId)
+	//		if err != nil {
+	//			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get service")
+	//			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get service"})
+	//			return
+	//		}
+	//
+	//		serviceInstance := instance.(*services.ProwlarrService)
+	//		stats, err := serviceInstance.GetIndexers(c.Request.Context())
+	//		if err != nil {
+	//			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to get indexers")
+	//			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get indexers"})
+	//			return
+	//		}
+	//
+	//		if err := h.cache.Set(c.Request.Context(), cacheKey, stats, 1*time.Minute); err != nil {
+	//			log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to set indexers in cache")
+	//			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set indexers in cache"})
+	//		}
+	//
+	//		c.JSON(http.StatusOK, stats)
+	//		return
+	//	}
+	//
+	//	log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch stats from cache")
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stats from cache"})
+	//	// TODO check err for non cache hit, maybe handle cache in the service
+	//	return
+	//}
+	//
+	//log.Trace().Str("instanceId", instanceId).Msg("[Prowlarr] Fetching stats from cache")
+	//
+	//c.JSON(http.StatusOK, data)
 }
 
 func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {

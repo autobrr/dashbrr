@@ -157,7 +157,7 @@ func (s *AutobrrService) GetIRCStatusFromCache(url string) string {
 }
 
 func (s *AutobrrService) CacheIRCStatus(url, status string) error {
-	return s.CacheVersion(url+"_irc", status, 5*time.Minute)
+	return s.CacheVersion(nil, url+"_irc", status, 5*time.Minute)
 }
 
 func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]domain.IRCStatus, error) {
@@ -269,7 +269,7 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 	}
 
 	// Cache version for 2 hours to align with update check
-	if err := s.CacheVersion(url, versionData.Version, 2*time.Hour); err != nil {
+	if err := s.CacheVersion(nil, url, versionData.Version, 2*time.Hour); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to cache version: %v\n", err)
 	}
@@ -282,7 +282,7 @@ func (s *AutobrrService) GetUpdateFromCache(url string) string {
 }
 
 func (s *AutobrrService) CacheUpdate(url, status string, ttl time.Duration) error {
-	return s.CacheVersion(fmt.Sprintf("%s:update", url), status, ttl)
+	return s.CacheVersion(nil, fmt.Sprintf("%s:update", url), status, ttl)
 }
 
 func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (bool, error) {

@@ -164,7 +164,7 @@ var (
 
 // checkSingleService performs health check for a single service
 func (m *ServiceManager) checkSingleService(ctx context.Context, svc domain.ServiceConfiguration, results chan<- domain.ServiceHealth, wg *sync.WaitGroup) {
-	log.Trace().Str("service", svc.InstanceID).Msg("EventsHandler: Checking single service")
+	log.Trace().Str("service", svc.InstanceID).Msg("ServiceManager: Checking single service")
 	defer wg.Done()
 
 	// Skip if checked recently
@@ -203,7 +203,7 @@ func (m *ServiceManager) checkSingleService(ctx context.Context, svc domain.Serv
 			LastChecked: time.Now(),
 		}
 
-		log.Trace().Str("service", svc.InstanceID).Str("type", serviceType).Msg("EventsHandler: checkSingleService")
+		log.Trace().Str("service", svc.InstanceID).Str("type", serviceType).Msg("ServiceManager: checkSingleService")
 
 		// TODO move all this to service manager itself?
 		serviceChecker, err := m.GetServiceHealthChecker(svc.InstanceID)

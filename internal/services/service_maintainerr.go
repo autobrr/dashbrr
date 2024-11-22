@@ -120,7 +120,7 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	}
 
 	// Cache version for 1 hour
-	if err := s.CacheVersion(url, statusResponse.Version, time.Hour); err != nil {
+	if err := s.CacheVersion(nil, url, statusResponse.Version, time.Hour); err != nil {
 		// Log but don't fail if caching fails
 		fmt.Printf("Failed to cache version: %v\n", err)
 	}
@@ -128,7 +128,7 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	// Cache update status separately
 	if statusResponse.UpdateAvailable {
 		updateKey := fmt.Sprintf("%s:update", url)
-		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
+		if err := s.CacheVersion(nil, updateKey, "true", time.Hour); err != nil {
 			fmt.Printf("Failed to cache update status: %v\n", err)
 		}
 	}
@@ -213,7 +213,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 	// Cache update status
 	if statusResponse.UpdateAvailable {
 		updateKey := fmt.Sprintf("%s:update", url)
-		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
+		if err := s.CacheVersion(nil, updateKey, "true", time.Hour); err != nil {
 			fmt.Printf("Failed to cache update status: %v\n", err)
 		}
 	}

@@ -261,11 +261,26 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 
 // GetVersionFromCache retrieves the version from cache
 func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
+	var version string
+	cacheKey := "version:" + s.InstanceID
+	log.Debug().Str("url", baseURL).Str("instance", s.InstanceID).Str("cacheKey", cacheKey).Msg("Retrieving version from cache")
+
+	err := s.cache.Get(context.Background(), cacheKey, &version)
+	if err != nil {
+		// Cache miss is normal operation, no need to log it
+		return ""
+	}
+
+	return version
+}
+
+// GetVersionFromCacheCtx retrieves the version from cache
+func (s *ServiceCore) GetVersionFromCacheCtx(ctx context.Context, baseURL string) string {
 	log.Debug().Str("url", baseURL).Msg("Retrieving version from cache")
 
 	var version string
-	cacheKey := "version:" + baseURL
-	err := s.cache.Get(context.Background(), cacheKey, &version)
+	cacheKey := "version:" + s.InstanceID
+	err := s.cache.Get(ctx, cacheKey, &version)
 	if err != nil {
 		// Cache miss is normal operation, no need to log it
 		return ""
@@ -276,10 +291,10 @@ func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 
 // GetUpdateStatusFromCache retrieves the update status from cache
 func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
-	log.Trace().Str("url", baseURL).Msg("Retrieving update status from cache")
+	log.Trace().Str("url", baseURL).Str("instance", s.InstanceID).Msg("Retrieving update status from cache")
 
 	var updateStatus string
-	cacheKey := fmt.Sprintf("%s:update", baseURL)
+	cacheKey := fmt.Sprintf("%s:update", s.InstanceID)
 	err := s.cache.Get(context.Background(), cacheKey, &updateStatus)
 	if err != nil {
 		return false
@@ -289,12 +304,24 @@ func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
 }
 
 // CacheVersion stores the version in cache with the specified TTL
-func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) error {
-	log.Trace().Str("url", baseURL).Str("version", version).Msg("Caching version")
+func (s *ServiceCore) CacheVersion(ctx context.Context, baseURL, version string, ttl time.Duration) error {
+	cacheKey := "version:" + s.InstanceID
+	log.Trace().Str("url", baseURL).Str("instance", s.InstanceID).Str("version", version).Str("cacheKey", cacheKey).Msg("Caching version")
 
-	cacheKey := "version:" + baseURL
-	if err := s.cache.Set(context.Background(), cacheKey, version, ttl); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache version")
+	if err := s.cache.Set(ctx, cacheKey, version, ttl); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Str("instance", s.InstanceID).Str("version", version).Msg("Failed to cache version")
+		return err
+	}
+
+	return nil
+}
+
+func (s *ServiceCore) CacheHealth(ctx context.Context, cacheKey, data string, ttl time.Duration) error {
+	//cacheKey := "version:" + s.InstanceID
+	log.Trace().Str("url", s.URL).Str("instance", s.InstanceID).Str("data", data).Str("cacheKey", cacheKey).Msg("Caching health")
+
+	if err := s.cache.Set(ctx, cacheKey, data, ttl); err != nil {
+		log.Error().Err(err).Str("url", s.URL).Str("instance", s.InstanceID).Str("data", data).Msg("Failed to cache health")
 		return err
 	}
 
@@ -331,10 +358,11 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 }
 
 // GetCachedVersion attempts to get version from cache or fetches it if not found
+// TODO check usage if this should be GetVersionFromCache instead for callers
 func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
 	log.Trace().Str("url", baseURL).Msg("Retrieving version from cache")
 
-	cacheKey := "version:" + baseURL
+	cacheKey := "version:" + s.InstanceID
 	var version string
 
 	// Try to get version from cache
@@ -359,23 +387,23 @@ func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 	return version, nil
 }
 
-// ConcurrentRequest executes multiple requests concurrently and returns their results
-func (s *ServiceCore) ConcurrentRequest(requests []func() (interface{}, error)) []interface{} {
-	var wg sync.WaitGroup
-	results := make([]interface{}, len(requests))
-
-	for i, request := range requests {
-		wg.Add(1)
-		go func(index int, req func() (interface{}, error)) {
-			defer wg.Done()
-			if result, err := req(); err == nil {
-				results[index] = result
-			} else {
-				log.Error().Err(err).Int("request_index", index).Msg("Concurrent request failed")
-			}
-		}(i, request)
-	}
-
-	wg.Wait()
-	return results
-}
+//// ConcurrentRequest executes multiple requests concurrently and returns their results
+//func (s *ServiceCore) ConcurrentRequest(requests []func() (interface{}, error)) []interface{} {
+//	var wg sync.WaitGroup
+//	results := make([]interface{}, len(requests))
+//
+//	for i, request := range requests {
+//		wg.Add(1)
+//		go func(index int, req func() (interface{}, error)) {
+//			defer wg.Done()
+//			if result, err := req(); err == nil {
+//				results[index] = result
+//			} else {
+//				log.Error().Err(err).Int("request_index", index).Msg("Concurrent request failed")
+//			}
+//		}(i, request)
+//	}
+//
+//	wg.Wait()
+//	return results
+//}

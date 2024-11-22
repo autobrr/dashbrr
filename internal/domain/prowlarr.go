@@ -4,9 +4,17 @@
 package domain
 
 type ProwlarrStatsResponse struct {
-	GrabCount    int `json:"grabCount"`
-	FailCount    int `json:"failCount"`
-	IndexerCount int `json:"indexerCount"`
+	GrabCount    int    `json:"grabCount"`
+	FailCount    int    `json:"failCount"`
+	IndexerCount int    `json:"indexerCount"`
+	Version      string `json:"version"`
+}
+
+type ProwlarrSystemStatusResponse struct {
+	GrabCount    int    `json:"grabCount"`
+	FailCount    int    `json:"failCount"`
+	IndexerCount int    `json:"indexerCount"`
+	Version      string `json:"version"`
 }
 
 type ProwlarrIndexer struct {

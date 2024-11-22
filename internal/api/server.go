@@ -115,7 +115,7 @@ func (s *Server) Handler() http.Handler {
 	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache)
 	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache)
 	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache)
-	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache)
+	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, s.serviceManager)
 
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
