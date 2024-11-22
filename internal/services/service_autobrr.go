@@ -149,15 +149,17 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 	return stats, nil
 }
 
-func (s *AutobrrService) GetIRCStatusFromCache(url string) string {
-	if status := s.GetVersionFromCache(url + "_irc"); status != "" {
-		return status
+func (s *AutobrrService) GetIRCStatusFromCache(ctx context.Context) string {
+	var status string
+	if err := s.GetDataFromCache(ctx, "autobrr"+":irc:"+s.InstanceID, status); err != nil {
+		return ""
 	}
-	return ""
+
+	return status
 }
 
-func (s *AutobrrService) CacheIRCStatus(url, status string) error {
-	return s.CacheVersion(nil, url+"_irc", status, 5*time.Minute)
+func (s *AutobrrService) CacheIRCStatus(ctx context.Context, status string) error {
+	return s.CacheData(ctx, "autobrr"+":irc:"+s.InstanceID, status, 5*time.Minute)
 }
 
 func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]domain.IRCStatus, error) {
@@ -166,7 +168,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 	}
 
 	// Check cache first
-	if cached := s.GetIRCStatusFromCache(url); cached != "" {
+	if cached := s.GetIRCStatusFromCache(ctx); cached != "" {
 		var status []domain.IRCStatus
 		if err := json.Unmarshal([]byte(cached), &status); err == nil {
 			return status, nil
@@ -205,7 +207,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		}
 		// Cache the result
 		if cached, err := json.Marshal(unhealthyStatus); err == nil {
-			if err := s.CacheIRCStatus(url, string(cached)); err != nil {
+			if err := s.CacheIRCStatus(ctx, string(cached)); err != nil {
 				fmt.Printf("Failed to cache IRC status: %v\n", err)
 			}
 		}
@@ -220,14 +222,14 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 			status := []domain.IRCStatus{singleStatus}
 			// Cache the result
 			if cached, err := json.Marshal(status); err == nil {
-				if err := s.CacheIRCStatus(url, string(cached)); err != nil {
+				if err := s.CacheIRCStatus(ctx, string(cached)); err != nil {
 					fmt.Printf("Failed to cache IRC status: %v\n", err)
 				}
 			}
 			return status, nil
 		}
 		// Cache empty result
-		if err := s.CacheIRCStatus(url, "[]"); err != nil {
+		if err := s.CacheIRCStatus(ctx, "[]"); err != nil {
 			fmt.Printf("Failed to cache IRC status: %v\n", err)
 		}
 		return []domain.IRCStatus{}, nil
@@ -277,17 +279,20 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 	return versionData.Version, nil
 }
 
-func (s *AutobrrService) GetUpdateFromCache(url string) string {
-	return s.GetVersionFromCache(fmt.Sprintf("%s:update", url))
+func (s *AutobrrService) GetUpdateFromCache(ctx context.Context) string {
+	var update string
+	s.GetDataFromCache(ctx, "autobrr"+":update:"+s.InstanceID, update)
+
+	return update
 }
 
-func (s *AutobrrService) CacheUpdate(url, status string, ttl time.Duration) error {
-	return s.CacheVersion(nil, fmt.Sprintf("%s:update", url), status, ttl)
+func (s *AutobrrService) CacheUpdate(ctx context.Context, status string, ttl time.Duration) error {
+	return s.CacheData(ctx, "autobrr"+":update:"+s.InstanceID, status, ttl)
 }
 
 func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (bool, error) {
 	// Check cache first
-	if status := s.GetUpdateFromCache(url); status != "" {
+	if status := s.GetUpdateFromCache(ctx); status != "" {
 		return status == "true", nil
 	}
 
@@ -311,7 +316,7 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 	}
 
 	// Cache result for 2 hours to match autobrr's check interval
-	if err := s.CacheUpdate(url, status, 2*time.Hour); err != nil {
+	if err := s.CacheUpdate(ctx, status, 2*time.Hour); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to cache update status: %v\n", err)
 	}

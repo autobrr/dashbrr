@@ -259,6 +259,18 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	return body, nil
 }
 
+func (s *ServiceCore) GetDataFromCache(ctx context.Context, cacheKey string, data any) error {
+	log.Debug().Str("url", s.URL).Str("instance", s.InstanceID).Str("cacheKey", cacheKey).Msg("Retrieving data from cache")
+
+	err := s.cache.Get(ctx, cacheKey, &data)
+	if err != nil {
+		// Cache miss is normal operation, no need to log it
+		return err
+	}
+
+	return nil
+}
+
 // GetVersionFromCache retrieves the version from cache
 func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 	var version string
@@ -304,12 +316,37 @@ func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
 }
 
 // CacheVersion stores the version in cache with the specified TTL
+func (s *ServiceCore) CacheInstanceVersion(ctx context.Context, version string, ttl time.Duration) error {
+	cacheKey := "version:" + s.InstanceID
+	log.Trace().Str("url", s.URL).Str("instance", s.InstanceID).Str("version", version).Str("cacheKey", cacheKey).Msg("Caching instance version")
+
+	if err := s.cache.Set(ctx, cacheKey, version, ttl); err != nil {
+		log.Error().Err(err).Str("url", s.URL).Str("instance", s.InstanceID).Str("version", version).Msg("Failed to cache instance version")
+		return err
+	}
+
+	return nil
+}
+
+// CacheVersion stores the version in cache with the specified TTL
 func (s *ServiceCore) CacheVersion(ctx context.Context, baseURL, version string, ttl time.Duration) error {
 	cacheKey := "version:" + s.InstanceID
 	log.Trace().Str("url", baseURL).Str("instance", s.InstanceID).Str("version", version).Str("cacheKey", cacheKey).Msg("Caching version")
 
 	if err := s.cache.Set(ctx, cacheKey, version, ttl); err != nil {
 		log.Error().Err(err).Str("url", baseURL).Str("instance", s.InstanceID).Str("version", version).Msg("Failed to cache version")
+		return err
+	}
+
+	return nil
+}
+
+func (s *ServiceCore) CacheData(ctx context.Context, cacheKey, data string, ttl time.Duration) error {
+	//cacheKey := "version:" + s.InstanceID
+	log.Trace().Str("url", s.URL).Str("instance", s.InstanceID).Str("data", data).Str("cacheKey", cacheKey).Msg("Caching data")
+
+	if err := s.cache.Set(ctx, cacheKey, data, ttl); err != nil {
+		log.Error().Err(err).Str("url", s.URL).Str("instance", s.InstanceID).Str("data", data).Msg("Failed to cache data")
 		return err
 	}
 
