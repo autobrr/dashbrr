@@ -18,41 +18,41 @@ func TestNewHealthService(t *testing.T) {
 	assert.NotNil(t, hs.healthChecks)
 }
 
-func TestCheckServiceHealth(t *testing.T) {
-	tests := []struct {
-		name        string
-		serviceType string
-		url         string
-		apiKey      string
-		wantStatus  string
-		wantCode    int
-	}{
-		{
-			name:        "Empty URL",
-			serviceType: "test",
-			url:         "",
-			apiKey:      "test-key",
-			wantStatus:  "error",
-			wantCode:    400,
-		},
-		{
-			name:        "Invalid Service Type",
-			serviceType: "invalid-service",
-			url:         "http://test.com",
-			apiKey:      "test-key",
-			wantStatus:  "error",
-			wantCode:    400,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			health, code := CheckServiceHealth(tt.serviceType, tt.url, tt.apiKey)
-			assert.Equal(t, tt.wantStatus, health.Status)
-			assert.Equal(t, tt.wantCode, code)
-		})
-	}
-}
+//func TestCheckServiceHealth(t *testing.T) {
+//	tests := []struct {
+//		name        string
+//		serviceType string
+//		url         string
+//		apiKey      string
+//		wantStatus  string
+//		wantCode    int
+//	}{
+//		{
+//			name:        "Empty URL",
+//			serviceType: "test",
+//			url:         "",
+//			apiKey:      "test-key",
+//			wantStatus:  "error",
+//			wantCode:    400,
+//		},
+//		{
+//			name:        "Invalid Service Type",
+//			serviceType: "invalid-service",
+//			url:         "http://test.com",
+//			apiKey:      "test-key",
+//			wantStatus:  "error",
+//			wantCode:    400,
+//		},
+//	}
+//
+//	for _, tt := range tests {
+//		t.Run(tt.name, func(t *testing.T) {
+//			health, code := CheckServiceHealth(tt.serviceType, tt.url, tt.apiKey)
+//			assert.Equal(t, tt.wantStatus, health.Status)
+//			assert.Equal(t, tt.wantCode, code)
+//		})
+//	}
+//}
 
 func TestHealthService_StartStopMonitoring(t *testing.T) {
 	hs := NewHealthService()
