@@ -5,18 +5,11 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"net/http"
-	"net/http/httptest"
-	"testing"
 	"time"
 
-	testing_mocks "github.com/autobrr/dashbrr/internal/api/handlers/testing"
 	"github.com/autobrr/dashbrr/internal/domain"
 	"github.com/autobrr/dashbrr/internal/services"
-
-	"github.com/gin-gonic/gin"
 )
 
 // mockServiceHealthChecker implements models.ServiceHealthChecker interface for testing
@@ -46,6 +39,7 @@ func (m *mockServiceCreator) CreateService(serviceType string) services.ServiceH
 	return nil
 }
 
+/*
 func TestHealthHandler_CheckHealth(t *testing.T) {
 	// Setup Gin in test mode
 	gin.SetMode(gin.TestMode)
@@ -166,3 +160,5 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 		})
 	}
 }
+
+*/

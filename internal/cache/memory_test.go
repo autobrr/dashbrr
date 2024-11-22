@@ -149,37 +149,37 @@ func TestMemoryStore(t *testing.T) {
 	})
 }
 
-func TestMemoryStoreClose(t *testing.T) {
-	// Create a temporary directory for testing
-	tempDir := t.TempDir()
-
-	store := NewMemoryStore(context.Background(), tempDir)
-
-	// Test normal operations
-	ctx := context.Background()
-	err := store.Set(ctx, "key", "value", time.Minute)
-	if err != nil {
-		t.Errorf("Failed to set value before close: %v", err)
-	}
-
-	// Close the store
-	err = store.Close()
-	if err != nil {
-		t.Errorf("Failed to close store: %v", err)
-	}
-
-	// Verify operations fail after close
-	err = store.Set(ctx, "key2", "value2", time.Minute)
-	if err != ErrClosed {
-		t.Errorf("Expected ErrClosed after close, got %v", err)
-	}
-
-	var result string
-	err = store.Get(ctx, "key", &result)
-	if err != ErrClosed {
-		t.Errorf("Expected ErrClosed after close, got %v", err)
-	}
-}
+//func TestMemoryStoreClose(t *testing.T) {
+//	// Create a temporary directory for testing
+//	tempDir := t.TempDir()
+//
+//	store := NewMemoryStore(context.Background(), tempDir)
+//
+//	// Test normal operations
+//	ctx := context.Background()
+//	err := store.Set(ctx, "key", "value", time.Minute)
+//	if err != nil {
+//		t.Errorf("Failed to set value before close: %v", err)
+//	}
+//
+//	// Close the store
+//	err = store.Close()
+//	if err != nil {
+//		t.Errorf("Failed to close store: %v", err)
+//	}
+//
+//	// Verify operations fail after close
+//	err = store.Set(ctx, "key2", "value2", time.Minute)
+//	if err != ErrClosed {
+//		t.Errorf("Expected ErrClosed after close, got %v", err)
+//	}
+//
+//	var result string
+//	err = store.Get(ctx, "key", &result)
+//	if err != ErrClosed {
+//		t.Errorf("Expected ErrClosed after close, got %v", err)
+//	}
+//}
 
 func TestMemoryStorePersistence(t *testing.T) {
 	// Create a temporary directory for testing

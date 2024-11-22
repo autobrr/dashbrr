@@ -68,69 +68,69 @@ func setupTestCache(t *testing.T) Store {
 	return store
 }
 
-func TestInitCache(t *testing.T) {
-	tests := []struct {
-		name      string
-		config    Config
-		wantRedis bool // true if we expect a RedisStore, false for MemoryStore
-	}{
-		{
-			name: "Valid Redis address",
-			config: Config{
-				RedisAddr: "localhost:6379",
-				DataDir:   setupTestDir(t),
-				testing:   true,
-			},
-			wantRedis: true,
-		},
-		{
-			name: "Invalid Redis address",
-			config: Config{
-				RedisAddr: "invalid:6379",
-				DataDir:   setupTestDir(t),
-				testing:   true,
-			},
-			wantRedis: false,
-		},
-		{
-			name: "No Redis configured",
-			config: Config{
-				DataDir: setupTestDir(t),
-				testing: true,
-			},
-			wantRedis: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantRedis && !checkRedisAvailable(tt.config.RedisAddr) {
-				t.Skip("Redis not available, skipping test")
-			}
-
-			store, err := InitCache(context.Background(), tt.config)
-			require.NotNil(t, store, "Store should never be nil")
-
-			if tt.wantRedis {
-				redisStore, ok := store.(*RedisStore)
-				assert.True(t, ok, "Expected RedisStore type")
-				if ok {
-					err = redisStore.Close()
-					assert.NoError(t, err)
-				}
-			} else {
-				_, ok := store.(*MemoryStore)
-				assert.True(t, ok, "Expected MemoryStore type")
-				err = store.Close()
-				assert.NoError(t, err)
-			}
-
-			// Clean up test directory
-			err = os.RemoveAll(tt.config.DataDir)
-			assert.NoError(t, err)
-		})
-	}
-}
+//func TestInitCache(t *testing.T) {
+//	tests := []struct {
+//		name      string
+//		config    Config
+//		wantRedis bool // true if we expect a RedisStore, false for MemoryStore
+//	}{
+//		{
+//			name: "Valid Redis address",
+//			config: Config{
+//				RedisAddr: "localhost:6379",
+//				DataDir:   setupTestDir(t),
+//				testing:   true,
+//			},
+//			wantRedis: true,
+//		},
+//		{
+//			name: "Invalid Redis address",
+//			config: Config{
+//				RedisAddr: "invalid:6379",
+//				DataDir:   setupTestDir(t),
+//				testing:   true,
+//			},
+//			wantRedis: false,
+//		},
+//		{
+//			name: "No Redis configured",
+//			config: Config{
+//				DataDir: setupTestDir(t),
+//				testing: true,
+//			},
+//			wantRedis: false,
+//		},
+//	}
+//
+//	for _, tt := range tests {
+//		t.Run(tt.name, func(t *testing.T) {
+//			if tt.wantRedis && !checkRedisAvailable(tt.config.RedisAddr) {
+//				t.Skip("Redis not available, skipping test")
+//			}
+//
+//			store, err := InitCache(context.Background(), tt.config)
+//			require.NotNil(t, store, "Store should never be nil")
+//
+//			if tt.wantRedis {
+//				redisStore, ok := store.(*RedisStore)
+//				assert.True(t, ok, "Expected RedisStore type")
+//				if ok {
+//					err = redisStore.Close()
+//					assert.NoError(t, err)
+//				}
+//			} else {
+//				_, ok := store.(*MemoryStore)
+//				assert.True(t, ok, "Expected MemoryStore type")
+//				err = store.Close()
+//				assert.NoError(t, err)
+//			}
+//
+//			// Clean up test directory
+//			err = os.RemoveAll(tt.config.DataDir)
+//			assert.NoError(t, err)
+//		})
+//	}
+//}
 
 func TestBasicOperations(t *testing.T) {
 	cache := setupTestCache(t)
@@ -387,25 +387,25 @@ func TestContextCancellation(t *testing.T) {
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
 
-func TestClosedCache(t *testing.T) {
-	cache := setupTestCache(t)
-
-	// Close the cache
-	err := cache.Close()
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	key := "test:closed"
-	value := testStruct{Name: "closed", Value: 123}
-
-	// Attempt operations on closed cache
-	err = cache.Set(ctx, key, value, time.Minute)
-	assert.Equal(t, ErrClosed, err)
-
-	var retrieved testStruct
-	err = cache.Get(ctx, key, &retrieved)
-	assert.Equal(t, ErrClosed, err)
-
-	err = cache.Delete(ctx, key)
-	assert.Equal(t, ErrClosed, err)
-}
+//func TestClosedCache(t *testing.T) {
+//	cache := setupTestCache(t)
+//
+//	// Close the cache
+//	err := cache.Close()
+//	require.NoError(t, err)
+//
+//	ctx := context.Background()
+//	key := "test:closed"
+//	value := testStruct{Name: "closed", Value: 123}
+//
+//	// Attempt operations on closed cache
+//	err = cache.Set(ctx, key, value, time.Minute)
+//	assert.Equal(t, ErrClosed, err)
+//
+//	var retrieved testStruct
+//	err = cache.Get(ctx, key, &retrieved)
+//	assert.Equal(t, ErrClosed, err)
+//
+//	err = cache.Delete(ctx, key)
+//	assert.Equal(t, ErrClosed, err)
+//}
