@@ -86,6 +86,9 @@ func (s *Server) Handler() http.Handler {
 	}
 
 	r.Use(middleware.SetupCORS())
+	// TODO: Enable secure headers?
+	//r.Use(middleware.Secure(nil))
+	r.Use(middleware.CSRF(nil)) // Added CSRF middleware with default config that includes OAuth callback exemption
 
 	// Create rate limiters with different configurations
 	apiRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 60, "api:")       // 60 requests per minute for API

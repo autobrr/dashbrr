@@ -52,7 +52,7 @@ func DefaultCSRFConfig() *CSRFConfig {
 		HttpOnly:      true,
 		MaxAge:        int(csrfTokenDuration.Seconds()),
 		ExemptMethods: []string{"GET", "HEAD", "OPTIONS"},
-		ExemptPaths:   []string{},
+		ExemptPaths:   []string{"/api/auth/callback"},
 	}
 }
 
