@@ -28,9 +28,19 @@ func SetupCORS() gin.HandlerFunc {
 			"Content-Type",
 			"Accept",
 			"X-Requested-With",
+			"X-CSRF-Token",
+			"Access-Control-Allow-Origin",
+			"Access-Control-Allow-Headers",
+			"Access-Control-Allow-Methods",
+			"Access-Control-Allow-Credentials",
 		},
-		ExposeHeaders: []string{"Content-Length", "Content-Type"},
-		MaxAge:        12 * time.Hour,
+		AllowCredentials: true, // Important for OAuth flows
+		ExposeHeaders: []string{
+			"Content-Length",
+			"Content-Type",
+			"X-CSRF-Token",
+		},
+		MaxAge: 12 * time.Hour,
 	}
 
 	return cors.New(config)
