@@ -220,6 +220,11 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
 
+	log.Debug().
+		Bool("has_code", code != "").
+		Str("state", state).
+		Msg("received callback")
+
 	if code == "" {
 		log.Error().Msg("no code in callback")
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=no_code")
@@ -235,7 +240,9 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 			return
 		}
 		if err == cache.ErrKeyNotFound {
-			log.Debug().Msg("state not found or expired")
+			log.Debug().
+				Str("state_key", stateKey).
+				Msg("state not found or expired")
 		} else {
 			log.Error().Err(err).Msg("failed to get state from cache")
 		}
@@ -256,7 +263,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		}
 	}
 
-	// Exchange code for token using context
+	log.Debug().Msg("exchanging code for token")
+
 	token, err := h.oauth2Config.Exchange(ctx, code)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -264,16 +272,34 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
 			return
 		}
-		log.Error().Err(err).Msg("code exchange failed")
+		log.Error().
+			Err(err).
+			Str("token_url", h.oauth2Config.Endpoint.TokenURL).
+			Msg("code exchange failed")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=exchange_failed", frontendUrl))
 		return
 	}
 
+	log.Debug().
+		Bool("token_received", token.AccessToken != "").
+		Msg("token exchange completed")
+
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		log.Error().Msg("no id_token in token response")
+		log.Error().
+			Interface("extras", token.Extra("")).
+			Msg("no id_token in token response")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=no_id_token", frontendUrl))
 		return
+	}
+
+	// Set a default expiry if none provided
+	expiryTime := token.Expiry
+	if expiryTime.IsZero() {
+		expiryTime = time.Now().Add(24 * time.Hour)
+		log.Debug().
+			Time("assigned_expiry", expiryTime).
+			Msg("token had no expiry, assigned default 24 hours")
 	}
 
 	sessionData := types.SessionData{
@@ -281,12 +307,12 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		TokenType:    token.TokenType,
 		RefreshToken: token.RefreshToken,
 		IDToken:      rawIDToken,
-		ExpiresAt:    token.Expiry,
+		ExpiresAt:    expiryTime,
 		AuthType:     "oidc",
 	}
 
 	sessionKey := fmt.Sprintf("oidc:session:%s", token.AccessToken)
-	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
+	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(expiryTime)); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
 			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
@@ -297,23 +323,32 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	log.Debug().
+		Str("session_key_prefix", "oidc:session").
+		Time("expires_at", expiryTime).
+		Msg("session stored in cache")
+
 	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
 	c.SetCookie(
 		"session",
 		token.AccessToken,
-		int(time.Until(token.Expiry).Seconds()),
+		int(time.Until(expiryTime).Seconds()),
 		"/",
 		"",
 		isSecure,
 		true,
 	)
 
-	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s?access_token=%s&id_token=%s",
+	redirectURL := fmt.Sprintf("%s?access_token=%s&id_token=%s",
 		frontendUrl,
 		token.AccessToken,
 		rawIDToken,
-	))
+	)
+
+	//log.Debug().Msg("redirecting to frontend")
+
+	c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
