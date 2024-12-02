@@ -311,7 +311,15 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		AuthType:     "oidc",
 	}
 
-	sessionKey := fmt.Sprintf("oidc:session:%s", token.AccessToken)
+	// Generate a random session ID instead of using the access token
+	sessionID, err := generateSecureRandomString(32)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to generate session ID")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
+		return
+	}
+
+	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(expiryTime)); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
@@ -323,16 +331,12 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	log.Debug().
-		Str("session_key_prefix", "oidc:session").
-		Time("expires_at", expiryTime).
-		Msg("session stored in cache")
-
 	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
+	// Set the random session ID in the cookie instead of the access token
 	c.SetCookie(
 		"session",
-		token.AccessToken,
+		sessionID,
 		int(time.Until(expiryTime).Seconds()),
 		"/",
 		"",
