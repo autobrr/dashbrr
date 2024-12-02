@@ -93,7 +93,7 @@ func (s *Server) Handler() http.Handler {
 	// Create rate limiters with different configurations
 	apiRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 60, "api:")       // 60 requests per minute for API
 	healthRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "health:") // 30 health checks per minute
-	authRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "auth:")     // 30 auth requests per minute
+	authRateLimiter := middleware.NewRateLimiter(s.cache, time.Second, 1, "auth:")     // 1 auth request per second
 
 	// Special rate limiter for Tailscale services
 	tailscaleRateLimiter := middleware.NewRateLimiter(s.cache, 2*time.Minute, 20, "tailscale:") // 20 requests per 2 minutes
@@ -148,13 +148,14 @@ func (s *Server) Handler() http.Handler {
 
 		// OIDC auth endpoints (only if OIDC is configured)
 		if oidcAuthHandler != nil {
-			public.GET("/api/auth/callback", oidcAuthHandler.Callback)
 			oidcAuth := public.Group("/api/auth/oidc")
 			oidcAuth.Use(authRateLimiter.RateLimit())
 			{
 				oidcAuth.GET("/login", oidcAuthHandler.Login)
 				oidcAuth.POST("/logout", oidcAuthHandler.Logout)
 			}
+
+			public.GET("/api/auth/callback", authRateLimiter.RateLimit(), oidcAuthHandler.Callback)
 		}
 
 		// Built-in auth endpoints
