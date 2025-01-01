@@ -1,3 +1,6 @@
+> [!WARNING]  
+> Dashbrr is in early development. Expect bugs
+
 <h1 align="center">
   <img alt="autobrr logo" src=".github/assets/logo.png" width="160px"/><br/>
   Dashbrr
@@ -29,9 +32,6 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
   - [Authentication](#authentication)
 - [Tech Stack](#tech-stack)
 - [Screenshots](#screenshots)
-
-> [!WARNING]  
-> Dashbrr is in early development. Expect bugs, and please report them ❤️
 
 ## Features
 
