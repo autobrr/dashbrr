@@ -23,7 +23,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . ./
-COPY --from=web-builder /app/web/dist ./web/dist
+#COPY --from=web-builder /app/web/dist ./web/dist
 
 ARG VERSION=dev
 ARG REVISION=dev
