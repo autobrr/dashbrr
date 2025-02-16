@@ -199,7 +199,7 @@ export const useServiceData = () => {
   }, [updateServiceData]);
 
   const fetchServiceStats = useCallback(async (service: Service) => {
-    if (service.type === 'omegabrr' || service.type === 'tailscale' || service.type === 'general') return;
+    if (service.type === 'tailscale' || service.type === 'general') return;
     if (!service.url || !service.apiKey) return;
 
     if (service.type === 'plex') {

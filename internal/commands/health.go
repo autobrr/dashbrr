@@ -90,10 +90,6 @@ func HealthCommand() *cobra.Command {
 					autobrrService := services.NewAutobrrService(db, store, &service)
 					health, _ := autobrrService.CheckHealth(ctx, service.URL, service.APIKey)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-				case strings.HasPrefix(service.InstanceID, "omegabrr-"):
-					omegabrrService := services.NewOmegabrrService(db, store, &service)
-					health, _ := omegabrrService.CheckHealth(ctx, service.URL, service.APIKey)
-					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				case strings.HasPrefix(service.InstanceID, "radarr-"):
 					radarrService := services.NewRadarrService(db, store, &service)
 					health, _ := radarrService.CheckHealth(ctx, service.URL, service.APIKey)

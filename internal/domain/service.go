@@ -17,7 +17,6 @@ const (
 	ServiceTypeProwlarr    ServiceType = "PROWLARR"
 	ServiceTypeOverseerr   ServiceType = "OVERSEERR"
 	ServiceTypePlex        ServiceType = "PLEX"
-	ServiceTypeOmegabrr    ServiceType = "OMEGABRR"
 	ServiceTypeTailscale   ServiceType = "TAILSCALE"
 	ServiceTypeMaintainerr ServiceType = "MAINTAINERR"
 	ServiceTypeGeneral     ServiceType = "GENERAL"

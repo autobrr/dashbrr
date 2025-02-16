@@ -13,10 +13,10 @@ export const API_PREFIX = '/api';
 
 import { api } from '../utils/api';
 
-interface ApiResponse {
-  success: boolean;
-  message?: string;
-}
+// interface ApiResponse {
+//   success: boolean;
+//   message?: string;
+// }
 
 interface PendingRequestsResponse {
   pendingRequests: number;
@@ -162,54 +162,6 @@ export const getMaintainerrCollections = async (instanceId: string): Promise<Mai
     return response;
   } catch (error) {
     console.error('Error fetching maintainerr collections:', error);
-    throw error;
-  }
-};
-
-export const triggerWebhookArrs = async (baseUrl: string, apiKey: string): Promise<ApiResponse> => {
-  try {
-    const response = await api.post<ApiResponse>(buildUrl('/omegabrr/webhook/arrs'), {
-      targetUrl: baseUrl,
-      apiKey: apiKey
-    });
-    return { 
-      success: true, 
-      message: typeof response === 'string' ? response : JSON.stringify(response) 
-    };
-  } catch (error) {
-    console.error('Error triggering ARRs webhook:', error);
-    throw error;
-  }
-};
-
-export const triggerWebhookLists = async (baseUrl: string, apiKey: string): Promise<ApiResponse> => {
-  try {
-    const response = await api.post<ApiResponse>(buildUrl('/omegabrr/webhook/lists'), {
-      targetUrl: baseUrl,
-      apiKey: apiKey
-    });
-    return { 
-      success: true, 
-      message: typeof response === 'string' ? response : JSON.stringify(response) 
-    };
-  } catch (error) {
-    console.error('Error triggering Lists webhook:', error);
-    throw error;
-  }
-};
-
-export const triggerWebhookAll = async (baseUrl: string, apiKey: string): Promise<ApiResponse> => {
-  try {
-    const response = await api.post<ApiResponse>(buildUrl('/omegabrr/webhook/all'), {
-      targetUrl: baseUrl,
-      apiKey: apiKey
-    });
-    return { 
-      success: true, 
-      message: typeof response === 'string' ? response : JSON.stringify(response) 
-    };
-  } catch (error) {
-    console.error('Error triggering All webhook:', error);
     throw error;
   }
 };

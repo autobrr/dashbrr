@@ -66,7 +66,6 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 - **Autobrr**: IRC network health, release statistics
 - **Prowlarr**: Indexer health monitoring
 - **Maintainerr**: Rule matching, scheduled deletion monitoring
-- **Omegabrr**: Service health, manual ARR triggers
 
 ### Network
 

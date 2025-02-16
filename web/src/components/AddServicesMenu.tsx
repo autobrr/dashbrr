@@ -51,7 +51,6 @@ const SERVICE_CATEGORY_MAP: Record<
   keyof typeof SERVICE_CATEGORIES
 > = {
   autobrr: "AUTOMATION",
-  omegabrr: "AUTOMATION",
   radarr: "MEDIA_MANAGEMENT",
   sonarr: "MEDIA_MANAGEMENT",
   prowlarr: "MEDIA_MANAGEMENT",
@@ -194,12 +193,6 @@ export function AddServicesMenu({
           prefix: "Found in ",
           text: "Settings > API",
           link: getSettingsUrl("/settings/api"),
-        };
-      case "omegabrr":
-        return {
-          prefix: "Found in ",
-          text: "config.toml",
-          link: null,
         };
       case "plex":
         return {

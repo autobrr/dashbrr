@@ -87,10 +87,6 @@ func (m *ServiceManager) InitializeService(_ context.Context, config *domain.Ser
 		svc := NewMaintainerrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc
 
-	case domain.ServiceTypeOmegabrr:
-		svc := NewOmegabrrService(m.db, m.cache, config)
-		m.services[config.InstanceID] = svc
-
 	case domain.ServiceTypeOverseerr:
 		svc := NewOverseerrService(m.db, m.cache, config)
 		m.services[config.InstanceID] = svc

@@ -141,12 +141,6 @@ export const ConfigurationForm = ({
           text: "Settings > API",
           link: getSettingsUrl("/settings/api"),
         };
-      case "omegabrr":
-        return {
-          prefix: "Found in ",
-          text: "config.toml",
-          link: null,
-        };
       case "plex":
         return {
           prefix: "Get your ",

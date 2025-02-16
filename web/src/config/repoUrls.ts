@@ -9,7 +9,6 @@ interface RepoUrls {
 
 export const repoUrls: RepoUrls = {
   "autobrr": "https://github.com/autobrr/autobrr/releases/",
-  "omegabrr": "https://github.com/autobrr/omegabrr/releases/",
   "dashbrr": "https://github.com/autobrr/dashbrr/releases/",
   "maintainerr": "https://github.com/jorenn92/Maintainerr/releases/",
   "overseerr": "https://github.com/sct/overseerr/releases/",
