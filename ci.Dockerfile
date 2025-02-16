@@ -1,14 +1,14 @@
 # build web
-FROM --platform=$BUILDPLATFORM node:22.10.0-alpine3.20 AS web-builder
-RUN corepack enable
+# FROM --platform=$BUILDPLATFORM node:22.10.0-alpine3.20 AS web-builder
+# RUN corepack enable
 
-WORKDIR /app/web
+# WORKDIR /app/web
 
-COPY web/package.json web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# COPY web/package.json web/pnpm-lock.yaml ./
+# RUN pnpm install --frozen-lockfile
 
-COPY web/ ./
-RUN pnpm run build
+# COPY web/ ./
+# RUN pnpm run build
 
 # build app
 FROM --platform=$BUILDPLATFORM golang:1.23-alpine3.20 AS app-builder
@@ -23,7 +23,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . ./
-COPY --from=web-builder /app/web/dist ./web/dist
+#COPY --from=web-builder /app/web/dist ./web/dist
 
 ARG VERSION=dev
 ARG REVISION=dev
