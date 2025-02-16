@@ -14,14 +14,14 @@ import (
 
 // mockServiceHealthChecker implements models.ServiceHealthChecker interface for testing
 type mockServiceHealthChecker struct {
-	checkHealthFunc func(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int)
+	checkHealthFunc func(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int)
 }
 
-func (m *mockServiceHealthChecker) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (m *mockServiceHealthChecker) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	if m.checkHealthFunc != nil {
 		return m.checkHealthFunc(ctx, url, apiKey)
 	}
-	return domain.ServiceHealth{
+	return &domain.ServiceHealth{
 		Status:      "healthy",
 		LastChecked: time.Now(),
 	}, http.StatusOK

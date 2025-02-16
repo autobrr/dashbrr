@@ -136,7 +136,7 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	return statusResponse.Version, nil
 }
 
-func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

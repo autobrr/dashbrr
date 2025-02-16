@@ -147,7 +147,7 @@ func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (strin
 	return plexResponse.MediaContainer.Version, nil
 }
 
-func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

@@ -214,7 +214,7 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 	}, nil
 }
 
-func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

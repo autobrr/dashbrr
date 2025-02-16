@@ -135,7 +135,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, apiKey string) (strin
 	return version, nil
 }
 
-func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey string) (domain.ServiceHealth, int) {
+func (s *TailscaleService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if apiKey == "" {

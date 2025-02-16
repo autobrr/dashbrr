@@ -35,7 +35,7 @@ type GeneralService struct {
 	ServiceCore
 }
 
-func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	startTime := time.Now()
 
 	if url == "" {

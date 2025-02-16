@@ -249,6 +249,6 @@ func (s *ProwlarrService) GetHealthEndpoint(baseURL string) string {
 	return fmt.Sprintf("%s/api/v1/health", baseURL)
 }
 
-func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	return ArrHealthCheck(ctx, &s.ServiceCore, s)
 }

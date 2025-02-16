@@ -28,17 +28,15 @@ type Server struct {
 	db             *database.DB
 	cache          cache.Store
 	serviceManager *services.ServiceManager
-	healthSvc      *services.HealthService
 	httpServer     *http.Server
 }
 
-func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, serviceManager *services.ServiceManager, healthSvc *services.HealthService) *Server {
+func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, serviceManager *services.ServiceManager) *Server {
 	return &Server{
 		cfg:            cfg,
 		db:             db,
 		cache:          cache,
 		serviceManager: serviceManager,
-		healthSvc:      healthSvc,
 	}
 }
 
@@ -106,7 +104,7 @@ func (s *Server) Handler() http.Handler {
 	// Initialize handlers with cache
 	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache, s.serviceManager)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
-	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc, s.serviceManager)
+	healthHandler := handlers.NewHealthHandler(s.db, s.serviceManager)
 	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, s.serviceManager)
 	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache)
 	plexHandler := handlers.NewPlexHandler(s.db, s.cache)
@@ -202,11 +200,11 @@ func (s *Server) Handler() http.Handler {
 		health.Use(healthRateLimiter.RateLimit())
 		{
 			health.GET("/:service", healthHandler.CheckHealth)
-			health.GET("/events", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"status": "ok",
-				})
-			})
+			//health.GET("/events", func(c *gin.Context) {
+			//	c.JSON(http.StatusOK, gin.H{
+			//		"status": "ok",
+			//	})
+			//})
 		}
 
 		//serviceRoutes := api.Group("/services")

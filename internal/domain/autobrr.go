@@ -29,6 +29,12 @@ type AutobrrDetails struct {
 	IRC []IRCStatus `json:"irc,omitempty"`
 }
 
+type AutobrrIRC struct {
+	Status   string      `json:"status"`
+	Healthy  bool        `json:"healthy"`
+	Networks []IRCStatus `json:"networks,omitempty"`
+}
+
 type IRCStatus struct {
 	Name    string `json:"name"`
 	Healthy bool   `json:"healthy"`

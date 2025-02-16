@@ -160,6 +160,7 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 	ctx := context.Background()
 
 	// Initialize cache with database directory for session storage
+	// TODO read from cfg
 	cacheConfig := cache.Config{
 		DataDir: filepath.Dir(os.Getenv("DASHBRR__DB_PATH")), // Use same directory as database
 		Type:    cache.CacheTypeMemory,
@@ -196,10 +197,7 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 
 	serviceManager.StartHealthMonitor()
 
-	// TODO remove
-	healthService := services.NewHealthService()
-
-	srv := api.NewServer(cfg, db, store, serviceManager, healthService)
+	srv := api.NewServer(cfg, db, store, serviceManager)
 
 	errorChannel := make(chan error)
 	go func() {

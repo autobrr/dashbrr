@@ -15,16 +15,18 @@ import (
 	"github.com/autobrr/dashbrr/internal/utils"
 
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/errgroup"
 )
 
 // ServiceHealthChecker defines the interface for service health checking
 type ServiceHealthChecker interface {
-	CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int)
+	// CheckHealth TODO move url and apikey to be internal to service
+	CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int)
 }
 
 const (
 	minCheckInterval  = 60 * time.Second // Increased to reduce connection frequency
-	checkTimeout      = 10 * time.Second
+	checkTimeout      = 30 * time.Second
 	keepAliveInterval = 15 * time.Second
 	broadcastTimeout  = 2 * time.Second
 	clientBufferSize  = 10 // Reduced buffer size
@@ -36,19 +38,16 @@ const (
 func (m *ServiceManager) StartHealthMonitor() {
 	monitorCtx, monitorCancel = context.WithCancel(context.Background())
 
-	// Start client cleanup
-	//startClientCleanup()
-
-	// TODO remove?
-	go m.checkAndBroadcastHealth(monitorCtx)
+	go m.checkAllServicesHealth(monitorCtx)
 
 	healthMonitor := time.NewTicker(minCheckInterval)
 	go func() {
 		for {
 			select {
 			case <-healthMonitor.C:
-				log.Trace().Msg("Health monitor tick, check and broadcast health")
-				m.checkAndBroadcastHealth(monitorCtx)
+				log.Trace().Msg("Health monitor tick, checking services...")
+				//m.checkAndBroadcastHealth(monitorCtx)
+				m.checkAllServicesHealth(monitorCtx)
 			case <-monitorCtx.Done():
 				return
 			}
@@ -71,6 +70,47 @@ func (m *ServiceManager) StopHealthMonitor() {
 		monitorCancel()
 	}
 	log.Info().Msg("Health monitor and client cleanup stopped")
+}
+
+// checkAllServicesHealth performs health checks for all services
+func (m *ServiceManager) checkAllServicesHealth(ctx context.Context) error {
+	log.Trace().Msg("check and broadcast health")
+
+	allServices, err := m.db.GetAllServices(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Error fetching allServices")
+		return nil
+	}
+
+	if len(allServices) == 0 {
+		return nil
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	for _, service := range allServices {
+		if service.URL == "" {
+			continue
+		}
+
+		g.Go(func() error {
+			// Run synchronously to prevent connection spikes
+			if _, err := m.performServiceHealthcheck(ctx, service); err != nil {
+				log.Error().Err(err).Str("service", service.InstanceID).Msg("Failed to perform health check")
+				return err
+			}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		log.Error().Err(err).Msg("Error performing health checks")
+		return err
+	}
+
+	log.Debug().Msg("Health checks completed")
+
+	return nil
 }
 
 // checkAndBroadcastHealth performs health checks for all services and broadcasts results
@@ -162,7 +202,52 @@ var (
 	cleanupTicker *time.Ticker
 )
 
-// checkSingleService performs health check for a single service
+// performServiceHealthcheck performs health check for a single service
+func (m *ServiceManager) performServiceHealthcheck(ctx context.Context, svc domain.ServiceConfiguration) (*domain.ServiceHealth, error) {
+	log.Trace().Str("service", svc.InstanceID).Str("service_type", string(svc.Type)).Msg("ServiceManager: Perform service health check")
+
+	serviceHealth := &domain.ServiceHealth{
+		ServiceID:   svc.InstanceID,
+		Status:      "checking",
+		LastChecked: time.Now(),
+	}
+
+	serviceChecker, err := m.GetServiceHealthChecker(svc.InstanceID)
+	if err != nil {
+		//log.Error().Err(err).Str("service", svc.InstanceID).Str("type", serviceType).Msg("Failed to get service checker")
+		log.Error().Err(err).Str("service", svc.InstanceID).Msg("Failed to get service checker")
+		serviceHealth.Status = "error"
+		serviceHealth.Message = err.Error()
+		return nil, err
+	}
+
+	// Create timeout context for health check
+	// FIXME check health has it's own timeout context
+	checkCtx, cancel := context.WithTimeout(ctx, checkTimeout)
+	defer cancel()
+
+	health, statusCode := serviceChecker.CheckHealth(checkCtx, svc.URL, svc.APIKey)
+	if statusCode != 200 {
+		log.Debug().
+			Int("status_code", statusCode).
+			Str("service", svc.InstanceID).
+			Msg("Health check failed")
+		//convertedHealth.Status = "error"
+		//convertedHealth.Message = "Service returned non-200 status code"
+		//return nil, nil
+	}
+
+	log.Debug().Msgf("health: %v, status code: %d", health, statusCode)
+
+	// TODO set on healthcheck response
+	lastChecksMu.Lock()
+	lastChecks[svc.InstanceID] = time.Now()
+	lastChecksMu.Unlock()
+
+	return health, nil
+}
+
+// checkSingleService performs health check for a single service and pushes result to a channel
 func (m *ServiceManager) checkSingleService(ctx context.Context, svc domain.ServiceConfiguration, results chan<- domain.ServiceHealth, wg *sync.WaitGroup) {
 	log.Trace().Str("service", svc.InstanceID).Msg("ServiceManager: Checking single service")
 	defer wg.Done()

@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/cache"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/domain"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
@@ -57,8 +59,14 @@ type AutobrrService struct {
 }
 
 func NewAutobrrService(db *database.DB, cache cache.Store, config *domain.ServiceConfiguration) *AutobrrService {
-	log.Debug().Msg("Creating new Autobrr service")
-	service := &AutobrrService{}
+	log.Trace().Msg("initializing new Autobrr instance")
+
+	service := &AutobrrService{
+		//ServiceCore: ServiceCore{
+		//	Type: domain.ServiceTypeAutobrr,
+		//
+		//},
+	}
 	service.Type = domain.ServiceTypeAutobrr
 	service.DisplayName = config.DisplayName
 	service.Description = "Monitor and manage your Autobrr instance"
@@ -79,17 +87,7 @@ func (s *AutobrrService) getEndpoint(baseURL, path string) string {
 }
 
 func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (domain.ReleasesResponse, error) {
-	if url == "" || apiKey == "" {
-		return domain.ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
-	}
-
-	releasesURL := s.getEndpoint(url, "/api/release")
-	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
-	}
-
-	resp, err := s.MakeRequestWithContext(ctx, releasesURL, apiKey, headers)
+	resp, err := s.MakeRequestWithContext(ctx, s.getEndpoint(url, "/api/release"), apiKey, s.headers())
 	if err != nil {
 		return domain.ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
 	}
@@ -112,18 +110,8 @@ func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (d
 	return releases, nil
 }
 
-func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string) (domain.AutobrrStats, error) {
-	if url == "" || apiKey == "" {
-		return domain.AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
-	}
-
-	statsURL := s.getEndpoint(url, "/api/release/stats")
-	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
-	}
-
-	resp, err := s.MakeRequestWithContext(ctx, statsURL, apiKey, headers)
+func (s *AutobrrService) GetReleaseStats(ctx context.Context) (domain.AutobrrStats, error) {
+	resp, err := s.MakeRequestWithContext(ctx, s.getEndpoint(s.URL, "/api/release/stats"), s.ApiKey, s.headers())
 	if err != nil {
 		return domain.AutobrrStats{}, fmt.Errorf("request failed: %v", err)
 	}
@@ -133,6 +121,7 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 		return domain.AutobrrStats{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
+	// TODO do not use
 	body, err := s.ReadBody(resp)
 	if err != nil {
 		return domain.AutobrrStats{}, fmt.Errorf("failed to read response body: %v", err)
@@ -162,11 +151,19 @@ func (s *AutobrrService) CacheIRCStatus(ctx context.Context, status string) erro
 	return s.CacheData(ctx, "autobrr"+":irc:"+s.InstanceID, status, 5*time.Minute)
 }
 
-func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]domain.IRCStatus, error) {
-	if url == "" || apiKey == "" {
-		return nil, fmt.Errorf("service not configured: missing URL or API key")
+func (s *AutobrrService) ValidConfig() error {
+	if s.URL == "" {
+		return fmt.Errorf("service not configured: missing URL")
 	}
 
+	if s.ApiKey == "" {
+		return fmt.Errorf("service not configured: missing API key")
+	}
+
+	return nil
+}
+
+func (s *AutobrrService) GetIRCStatus(ctx context.Context) ([]domain.IRCStatus, error) {
 	// Check cache first
 	if cached := s.GetIRCStatusFromCache(ctx); cached != "" {
 		var status []domain.IRCStatus
@@ -175,13 +172,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		}
 	}
 
-	ircURL := s.getEndpoint(url, "/api/irc")
-	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
-	}
-
-	resp, err := s.MakeRequestWithContext(ctx, ircURL, apiKey, headers)
+	resp, err := s.MakeRequestWithContext(ctx, s.getEndpoint(s.URL, "/api/irc"), s.ApiKey, s.headers())
 	if err != nil {
 		return []domain.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("request failed: %v", err)
 	}
@@ -229,6 +220,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 			return status, nil
 		}
 		// Cache empty result
+		// TODO keep?
 		if err := s.CacheIRCStatus(ctx, "[]"); err != nil {
 			fmt.Printf("Failed to cache IRC status: %v\n", err)
 		}
@@ -238,19 +230,13 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 	return []domain.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("failed to decode response: %s", string(body))
 }
 
-func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
+func (s *AutobrrService) GetVersion(ctx context.Context) (string, error) {
 	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
+	if version := s.GetVersionFromCache(s.URL); version != "" && version != "true" {
 		return version, nil
 	}
 
-	versionURL := s.getEndpoint(url, "/api/config")
-	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
-	}
-
-	resp, err := s.MakeRequestWithContext(ctx, versionURL, apiKey, headers)
+	resp, err := s.MakeRequestWithContext(ctx, s.getEndpoint(s.URL, "/api/config"), s.ApiKey, s.headers())
 	if err != nil {
 		return "", err
 	}
@@ -271,7 +257,7 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 	}
 
 	// Cache version for 2 hours to align with update check
-	if err := s.CacheVersion(nil, url, versionData.Version, 2*time.Hour); err != nil {
+	if err := s.CacheVersion(nil, s.URL, versionData.Version, 2*time.Hour); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to cache version: %v\n", err)
 	}
@@ -290,19 +276,13 @@ func (s *AutobrrService) CacheUpdate(ctx context.Context, status string, ttl tim
 	return s.CacheData(ctx, "autobrr"+":update:"+s.InstanceID, status, ttl)
 }
 
-func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (bool, error) {
+func (s *AutobrrService) CheckUpdate(ctx context.Context) (bool, error) {
 	// Check cache first
 	if status := s.GetUpdateFromCache(ctx); status != "" {
 		return status == "true", nil
 	}
 
-	updateURL := s.getEndpoint(url, "/api/updates/latest")
-	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
-	}
-
-	resp, err := s.MakeRequestWithContext(ctx, updateURL, apiKey, headers)
+	resp, err := s.MakeRequestWithContext(ctx, s.getEndpoint(s.URL, "/api/updates/latest"), s.ApiKey, s.headers())
 	if err != nil {
 		return false, err
 	}
@@ -324,178 +304,139 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 	return hasUpdate, nil
 }
 
-func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey string) (domain.ServiceHealth, int) {
-	log.Trace().Str("url", url).Msg("Checking autobrr service health")
+func (s *AutobrrService) CheckHealth(ctx context.Context, _, _ string) (*domain.ServiceHealth, int) {
+	log.Trace().Str("url", s.URL).Msg("Checking autobrr service health")
 
-	startTime := time.Now()
+	//startTime := time.Now()
 
-	if url == "" || apiKey == "" {
-		return s.CreateHealthResponse(startTime, "pending", "Autobrr not configured"), http.StatusOK
+	res := &domain.ServiceHealth{
+		Status:          "online",
+		Message:         "autobrr is running",
+		ResponseTime:    0,
+		LastChecked:     time.Time{},
+		Version:         "",
+		UpdateAvailable: false,
+		ServiceID:       s.InstanceID,
+		Services: &domain.ServiceHealthCheckResponse{
+			Autobrr: domain.ServiceHealthResponseAutobrr{
+				Stats: domain.AutobrrStats{},
+				IRC: domain.AutobrrIRC{
+					Healthy:  true,
+					Networks: make([]domain.IRCStatus, 0),
+				},
+			},
+		},
 	}
 
-	// Create a context with timeout for the entire health check
-	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-	defer cancel()
+	wg := sync.WaitGroup{}
 
-	// Start version check in background
-	versionChan := make(chan string, 1)
-	versionErrChan := make(chan error, 1)
-	go func() {
-		version, err := s.GetVersion(ctx, url, apiKey)
+	//// Create a context with timeout for the entire health check
+	//ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
+	//defer cancel()
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		if err := s.liveness(ctx); err != nil {
+			log.Error().Err(err).Msg("Failed to perform liveness check")
+		}
+	}(&wg)
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		version, err := s.GetVersion(ctx)
 		if err != nil {
-			versionErrChan <- err
-			versionChan <- ""
+			log.Error().Err(err).Msg("Failed to get version")
 			return
 		}
-		versionChan <- version
-		versionErrChan <- nil
-	}()
+		res.Version = version
+	}(&wg)
 
-	// Start update check in background
-	updateChan := make(chan bool, 1)
-	updateErrChan := make(chan error, 1)
-	go func() {
-		hasUpdate, err := s.CheckUpdate(ctx, url, apiKey)
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		hasUpdate, err := s.CheckUpdate(ctx)
 		if err != nil {
-			updateErrChan <- err
-			updateChan <- false
+			log.Error().Err(err).Msg("Failed to check for update")
 			return
 		}
-		updateChan <- hasUpdate
-		updateErrChan <- nil
-	}()
+		res.UpdateAvailable = hasUpdate
+	}(&wg)
 
-	// Get release stats
-	stats, err := s.GetReleaseStats(ctx, url, apiKey)
-	if err != nil {
-		fmt.Printf("Failed to get release stats: %v\n", err)
-		// Continue without stats, don't fail the health check
-	}
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		// Get release stats
+		stats, err := s.GetReleaseStats(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to get release stats")
+			// Continue without stats, don't fail the health check
+		}
 
+		res.Services.Autobrr.Stats = stats
+	}(&wg)
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+
+		// Get IRC status
+		ircStatus, err := s.GetIRCStatus(ctx)
+		if err != nil {
+			log.Error().Err(err).Msgf("failed to get IRC status")
+			res.Message = "Autobrr is running but IRC status check failed: " + err.Error()
+			res.Status = "warning"
+		}
+
+		// Check if any IRC connection is unhealthy
+		for _, status := range ircStatus {
+			if !status.Healthy {
+				res.Services.Autobrr.IRC.Healthy = status.Healthy
+				res.Message = "Autobrr is running but reports unhealthy IRC connections"
+				res.Status = "warning"
+				break
+			}
+		}
+	}(&wg)
+
+	wg.Wait()
+
+	return res, http.StatusOK
+}
+
+// liveness check
+func (s *AutobrrService) liveness(ctx context.Context) error {
 	// Perform health check
-	livenessURL := s.getEndpoint(url, "/api/healthz/liveness")
-	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
-	}
-
-	resp, err := s.MakeRequestWithContext(ctx, livenessURL, apiKey, headers)
+	resp, err := s.MakeRequestWithContext(ctx, s.getEndpoint(s.URL, "/api/healthz/liveness"), s.ApiKey, s.headers())
 	if err != nil {
-		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
+		return err
 	}
 	defer resp.Body.Close()
 
-	// Calculate response time directly
-	responseTime := time.Since(startTime).Milliseconds()
-
 	if resp.StatusCode != http.StatusOK {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Unexpected status code: %d", resp.StatusCode)), http.StatusOK
+		return errors.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to read response: %v", err)), http.StatusOK
+		return err
 	}
 
 	trimmedBody := strings.TrimSpace(string(body))
 	trimmedBody = strings.Trim(trimmedBody, "\"")
 
 	if trimmedBody != "healthy" && trimmedBody != "OK" {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Autobrr reported unhealthy status: %s", trimmedBody)), http.StatusOK
+		return errors.Errorf("unhealthy: %s", trimmedBody)
 	}
+	return nil
+}
 
-	// Wait for version and update status with timeout
-	var version string
-	var versionErr error
-	var hasUpdate bool
-	var updateErr error
-
-	select {
-	case version = <-versionChan:
-		versionErr = <-versionErrChan
-	case <-ctx.Done():
-		versionErr = ctx.Err()
+func (s *AutobrrService) headers() map[string]string {
+	// Perform health check
+	headers := map[string]string{
+		"auth_header": "X-Api-Token",
+		"auth_value":  s.ApiKey,
 	}
-
-	select {
-	case hasUpdate = <-updateChan:
-		updateErr = <-updateErrChan
-	case <-ctx.Done():
-		updateErr = ctx.Err()
-	}
-
-	// Get IRC status
-	ircStatus, err := s.GetIRCStatus(ctx, url, apiKey)
-	if err != nil {
-		extras := map[string]interface{}{
-			"responseTime": responseTime,
-			"stats": map[string]interface{}{
-				"autobrr": stats,
-			},
-			"details": map[string]interface{}{
-				"autobrr": map[string]interface{}{
-					"irc": ircStatus,
-				},
-			},
-		}
-		if version != "" {
-			extras["version"] = version
-		}
-		if versionErr != nil {
-			extras["versionError"] = versionErr.Error()
-		}
-		if !hasUpdate && updateErr != nil {
-			extras["updateError"] = updateErr.Error()
-		} else {
-			extras["updateAvailable"] = hasUpdate
-		}
-
-		return s.CreateHealthResponse(startTime, "warning", fmt.Sprintf("Autobrr is running but IRC status check failed: %v", err), extras), http.StatusOK
-	}
-
-	// Check if any IRC connections are healthy
-	ircHealthy := false
-
-	// If no IRC networks are configured, consider it healthy and continue
-	if len(ircStatus) == 0 {
-		ircHealthy = true
-	} else {
-		for _, status := range ircStatus {
-			if status.Healthy {
-				ircHealthy = true
-				break
-			}
-		}
-	}
-
-	extras := map[string]interface{}{
-		"responseTime": responseTime,
-		"stats": map[string]interface{}{
-			"autobrr": stats,
-		},
-	}
-
-	if version != "" {
-		extras["version"] = version
-	}
-	if versionErr != nil {
-		extras["versionError"] = versionErr.Error()
-	}
-	if !hasUpdate && updateErr != nil {
-		extras["updateError"] = updateErr.Error()
-	} else {
-		extras["updateAvailable"] = hasUpdate
-	}
-
-	// Only include IRC status in details if there are unhealthy connections
-	if !ircHealthy {
-		extras["details"] = map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"irc": ircStatus,
-			},
-		}
-		return s.CreateHealthResponse(startTime, "warning", "Autobrr is running but reports unhealthy IRC connections", extras), http.StatusOK
-	}
-
-	return s.CreateHealthResponse(startTime, "online", "Autobrr is running", extras), http.StatusOK
+	return headers
 }

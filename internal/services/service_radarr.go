@@ -241,6 +241,6 @@ func (s *RadarrService) CheckForUpdates(ctx context.Context, url, apiKey string)
 	return CheckArrForUpdates("radarr", url, apiKey)
 }
 
-func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	return ArrHealthCheck(ctx, &s.ServiceCore, s)
 }

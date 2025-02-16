@@ -45,7 +45,7 @@ type HealthChecker interface {
 }
 
 // ArrHealthCheck provides a common implementation of health checking for *arr services
-func ArrHealthCheck(ctx context.Context, s *ServiceCore, checker HealthChecker) (domain.ServiceHealth, int) {
+func ArrHealthCheck(ctx context.Context, s *ServiceCore, checker HealthChecker) (*domain.ServiceHealth, int) {
 	//log.Debug().Str("service", "arr").Str("url", s.URL).Str("name", s.DisplayName).Msg("Performing arr health check")
 
 	if s.URL == "" {
@@ -84,12 +84,12 @@ func ArrHealthCheck(ctx context.Context, s *ServiceCore, checker HealthChecker) 
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
 	}
 
-	health := result.(domain.ServiceHealth)
+	health := result.(*domain.ServiceHealth)
 	return health, http.StatusOK
 }
 
 // performHealthCheck executes the actual health check
-func performHealthCheck(ctx context.Context, s *ServiceCore, cacheKey string, checker HealthChecker) (domain.ServiceHealth, error) {
+func performHealthCheck(ctx context.Context, s *ServiceCore, cacheKey string, checker HealthChecker) (*domain.ServiceHealth, error) {
 	log.Debug().Str("url", s.URL).Str("instance", s.InstanceID).Msg("Performing health check")
 
 	startTime := time.Now()
@@ -112,16 +112,16 @@ func performHealthCheck(ctx context.Context, s *ServiceCore, cacheKey string, ch
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, s.ApiKey, headers)
 	if err != nil {
-		return domain.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
+		return &domain.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
 	}
 	if resp == nil {
-		return domain.ServiceHealth{}, fmt.Errorf("nil response")
+		return &domain.ServiceHealth{}, fmt.Errorf("nil response")
 	}
 
 	defer resp.Body.Close()
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return domain.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
+		return &domain.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	// Get response time from header (stored as milliseconds)
@@ -152,7 +152,7 @@ func performHealthCheck(ctx context.Context, s *ServiceCore, cacheKey string, ch
 	// Process health response
 	var healthIssues []HealthResponse
 	if err := json.Unmarshal(body, &healthIssues); err != nil {
-		return domain.ServiceHealth{}, fmt.Errorf("failed to parse response: %v", err)
+		return &domain.ServiceHealth{}, fmt.Errorf("failed to parse response: %v", err)
 	}
 
 	// Build response
@@ -166,16 +166,16 @@ func performHealthCheck(ctx context.Context, s *ServiceCore, cacheKey string, ch
 	}
 
 	// Check for updates in background
-	go func() {
-		// TODO this should be somewheere else
-		log.Trace().Msg("arrHealthcheck: check for updates in the background")
-
-		if hasUpdate, err := checker.CheckForUpdates(ctx, s.URL, s.ApiKey); err == nil && hasUpdate {
-			updateKey := fmt.Sprintf("%s:update", s.URL)
-			s.CacheVersion(ctx, updateKey, "true", time.Hour)
-			extras["updateAvailable"] = true
-		}
-	}()
+	//go func() {
+	//	// TODO this should be somewheere else
+	//	log.Trace().Msg("arrHealthcheck: check for updates in the background")
+	//
+	//	if hasUpdate, err := checker.CheckForUpdates(ctx, s.URL, s.ApiKey); err == nil && hasUpdate {
+	//		updateKey := fmt.Sprintf("%s:update", s.URL)
+	//		s.CacheVersion(ctx, updateKey, "true", time.Hour)
+	//		extras["updateAvailable"] = true
+	//	}
+	//}()
 
 	// Determine status and message
 	status := "online"

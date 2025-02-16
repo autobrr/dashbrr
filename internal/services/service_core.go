@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httputil"
 	"sync"
 	"time"
 
@@ -97,6 +98,7 @@ func getHTTPClient(timeout time.Duration) *http.Client {
 }
 
 // MakeRequestWithContext makes an HTTP request with the provided context and timeout
+// TODO apikey from headers
 func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
 	if url == "" {
 		log.Error().Msg("Service is not configured")
@@ -104,13 +106,13 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 	}
 
 	// Use service-specific timeout if set, otherwise use context deadline or default
-	timeout := DefaultTimeout
-	if s.Timeout > 0 {
-		timeout = s.Timeout
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = time.Until(deadline)
-	}
+	//timeout := DefaultTimeout
+	//if s.Timeout > 0 {
+	//	timeout = s.Timeout
+	//}
+	//if deadline, ok := ctx.Deadline(); ok {
+	//	timeout = time.Until(deadline)
+	//}
 
 	// Get method from headers if provided, default to GET
 	method := http.MethodGet
@@ -146,15 +148,32 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 		}
 	}
 
+	reqBody, err := httputil.DumpRequestOut(req, true)
+	if err != nil {
+		log.Error().Err(err).Str("url", url).Msg("Failed to dump request")
+		//return nil, err
+	}
+	log.Debug().Str("url", url).Str("body", string(reqBody)).Msg("http request body")
+
 	start := time.Now()
 
-	// Get client with appropriate timeout
-	client := getHTTPClient(timeout)
-	resp, err := client.Do(req)
+	// Get httpClient with appropriate timeout
+	//client := getHTTPClient(timeout)
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        10,               // Reduced from 100
+			MaxIdleConnsPerHost: 2,                // Reduced from 10
+			IdleConnTimeout:     30 * time.Second, // Reduced from 90s
+			DisableKeepAlives:   false,
+		},
+		Timeout: DefaultTimeout,
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Error().Err(err).
 			Str("url", url).
-			Dur("timeout", timeout).
+			Dur("timeout", DefaultTimeout).
 			Msg("Request failed")
 		return nil, err
 	}
@@ -315,7 +334,7 @@ func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
 	return updateStatus == "true"
 }
 
-// CacheVersion stores the version in cache with the specified TTL
+// CacheInstanceVersion stores the version in cache with the specified TTL
 func (s *ServiceCore) CacheInstanceVersion(ctx context.Context, version string, ttl time.Duration) error {
 	cacheKey := "version:" + s.InstanceID
 	log.Trace().Str("url", s.URL).Str("instance", s.InstanceID).Str("version", version).Str("cacheKey", cacheKey).Msg("Caching instance version")
@@ -366,8 +385,8 @@ func (s *ServiceCore) CacheHealth(ctx context.Context, cacheKey, data string, tt
 }
 
 // CreateHealthResponse creates a standardized health response
-func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) domain.ServiceHealth {
-	response := domain.ServiceHealth{
+func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) *domain.ServiceHealth {
+	response := &domain.ServiceHealth{
 		Status:      status,
 		LastChecked: lastChecked,
 		Message:     message,
@@ -383,12 +402,12 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 		if responseTime, ok := extras[0]["responseTime"].(int64); ok {
 			response.ResponseTime = responseTime
 		}
-		if stats, ok := extras[0]["stats"].(map[string]interface{}); ok {
-			response.Stats = stats
-		}
-		if details, ok := extras[0]["details"].(map[string]interface{}); ok {
-			response.Details = details
-		}
+		//if stats, ok := extras[0]["stats"].(map[string]interface{}); ok {
+		//	response.Stats = stats
+		//}
+		//if details, ok := extras[0]["details"].(map[string]interface{}); ok {
+		//	response.Details = details
+		//}
 	}
 
 	return response

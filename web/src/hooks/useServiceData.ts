@@ -56,6 +56,7 @@ function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
 }
 
 export const useServiceData = () => {
+  console.log("use service data")
   const { configurations } = useConfiguration();
   const { isAuthenticated } = useAuth();
   const [services, setServices] = useState<Map<string, Service>>(new Map());

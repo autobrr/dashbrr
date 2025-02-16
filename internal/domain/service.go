@@ -57,15 +57,33 @@ type Service struct {
 
 // ServiceHealth represents the health status of a service
 type ServiceHealth struct {
-	Status          string                 `json:"status"`
-	ResponseTime    int64                  `json:"responseTime"`
-	LastChecked     time.Time              `json:"lastChecked"`
-	Message         string                 `json:"message,omitempty"`
-	Version         string                 `json:"version,omitempty"`
-	UpdateAvailable bool                   `json:"updateAvailable,omitempty"`
-	ServiceID       string                 `json:"serviceId"`
-	Stats           map[string]interface{} `json:"stats,omitempty"`
-	Details         map[string]interface{} `json:"details,omitempty"`
+	Status          string    `json:"status"`
+	ResponseTime    int64     `json:"responseTime"`
+	LastChecked     time.Time `json:"lastChecked"`
+	Message         string    `json:"message,omitempty"`
+	Version         string    `json:"version,omitempty"`
+	UpdateAvailable bool      `json:"updateAvailable,omitempty"`
+	ServiceID       string    `json:"serviceId"`
+	//Stats           map[string]interface{}      `json:"stats,omitempty"`
+	//Details         map[string]interface{}      `json:"details,omitempty"`
+	Services *ServiceHealthCheckResponse `json:"services,omitempty"`
+}
+
+type ServiceHealthCheckResponse struct {
+	Autobrr ServiceHealthResponseAutobrr `json:"autobrr"`
+	//Radarr      ServiceHealth                `json:"radarr"`
+	//Sonarr      ServiceHealth                `json:"sonarr"`
+	//Prowlarr    ServiceHealth                `json:"prowlarr"`
+	//Overseerr   ServiceHealth                `json:"overseerr"`
+	//Plex        ServiceHealth                `json:"plex"`
+	//Tailscale   ServiceHealth                `json:"tailscale"`
+	//Maintainerr ServiceHealth                `json:"maintainerr"`
+	//General     ServiceHealth                `json:"general"`
+}
+
+type ServiceHealthResponseAutobrr struct {
+	Stats AutobrrStats `json:"stats"`
+	IRC   AutobrrIRC   `json:"irc"`
 }
 
 type ServiceConfigResponse struct {

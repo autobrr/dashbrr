@@ -324,6 +324,6 @@ func (s *SonarrService) CheckForUpdates(ctx context.Context, url, apiKey string)
 	return CheckArrForUpdates("sonarr", url, apiKey)
 }
 
-func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (domain.ServiceHealth, int) {
+func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (*domain.ServiceHealth, int) {
 	return ArrHealthCheck(ctx, &s.ServiceCore, s)
 }

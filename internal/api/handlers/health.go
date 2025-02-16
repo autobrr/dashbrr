@@ -23,14 +23,12 @@ type DatabaseService interface {
 
 type HealthHandler struct {
 	db             DatabaseService
-	health         *services.HealthService
 	serviceManager *services.ServiceManager
 }
 
-func NewHealthHandler(db DatabaseService, health *services.HealthService, serviceManager *services.ServiceManager) *HealthHandler {
+func NewHealthHandler(db DatabaseService, serviceManager *services.ServiceManager) *HealthHandler {
 	return &HealthHandler{
 		db:             db,
-		health:         health,
 		serviceManager: serviceManager,
 	}
 }

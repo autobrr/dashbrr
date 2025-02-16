@@ -357,8 +357,7 @@ func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (dom
 
 	serviceInstance := service.(*services.AutobrrService)
 
-	// TODO move params to be internal
-	return serviceInstance.GetReleaseStats(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
+	return serviceInstance.GetReleaseStats(ctx)
 }
 
 func (h *AutobrrHandler) fetchReleases(instanceId string) (domain.ReleasesResponse, error) {
@@ -398,7 +397,7 @@ func (h *AutobrrHandler) fetchIRC(instanceId string) ([]domain.IRCStatus, error)
 
 	serviceInstance := service.(*services.AutobrrService)
 
-	return serviceInstance.GetIRCStatus(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
+	return serviceInstance.GetIRCStatus(context.Background())
 }
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
