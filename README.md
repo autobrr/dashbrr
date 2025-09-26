@@ -1,5 +1,5 @@
 > [!WARNING]  
-> Dashbrr is in early development. Expect bugs. Run pr-63 for now!
+> Dashbrr is currently not under active development due to our focus on other projects. Expect bugs. Run pr-63 for now!
 
 <h1 align="center">
   <img alt="autobrr logo" src=".github/assets/logo.png" width="160px"/><br/>
