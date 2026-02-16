@@ -7,23 +7,49 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { registerSW } from "virtual:pwa-register";
 
 // Force dark mode
 document.documentElement.classList.add("dark");
 
-// Register service worker with auto update handling
-const updateSW = registerSW({
-  onNeedRefresh() {
-    if (confirm("New version available! Click OK to update.")) {
-      updateSW(true);
-    }
-  },
-  onOfflineReady() {
-    console.log("App ready to work offline");
-  },
-  immediate: true,
-});
+function unregisterServiceWorkerInDev() {
+  if (!import.meta.env.DEV) return;
+  if (!("serviceWorker" in navigator)) return;
+
+  // Fix dev state where a previously-registered SW is still controlling the page
+  // and serves stale/raw CSS (e.g. `@tailwind` directives) from cache.
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+    .catch(() => {});
+
+  if ("caches" in window) {
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+      .catch(() => {});
+  }
+}
+
+unregisterServiceWorkerInDev();
+
+if (import.meta.env.PROD) {
+  // Register service worker with auto update handling
+  import("virtual:pwa-register")
+    .then(({ registerSW }) => {
+      const updateSW = registerSW({
+        onNeedRefresh() {
+          if (confirm("New version available! Click OK to update.")) {
+            updateSW(true);
+          }
+        },
+        onOfflineReady() {
+          console.log("App ready to work offline");
+        },
+        immediate: true,
+      });
+    })
+    .catch(() => {});
+}
 
 const root = document.getElementById("root");
 if (!root) {

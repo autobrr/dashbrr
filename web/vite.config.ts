@@ -145,7 +145,9 @@ export default defineConfig(({ mode }) => ({
         sourcemap: true
       } : undefined,
       devOptions: {
-        enabled: true,
+        // Dev SW is off by default: it can serve raw `index.css` with `@tailwind`
+        // directives, making the app look "unstyled". Opt-in via env when needed.
+        enabled: process.env.VITE_PWA_DEV === 'true',
         type: 'module',
         navigateFallback: '/index.html',
         suppressWarnings: true

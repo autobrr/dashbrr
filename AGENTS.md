@@ -137,3 +137,7 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (polish)
 - Web: add `autoComplete=\"new-password\"` to registration confirm-password input to silence DOM warning
+
+### 2026-02-16 (bugfix)
+- Web/PWA: disable service-worker in dev by default (fix “unstyled Tailwind” from cached/raw CSS); dev now auto-unregisters SW + clears caches on load; prod still registers SW
+- Web: add `postbuild` to recreate `web/dist/.gitkeep` so `pnpm -C web build` stops dirtying git status

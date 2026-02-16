@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "postbuild": "node --input-type=module -e \"import { mkdirSync, writeFileSync } from 'node:fs'; mkdirSync('dist',{ recursive:true }); writeFileSync('dist/.gitkeep','');\"",
     "lint": "eslint .",
     "preview": "vite preview"
   },
