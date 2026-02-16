@@ -20,12 +20,12 @@ interface ProwlarrStatsProps {
 }
 
 export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
+  const { getService } = useServiceData();
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
   const [stableIndexers, setStableIndexers] = useState<ProwlarrIndexer[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const service = services.find((s) => s.instanceId === instanceId);
+  const service = getService(instanceId);
   const prowlarrData = service?.stats?.prowlarr;
 
   // Only show loading on initial load

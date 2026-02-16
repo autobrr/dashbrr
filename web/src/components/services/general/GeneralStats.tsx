@@ -13,8 +13,8 @@ interface GeneralStatsProps {
 }
 
 export const GeneralStats: React.FC<GeneralStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
-  const service = services.find((s) => s.instanceId === instanceId);
+  const { getService } = useServiceData();
+  const service = getService(instanceId);
   const isLoading = service?.status === "loading";
 
   if (isLoading) {

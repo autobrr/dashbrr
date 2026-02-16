@@ -31,8 +31,8 @@ interface SonarrStatsProps {
 }
 
 export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
-  const { services, refreshService } = useServiceData();
-  const service = services.find((s) => s.instanceId === instanceId);
+  const { getService, refreshService } = useServiceData();
+  const service = getService(instanceId);
   const isLoading = service?.status === "loading";
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);

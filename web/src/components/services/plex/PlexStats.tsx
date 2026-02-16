@@ -110,12 +110,12 @@ interface TimerState {
 }
 
 export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
+  const { getService } = useServiceData();
   const [playbackStates, setPlaybackStates] = useState<{
     [key: string]: TimerState;
   }>({});
   const [isExpanded, setIsExpanded] = useState(true);
-  const service = services.find((s) => s.instanceId === instanceId);
+  const service = getService(instanceId);
   const isLoading = service?.status === "loading";
   const sessions = useMemo(
     () => service?.stats?.plex?.sessions || [],

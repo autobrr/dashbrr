@@ -13,8 +13,8 @@ interface Props {
 }
 
 export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
-  const { services } = useServiceData();
-  const service = services.find((s) => s.instanceId === instanceId);
+  const { getService } = useServiceData();
+  const service = getService(instanceId);
   const collections = service?.stats?.maintainerr?.collections || [];
   const isLoading = !service || service.status === "loading";
 

@@ -235,11 +235,19 @@ export const useServiceData = () => {
     }
   }, []);
 
+  const getService = useCallback(
+    (instanceId: string) => {
+      return services.get(instanceId);
+    },
+    [services]
+  );
+
   const servicesArray = useMemo(() => Array.from(services.values()), [services]);
 
   return {
     services: servicesArray,
     isLoading,
+    getService,
     refreshService,
   };
 };

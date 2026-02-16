@@ -27,8 +27,8 @@ interface OverseerrStatsProps {
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
 }) => {
-  const { services, refreshService } = useServiceData();
-  const service = services.find((s) => s.instanceId === instanceId);
+  const { getService, refreshService } = useServiceData();
+  const service = getService(instanceId);
   const [localRequests, setLocalRequests] = useState<OverseerrMediaRequest[]>(
     []
   );
