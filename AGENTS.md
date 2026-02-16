@@ -93,3 +93,7 @@ Owner: soup (s0up4200@pm.me)
 - *arr health: propagate ctx from callers; delete broken pseudo-caching + unsafe goroutine map mutation; rely on poller caching instead
 - Update cache: add `CacheUpdateStatus` + legacy read; fix Maintainerr/Tailscale/*arr update caching to match `GetUpdateStatusFromCache`
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 6)
+- Web: route-level code-splitting (lazy load `LoginPage`, `CallbackPage`, main `AppContent`) to shrink initial bundle + remove >500kb Vite chunk warning
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
