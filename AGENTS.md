@@ -170,3 +170,6 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (security)
 - Go: installed `govulncheck`; fixed GO-2025-4233 by bumping `github.com/quic-go/quic-go` to `v0.57.0`
 - Verified: `govulncheck ./...` clean; `go test ./...` clean
+
+### 2026-02-16 (perf)
+- Web: externalize huge `.pattern` SVG data-uri -> `web/public/pattern.svg` (shrink `web/src/index.css`)
