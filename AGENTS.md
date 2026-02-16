@@ -222,3 +222,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (refactor)
 - Go/arr: thread request ctx through `GetSystemStatus`/`CheckForUpdates` (no `context.Background()`); update-check goroutine now uses ctx-derived timeout
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-16 (refactor)
+- Go/tailscale: background devices-cache refresh now has timeout (no unbounded retry loop on `context.Background()`)
+- Go gate: pass (`go test ./...`)

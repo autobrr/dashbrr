@@ -25,6 +25,7 @@ import (
 const (
 	tailscaleCacheDuration    = 60 * time.Second // Primary cache duration
 	tailscaleStaleDataTimeout = 5 * time.Minute  // Stale data timeout
+	tailscaleRefreshTimeout   = 30 * time.Second // Background refresh timeout
 	devicesCachePrefix        = "tailscale:devices:"
 	maxFailures               = 5
 	resetTimeout              = time.Minute
@@ -275,7 +276,8 @@ func (h *TailscaleHandler) refreshDevicesCache(instanceId, apiKey, cacheKey stri
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), tailscaleRefreshTimeout)
+	defer cancel()
 	err := resilience.RetryWithBackoff(ctx, func() error {
 		_, err := h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)
 		return err
