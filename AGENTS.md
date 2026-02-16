@@ -188,3 +188,6 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (refactor)
 - Poller: declarative job table + no per-tick closure allocs; ctx-aware semaphore acquisition (no goroutine leak on shutdown); remove unused cache injection; add `LastChecked` for Prowlarr stats/indexers publishes
+
+### 2026-02-16 (test)
+- Poller: add regression test ensuring `maybeRun` clears `inFlight` when ctx cancels before semaphore acquisition
