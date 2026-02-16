@@ -4,6 +4,7 @@
 package autobrr
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -99,7 +100,7 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 	}
 
 	var stats types.AutobrrStats
-	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
 
 	if err := decoder.Decode(&stats); err != nil {

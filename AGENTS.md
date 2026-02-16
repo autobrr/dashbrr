@@ -105,3 +105,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 8)
 - Core HTTP: delete `MakeRequestWithContext`/`MakeRequest` legacy wrappers; all services now use `DoRequest` directly
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 9)
+- Autobrr: avoid `[]byte -> string -> reader` roundtrip when decoding stats JSON (use `bytes.NewReader`)
+- Go tests: pass (`go test ./...`)
