@@ -161,3 +161,8 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (dev bugfix)
 - Web: `index.html` now force-unregisters any existing SW on localhost and clears caches once/session (fix stale/raw CSS causing “unstyled” UI)
 - Web: Tailwind v4 CSS entrypoint fixed (`@import "tailwindcss";`) so theme-based utilities (colors/spacing/radius) generate; should fix “unstyled” login/UI
+
+### 2026-02-16 (ui)
+- Web: restore Zinc palette for base wrappers/backgrounds (body/bg-color/rmsc/scrollbars)
+- Web: ensure Tailwind config applies in v4 via `@config` in `web/src/index.css`
+- Web: Vite dev SW killer typing: drop `connect` types (fix `tsc -b`), keep behavior

@@ -7,16 +7,17 @@
  * are available and utilities like `bg-gray-900`, `px-3`, `rounded-md` generate.
  */
 @import "tailwindcss";
+@config "../tailwind.config.js";
 
 body {
   margin: 0;
   height: 100%;
   padding: 0;
-  background-color: #f3f4f6; /* ~gray-100 */
+  background-color: #f4f4f5; /* ~zinc-100 */
 }
 
 .dark body {
-  background-color: #111827; /* ~gray-900 */
+  background-color: #18181b; /* ~zinc-900 */
 }
 
 
@@ -131,26 +132,26 @@ code {
 html:not(.dark) .rmsc {
   /* Tailwind v4 no longer supports theme() in arbitrary CSS. */
   --rmsc-main: #3b82f6 !important; /* blue-500 */
-  --rmsc-hover: #e5e7eb !important; /* gray-200-ish */
+  --rmsc-hover: #e4e4e7 !important; /* ~zinc-200 */
   --rmsc-selected: #dbeafe !important; /* blue-100 */
-  --rmsc-border: #d1d5db !important; /* gray-300 */
-  --rmsc-gray: #6b7280 !important; /* gray-500 */
+  --rmsc-border: #d4d4d8 !important; /* ~zinc-300 */
+  --rmsc-gray: #71717a !important; /* ~zinc-500 */
   --rmsc-bg: #232427 !important; /* matches tailwind.config.js gray.815 */
   color: #000 !important;
 }
 
 html.dark .rmsc {
   --rmsc-main: #3b82f6 !important; /* blue-500 */
-  --rmsc-hover: #374151 !important; /* gray-700 */
-  --rmsc-selected: #111827 !important; /* gray-900 */
-  --rmsc-border: #374151 !important; /* gray-700 */
-  --rmsc-gray: #6b7280 !important; /* gray-500 */
+  --rmsc-hover: #3f3f46 !important; /* ~zinc-700 */
+  --rmsc-selected: #18181b !important; /* ~zinc-900 */
+  --rmsc-border: #3f3f46 !important; /* ~zinc-700 */
+  --rmsc-gray: #71717a !important; /* ~zinc-500 */
   --rmsc-bg: #232427 !important; /* matches tailwind.config.js gray.815 */
   color: #fff !important;
 }
 
 html:not(.dark) .rmsc input[type="checkbox"] {
-  border-color: #9ca3af; /* ~gray-400 */
+  border-color: #a1a1aa; /* ~zinc-400 */
 }
 
 html .rmsc input[type="checkbox"]:checked {
@@ -159,26 +160,26 @@ html .rmsc input[type="checkbox"]:checked {
 }
 
 html.dark .rmsc input[type="checkbox"] {
-  background-color: #1f2937; /* ~gray-800 */
-  border-color: #4b5563; /* ~gray-600 */
+  background-color: #27272a; /* ~zinc-800 */
+  border-color: #52525b; /* ~zinc-600 */
 }
 
 html .dropdown-content > div.panel-content {
-  border: 1px solid #d1d5db; /* ~gray-300 */
+  border: 1px solid #d4d4d8; /* ~zinc-300 */
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 }
 
 html.dark .dropdown-content > div.panel-content {
-  border: 1px solid #374151; /* ~gray-700 */
+  border: 1px solid #3f3f46; /* ~zinc-700 */
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 }
 
 @layer base {
   .bg-color {
-    background-color: #f3f4f6; /* ~gray-100 */
+    background-color: #f4f4f5; /* ~zinc-100 */
   }
   .dark .bg-color {
-    background-color: #111827; /* ~gray-900 */
+    background-color: #18181b; /* ~zinc-900 */
   }
 }
 
@@ -192,14 +193,14 @@ html.dark .dropdown-content > div.panel-content {
     width: 10px;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: #4b5563; /* ~gray-600 */
+    background-color: #52525b; /* ~zinc-600 */
     border-radius: 0.75rem;
   }
   *::-webkit-scrollbar-track {
     background-color: #2d2d2d; /* Set a darker color for the track */
   }
   .dark *::-webkit-scrollbar-thumb {
-    background-color: #1f2937; /* ~gray-800 */
+    background-color: #27272a; /* ~zinc-800 */
   }
 }
 .pattern {
