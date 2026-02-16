@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"net/http"
 	"os"
 	"os/signal"
@@ -143,7 +142,7 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 		if listenAddr != origListenAddr {
 			cfg.Server.ListenAddr = listenAddr
 		}
-		if flag.Lookup("db") != nil && origDBPath != "" {
+		if origDBPath != "" {
 			cfg.Database.Path = origDBPath
 		}
 	}
