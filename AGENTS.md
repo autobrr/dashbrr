@@ -191,3 +191,6 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (test)
 - Poller: add regression test ensuring `maybeRun` clears `inFlight` when ctx cancels before semaphore acquisition
+
+### 2026-02-16 (refactor)
+- Web: centralize repeated service loading skeleton into `web/src/components/ui/StatsSkeleton.tsx` (used by Radarr/Sonarr/Plex/Autobrr/Prowlarr/Omegabrr/Maintainerr/General)

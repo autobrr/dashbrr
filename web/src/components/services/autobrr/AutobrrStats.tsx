@@ -20,6 +20,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { AutobrrRelease } from "../../../types/service";
 import { getMediaType, getMediaTypeIcon } from "../../../utils/mediaTypes";
+import { StatsSkeleton } from "../../ui/StatsSkeleton";
 
 interface AutobrrStatsProps {
   instanceId: string;
@@ -32,27 +33,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="flex items-center space-x-3 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg animate-pulse"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2" />
-              <div className="flex space-x-2">
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20" />
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24" />
-              </div>
-            </div>
-            <div className="flex-shrink-0">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-16" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+    return <StatsSkeleton rows={3} />;
   }
 
   if (!service) {
