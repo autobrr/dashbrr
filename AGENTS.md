@@ -134,3 +134,6 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (bugfix)
 - Web: fix infinite render loop in `ConfigurationProvider` (remove `configurations` from `fetchConfigurations` deps; guard clears; use ref for “already loaded” check)
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-16 (polish)
+- Web: add `autoComplete=\"new-password\"` to registration confirm-password input to silence DOM warning
