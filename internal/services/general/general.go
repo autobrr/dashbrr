@@ -49,7 +49,7 @@ func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (m
 		headers["Authorization"] = fmt.Sprintf("Bearer %s", apiKey)
 	}
 
-	resp, err := s.MakeRequestWithContext(healthCtx, url, apiKey, headers)
+	resp, err := s.DoRequest(healthCtx, http.MethodGet, url, headers, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusServiceUnavailable
 	}

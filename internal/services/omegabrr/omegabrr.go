@@ -56,7 +56,7 @@ func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (s
 		"X-Api-Key": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, versionEndpoint, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, versionEndpoint, headers, nil)
 	if err != nil {
 		return "", err
 	}
@@ -102,7 +102,7 @@ func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (
 		"X-Api-Key": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(healthCtx, healthEndpoint, "", headers)
+	resp, err := s.DoRequest(healthCtx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", "Failed to connect: "+err.Error()), http.StatusOK
 	}
@@ -144,7 +144,7 @@ func (s *OmegabrrService) TriggerARRsWebhook(ctx context.Context, url, apiKey st
 	}
 
 	webhookEndpoint := fmt.Sprintf("%s/api/webhook/trigger/arr?apikey=%s", strings.TrimRight(url, "/"), apiKey)
-	resp, err := s.MakeRequestWithContext(ctx, webhookEndpoint, "", nil)
+	resp, err := s.DoRequest(ctx, http.MethodGet, webhookEndpoint, nil, nil)
 	if err != nil {
 		return http.StatusInternalServerError
 	}
@@ -160,7 +160,7 @@ func (s *OmegabrrService) TriggerListsWebhook(ctx context.Context, url, apiKey s
 	}
 
 	webhookEndpoint := fmt.Sprintf("%s/api/webhook/trigger/lists?apikey=%s", strings.TrimRight(url, "/"), apiKey)
-	resp, err := s.MakeRequestWithContext(ctx, webhookEndpoint, "", nil)
+	resp, err := s.DoRequest(ctx, http.MethodGet, webhookEndpoint, nil, nil)
 	if err != nil {
 		return http.StatusInternalServerError
 	}
@@ -176,7 +176,7 @@ func (s *OmegabrrService) TriggerAllWebhooks(ctx context.Context, url, apiKey st
 	}
 
 	webhookEndpoint := fmt.Sprintf("%s/api/webhook/trigger?apikey=%s", strings.TrimRight(url, "/"), apiKey)
-	resp, err := s.MakeRequestWithContext(ctx, webhookEndpoint, "", nil)
+	resp, err := s.DoRequest(ctx, http.MethodGet, webhookEndpoint, nil, nil)
 	if err != nil {
 		return http.StatusInternalServerError
 	}

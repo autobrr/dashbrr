@@ -50,7 +50,7 @@ func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (t
 		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, releasesURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, releasesURL, headers, nil)
 	if err != nil {
 		return types.ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
 	}
@@ -83,7 +83,7 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, statsURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, statsURL, headers, nil)
 	if err != nil {
 		return types.AutobrrStats{}, fmt.Errorf("request failed: %v", err)
 	}
@@ -138,7 +138,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, ircURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, ircURL, headers, nil)
 	if err != nil {
 		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("request failed: %v", err)
 	}
@@ -206,7 +206,7 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, versionURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, versionURL, headers, nil)
 	if err != nil {
 		return "", err
 	}
@@ -254,7 +254,7 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, updateURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, updateURL, headers, nil)
 	if err != nil {
 		return false, err
 	}
@@ -328,7 +328,7 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, livenessURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, livenessURL, headers, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}

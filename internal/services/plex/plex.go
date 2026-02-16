@@ -68,7 +68,7 @@ func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*typ
 	baseURL := strings.TrimRight(url, "/")
 	sessionsEndpoint := fmt.Sprintf("%s/status/sessions", baseURL)
 
-	resp, err := s.MakeRequestWithContext(ctx, sessionsEndpoint, "", s.getPlexHeaders(apiKey))
+	resp, err := s.DoRequest(ctx, http.MethodGet, sessionsEndpoint, s.getPlexHeaders(apiKey), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
@@ -118,7 +118,7 @@ func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (strin
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := s.getPlexHeaders(apiKey)
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to connect: %v", err)
 	}
@@ -156,7 +156,7 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := s.getPlexHeaders(apiKey)
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}

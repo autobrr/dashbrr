@@ -204,51 +204,6 @@ func isJSONContentType(contentType string) bool {
 	return strings.HasPrefix(contentType, "application/json") || strings.Contains(contentType, "+json")
 }
 
-// MakeRequestWithContext makes an HTTP request with the provided context and timeout
-func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
-	if url == "" {
-		log.Error().Msg("Service is not configured")
-		return nil, ErrServiceNotConfigured
-	}
-
-	// Get method from headers if provided, default to GET
-	method := http.MethodGet
-	if m, ok := headers["method"]; ok {
-		method = m
-		delete(headers, "method") // Remove method from headers after using it
-	}
-
-	outHeaders := make(map[string]string, len(headers))
-	for k, v := range headers {
-		outHeaders[k] = v
-	}
-
-	// Back-compat: auth_header/auth_value convenience.
-	if authHeader, ok := outHeaders["auth_header"]; ok {
-		if authValue, ok := outHeaders["auth_value"]; ok && authValue != "" {
-			outHeaders[authHeader] = authValue
-		}
-		delete(outHeaders, "auth_header")
-		delete(outHeaders, "auth_value")
-	}
-
-	_ = apiKey // Legacy param; callers set auth via headers.
-	// DoRequest handles timeout selection.
-	return s.DoRequest(ctx, method, url, outHeaders, nil)
-}
-
-func (s *ServiceCore) MakeRequest(url string, apiKey string, headers map[string]string) (*http.Response, error) {
-	// Use service-specific timeout if set, otherwise use default
-	timeout := DefaultTimeout
-	if s.Timeout > 0 {
-		timeout = s.Timeout
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return s.MakeRequestWithContext(ctx, url, apiKey, headers)
-}
-
 // ReadBody reads and returns the response body
 func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	if resp == nil {

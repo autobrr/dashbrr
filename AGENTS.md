@@ -101,3 +101,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 7)
 - Services: remove `auth_header/auth_value` header hack usage; pass explicit auth headers everywhere (keeps `MakeRequestWithContext` back-compat)
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 8)
+- Core HTTP: delete `MakeRequestWithContext`/`MakeRequest` legacy wrappers; all services now use `DoRequest` directly
+- Go tests: pass (`go test ./...`)

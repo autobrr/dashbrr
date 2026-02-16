@@ -80,7 +80,7 @@ func (s *TailscaleService) getDevicesWithContext(ctx context.Context, apiKey str
 		"Accept":        "application/json",
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, devicesURL, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, devicesURL, headers, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %v", err)
 	}

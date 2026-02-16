@@ -170,7 +170,7 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 		"X-Api-Key": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, requestEndpoint, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, requestEndpoint, headers, nil)
 	if err != nil {
 		return nil, &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
 	}
@@ -235,7 +235,7 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 		"X-Api-Key": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", (&ErrOverseerr{
 			Message: "Connection error",

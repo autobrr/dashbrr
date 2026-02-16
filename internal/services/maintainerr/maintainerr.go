@@ -101,7 +101,7 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	}
 
 	healthEndpoint := s.GetHealthEndpoint(url)
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", nil)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, nil, nil)
 	if err != nil {
 		return "", &ErrMaintainerr{Op: "get_version", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
@@ -156,7 +156,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 	}()
 
 	healthEndpoint := s.GetHealthEndpoint(url)
-	resp, err := s.MakeRequestWithContext(healthCtx, healthEndpoint, "", nil)
+	resp, err := s.DoRequest(healthCtx, http.MethodGet, healthEndpoint, nil, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}
@@ -235,7 +235,7 @@ func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey str
 	baseURL := strings.TrimRight(url, "/")
 	endpoint := fmt.Sprintf("%s/api/collections", baseURL)
 
-	resp, err := s.MakeRequestWithContext(ctx, endpoint, apiKey, nil)
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, nil, nil)
 	if err != nil {
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("failed to connect: %w", err)}
 	}

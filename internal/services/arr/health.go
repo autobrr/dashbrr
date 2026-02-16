@@ -87,7 +87,7 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		}
 	}()
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return models.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
 	}
