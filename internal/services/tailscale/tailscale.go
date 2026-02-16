@@ -105,7 +105,7 @@ func (s *TailscaleService) getDevicesWithContext(ctx context.Context, apiKey str
 	return &apiResponse, responseTime, nil
 }
 
-func (s *TailscaleService) getVersion(ctx context.Context, apiKey string) (string, error) {
+func (s *TailscaleService) getVersion(ctx context.Context, baseURL string, apiKey string) (string, error) {
 	apiResponse, _, err := s.getDevicesWithContext(ctx, apiKey)
 	if err != nil {
 		return "", err
@@ -124,8 +124,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, apiKey string) (strin
 		version = "unknown"
 	}
 
-	// Cache update status using ServiceCore's CacheVersion method with ":update" suffix
-	if err := s.CacheVersion(s.DefaultURL+":update", fmt.Sprintf("%v", updateAvailable), time.Hour); err != nil {
+	if err := s.CacheUpdateStatus(baseURL, updateAvailable, time.Hour); err != nil {
 		// Log error but don't fail the request
 		fmt.Printf("Failed to cache update status: %v\n", err)
 	}
@@ -146,7 +145,7 @@ func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey s
 
 	// Get version using GetCachedVersion for better caching
 	version, err := s.GetCachedVersion(healthCtx, url, apiKey, func(baseURL, key string) (string, error) {
-		return s.getVersion(healthCtx, key)
+		return s.getVersion(healthCtx, baseURL, key)
 	})
 
 	apiResponse, responseTime, err := s.getDevicesWithContext(healthCtx, apiKey)

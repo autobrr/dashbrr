@@ -88,3 +88,8 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 4)
 - Core HTTP: early-return on canceled ctx; clamp deadline-derived timeouts; treat `application/json; charset=utf-8` as JSON in `ReadBody`
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 5)
+- *arr health: propagate ctx from callers; delete broken pseudo-caching + unsafe goroutine map mutation; rely on poller caching instead
+- Update cache: add `CacheUpdateStatus` + legacy read; fix Maintainerr/Tailscale/*arr update caching to match `GetUpdateStatusFromCache`
+- Go tests: pass (`go test ./...`)

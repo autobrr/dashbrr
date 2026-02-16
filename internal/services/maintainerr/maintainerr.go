@@ -123,12 +123,8 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 		fmt.Printf("Failed to cache version: %v\n", err)
 	}
 
-	// Cache update status separately
-	if statusResponse.UpdateAvailable {
-		updateKey := fmt.Sprintf("%s:update", url)
-		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
-			fmt.Printf("Failed to cache update status: %v\n", err)
-		}
+	if err := s.CacheUpdateStatus(url, statusResponse.UpdateAvailable, time.Hour); err != nil {
+		fmt.Printf("Failed to cache update status: %v\n", err)
 	}
 
 	return statusResponse.Version, nil
@@ -208,12 +204,8 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 		versionErr = healthCtx.Err()
 	}
 
-	// Cache update status
-	if statusResponse.UpdateAvailable {
-		updateKey := fmt.Sprintf("%s:update", url)
-		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
-			fmt.Printf("Failed to cache update status: %v\n", err)
-		}
+	if err := s.CacheUpdateStatus(url, statusResponse.UpdateAvailable, time.Hour); err != nil {
+		fmt.Printf("Failed to cache update status: %v\n", err)
 	}
 
 	extras := map[string]interface{}{

@@ -167,5 +167,5 @@ func (s *ProwlarrService) GetHealthEndpoint(baseURL string) string {
 }
 
 func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+	return arr.ArrHealthCheck(ctx, &s.ServiceCore, url, apiKey, s)
 }

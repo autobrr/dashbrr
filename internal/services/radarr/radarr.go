@@ -242,5 +242,5 @@ func (s *RadarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 }
 
 func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+	return arr.ArrHealthCheck(ctx, &s.ServiceCore, url, apiKey, s)
 }

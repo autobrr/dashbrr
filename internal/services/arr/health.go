@@ -10,25 +10,15 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
-const (
-	healthCacheDuration = 30 * time.Second
-	arrCachePrefix      = "arr:"
-)
-
-var (
-	sf singleflight.Group
-	mu sync.RWMutex
-)
+const updateCacheTTL = time.Hour
 
 // HealthResponse represents a common health check response structure
 type HealthResponse struct {
@@ -46,43 +36,21 @@ type HealthChecker interface {
 }
 
 // ArrHealthCheck provides a common implementation of health checking for *arr services
-func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, int) {
+func ArrHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, int) {
 	if url == "" {
 		return s.CreateHealthResponse(time.Now(), "error", "URL is required"), http.StatusBadRequest
 	}
 
 	startTime := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
-	// Try to get cached health response
-	cacheKey := arrCachePrefix + "health:" + url
-	var cachedHealth models.ServiceHealth
-	if _, err := s.GetCachedVersion(ctx, cacheKey, "", func(_, _ string) (string, error) {
-		return "", nil // Cache miss, will handle below
-	}); err == nil && cachedHealth.Status != "" {
-		// Refresh cache in background
-		go func() {
-			refreshKey := fmt.Sprintf("refresh:%s", url)
-			_, _, _ = sf.Do(refreshKey, func() (interface{}, error) {
-				return performHealthCheck(ctx, s, url, apiKey, checker)
-			})
-		}()
-		return cachedHealth, http.StatusOK
-	}
-
-	// Use singleflight for health check
-	healthKey := fmt.Sprintf("health:%s", url)
-	result, err, _ := sf.Do(healthKey, func() (interface{}, error) {
-		return performHealthCheck(ctx, s, url, apiKey, checker)
-	})
-
+	health, err := performHealthCheck(healthCtx, s, url, apiKey, checker)
 	if err != nil {
 		log.Error().Err(err).Str("url", url).Msg("Health check failed")
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
 	}
 
-	health := result.(models.ServiceHealth)
 	return health, http.StatusOK
 }
 
@@ -105,6 +73,19 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	headers := map[string]string{
 		"X-Api-Key": apiKey,
 	}
+
+	updateAvailable := s.GetUpdateStatusFromCache(url)
+	go func() {
+		hasUpdate, err := checker.CheckForUpdates(url, apiKey)
+		if err != nil {
+			log.Debug().Err(err).Str("url", url).Msg("Update check failed")
+			return
+		}
+
+		if err := s.CacheUpdateStatus(url, hasUpdate, updateCacheTTL); err != nil {
+			log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
+		}
+	}()
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, apiKey, headers)
 	if err != nil {
@@ -153,22 +134,14 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 
 	// Build response
 	extras := map[string]interface{}{
-		"responseTime": responseTimeMs,
+		"responseTime":    responseTimeMs,
+		"updateAvailable": updateAvailable,
 	}
 
 	// Set version in extras
 	if version != "" {
 		extras["version"] = version
 	}
-
-	// Check for updates in background
-	go func() {
-		if hasUpdate, err := checker.CheckForUpdates(url, apiKey); err == nil && hasUpdate {
-			updateKey := fmt.Sprintf("%s:update", url)
-			s.CacheVersion(updateKey, "true", time.Hour)
-			extras["updateAvailable"] = true
-		}
-	}()
 
 	// Determine status and message
 	status := "online"
@@ -186,14 +159,6 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	}
 
 	health := s.CreateHealthResponse(startTime, status, message, extras)
-
-	// Cache the health response
-	if status != "error" {
-		cacheKey := arrCachePrefix + "health:" + url
-		if err := s.CacheVersion(cacheKey, fmt.Sprintf("%+v", health), healthCacheDuration); err != nil {
-			log.Warn().Err(err).Str("url", url).Msg("Failed to cache health response")
-		}
-	}
 
 	return health, nil
 }

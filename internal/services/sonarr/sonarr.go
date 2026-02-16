@@ -318,5 +318,5 @@ func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
 }
 
 func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+	return arr.ArrHealthCheck(ctx, &s.ServiceCore, url, apiKey, s)
 }

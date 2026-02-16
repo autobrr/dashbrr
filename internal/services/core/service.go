@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -344,12 +345,36 @@ func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
 
 	var updateStatus string
 	cacheKey := fmt.Sprintf("%s:update", baseURL)
-	err := s.cache.Get(context.Background(), cacheKey, &updateStatus)
-	if err != nil {
-		return false
+	if err := s.cache.Get(context.Background(), cacheKey, &updateStatus); err == nil {
+		return updateStatus == "true"
 	}
 
-	return updateStatus == "true"
+	// Legacy: older code incorrectly stored update status via CacheVersion(updateKey, ...),
+	// which prefixes keys with "version:".
+	var legacyStatus string
+	legacyKey := "version:" + cacheKey
+	if err := s.cache.Get(context.Background(), legacyKey, &legacyStatus); err == nil {
+		return legacyStatus == "true"
+	}
+
+	return false
+}
+
+// CacheUpdateStatus stores update availability in the dedicated update cache key.
+func (s *ServiceCore) CacheUpdateStatus(baseURL string, updateAvailable bool, ttl time.Duration) error {
+	if err := s.initCache(); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		return err
+	}
+
+	cacheKey := fmt.Sprintf("%s:update", baseURL)
+	value := strconv.FormatBool(updateAvailable)
+	if err := s.cache.Set(context.Background(), cacheKey, value, ttl); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Str("value", value).Msg("Failed to cache update status")
+		return err
+	}
+
+	return nil
 }
 
 // CacheVersion stores the version in cache with the specified TTL
