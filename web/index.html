@@ -29,6 +29,37 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (async () => {
+        const host = location.hostname;
+        const isLocalhost =
+          host === "localhost" || host === "127.0.0.1" || host === "::1";
+        if (!isLocalhost) return;
+
+        // If a SW from a previous run is controlling localhost, it can serve stale/raw
+        // CSS/JS (e.g. `@tailwind` directives) and make the app look unstyled.
+        if (!("serviceWorker" in navigator)) return;
+
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          if (!regs.length) return;
+
+          await Promise.all(regs.map((r) => r.unregister()));
+
+          if ("caches" in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+
+          if (!sessionStorage.getItem("dashbrr_sw_cleared")) {
+            sessionStorage.setItem("dashbrr_sw_cleared", "1");
+            location.reload();
+          }
+        } catch {
+          // ignore
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

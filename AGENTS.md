@@ -145,3 +145,6 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (dev ux)
 - Backend: optional dev proxy to Vite (`DASHBRR_WEB_DEV_SERVER=http://localhost:3000` in debug); makes `http://localhost:8080` always serve the live styled frontend
 - Makefile: `make dev` / `make dev-memory` set `DASHBRR_WEB_DEV_SERVER` automatically
+
+### 2026-02-16 (dev bugfix)
+- Web: `index.html` now force-unregisters any existing SW on localhost and clears caches once/session (fix stale/raw CSS causing “unstyled” UI)
