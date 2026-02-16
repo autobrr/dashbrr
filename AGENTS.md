@@ -130,3 +130,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 14)
 - Dev UX: `make dev` / `make dev-memory` run backend via `dashbrr serve` (not implicit flags)
 - Serve: fix `--db-file` override (remove dead `flag.Lookup("db")` check)
+
+### 2026-02-16 (bugfix)
+- Web: fix infinite render loop in `ConfigurationProvider` (remove `configurations` from `fetchConfigurations` deps; guard clears; use ref for “already loaded” check)
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

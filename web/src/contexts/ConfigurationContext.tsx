@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState, useEffect, ReactNode, useCallback } from "react";
+import { useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { API_BASE_URL, API_PREFIX } from "../config/api";
 import { ServiceConfig } from "../types/service";
 import { useAuth } from "../hooks/useAuth";
@@ -17,6 +17,11 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const configurationsRef = useRef(configurations);
+
+  useEffect(() => {
+    configurationsRef.current = configurations;
+  }, [configurations]);
 
   const buildUrl = useCallback((path: string) => {
     const apiPath = path.startsWith("/api") ? path : `${API_PREFIX}${path}`;
@@ -32,15 +37,16 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchConfigurations = useCallback(async () => {
-    if (!isAuthenticated || !localStorage.getItem("access_token")) {
-      setConfigurations({});
+    const token = localStorage.getItem("access_token");
+    if (!isAuthenticated || !token) {
+      // Avoid an update loop: only clear if we actually had config.
+      setConfigurations((prev) => (Object.keys(prev).length > 0 ? {} : prev));
       setIsLoading(false);
       return;
     }
 
-    // Skip fetch if we already have configurations
-    if (Object.keys(configurations).length > 0) {
-      console.log("[ConfigurationProvider] Already have configurations, skipping fetch");
+    // Skip fetch if we already have configurations.
+    if (Object.keys(configurationsRef.current).length > 0) {
       return;
     }
 
@@ -71,7 +77,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, buildUrl, getAuthHeaders, configurations]);
+  }, [isAuthenticated, buildUrl, getAuthHeaders]);
 
   useEffect(() => {
     fetchConfigurations();
