@@ -11,7 +11,7 @@
 # RUN pnpm run build
 
 # build app
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine3.20 AS app-builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine3.23 AS app-builder
 RUN apk add --no-cache git tzdata
 
 ENV SERVICE=dashbrr

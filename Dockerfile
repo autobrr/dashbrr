@@ -1,5 +1,5 @@
 # build web
-FROM node:22.10.0-alpine3.20 AS web-builder
+FROM node:22-alpine3.23 AS web-builder
 RUN corepack enable
 
 WORKDIR /app/web
@@ -11,7 +11,7 @@ COPY web/ ./
 RUN pnpm run build
 
 # build app
-FROM golang:1.25-alpine3.20 AS app-builder
+FROM golang:1.25-alpine3.23 AS app-builder
 
 ARG VERSION=dev
 ARG REVISION=dev

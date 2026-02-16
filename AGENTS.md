@@ -64,8 +64,8 @@ Owner: soup (s0up4200@pm.me)
 - CI alignment: bumped workflow toolchain pins to match new engine requirements
   - `.github/workflows/release.yml`: `GO_VERSION=1.25.0`, `NODE_VERSION=22.12.0` (Vite 7 requires Node >=20.19.0)
 - Container builds: bumped Go base images to match toolchain
-  - `Dockerfile`: `golang:1.25-alpine3.20`
-  - `ci.Dockerfile`: `golang:1.25-alpine3.20`
+  - `Dockerfile`: `golang:1.25-alpine3.23`
+  - `ci.Dockerfile`: `golang:1.25-alpine3.23`
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`
