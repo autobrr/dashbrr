@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4: use the single entrypoint so theme tokens (colors/spacing/etc)
+ * are available and utilities like `bg-gray-900`, `px-3`, `rounded-md` generate.
+ */
+@import "tailwindcss";
 
 body {
   margin: 0;
