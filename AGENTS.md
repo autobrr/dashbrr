@@ -179,3 +179,6 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
+
+### 2026-02-16 (refactor)
+- Web: remove unused `servicesRef` from `useServiceData` (less state, same behavior)

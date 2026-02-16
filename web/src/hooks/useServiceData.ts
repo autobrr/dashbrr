@@ -34,7 +34,6 @@ export const useServiceData = () => {
   const { isAuthenticated } = useAuth();
 
   const [services, setServices] = useState<Map<string, Service>>(new Map());
-  const servicesRef = useRef<Map<string, Service>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -46,7 +45,6 @@ export const useServiceData = () => {
     (updater: (prev: Map<string, Service>) => Map<string, Service>) => {
       setServices((prev) => {
         const next = updater(prev);
-        servicesRef.current = next;
         return next;
       });
     },
