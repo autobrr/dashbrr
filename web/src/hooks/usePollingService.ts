@@ -46,8 +46,8 @@ export function usePollingService<T>(
   const [isLoading, setIsLoading] = useState(false);
   const { configurations } = useConfiguration();
 
-  const timeoutRef = useRef<NodeJS.Timeout>();
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const mountedRef = useRef(true);
 

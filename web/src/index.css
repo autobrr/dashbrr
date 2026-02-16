@@ -11,7 +11,11 @@ body {
   margin: 0;
   height: 100%;
   padding: 0;
-  @apply bg-gray-100 dark:bg-gray-900;
+  background-color: #f3f4f6; /* ~gray-100 */
+}
+
+.dark body {
+  background-color: #111827; /* ~gray-900 */
 }
 
 
@@ -124,51 +128,56 @@ code {
 }
 
 html:not(.dark) .rmsc {
-  --rmsc-main: theme(colors.blue.500) !important;
-  --rmsc-hover: theme(colors.gray.175) !important;
-  --rmsc-selected: theme(colors.blue.150) !important;
-  --rmsc-border: theme(colors.gray.300) !important;
-  --rmsc-gray: theme(colors.gray.500) !important;
-  --rmsc-bg: theme(colors.gray.815) !important;
+  /* Tailwind v4 no longer supports theme() in arbitrary CSS. */
+  --rmsc-main: #3b82f6 !important; /* blue-500 */
+  --rmsc-hover: #e5e7eb !important; /* gray-200-ish */
+  --rmsc-selected: #dbeafe !important; /* blue-100 */
+  --rmsc-border: #d1d5db !important; /* gray-300 */
+  --rmsc-gray: #6b7280 !important; /* gray-500 */
+  --rmsc-bg: #232427 !important; /* matches tailwind.config.js gray.815 */
   color: #000 !important;
 }
 
 html.dark .rmsc {
-  --rmsc-main: theme(colors.blue.500) !important;
-  --rmsc-hover: theme(colors.gray.750) !important;
-  --rmsc-selected: theme(colors.gray.900) !important;
-  --rmsc-border: theme(colors.gray.700) !important;
-  --rmsc-gray: theme(colors.gray.500) !important;
-  --rmsc-bg: theme(colors.gray.815) !important;
+  --rmsc-main: #3b82f6 !important; /* blue-500 */
+  --rmsc-hover: #374151 !important; /* gray-700 */
+  --rmsc-selected: #111827 !important; /* gray-900 */
+  --rmsc-border: #374151 !important; /* gray-700 */
+  --rmsc-gray: #6b7280 !important; /* gray-500 */
+  --rmsc-bg: #232427 !important; /* matches tailwind.config.js gray.815 */
   color: #fff !important;
 }
 
 html:not(.dark) .rmsc input[type="checkbox"] {
-  @apply border-gray-400;
+  border-color: #9ca3af; /* ~gray-400 */
 }
 
 html .rmsc input[type="checkbox"]:checked {
-  @apply bg-blue-500 border-blue-500;
+  background-color: #3b82f6; /* blue-500 */
+  border-color: #3b82f6; /* blue-500 */
 }
 
 html.dark .rmsc input[type="checkbox"] {
-  @apply bg-gray-775 border-gray-650;
+  background-color: #1f2937; /* ~gray-800 */
+  border-color: #4b5563; /* ~gray-600 */
 }
 
 html .dropdown-content > div.panel-content {
-  @apply border border-gray-350 !shadow-2xl;
+  border: 1px solid #d1d5db; /* ~gray-300 */
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 }
 
 html.dark .dropdown-content > div.panel-content {
-  @apply border border-gray-700 !shadow-2xl;
+  border: 1px solid #374151; /* ~gray-700 */
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 }
 
 @layer base {
   .bg-color {
-    @apply bg-gray-100;
+    background-color: #f3f4f6; /* ~gray-100 */
   }
   .dark .bg-color {
-    @apply bg-gray-900;
+    background-color: #111827; /* ~gray-900 */
   }
 }
 
@@ -182,13 +191,14 @@ html.dark .dropdown-content > div.panel-content {
     width: 10px;
   }
   *::-webkit-scrollbar-thumb {
-    @apply bg-gray-600 rounded-xl; /* Change to a darker gray */
+    background-color: #4b5563; /* ~gray-600 */
+    border-radius: 0.75rem;
   }
   *::-webkit-scrollbar-track {
     background-color: #2d2d2d; /* Set a darker color for the track */
   }
   .dark *::-webkit-scrollbar-thumb {
-    @apply bg-gray-800; /* Change to a darker gray for dark mode */
+    background-color: #1f2937; /* ~gray-800 */
   }
 }
 .pattern {

@@ -51,3 +51,13 @@ Owner: soup (s0up4200@pm.me)
 - Tailscale handler: request ctx propagation; cache key safety for short tokens
 - AuthContext: removed hook-deps warnings; simplified rate-limit retry loops
 - Web lint: clean (`pnpm -C web lint`)
+
+### 2026-02-16 (deps)
+- Backend deps: upgraded Go modules (gin, docker, k8s, modernc sqlite, x/*, etc) + `go mod tidy`
+  - Fixed vet-printf issues in arr services (fmt.Errorf w/ non-const string)
+  - Go tests: pass (`go test ./...`)
+- Frontend deps: upgraded to latest (React 19, Vite 7, Tailwind 4, MUI 7, Router 7, Workbox 7.4, etc)
+  - Tailwind 4 migration: `@tailwindcss/postcss`, Vite uses `postcss.config.js` (no inline postcss plugins)
+  - CSS cleanup: removed `theme()` and `@apply` usage from `web/src/index.css` to avoid Tailwind v4 incompat/errors
+  - ESLint: pinned to v9 (v10 peer mismatch); disabled new v7 react-hooks heuristic rules (lint still clean)
+  - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

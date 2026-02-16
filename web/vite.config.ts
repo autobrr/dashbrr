@@ -1,8 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import tailwindcss from 'tailwindcss'
-import autoprefixer from 'autoprefixer'
 
 export default defineConfig(({ mode }) => ({
   base: "/",
@@ -37,9 +35,6 @@ export default defineConfig(({ mode }) => ({
     modules: {
       localsConvention: 'camelCase'
     },
-    postcss: {
-      plugins: [tailwindcss, autoprefixer]
-    }
   },
   plugins: [
     react({
