@@ -131,12 +131,12 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	cacheKey := releasesPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-		// Use singleflight to prevent duplicate requests
-		result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
-			return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.ReleasesResponse, error) {
-				return h.fetchReleases(ctx, instanceId)
-			})
+	// Use singleflight to prevent duplicate requests
+	result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.ReleasesResponse, error) {
+			return h.fetchReleases(ctx, instanceId)
 		})
+	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
@@ -197,12 +197,12 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	cacheKey := statsPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-		// Use singleflight to prevent duplicate requests
-		result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
-			return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.AutobrrStats, error) {
-				return h.fetchStats(ctx, instanceId)
-			})
+	// Use singleflight to prevent duplicate requests
+	result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.AutobrrStats, error) {
+			return h.fetchStats(ctx, instanceId)
 		})
+	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
@@ -263,12 +263,12 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	cacheKey := ircPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-		// Use singleflight to prevent duplicate requests
-		result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
-			return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() ([]types.IRCStatus, error) {
-				return h.fetchIRC(ctx, instanceId)
-			})
+	// Use singleflight to prevent duplicate requests
+	result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
+		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() ([]types.IRCStatus, error) {
+			return h.fetchIRC(ctx, instanceId)
 		})
+	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {

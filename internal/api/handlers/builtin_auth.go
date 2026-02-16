@@ -39,7 +39,7 @@ func (h *BuiltinAuthHandler) CheckRegistrationStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"hasUsers":             hasUsers,
+		"hasUsers":            hasUsers,
 		"registrationEnabled": !hasUsers,
 	})
 }
