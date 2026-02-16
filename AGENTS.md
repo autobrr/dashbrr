@@ -66,3 +66,10 @@ Owner: soup (s0up4200@pm.me)
 - Container builds: bumped Go base images to match toolchain
   - `Dockerfile`: `golang:1.25-alpine3.20`
   - `ci.Dockerfile`: `golang:1.25-alpine3.20`
+
+### 2026-02-16 (cleanup)
+- Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`
+- Removed unused hooks (no imports found): moved to Trash
+  - `web/src/hooks/useEventSource.ts`
+  - `web/src/hooks/usePollingService.ts`
+  - `web/src/hooks/useCachedServiceData.ts`
