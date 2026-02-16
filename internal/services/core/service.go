@@ -27,8 +27,13 @@ import (
 )
 
 var (
-	// Global HTTP client pool
-	httpClients sync.Map
+	httpClient = &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 
 	// Common errors
 	ErrServiceNotConfigured = errors.New("service is not configured")
@@ -60,29 +65,6 @@ func (s *ServiceCore) SetDB(db *database.DB) {
 // SetTimeout sets a custom timeout for the service
 func (s *ServiceCore) SetTimeout(timeout time.Duration) {
 	s.Timeout = timeout
-}
-
-// getHTTPClient returns a client with the specified timeout
-func getHTTPClient(timeout time.Duration) *http.Client {
-	// Use the timeout as the key
-	if client, ok := httpClients.Load(timeout); ok {
-		return client.(*http.Client)
-	}
-
-	// Create new client if not found
-	client := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        10,               // Reduced from 100
-			MaxIdleConnsPerHost: 2,                // Reduced from 10
-			IdleConnTimeout:     30 * time.Second, // Reduced from 90s
-			DisableKeepAlives:   false,
-		},
-		Timeout: timeout,
-	}
-
-	// Store in pool
-	httpClients.Store(timeout, client)
-	return client
 }
 
 func (s *ServiceCore) initCache() error {
@@ -139,17 +121,19 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		return nil, err
 	}
 
-	// Use service-specific timeout if set, otherwise use context deadline or default.
+	// Use service-specific timeout if set; otherwise default. If ctx already has a
+	// deadline, rely on ctx cancellation (don't derive http.Client timeouts from
+	// time.Until(deadline), which would create a new timeout key each request).
 	timeout := DefaultTimeout
 	if s.Timeout > 0 {
 		timeout = s.Timeout
 	}
-	if deadline, ok := ctx.Deadline(); ok {
-		until := time.Until(deadline)
-		if until <= 0 {
-			return nil, context.DeadlineExceeded
-		}
-		timeout = until
+
+	reqCtx := ctx
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok && timeout > 0 {
+		reqCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 
 	var bodyReader io.Reader
@@ -157,7 +141,7 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	req, err := http.NewRequestWithContext(reqCtx, method, url, bodyReader)
 	if err != nil {
 		log.Error().Err(err).Str("url", url).Msg("Failed to create request")
 		return nil, err
@@ -173,8 +157,7 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 	}
 
 	start := time.Now()
-	client := getHTTPClient(timeout)
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Error().Err(err).
 			Str("url", url).

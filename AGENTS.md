@@ -122,3 +122,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 12)
 - Services: remove redundant `defer resp.Body.Close()` where `ReadBody` already closes the body (less noise, same behavior)
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 13)
+- HTTP: stop keying `http.Client` pools by `time.Until(deadline)` (unbounded growth); use shared clients + ctx deadlines for timeouts
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web build`)

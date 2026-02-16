@@ -10,16 +10,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
-
-// Global HTTP client pool
-var httpClients sync.Map
 
 // Custom error type for *arr services
 type ErrArr struct {
@@ -47,31 +43,24 @@ type SystemStatusResponse struct {
 	Version string `json:"version"`
 }
 
-// getHTTPClient returns a client with the specified timeout
-func getHTTPClient(timeout time.Duration) *http.Client {
-	// Use the timeout as the key
-	if client, ok := httpClients.Load(timeout); ok {
-		return client.(*http.Client)
-	}
-
-	// Create new client if not found
-	client := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
-			DisableKeepAlives:   false,
-		},
-		Timeout: timeout,
-	}
-
-	// Store in pool
-	httpClients.Store(timeout, client)
-	return client
+var arrHTTPClient = &http.Client{
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
 }
 
 // MakeArrRequest is a helper function to make requests with proper headers
 func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte) (*http.Response, error) {
+	// If no deadline is set, apply a default to avoid hanging requests.
+	reqCtx := ctx
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok {
+		reqCtx, cancel = context.WithTimeout(ctx, core.DefaultTimeout)
+		defer cancel()
+	}
+
 	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err
@@ -82,18 +71,10 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Content-Type", "application/json")
 
-	// Get timeout from context or use default
-	timeout := core.DefaultTimeout
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = time.Until(deadline)
-	}
-
 	// Track request start time
 	startTime := time.Now()
 
-	// Get client with appropriate timeout
-	client := getHTTPClient(timeout)
-	resp, err := client.Do(req)
+	resp, err := arrHTTPClient.Do(req.WithContext(reqCtx))
 	if err != nil {
 		if err == context.Canceled {
 			return nil, fmt.Errorf("request canceled: %w", err)
