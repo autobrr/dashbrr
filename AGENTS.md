@@ -173,3 +173,6 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (perf)
 - Web: externalize huge `.pattern` SVG data-uri -> `web/public/pattern.svg` (shrink `web/src/index.css`)
+
+### 2026-02-16 (ui)
+- Web/auth: switch login/register UI neutrals from `gray-*` to explicit `zinc-*` classes (avoid relying on Tailwind config override)
