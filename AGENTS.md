@@ -166,3 +166,7 @@ Owner: soup (s0up4200@pm.me)
 - Web: restore Zinc palette for base wrappers/backgrounds (body/bg-color/rmsc/scrollbars)
 - Web: ensure Tailwind config applies in v4 via `@config` in `web/src/index.css`
 - Web: Vite dev SW killer typing: drop `connect` types (fix `tsc -b`), keep behavior
+
+### 2026-02-16 (security)
+- Go: installed `govulncheck`; fixed GO-2025-4233 by bumping `github.com/quic-go/quic-go` to `v0.57.0`
+- Verified: `govulncheck ./...` clean; `go test ./...` clean
