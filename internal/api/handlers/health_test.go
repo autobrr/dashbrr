@@ -18,7 +18,6 @@ import (
 
 	testing_mocks "github.com/autobrr/dashbrr/internal/api/handlers/testing"
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services"
 )
 
 // mockServiceHealthChecker implements models.ServiceHealthChecker interface for testing
@@ -137,7 +136,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 			}
 
 			// Create the handler with our mocks
-			handler := NewHealthHandler(mockDB, services.NewHealthService(), mockCreator)
+			handler := NewHealthHandler(mockDB, mockCreator)
 
 			// Setup the router
 			r := gin.New()

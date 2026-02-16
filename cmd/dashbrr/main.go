@@ -18,7 +18,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
-	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 
 	"github.com/pkg/errors"
@@ -189,9 +188,7 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 		return err
 	}
 
-	healthService := services.NewHealthService()
-
-	srv := api.NewServer(cfg, db, store, healthService)
+	srv := api.NewServer(cfg, db, store)
 
 	errorChannel := make(chan error)
 	go func() {

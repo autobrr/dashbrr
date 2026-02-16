@@ -11,7 +11,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/sse"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -25,20 +24,18 @@ type Server struct {
 	cfg        *config.Config
 	db         *database.DB
 	cache      cache.Store
-	healthSvc  *services.HealthService
 	hub        *sse.Hub
 	poller     *handlers.Poller
 	pollerStop context.CancelFunc
 	httpServer *http.Server
 }
 
-func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, healthSvc *services.HealthService) *Server {
+func NewServer(cfg *config.Config, db *database.DB, cache cache.Store) *Server {
 	return &Server{
-		cfg:       cfg,
-		db:        db,
-		cache:     cache,
-		healthSvc: healthSvc,
-		hub:       sse.NewHub(),
+		cfg:   cfg,
+		db:    db,
+		cache: cache,
+		hub:   sse.NewHub(),
 	}
 }
 
@@ -111,9 +108,9 @@ func (s *Server) Handler() http.Handler {
 
 	// Initialize handlers with cache
 	bc := handlers.NewBroadcaster(s.hub)
-	settingsHandler := handlers.NewSettingsHandler(s.db, s.healthSvc, s.cache)
+	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
-	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc)
+	healthHandler := handlers.NewHealthHandler(s.db)
 	eventsHandler := handlers.NewEventsHandler(s.hub)
 	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, bc)
 	omegabrrHandler := handlers.NewOmegabrrHandler(s.db, s.cache)

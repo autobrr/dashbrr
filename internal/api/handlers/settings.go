@@ -14,7 +14,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/manager"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -28,7 +27,6 @@ const (
 
 type SettingsHandler struct {
 	db             *database.DB
-	health         *services.HealthService
 	cache          cache.Store
 	serviceManager *manager.ServiceManager
 	lastDebugLog   time.Time
@@ -39,10 +37,9 @@ func sanitizeServiceConfig(c models.ServiceConfiguration) models.ServiceConfigur
 	return c
 }
 
-func NewSettingsHandler(db *database.DB, health *services.HealthService, cache cache.Store) *SettingsHandler {
+func NewSettingsHandler(db *database.DB, cache cache.Store) *SettingsHandler {
 	return &SettingsHandler{
 		db:             db,
-		health:         health,
 		cache:          cache,
 		serviceManager: manager.NewServiceManager(db, cache),
 		lastDebugLog:   time.Now().Add(-configDebugLogTTL), // Initialize to ensure first log happens
@@ -133,11 +130,6 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		return
 	}
 
-	// If updating, stop health monitoring first
-	if existing != nil && h.health != nil {
-		h.health.StopMonitoring(instanceID)
-	}
-
 	// API keys are write-only. If omitted on update, keep existing.
 	if existing != nil && config.APIKey == "" {
 		config.APIKey = existing.APIKey
@@ -187,12 +179,6 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 		log.Warn().Str("instance", instanceID).Msg("No configuration found")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Configuration not found"})
 		return
-	}
-
-	// Stop health monitoring before deleting
-	if h.health != nil {
-		log.Debug().Str("instance", instanceID).Msg("Stopping health monitoring")
-		h.health.StopMonitoring(instanceID)
 	}
 
 	// Delete the configuration

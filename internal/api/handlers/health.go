@@ -13,7 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -24,11 +23,10 @@ type DatabaseService interface {
 
 type HealthHandler struct {
 	db             DatabaseService
-	health         *services.HealthService
 	serviceCreator models.ServiceCreator
 }
 
-func NewHealthHandler(db DatabaseService, health *services.HealthService, creator ...models.ServiceCreator) *HealthHandler {
+func NewHealthHandler(db DatabaseService, creator ...models.ServiceCreator) *HealthHandler {
 	var sc models.ServiceCreator
 	if len(creator) > 0 {
 		sc = creator[0]
@@ -38,7 +36,6 @@ func NewHealthHandler(db DatabaseService, health *services.HealthService, creato
 
 	return &HealthHandler{
 		db:             db,
-		health:         health,
 		serviceCreator: sc,
 	}
 }

@@ -73,3 +73,9 @@ Owner: soup (s0up4200@pm.me)
   - `web/src/hooks/useEventSource.ts`
   - `web/src/hooks/usePollingService.ts`
   - `web/src/hooks/useCachedServiceData.ts`
+
+### 2026-02-16 (modernize pass 2)
+- Deleted legacy `HealthService` monitoring subsystem (redundant with poller)
+  - removed: `internal/services/health.go`, `internal/services/health_test.go`
+  - handlers/server/cli updated to not inject/stop monitoring
+  - Go tests: pass (`go test ./...`)
