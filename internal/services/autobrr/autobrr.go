@@ -47,8 +47,7 @@ func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (t
 
 	releasesURL := s.getEndpoint(url, "/api/release")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, releasesURL, apiKey, headers)
@@ -81,8 +80,7 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 
 	statsURL := s.getEndpoint(url, "/api/release/stats")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, statsURL, apiKey, headers)
@@ -137,8 +135,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 
 	ircURL := s.getEndpoint(url, "/api/irc")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, ircURL, apiKey, headers)
@@ -206,8 +203,7 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 
 	versionURL := s.getEndpoint(url, "/api/config")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, versionURL, apiKey, headers)
@@ -255,8 +251,7 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 
 	updateURL := s.getEndpoint(url, "/api/updates/latest")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, updateURL, apiKey, headers)
@@ -330,8 +325,7 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 	// Perform health check
 	livenessURL := s.getEndpoint(url, "/api/healthz/liveness")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, livenessURL, apiKey, headers)

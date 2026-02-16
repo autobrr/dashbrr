@@ -53,8 +53,7 @@ func (s *OmegabrrService) GetVersionEndpoint(baseURL string) string {
 func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (string, error) {
 	versionEndpoint := s.GetVersionEndpoint(url)
 	headers := map[string]string{
-		"auth_header": "X-Api-Key",
-		"auth_value":  apiKey,
+		"X-Api-Key": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, versionEndpoint, "", headers)
@@ -100,8 +99,7 @@ func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (
 	// Check health endpoint
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := map[string]string{
-		"auth_header": "X-Api-Key",
-		"auth_value":  apiKey,
+		"X-Api-Key": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(healthCtx, healthEndpoint, "", headers)

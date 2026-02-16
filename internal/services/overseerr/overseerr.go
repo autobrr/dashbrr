@@ -232,8 +232,7 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := map[string]string{
-		"auth_header": "X-Api-Key",
-		"auth_value":  apiKey,
+		"X-Api-Key": apiKey,
 	}
 
 	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)

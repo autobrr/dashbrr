@@ -97,3 +97,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 6)
 - Web: route-level code-splitting (lazy load `LoginPage`, `CallbackPage`, main `AppContent`) to shrink initial bundle + remove >500kb Vite chunk warning
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-16 (modernize pass 7)
+- Services: remove `auth_header/auth_value` header hack usage; pass explicit auth headers everywhere (keeps `MakeRequestWithContext` back-compat)
+- Go tests: pass (`go test ./...`)
