@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode, command }) => ({
   base: "/",
   build: {
     outDir: 'dist',
@@ -40,7 +40,9 @@ export default defineConfig(({ mode }) => ({
     react({
       jsxRuntime: 'automatic'
     }),
-    VitePWA({
+    // PWA only for builds. Dev service workers are a persistent footgun:
+    // they can cache stale/raw CSS/JS and make the app look unstyled.
+    ...(command === 'build' ? [VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       selfDestroying: false,
@@ -152,7 +154,7 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: '/index.html',
         suppressWarnings: true
       }
-    })
+    })] : [])
   ],
   server: {
     port: 3000,

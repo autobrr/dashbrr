@@ -148,3 +148,4 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (dev bugfix)
 - Web: `index.html` now force-unregisters any existing SW on localhost and clears caches once/session (fix stale/raw CSS causing “unstyled” UI)
+- Web: PWA plugin disabled entirely during `vite serve` (build-only) to prevent dev SW cache footguns
