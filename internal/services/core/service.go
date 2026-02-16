@@ -4,6 +4,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -115,14 +116,15 @@ func (s *ServiceCore) initCache() error {
 	return err
 }
 
-// MakeRequestWithContext makes an HTTP request with the provided context and timeout
-func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
+// DoRequest makes an HTTP request with the provided context, method, and optional body.
+// Uses the shared HTTP client pool + service-specific timeout.
+func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, headers map[string]string, body []byte) (*http.Response, error) {
 	if url == "" {
 		log.Error().Msg("Service is not configured")
 		return nil, ErrServiceNotConfigured
 	}
 
-	// Use service-specific timeout if set, otherwise use context deadline or default
+	// Use service-specific timeout if set, otherwise use context deadline or default.
 	timeout := DefaultTimeout
 	if s.Timeout > 0 {
 		timeout = s.Timeout
@@ -131,43 +133,27 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 		timeout = time.Until(deadline)
 	}
 
-	// Get method from headers if provided, default to GET
-	method := http.MethodGet
-	if m, ok := headers["method"]; ok {
-		method = m
-		delete(headers, "method") // Remove method from headers after using it
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	if err != nil {
 		log.Error().Err(err).Str("url", url).Msg("Failed to create request")
 		return nil, err
 	}
 
-	// Set default headers
+	// Default headers
 	buildinfo.AttachUserAgentHeader(req)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Connection", "keep-alive")
 
-	if headers != nil {
-		// Handle auth header first if present
-		if authHeader, ok := headers["auth_header"]; ok {
-			if authValue, ok := headers["auth_value"]; ok && authValue != "" {
-				req.Header.Set(authHeader, authValue)
-			}
-		}
-
-		// Set other headers
-		for headerKey, headerValue := range headers {
-			if headerKey != "auth_header" && headerKey != "auth_value" {
-				req.Header.Set(headerKey, headerValue)
-			}
-		}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	start := time.Now()
-
-	// Get client with appropriate timeout
 	client := getHTTPClient(timeout)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -177,13 +163,12 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 			Msg("Request failed")
 		return nil, err
 	}
-
 	if resp == nil {
 		log.Error().Str("url", url).Msg("Received nil response from server")
 		return nil, ErrNilResponse
 	}
 
-	// Check if response is a redirect to a login page or similar
+	// Redirect often indicates auth issues.
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
 		resp.Body.Close()
 		err := errors.New("received redirect response, possible authentication issue")
@@ -191,10 +176,41 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 		return nil, err
 	}
 
-	// Store the response time in milliseconds
 	resp.Header.Set("X-Response-Time", fmt.Sprintf("%d", time.Since(start).Milliseconds()))
-
 	return resp, nil
+}
+
+// MakeRequestWithContext makes an HTTP request with the provided context and timeout
+func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
+	if url == "" {
+		log.Error().Msg("Service is not configured")
+		return nil, ErrServiceNotConfigured
+	}
+
+	// Get method from headers if provided, default to GET
+	method := http.MethodGet
+	if m, ok := headers["method"]; ok {
+		method = m
+		delete(headers, "method") // Remove method from headers after using it
+	}
+
+	outHeaders := make(map[string]string, len(headers))
+	for k, v := range headers {
+		outHeaders[k] = v
+	}
+
+	// Back-compat: auth_header/auth_value convenience.
+	if authHeader, ok := outHeaders["auth_header"]; ok {
+		if authValue, ok := outHeaders["auth_value"]; ok && authValue != "" {
+			outHeaders[authHeader] = authValue
+		}
+		delete(outHeaders, "auth_header")
+		delete(outHeaders, "auth_value")
+	}
+
+	_ = apiKey // Legacy param; callers set auth via headers.
+	// DoRequest handles timeout selection.
+	return s.DoRequest(ctx, method, url, outHeaders, nil)
 }
 
 func (s *ServiceCore) MakeRequest(url string, apiKey string, headers map[string]string) (*http.Response, error) {

@@ -4,7 +4,6 @@
 package overseerr
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -73,6 +72,9 @@ func (s *OverseerrService) UpdateRequestStatus(ctx context.Context, url, apiKey 
 	if url == "" {
 		return &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
+	if apiKey == "" {
+		return &ErrOverseerr{Message: "Configuration error", Errors: []string{"API key is required"}}
+	}
 
 	baseURL := strings.TrimRight(url, "/")
 	status := "approve"
@@ -81,19 +83,15 @@ func (s *OverseerrService) UpdateRequestStatus(ctx context.Context, url, apiKey 
 	}
 	endpoint := fmt.Sprintf("%s/api/v1/request/%d/%s", baseURL, requestID, status)
 
-	// Create an empty request body
-	emptyBody := bytes.NewReader([]byte("{}"))
-
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, emptyBody)
-	if err != nil {
-		return &ErrOverseerr{Message: "Failed to create request", Errors: []string{err.Error()}}
+	headers := map[string]string{
+		"X-Api-Key":     apiKey,
+		"Content-Type":  "application/json",
+		"Cache-Control": "no-cache",
+		"Pragma":        "no-cache",
+		"Accept":        "application/json",
 	}
 
-	req.Header.Set("X-Api-Key", apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := s.DoRequest(ctx, http.MethodPost, endpoint, headers, []byte("{}"))
 	if err != nil {
 		return &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
 	}
@@ -121,7 +119,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 	switch request.Media.MediaType {
 	case "movie":
 		// Find Radarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "radarr")
+		service, err = s.db.GetServiceByInstancePrefix(ctx, "radarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Radarr service: %w", err)
 		}
@@ -139,7 +137,7 @@ func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.Me
 
 	case "tv":
 		// Find Sonarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix(context.Background(), "sonarr")
+		service, err = s.db.GetServiceByInstancePrefix(ctx, "sonarr")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Sonarr service: %w", err)
 		}

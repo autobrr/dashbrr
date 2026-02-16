@@ -79,3 +79,8 @@ Owner: soup (s0up4200@pm.me)
   - removed: `internal/services/health.go`, `internal/services/health_test.go`
   - handlers/server/cli updated to not inject/stop monitoring
   - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 3)
+- Core HTTP: added `ServiceCore.DoRequest` (method + optional body) to avoid ad-hoc `http.Client{}` usage
+- Overseerr: `UpdateRequestStatus` now uses shared client + timeout; DB lookups use request ctx (no `context.Background()`)
+- Go tests: pass (`go test ./...`)
