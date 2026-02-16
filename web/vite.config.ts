@@ -1,8 +1,59 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import type { NextFunction } from 'connect'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 
-export default defineConfig(({ mode }) => ({
+function devServiceWorkerKiller(enabled: boolean): Plugin | undefined {
+  if (!enabled) return undefined
+
+  // If a Workbox SW was ever registered on localhost, it can cache raw `index.css`
+  // (with Tailwind directives) and make the app look totally unstyled. Serve a
+  // tiny SW in dev that unregisters itself + clears CacheStorage.
+  return {
+    name: 'dashbrr-dev-sw-killer',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: NextFunction) => {
+        if (!req.url) return next()
+        const url = new URL(req.url, 'http://localhost')
+        if (url.pathname !== '/sw.js') return next()
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store')
+        res.end(`
+// Dev SW killer: unregister self, clear caches, refresh clients.
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    try { await self.registration.unregister(); } catch {}
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    } catch {}
+    try {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clients) {
+        try { client.navigate(client.url); } catch {}
+      }
+    } catch {}
+  })());
+});
+        `.trim())
+      })
+    },
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  const pwaDevEnabled = process.env.VITE_PWA_DEV === 'true'
+  const swKiller = devServiceWorkerKiller(!pwaDevEnabled)
+
+  return {
   base: "/",
   build: {
     outDir: 'dist',
@@ -37,6 +88,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [
+    ...(swKiller ? [swKiller] : []),
     react({
       jsxRuntime: 'automatic'
     }),
@@ -147,7 +199,7 @@ export default defineConfig(({ mode }) => ({
       devOptions: {
         // Dev SW is off by default: it can serve raw `index.css` with `@tailwind`
         // directives, making the app look "unstyled". Opt-in via env when needed.
-        enabled: process.env.VITE_PWA_DEV === 'true',
+        enabled: pwaDevEnabled,
         type: 'module',
         navigateFallback: '/index.html',
         suppressWarnings: true
@@ -193,4 +245,5 @@ export default defineConfig(({ mode }) => ({
       }
     }
   }
-}))
+  }
+})

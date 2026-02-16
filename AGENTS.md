@@ -48,6 +48,8 @@ Owner: soup (s0up4200@pm.me)
 - Fix: surface backend error bodies in UI (login + register).
 - Fix: add "special character" password requirement + validation.
 - Fix: `/api/auth/registration-status` now returns `hasUsers` (frontend was reading it).
+- Dev fix: Vite serves compiled Tailwind OK; unstyled UI in dev comes from stale SW caching raw `src/index.css`.
+  - Added dev middleware to serve `/sw.js` that unregisters itself + clears caches (kills leftover Workbox SW).
 - Added manual refresh endpoint: `POST /api/services/:instanceId/refresh?kind=health|stats|all`
 - Go tests: pass (`go test ./...`)
 - Web build: pass (`pnpm -C web build`)
