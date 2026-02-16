@@ -61,3 +61,5 @@ Owner: soup (s0up4200@pm.me)
   - CSS cleanup: removed `theme()` and `@apply` usage from `web/src/index.css` to avoid Tailwind v4 incompat/errors
   - ESLint: pinned to v9 (v10 peer mismatch); disabled new v7 react-hooks heuristic rules (lint still clean)
   - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+- CI alignment: bumped workflow toolchain pins to match new engine requirements
+  - `.github/workflows/release.yml`: `GO_VERSION=1.25.0`, `NODE_VERSION=22.12.0` (Vite 7 requires Node >=20.19.0)
