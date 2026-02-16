@@ -109,3 +109,8 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 9)
 - Autobrr: avoid `[]byte -> string -> reader` roundtrip when decoding stats JSON (use `bytes.NewReader`)
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 10)
+- Core cache: treat `InitCache` errors as non-fatal if a fallback store exists (stop disabling cache due to Redis warnings)
+- Tests: added `core` unit tests for update-status cache keying (new + legacy)
+- Go tests: pass (`go test ./...`)

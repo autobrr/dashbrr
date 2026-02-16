@@ -113,10 +113,18 @@ func (s *ServiceCore) initCache() error {
 	// Use the global cache instance
 	store, err := cache.InitCache(context.Background(), cfg)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize preferred cache, using memory cache")
+		// cache.InitCache guarantees a usable store even if it returns an error
+		// (it falls back to memory cache on Redis failures).
+		log.Warn().Err(err).Msg("Cache init failed; falling back to memory cache")
 	}
 	s.cache = store
-	return err
+	if s.cache == nil {
+		if err != nil {
+			return err
+		}
+		return errors.New("cache init returned nil store")
+	}
+	return nil
 }
 
 // DoRequest makes an HTTP request with the provided context, method, and optional body.
