@@ -63,3 +63,6 @@ Owner: soup (s0up4200@pm.me)
   - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
 - CI alignment: bumped workflow toolchain pins to match new engine requirements
   - `.github/workflows/release.yml`: `GO_VERSION=1.25.0`, `NODE_VERSION=22.12.0` (Vite 7 requires Node >=20.19.0)
+- Container builds: bumped Go base images to match toolchain
+  - `Dockerfile`: `golang:1.25-alpine3.20`
+  - `ci.Dockerfile`: `golang:1.25-alpine3.20`
