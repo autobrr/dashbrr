@@ -32,7 +32,8 @@ export function useCachedServiceData() {
     const services = Object.entries(configurations).map(([instanceId, config]) => {
       const [type] = instanceId.split('-');
       const template = serviceTemplates.find(t => t.type === type);
-      const hasRequiredConfig = Boolean(config.url && config.apiKey);
+      // API keys are write-only server-side; treat URL presence as "configured" on the client.
+      const hasRequiredConfig = Boolean(config.url);
 
       return {
         id: instanceId,

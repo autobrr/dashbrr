@@ -174,7 +174,7 @@ export default defineConfig(({ mode }) => ({
             console.log('proxy error', err);
           });
           proxy.on('proxyReq', (proxyReq, req) => {
-            if (req.url?.includes('/health/events')) {
+            if (req.url?.includes('/health/events') || req.url?.includes('/events')) {
               // Set specific headers for SSE connections
               proxyReq.setHeader('Accept', 'text/event-stream');
               proxyReq.setHeader('Cache-Control', 'no-cache');

@@ -166,12 +166,10 @@ export const getMaintainerrCollections = async (instanceId: string): Promise<Mai
   }
 };
 
-export const triggerWebhookArrs = async (baseUrl: string, apiKey: string): Promise<ApiResponse> => {
+export const triggerWebhookArrs = async (instanceId: string): Promise<ApiResponse> => {
   try {
-    const response = await api.post<ApiResponse>(buildUrl('/omegabrr/webhook/arrs'), {
-      targetUrl: baseUrl,
-      apiKey: apiKey
-    });
+    const params = new URLSearchParams({ instanceId });
+    const response = await api.post<ApiResponse>(buildUrl(`/omegabrr/webhook/arrs?${params}`));
     return { 
       success: true, 
       message: typeof response === 'string' ? response : JSON.stringify(response) 
@@ -182,12 +180,10 @@ export const triggerWebhookArrs = async (baseUrl: string, apiKey: string): Promi
   }
 };
 
-export const triggerWebhookLists = async (baseUrl: string, apiKey: string): Promise<ApiResponse> => {
+export const triggerWebhookLists = async (instanceId: string): Promise<ApiResponse> => {
   try {
-    const response = await api.post<ApiResponse>(buildUrl('/omegabrr/webhook/lists'), {
-      targetUrl: baseUrl,
-      apiKey: apiKey
-    });
+    const params = new URLSearchParams({ instanceId });
+    const response = await api.post<ApiResponse>(buildUrl(`/omegabrr/webhook/lists?${params}`));
     return { 
       success: true, 
       message: typeof response === 'string' ? response : JSON.stringify(response) 
@@ -198,12 +194,10 @@ export const triggerWebhookLists = async (baseUrl: string, apiKey: string): Prom
   }
 };
 
-export const triggerWebhookAll = async (baseUrl: string, apiKey: string): Promise<ApiResponse> => {
+export const triggerWebhookAll = async (instanceId: string): Promise<ApiResponse> => {
   try {
-    const response = await api.post<ApiResponse>(buildUrl('/omegabrr/webhook/all'), {
-      targetUrl: baseUrl,
-      apiKey: apiKey
-    });
+    const params = new URLSearchParams({ instanceId });
+    const response = await api.post<ApiResponse>(buildUrl(`/omegabrr/webhook/all?${params}`));
     return { 
       success: true, 
       message: typeof response === 'string' ? response : JSON.stringify(response) 

@@ -56,7 +56,7 @@ export const OmegabrrStats: React.FC<OmegabrrStatsProps> = ({ instanceId }) => {
       )}
 
       {/* Controls */}
-      <OmegabrrControls url={service.url!} apiKey={service.apiKey!} />
+      <OmegabrrControls instanceId={service.instanceId} />
     </div>
   );
 };

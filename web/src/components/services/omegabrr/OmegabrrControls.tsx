@@ -12,22 +12,15 @@ import {
 import { toast } from "react-hot-toast";
 
 interface OmegabrrControlsProps {
-  url: string;
-  apiKey: string;
+  instanceId: string;
 }
 
 export const OmegabrrControls: React.FC<OmegabrrControlsProps> = ({
-  url,
-  apiKey,
+  instanceId,
 }) => {
   const handleTriggerArrs = async () => {
-    if (!apiKey || !url) {
-      toast.error("Service URL and API key must be configured first.");
-      return;
-    }
-
     try {
-      await triggerWebhookArrs(url, apiKey);
+      await triggerWebhookArrs(instanceId);
       toast.success("ARRs webhook triggered successfully");
     } catch (err) {
       console.error("Failed to trigger ARRs webhook:", err);
@@ -38,13 +31,8 @@ export const OmegabrrControls: React.FC<OmegabrrControlsProps> = ({
   };
 
   const handleTriggerLists = async () => {
-    if (!apiKey || !url) {
-      toast.error("Service URL and API key must be configured first.");
-      return;
-    }
-
     try {
-      await triggerWebhookLists(url, apiKey);
+      await triggerWebhookLists(instanceId);
       toast.success("Lists webhook triggered successfully");
     } catch (err) {
       console.error("Failed to trigger Lists webhook:", err);
@@ -55,13 +43,8 @@ export const OmegabrrControls: React.FC<OmegabrrControlsProps> = ({
   };
 
   const handleTriggerAll = async () => {
-    if (!apiKey || !url) {
-      toast.error("Service URL and API key must be configured first.");
-      return;
-    }
-
     try {
-      await triggerWebhookAll(url, apiKey);
+      await triggerWebhookAll(instanceId);
       toast.success("All webhooks triggered successfully");
     } catch (err) {
       console.error("Failed to trigger all webhooks:", err);
@@ -80,24 +63,21 @@ export const OmegabrrControls: React.FC<OmegabrrControlsProps> = ({
         <button
           onClick={handleTriggerArrs}
           className="px-1.5 py-1 text-xs bg-blue-600 dark:bg-blue-500 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={!apiKey || !url}
-          title={!apiKey ? "Configure API key first" : "Trigger ARRs update"}
+          title="Trigger ARRs update"
         >
           ARRs Update
         </button>
         <button
           onClick={handleTriggerLists}
           className="px-2 py-1 text-xs bg-green-600 dark:bg-green-500 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={!apiKey || !url}
-          title={!apiKey ? "Configure API key first" : "Trigger Lists update"}
+          title="Trigger Lists update"
         >
           Lists Update
         </button>
         <button
           onClick={handleTriggerAll}
           className="px-2 py-1 text-xs bg-yellow-600 dark:bg-yellow-500 text-white rounded hover:bg-yellow-700 dark:hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={!apiKey || !url}
-          title={!apiKey ? "Configure API key first" : "Trigger all updates"}
+          title="Trigger all updates"
         >
           All Updates
         </button>

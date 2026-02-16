@@ -48,20 +48,15 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
   const { removeServiceInstance } = useServiceManagement();
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
-  const config = useMemo(() => {
-    const tailscaleConfig = Object.entries(configurations).find(([id]) =>
+  const instanceId = useMemo(() => {
+    const tailscale = Object.entries(configurations).find(([id]) =>
       id.startsWith("tailscale-")
     );
-    if (!tailscaleConfig) return null;
-    return {
-      id: tailscaleConfig[0],
-      url: tailscaleConfig[1].url,
-      apiKey: tailscaleConfig[1].apiKey,
-    };
+    return tailscale?.[0] ?? null;
   }, [configurations]);
 
   const fetchDevices = useCallback(async () => {
-    if (!config?.url || !config?.apiKey) {
+    if (!instanceId) {
       setError("Configuration missing");
       return;
     }
@@ -72,13 +67,8 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
     }
 
     try {
-      const params = new URLSearchParams({
-        url: config.url,
-        apiKey: config.apiKey,
-      });
-
       const response = await api.get<DevicesResponse>(
-        `/tailscale/devices?${params.toString()}`
+        `/tailscale/devices?instanceId=${encodeURIComponent(instanceId)}`
       );
 
       const deviceData = response.devices || [];
@@ -118,10 +108,10 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
       setIsOnline(false);
       setDevices([]);
     }
-  }, [config?.url, config?.apiKey, isAuthenticated]);
+  }, [instanceId, isAuthenticated]);
 
   useEffect(() => {
-    if (!loading && isAuthenticated && config?.url && config?.apiKey) {
+    if (!loading && isAuthenticated && instanceId) {
       fetchDevices();
       const interval = setInterval(fetchDevices, 60000);
       return () => clearInterval(interval);
@@ -130,19 +120,19 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
       setIsOnline(null);
       if (!isAuthenticated && !loading) {
         setError("Not authenticated");
-      } else if (!config) {
+      } else if (!instanceId) {
         setError("Not configured");
       }
     }
-  }, [config?.url, config?.apiKey, fetchDevices, isAuthenticated, loading]);
+  }, [instanceId, fetchDevices, isAuthenticated, loading]);
 
   const handleRemoveClick = () => {
     setIsRemoveModalOpen(true);
   };
 
   const handleConfirmRemove = async () => {
-    if (config?.id) {
-      await removeServiceInstance(config.id);
+    if (instanceId) {
+      await removeServiceInstance(instanceId);
       setIsRemoveModalOpen(false);
     }
   };
@@ -196,7 +186,7 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
   };
 
   // Only render if Tailscale is configured
-  if (!config) {
+  if (!instanceId) {
     return null;
   }
 
