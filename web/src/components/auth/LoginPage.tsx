@@ -48,6 +48,7 @@ export function LoginPage() {
     hasUppercase: false,
     hasLowercase: false,
     hasNumber: false,
+    hasSpecial: false,
     passwordsMatch: false,
   });
 
@@ -100,6 +101,7 @@ export function LoginPage() {
         hasUppercase: /[A-Z]/.test(password),
         hasLowercase: /[a-z]/.test(password),
         hasNumber: /[0-9]/.test(password),
+        hasSpecial: /[^A-Za-z0-9]/.test(password),
         passwordsMatch:
           password === formData.confirmPassword && password !== "",
       });
@@ -148,7 +150,7 @@ export function LoginPage() {
 
         try {
           // Generate a default email using the username
-          const defaultEmail = `${formData.username}@dashbrr.local`;
+          const defaultEmail = `${formData.username}@dashbrr.invalid`;
 
           await register({
             username: formData.username,
@@ -374,6 +376,21 @@ export function LoginPage() {
                         className="w-4 h-4 mr-2"
                       />
                       At least one number
+                    </li>
+                    <li
+                      className={`flex items-center ${
+                        passwordValidation.hasSpecial
+                          ? "text-green-400"
+                          : "text-blue-400"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={
+                          passwordValidation.hasSpecial ? faCheck : faTimes
+                        }
+                        className="w-4 h-4 mr-2"
+                      />
+                      At least one special character
                     </li>
                     <li
                       className={`flex items-center ${

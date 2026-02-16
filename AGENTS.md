@@ -1,3 +1,6 @@
+hi soup
+keep shipping; keep CI green
+
 # AGENTS
 
 Owner: soup (s0up4200@pm.me)
@@ -38,6 +41,13 @@ Owner: soup (s0up4200@pm.me)
 - Fixed major handler cache ineff: removed broken "refresh cache in background" logic (was always true)
 - Fixed SSE payload shapes to match frontend expectations (radarr/sonarr/maintainerr)
 - Frontend: replaced `useServiceData` polling/timers with SSE-driven updates + refresh endpoint
+
+### 2026-02-16 (auth + dev UX)
+- Root cause: register 400 hidden. Backend returns `{error: ...}`; frontend expected `{message: ...}`.
+- Root cause: backend requires special char in password; UI did not show requirement.
+- Fix: surface backend error bodies in UI (login + register).
+- Fix: add "special character" password requirement + validation.
+- Fix: `/api/auth/registration-status` now returns `hasUsers` (frontend was reading it).
 - Added manual refresh endpoint: `POST /api/services/:instanceId/refresh?kind=health|stats|all`
 - Go tests: pass (`go test ./...`)
 - Web build: pass (`pnpm -C web build`)
