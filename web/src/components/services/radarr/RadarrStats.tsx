@@ -16,43 +16,19 @@ import {
 import { api } from "../../../utils/api";
 import Toast from "../../../components/Toast";
 import { toast } from "react-hot-toast";
-import { Listbox } from "@headlessui/react";
-import { Transition } from "@headlessui/react";
+import { Listbox, Transition } from "@headlessui/react";
 import { Fragment } from "react";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import {
+  ArrQueueDeleteOptions,
+  buildArrQueueDeleteQueryParams,
+  getBlocklistText,
+  getRemovalMethodText,
+} from "../common/ArrQueueDelete";
 
 interface RadarrStatsProps {
   instanceId: string;
 }
-
-interface DeleteOptions {
-  removeFromClient: "remove" | "change" | "ignore";
-  blocklist: "none" | "blocklist" | "blocklistAndSearch";
-}
-
-// Helper function to get display text for removal method
-const getRemovalMethodText = (value: DeleteOptions["removeFromClient"]) => {
-  switch (value) {
-    case "remove":
-      return "Remove from Download Client";
-    case "change":
-      return "Change Category";
-    case "ignore":
-      return "Ignore Download";
-  }
-};
-
-// Helper function to get display text for blocklist
-const getBlocklistText = (value: DeleteOptions["blocklist"]) => {
-  switch (value) {
-    case "none":
-      return "Do not Blocklist";
-    case "blocklistAndSearch":
-      return "Blocklist and Search";
-    case "blocklist":
-      return "Blocklist Only";
-  }
-};
 
 export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
   const { services, refreshService } = useServiceData();
@@ -63,7 +39,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
   const [selectedItem, setSelectedItem] = useState<RadarrQueueItem | null>(
     null
   );
-  const [deleteOptions, setDeleteOptions] = useState<DeleteOptions>({
+  const [deleteOptions, setDeleteOptions] = useState<ArrQueueDeleteOptions>({
     removeFromClient: "change",
     blocklist: "none",
   });
@@ -72,34 +48,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
     if (!selectedItem) return;
 
     try {
-      const queryParams = new URLSearchParams();
-      queryParams.append("instanceId", instanceId);
-
-      // Handle removeFromClient and changeCategory based on selected option
-      if (deleteOptions.removeFromClient === "change") {
-        queryParams.append("removeFromClient", "false");
-        queryParams.append("changeCategory", "true");
-      } else if (deleteOptions.removeFromClient === "remove") {
-        queryParams.append("removeFromClient", "true");
-        queryParams.append("changeCategory", "false");
-      } else {
-        // ignore
-        queryParams.append("removeFromClient", "false");
-        queryParams.append("changeCategory", "false");
-      }
-
-      // Handle blocklist options
-      if (deleteOptions.blocklist === "blocklistAndSearch") {
-        queryParams.append("blocklist", "true");
-        queryParams.append("skipRedownload", "false");
-      } else if (deleteOptions.blocklist === "blocklist") {
-        queryParams.append("blocklist", "true");
-        queryParams.append("skipRedownload", "true");
-      } else {
-        // none
-        queryParams.append("blocklist", "false");
-        queryParams.append("skipRedownload", "true");
-      }
+      const queryParams = buildArrQueueDeleteQueryParams(instanceId, deleteOptions);
 
       await api.delete(
         `/api/radarr/queue/${selectedItem.id}?${queryParams.toString()}`
@@ -293,7 +242,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                     setDeleteOptions({
                       ...deleteOptions,
                       removeFromClient:
-                        value as DeleteOptions["removeFromClient"],
+                        value as ArrQueueDeleteOptions["removeFromClient"],
                     })
                   }
                 >
@@ -373,7 +322,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
                   onChange={(value) =>
                     setDeleteOptions({
                       ...deleteOptions,
-                      blocklist: value as DeleteOptions["blocklist"],
+                      blocklist: value as ArrQueueDeleteOptions["blocklist"],
                     })
                   }
                 >

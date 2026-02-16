@@ -198,3 +198,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (bugfix)
 - Web: Radarr/Sonarr queue delete no longer mutates `service.stats` directly; uses `refreshService(instanceId, "stats")` after delete
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-16 (refactor)
+- Web/arr: dedupe queue delete option helpers + query param builder into `web/src/components/services/common/ArrQueueDelete.ts` (used by Radarr/Sonarr)
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
