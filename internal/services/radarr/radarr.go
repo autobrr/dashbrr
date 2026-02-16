@@ -100,7 +100,7 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 			Message string `json:"message"`
 		}
 		if err := json.Unmarshal(body, &errorResponse); err == nil && errorResponse.Message != "" {
-			return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf(errorResponse.Message), HttpCode: resp.StatusCode}
+			return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("%s", errorResponse.Message), HttpCode: resp.StatusCode}
 		}
 		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", HttpCode: resp.StatusCode}
 	}

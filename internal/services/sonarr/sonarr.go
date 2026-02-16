@@ -132,7 +132,7 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 			Message string `json:"message"`
 		}
 		if err := json.Unmarshal(body, &errorResponse); err == nil && errorResponse.Message != "" {
-			return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf(errorResponse.Message), HttpCode: resp.StatusCode}
+			return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("%s", errorResponse.Message), HttpCode: resp.StatusCode}
 		}
 		return &ErrSonarr{Op: "delete_queue", HttpCode: resp.StatusCode}
 	}
