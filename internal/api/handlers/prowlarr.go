@@ -347,14 +347,14 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:8] != "prowlarr" {
+	if !strings.HasPrefix(instanceId, "prowlarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
 		return
 	}
 
 	cacheKey := prowlarrStatsPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	result, err := h.fetchStatsWithCache(ctx, cacheKey, func() (types.ProwlarrStatsResponse, error) {
 		stats, _, _, err := h.fetchProwlarrData(ctx, instanceId)
@@ -385,14 +385,14 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:8] != "prowlarr" {
+	if !strings.HasPrefix(instanceId, "prowlarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
 		return
 	}
 
 	cacheKey := prowlarrIndexerPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	result, err := h.fetchIndexersWithCache(ctx, cacheKey, func() ([]types.ProwlarrIndexer, error) {
 		_, indexers, _, err := h.fetchProwlarrData(ctx, instanceId)
@@ -423,14 +423,14 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:8] != "prowlarr" {
+	if !strings.HasPrefix(instanceId, "prowlarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
 		return
 	}
 
 	cacheKey := prowlarrIndexerStatsPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	result, err := h.fetchIndexerStatsWithCache(ctx, cacheKey, func() (types.ProwlarrIndexerStatsResponse, error) {
 		_, _, stats, err := h.fetchProwlarrData(ctx, instanceId)

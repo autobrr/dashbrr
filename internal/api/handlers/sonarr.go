@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -173,17 +174,17 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:6] != "sonarr" {
+	if !strings.HasPrefix(instanceId, "sonarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Sonarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
 		return
 	}
 
 	cacheKey := sonarrQueuePrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
-		return h.fetchQueue(instanceId)
+		return h.fetchQueue(ctx, instanceId)
 	})
 
 	if err != nil {
@@ -218,8 +219,8 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *SonarrHandler) fetchQueue(instanceId string) (types.SonarrQueueResponse, error) {
-	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *SonarrHandler) fetchQueue(ctx context.Context, instanceId string) (types.SonarrQueueResponse, error) {
+	sonarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.SonarrQueueResponse{}, err
 	}
@@ -232,7 +233,7 @@ func (h *SonarrHandler) fetchQueue(instanceId string) (types.SonarrQueueResponse
 	service := &sonarr.SonarrService{}
 
 	// Get queue records using the service
-	records, err := service.GetQueueForHealth(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey)
+	records, err := service.GetQueueForHealth(ctx, sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
 		return types.SonarrQueueResponse{}, err
 	}
@@ -263,20 +264,20 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:6] != "sonarr" {
+	if !strings.HasPrefix(instanceId, "sonarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Sonarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
 		return
 	}
 
 	cacheKey := sonarrStatsPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	result, err := h.fetchStatsWithCache(ctx, cacheKey, func() (struct {
 		Stats   types.SonarrStatsResponse
 		Version string
 	}, error) {
-		return h.fetchStats(instanceId)
+		return h.fetchStats(ctx, instanceId)
 	})
 
 	if err != nil {
@@ -307,11 +308,11 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	})
 }
 
-func (h *SonarrHandler) fetchStats(instanceId string) (struct {
+func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (struct {
 	Stats   types.SonarrStatsResponse
 	Version string
 }, error) {
-	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	sonarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return struct {
 			Stats   types.SonarrStatsResponse
@@ -355,7 +356,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:6] != "sonarr" {
+	if !strings.HasPrefix(instanceId, "sonarr") {
 		log.Error().Str("instanceId", instanceId).Msg("Invalid Sonarr instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
 		return
@@ -375,10 +376,10 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		ChangeCategory:   c.Query("changeCategory") == "true",
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	err := resilience.RetryWithBackoff(ctx, func() error {
-		return h.deleteQueueItem(instanceId, queueId, options)
+		return h.deleteQueueItem(ctx, instanceId, queueId, options)
 	})
 
 	if err != nil {
@@ -409,7 +410,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 
 	// Fetch fresh queue data
 	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
-		return h.fetchQueue(instanceId)
+		return h.fetchQueue(ctx, instanceId)
 	})
 
 	if err == nil {
@@ -419,8 +420,8 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }
 
-func (h *SonarrHandler) deleteQueueItem(instanceId, queueId string, options types.SonarrQueueDeleteOptions) error {
-	sonarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *SonarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options types.SonarrQueueDeleteOptions) error {
+	sonarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return err
 	}
@@ -433,7 +434,7 @@ func (h *SonarrHandler) deleteQueueItem(instanceId, queueId string, options type
 	service := &sonarr.SonarrService{}
 
 	// Call the service method to delete the queue item
-	return service.DeleteQueueItem(context.Background(), sonarrConfig.URL, sonarrConfig.APIKey, queueId, options)
+	return service.DeleteQueueItem(ctx, sonarrConfig.URL, sonarrConfig.APIKey, queueId, options)
 }
 
 // Helper methods for change detection

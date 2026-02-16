@@ -217,14 +217,14 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	}
 
 	// Verify this is a Maintainerr instance
-	if instanceId[:11] != "maintainerr" {
+	if !strings.HasPrefix(instanceId, "maintainerr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Maintainerr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Maintainerr instance ID"})
 		return
 	}
 
 	cacheKey := maintainerrCachePrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("collections:%s", instanceId)

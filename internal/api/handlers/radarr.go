@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -132,17 +133,17 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:6] != "radarr" {
+	if !strings.HasPrefix(instanceId, "radarr") {
 		log.Error().Str("instanceId", instanceId).Msg("[Radarr] Invalid instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Radarr instance ID"})
 		return
 	}
 
 	cacheKey := radarrQueuePrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
-		return h.fetchQueue(instanceId)
+		return h.fetchQueue(ctx, instanceId)
 	})
 
 	if err != nil {
@@ -176,8 +177,8 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *RadarrHandler) fetchQueue(instanceId string) (types.RadarrQueueResponse, error) {
-	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *RadarrHandler) fetchQueue(ctx context.Context, instanceId string) (types.RadarrQueueResponse, error) {
+	radarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.RadarrQueueResponse{}, err
 	}
@@ -190,7 +191,7 @@ func (h *RadarrHandler) fetchQueue(instanceId string) (types.RadarrQueueResponse
 	service := &radarr.RadarrService{}
 
 	// Get queue records using the service
-	records, err := service.GetQueueForHealth(context.Background(), radarrConfig.URL, radarrConfig.APIKey)
+	records, err := service.GetQueueForHealth(ctx, radarrConfig.URL, radarrConfig.APIKey)
 	if err != nil {
 		return types.RadarrQueueResponse{}, err
 	}
@@ -283,10 +284,10 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 		ChangeCategory:   c.Query("changeCategory") == "true",
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	err := resilience.RetryWithBackoff(ctx, func() error {
-		return h.deleteQueueItem(instanceId, queueId, options)
+		return h.deleteQueueItem(ctx, instanceId, queueId, options)
 	})
 
 	if err != nil {
@@ -314,7 +315,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 
 	// Fetch fresh queue data
 	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
-		return h.fetchQueue(instanceId)
+		return h.fetchQueue(ctx, instanceId)
 	})
 
 	if err == nil {
@@ -324,8 +325,8 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }
 
-func (h *RadarrHandler) deleteQueueItem(instanceId, queueId string, options types.RadarrQueueDeleteOptions) error {
-	radarrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *RadarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options types.RadarrQueueDeleteOptions) error {
+	radarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return err
 	}
@@ -338,5 +339,5 @@ func (h *RadarrHandler) deleteQueueItem(instanceId, queueId string, options type
 	service := &radarr.RadarrService{}
 
 	// Call the service method to delete the queue item
-	return service.DeleteQueueItem(context.Background(), radarrConfig.URL, radarrConfig.APIKey, queueId, options)
+	return service.DeleteQueueItem(ctx, radarrConfig.URL, radarrConfig.APIKey, queueId, options)
 }

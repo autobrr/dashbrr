@@ -141,8 +141,10 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 		return
 	}
 
+	ctx := c.Request.Context()
+
 	// Get service configuration
-	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	overseerrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get service configuration")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
@@ -160,7 +162,6 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	// Update request status using singleflight with retry and circuit breaker
 	sfKey := fmt.Sprintf("update_status:%s:%s", instanceId, requestId)
-	ctx := context.Background()
 
 	if h.circuitBreaker.IsOpen() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Service is temporarily unavailable"})
@@ -188,14 +189,14 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	// Clear the cache for this instance to force a refresh
 	cacheKey := overseerrCachePrefix + instanceId
-	if err := h.cache.Delete(context.Background(), cacheKey); err != nil {
+	if err := h.cache.Delete(ctx, cacheKey); err != nil {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after status update")
 	}
 
 	// Fetch fresh data and broadcast update using singleflight
 	sfKey = fmt.Sprintf("requests:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchRequests(instanceId)
+		return h.fetchRequests(ctx, instanceId)
 	})
 
 	if err == nil && result != nil {
@@ -217,20 +218,20 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	}
 
 	// Verify this is an Overseerr instance
-	if instanceId[:9] != "overseerr" {
+	if !strings.HasPrefix(instanceId, "overseerr") {
 		log.Error().Str("instanceId", instanceId).Msg("Invalid Overseerr instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Overseerr instance ID"})
 		return
 	}
 
 	cacheKey := overseerrCachePrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("requests:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
 		return h.fetchDataWithCache(ctx, cacheKey, func() (*types.RequestsStats, error) {
-			return h.fetchRequests(instanceId)
+			return h.fetchRequests(ctx, instanceId)
 		})
 	})
 
@@ -291,8 +292,8 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStats, error) {
-	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *OverseerrHandler) fetchRequests(ctx context.Context, instanceId string) (*types.RequestsStats, error) {
+	overseerrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +305,7 @@ func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStat
 	service := &overseerr.OverseerrService{}
 	service.SetDB(h.db)
 
-	stats, err := service.GetRequests(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey)
+	stats, err := service.GetRequests(ctx, overseerrConfig.URL, overseerrConfig.APIKey)
 	if err != nil {
 		return nil, err
 	}

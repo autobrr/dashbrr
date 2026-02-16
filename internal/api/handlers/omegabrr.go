@@ -138,7 +138,7 @@ func (h *OmegabrrHandler) GetOmegabrrStatus(c *gin.Context) {
 	}
 
 	cacheKey := omegabrrStatusPrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("status:%s", instanceId)

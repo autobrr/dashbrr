@@ -122,7 +122,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:7] != "autobrr" {
+	if !strings.HasPrefix(instanceId, "autobrr") {
 		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
 		return
@@ -131,12 +131,12 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	cacheKey := releasesPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-	// Use singleflight to prevent duplicate requests
-	result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
-		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.ReleasesResponse, error) {
-			return h.fetchReleases(instanceId)
+		// Use singleflight to prevent duplicate requests
+		result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
+			return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.ReleasesResponse, error) {
+				return h.fetchReleases(ctx, instanceId)
+			})
 		})
-	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
@@ -188,7 +188,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:7] != "autobrr" {
+	if !strings.HasPrefix(instanceId, "autobrr") {
 		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
 		return
@@ -197,12 +197,12 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	cacheKey := statsPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-	// Use singleflight to prevent duplicate requests
-	result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
-		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.AutobrrStats, error) {
-			return h.fetchStats(instanceId)
+		// Use singleflight to prevent duplicate requests
+		result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
+			return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() (types.AutobrrStats, error) {
+				return h.fetchStats(ctx, instanceId)
+			})
 		})
-	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
@@ -254,7 +254,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		return
 	}
 
-	if instanceId[:7] != "autobrr" {
+	if !strings.HasPrefix(instanceId, "autobrr") {
 		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
 		return
@@ -263,12 +263,12 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	cacheKey := ircPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-	// Use singleflight to prevent duplicate requests
-	result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
-		return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() ([]types.IRCStatus, error) {
-			return h.fetchIRC(instanceId)
+		// Use singleflight to prevent duplicate requests
+		result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
+			return fetchDataWithCache(ctx, h.store, h.circuitBreaker, cacheKey, func() ([]types.IRCStatus, error) {
+				return h.fetchIRC(ctx, instanceId)
+			})
 		})
-	})
 
 	if err != nil {
 		if err.Error() == "service not configured" {
@@ -312,8 +312,8 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-func (h *AutobrrHandler) fetchStats(instanceId string) (types.AutobrrStats, error) {
-	autobrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (types.AutobrrStats, error) {
+	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.AutobrrStats{}, err
 	}
@@ -326,11 +326,11 @@ func (h *AutobrrHandler) fetchStats(instanceId string) (types.AutobrrStats, erro
 		ServiceCore: core.ServiceCore{},
 	}
 
-	return service.GetReleaseStats(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
+	return service.GetReleaseStats(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
-func (h *AutobrrHandler) fetchReleases(instanceId string) (types.ReleasesResponse, error) {
-	autobrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *AutobrrHandler) fetchReleases(ctx context.Context, instanceId string) (types.ReleasesResponse, error) {
+	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return types.ReleasesResponse{}, err
 	}
@@ -343,11 +343,11 @@ func (h *AutobrrHandler) fetchReleases(instanceId string) (types.ReleasesRespons
 		ServiceCore: core.ServiceCore{},
 	}
 
-	return service.GetReleases(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
+	return service.GetReleases(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
-func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) {
-	autobrrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *AutobrrHandler) fetchIRC(ctx context.Context, instanceId string) ([]types.IRCStatus, error) {
+	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +360,7 @@ func (h *AutobrrHandler) fetchIRC(instanceId string) ([]types.IRCStatus, error) 
 		ServiceCore: core.ServiceCore{},
 	}
 
-	return service.GetIRCStatus(context.Background(), autobrrConfig.URL, autobrrConfig.APIKey)
+	return service.GetIRCStatus(ctx, autobrrConfig.URL, autobrrConfig.APIKey)
 }
 
 // broadcastReleases broadcasts release updates to all connected SSE clients

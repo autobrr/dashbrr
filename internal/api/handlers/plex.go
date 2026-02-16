@@ -131,14 +131,14 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	}
 
 	// Verify this is a Plex instance
-	if instanceId[:4] != "plex" {
+	if !strings.HasPrefix(instanceId, "plex") {
 		log.Error().Str("instanceId", instanceId).Msg("Invalid Plex instance ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Plex instance ID"})
 		return
 	}
 
 	cacheKey := plexCachePrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("sessions:%s", instanceId)

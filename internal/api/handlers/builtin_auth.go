@@ -4,7 +4,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -72,7 +71,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	}
 
 	// Check if username exists
-	existingUser, err := h.db.FindUser(context.Background(), types.FindUserParams{Username: req.Username})
+	existingUser, err := h.db.FindUser(c.Request.Context(), types.FindUserParams{Username: req.Username})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check username")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -84,7 +83,7 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 	}
 
 	// Check if email exists
-	existingUser, err = h.db.FindUser(context.Background(), types.FindUserParams{Email: req.Email})
+	existingUser, err = h.db.FindUser(c.Request.Context(), types.FindUserParams{Email: req.Email})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to check email")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -135,7 +134,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	}
 
 	// Get user by username
-	user, err := h.db.FindUser(context.Background(), types.FindUserParams{Username: req.Username})
+	user, err := h.db.FindUser(c.Request.Context(), types.FindUserParams{Username: req.Username})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -292,7 +291,7 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 	}
 
 	// Get user from database
-	user, err := h.db.FindUser(context.Background(), types.FindUserParams{ID: sessionData.UserID})
+	user, err := h.db.FindUser(c.Request.Context(), types.FindUserParams{ID: sessionData.UserID})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
