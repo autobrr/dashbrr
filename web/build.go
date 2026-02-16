@@ -11,6 +11,8 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -69,6 +71,35 @@ func subFS(currentFs fs.FS, root string) (fs.FS, error) {
 
 // ServeStatic registers static file handlers with Gin
 func ServeStatic(r *gin.Engine) {
+	// Dev UX: optionally proxy all non-API requests to a local Vite dev server.
+	// This avoids stale `web/dist` embeds and keeps `http://localhost:8080` usable.
+	if gin.Mode() == gin.DebugMode {
+		if devServer := strings.TrimSpace(os.Getenv("DASHBRR_WEB_DEV_SERVER")); devServer != "" {
+			target, err := url.Parse(devServer)
+			if err == nil && target.Scheme != "" && target.Host != "" {
+				proxy := httputil.NewSingleHostReverseProxy(target)
+				originalDirector := proxy.Director
+				proxy.Director = func(req *http.Request) {
+					originalDirector(req)
+					// Keep Vite happy behind the proxy.
+					req.Host = target.Host
+				}
+
+				// Proxy everything except /api, which Gin serves.
+				r.NoRoute(func(c *gin.Context) {
+					if strings.HasPrefix(c.Request.URL.Path, "/api") {
+						c.AbortWithStatus(http.StatusNotFound)
+						return
+					}
+					proxy.ServeHTTP(c.Writer, c.Request)
+				})
+
+				r.GET("/", func(c *gin.Context) { proxy.ServeHTTP(c.Writer, c.Request) })
+				return
+			}
+		}
+	}
+
 	// Helper function to serve static files with proper headers
 	serveStaticFile := func(c *gin.Context, filepath string, contentType string) {
 		file, err := DistDirFS.Open(filepath)

@@ -141,3 +141,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (bugfix)
 - Web/PWA: disable service-worker in dev by default (fix “unstyled Tailwind” from cached/raw CSS); dev now auto-unregisters SW + clears caches on load; prod still registers SW
 - Web: add `postbuild` to recreate `web/dist/.gitkeep` so `pnpm -C web build` stops dirtying git status
+
+### 2026-02-16 (dev ux)
+- Backend: optional dev proxy to Vite (`DASHBRR_WEB_DEV_SERVER=http://localhost:3000` in debug); makes `http://localhost:8080` always serve the live styled frontend
+- Makefile: `make dev` / `make dev-memory` set `DASHBRR_WEB_DEV_SERVER` automatically
