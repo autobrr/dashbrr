@@ -60,7 +60,6 @@ func (s *OmegabrrService) getVersion(ctx context.Context, url, apiKey string) (s
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {

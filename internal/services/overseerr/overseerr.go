@@ -174,7 +174,6 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 	if err != nil {
 		return nil, &ErrOverseerr{Message: "Connection error", Errors: []string{err.Error()}}
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {

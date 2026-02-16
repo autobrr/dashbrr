@@ -118,3 +118,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (modernize pass 11)
 - Services: remove stray `fmt.Printf` in service codepaths; use zerolog (`log.Debug`/`log.Warn`) instead
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-16 (modernize pass 12)
+- Services: remove redundant `defer resp.Body.Close()` where `ReadBody` already closes the body (less noise, same behavior)
+- Go tests: pass (`go test ./...`)

@@ -95,7 +95,6 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		return models.ServiceHealth{}, fmt.Errorf("nil response")
 	}
 
-	defer resp.Body.Close()
 	body, err := s.ReadBody(resp)
 	if err != nil {
 		return models.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)

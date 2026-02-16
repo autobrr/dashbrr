@@ -72,7 +72,6 @@ func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*typ
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -122,7 +121,6 @@ func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (strin
 	if err != nil {
 		return "", fmt.Errorf("failed to connect: %v", err)
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {

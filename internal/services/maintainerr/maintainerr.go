@@ -107,7 +107,6 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	if err != nil {
 		return "", &ErrMaintainerr{Op: "get_version", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
