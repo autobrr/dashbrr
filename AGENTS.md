@@ -182,3 +182,6 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (refactor)
 - Web: remove unused `servicesRef` from `useServiceData` (less state, same behavior)
+
+### 2026-02-16 (perf)
+- Web: `useServiceHealth` no longer double-fetches; now triggers refresh-only; statusCounts reduce no longer allocates per-service objects
