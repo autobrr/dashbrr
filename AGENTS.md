@@ -214,3 +214,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (deps)
 - Go: bump `github.com/lib/pq` to `v1.11.2`
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-16 (refactor)
+- Web/Plex: remove stale closure + eslint-disable in playback timer effect by deriving next state from functional `setPlaybackStates`
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

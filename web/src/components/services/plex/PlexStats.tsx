@@ -128,36 +128,39 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   );
 
   useEffect(() => {
-    const newStates: { [key: string]: TimerState } = {};
-    sessions.forEach((session) => {
-      const sessionKey = `${session.User?.title}-${session.title}`;
+    // Derive next timer state from previous state + latest sessions without
+    // re-subscribing the effect on every tick/state update.
+    setPlaybackStates((prev) => {
       const currentTime = Date.now();
-      const existingState = playbackStates[sessionKey];
+      const next: { [key: string]: TimerState } = {};
 
-      if (existingState) {
-        if (existingState.state === "playing") {
-          const timeDiff = currentTime - existingState.lastUpdated;
-          newStates[sessionKey] = {
-            offset: existingState.offset + timeDiff,
+      for (const session of sessions) {
+        const sessionKey = `${session.User?.title}-${session.title}`;
+        const existing = prev[sessionKey];
+        const state = session.Player?.state || "stopped";
+
+        if (existing) {
+          const offset =
+            existing.state === "playing"
+              ? existing.offset + (currentTime - existing.lastUpdated)
+              : existing.offset;
+
+          next[sessionKey] = {
+            offset,
             lastUpdated: currentTime,
-            state: session.Player?.state || "stopped",
+            state,
           };
         } else {
-          newStates[sessionKey] = {
-            ...existingState,
-            state: session.Player?.state || "stopped",
+          next[sessionKey] = {
+            offset: session.viewOffset || 0,
+            lastUpdated: currentTime,
+            state,
           };
         }
-      } else {
-        newStates[sessionKey] = {
-          offset: session.viewOffset || 0,
-          lastUpdated: currentTime,
-          state: session.Player?.state || "stopped",
-        };
       }
-    });
 
-    setPlaybackStates(newStates);
+      return next;
+    });
 
     const timer = setInterval(() => {
       setPlaybackStates((prev) => {
@@ -181,8 +184,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions]); // Removed playbackStates from dependencies
+  }, [sessions]);
 
   const getCurrentOffset = (session: PlexSession): number => {
     const sessionKey = `${session.User?.title}-${session.title}`;
