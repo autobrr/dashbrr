@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
@@ -119,12 +121,11 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 
 	// Cache version for 1 hour
 	if err := s.CacheVersion(url, statusResponse.Version, time.Hour); err != nil {
-		// Log but don't fail if caching fails
-		fmt.Printf("Failed to cache version: %v\n", err)
+		log.Debug().Err(err).Str("url", url).Str("version", statusResponse.Version).Msg("Failed to cache Maintainerr version")
 	}
 
 	if err := s.CacheUpdateStatus(url, statusResponse.UpdateAvailable, time.Hour); err != nil {
-		fmt.Printf("Failed to cache update status: %v\n", err)
+		log.Debug().Err(err).Str("url", url).Bool("updateAvailable", statusResponse.UpdateAvailable).Msg("Failed to cache Maintainerr update status")
 	}
 
 	return statusResponse.Version, nil
@@ -205,7 +206,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 	}
 
 	if err := s.CacheUpdateStatus(url, statusResponse.UpdateAvailable, time.Hour); err != nil {
-		fmt.Printf("Failed to cache update status: %v\n", err)
+		log.Debug().Err(err).Str("url", url).Bool("updateAvailable", statusResponse.UpdateAvailable).Msg("Failed to cache Maintainerr update status")
 	}
 
 	extras := map[string]interface{}{

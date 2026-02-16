@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
@@ -104,8 +106,7 @@ func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
 
 	// Cache version for 1 hour
 	if err := s.CacheVersion(url, status.Version, time.Hour); err != nil {
-		// Log error but don't fail the request
-		fmt.Printf("Failed to cache version: %v\n", err)
+		log.Debug().Err(err).Str("url", url).Str("version", status.Version).Msg("Failed to cache Prowlarr version")
 	}
 
 	return status.Version, nil

@@ -114,3 +114,7 @@ Owner: soup (s0up4200@pm.me)
 - Core cache: treat `InitCache` errors as non-fatal if a fallback store exists (stop disabling cache due to Redis warnings)
 - Tests: added `core` unit tests for update-status cache keying (new + legacy)
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 11)
+- Services: remove stray `fmt.Printf` in service codepaths; use zerolog (`log.Debug`/`log.Warn`) instead
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

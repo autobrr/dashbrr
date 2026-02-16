@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -65,8 +67,11 @@ func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.Se
 	for _, service := range services.Items {
 		config, err := k.parseServiceLabels(service.Labels, service.Namespace)
 		if err != nil {
-			fmt.Printf("Warning: Failed to parse labels for service %s/%s: %v\n",
-				service.Namespace, service.Name, err)
+			log.Warn().
+				Err(err).
+				Str("namespace", service.Namespace).
+				Str("service", service.Name).
+				Msg("Failed to parse discovery labels")
 			continue
 		}
 		if config != nil {

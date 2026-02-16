@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
@@ -125,8 +127,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, baseURL string, apiKe
 	}
 
 	if err := s.CacheUpdateStatus(baseURL, updateAvailable, time.Hour); err != nil {
-		// Log error but don't fail the request
-		fmt.Printf("Failed to cache update status: %v\n", err)
+		log.Debug().Err(err).Str("url", baseURL).Bool("updateAvailable", updateAvailable).Msg("Failed to cache Tailscale update status")
 	}
 
 	return version, nil

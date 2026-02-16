@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
@@ -49,7 +51,7 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]models.Servic
 	for _, container := range containers {
 		service, err := d.parseContainerLabels(container.Labels)
 		if err != nil {
-			fmt.Printf("Warning: Failed to parse labels for container %s: %v\n", container.ID[:12], err)
+			log.Warn().Err(err).Str("container", container.ID[:12]).Msg("Failed to parse discovery labels")
 			continue
 		}
 		if service != nil {

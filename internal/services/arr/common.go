@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
@@ -141,8 +143,7 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 
 	// Cache version for 1 hour
 	if err := cacheVersion(url, status.Version, time.Hour); err != nil {
-		// Log error but don't fail the request
-		fmt.Printf("Failed to cache version: %v\n", err)
+		log.Debug().Err(err).Str("url", url).Str("service", service).Msg("Failed to cache version")
 	}
 
 	return status.Version, nil
