@@ -210,3 +210,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (deps)
 - Web: bump `typescript-eslint` to `8.56.0`; attempted eslint v10 but `eslint-plugin-react-hooks` peer blocks, so kept eslint/@eslint-js on v9
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-16 (deps)
+- Go: bump `github.com/lib/pq` to `v1.11.2`
+- Go gate: pass (`go test ./...`)
