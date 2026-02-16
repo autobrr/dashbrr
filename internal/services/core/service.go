@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -124,13 +126,21 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		return nil, ErrServiceNotConfigured
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Use service-specific timeout if set, otherwise use context deadline or default.
 	timeout := DefaultTimeout
 	if s.Timeout > 0 {
 		timeout = s.Timeout
 	}
 	if deadline, ok := ctx.Deadline(); ok {
-		timeout = time.Until(deadline)
+		until := time.Until(deadline)
+		if until <= 0 {
+			return nil, context.DeadlineExceeded
+		}
+		timeout = until
 	}
 
 	var bodyReader io.Reader
@@ -178,6 +188,19 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 
 	resp.Header.Set("X-Response-Time", fmt.Sprintf("%d", time.Since(start).Milliseconds()))
 	return resp, nil
+}
+
+func isJSONContentType(contentType string) bool {
+	// Common: "application/json; charset=utf-8"
+	if contentType == "" {
+		return false
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil {
+		return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+	}
+	// Fallback for invalid headers.
+	return strings.HasPrefix(contentType, "application/json") || strings.Contains(contentType, "+json")
 }
 
 // MakeRequestWithContext makes an HTTP request with the provided context and timeout
@@ -276,7 +299,7 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 			err = fmt.Errorf("endpoint not found (404): %s", errMsg)
 		default:
 			// Only create error if content type is not JSON
-			if contentType != "application/json" {
+			if !isJSONContentType(contentType) {
 				err = fmt.Errorf("service error: %s", errMsg)
 			}
 		}

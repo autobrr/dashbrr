@@ -84,3 +84,7 @@ Owner: soup (s0up4200@pm.me)
 - Core HTTP: added `ServiceCore.DoRequest` (method + optional body) to avoid ad-hoc `http.Client{}` usage
 - Overseerr: `UpdateRequestStatus` now uses shared client + timeout; DB lookups use request ctx (no `context.Background()`)
 - Go tests: pass (`go test ./...`)
+
+### 2026-02-16 (modernize pass 4)
+- Core HTTP: early-return on canceled ctx; clamp deadline-derived timeouts; treat `application/json; charset=utf-8` as JSON in `ReadBody`
+- Go tests: pass (`go test ./...`)
