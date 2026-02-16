@@ -1,8 +1,9 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import type { NextFunction } from 'connect'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+
+type MiddlewareNext = (err?: unknown) => void
 
 function devServiceWorkerKiller(enabled: boolean): Plugin | undefined {
   if (!enabled) return undefined
@@ -14,7 +15,7 @@ function devServiceWorkerKiller(enabled: boolean): Plugin | undefined {
     name: 'dashbrr-dev-sw-killer',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: NextFunction) => {
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: MiddlewareNext) => {
         if (!req.url) return next()
         const url = new URL(req.url, 'http://localhost')
         if (url.pathname !== '/sw.js') return next()
