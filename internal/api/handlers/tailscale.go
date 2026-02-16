@@ -55,7 +55,11 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 
 	var cacheKey string
 	if apiKey != "" {
-		cacheKey = devicesCachePrefix + "direct:" + apiKey[:8] // Use first 8 chars of API key for cache key
+		keyPrefix := apiKey
+		if len(keyPrefix) > 8 {
+			keyPrefix = keyPrefix[:8]
+		}
+		cacheKey = devicesCachePrefix + "direct:" + keyPrefix // Use first 8 chars of API key for cache key
 	} else if instanceId != "" {
 		cacheKey = devicesCachePrefix + instanceId
 	} else {
@@ -82,7 +86,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	// Check if circuit breaker is open
 	if h.circuitBreaker.IsOpen() {

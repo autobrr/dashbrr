@@ -4,7 +4,6 @@
 package sonarr
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -71,18 +70,8 @@ func (s *SonarrService) GetHealthEndpoint(baseURL string) string {
 
 // makeRequest is a helper function to make requests with proper headers
 func (s *SonarrService) makeRequest(ctx context.Context, method, url, apiKey string, body []byte) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(body))
-	if err != nil {
-		return nil, err
-	}
-
-	// Set headers correctly
-	req.Header.Set("X-Api-Key", apiKey)
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	return client.Do(req)
+	// arr.MakeArrRequest uses a shared client pool + sane defaults.
+	return arr.MakeArrRequest(ctx, method, url, apiKey, body)
 }
 
 // DeleteQueueItem deletes a queue item with the specified options

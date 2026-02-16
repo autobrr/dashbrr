@@ -35,6 +35,7 @@ const (
 type OverseerrHandler struct {
 	db             *database.DB
 	cache          cache.Store
+	bc             *Broadcaster
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
 
@@ -42,10 +43,11 @@ type OverseerrHandler struct {
 	hashMu           sync.Mutex
 }
 
-func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
+func NewOverseerrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *OverseerrHandler {
 	return &OverseerrHandler{
 		db:               db,
 		cache:            cache,
+		bc:               bc,
 		sf:               &singleflight.Group{},
 		circuitBreaker:   resilience.NewCircuitBreaker(5, 1*time.Minute),
 		lastRequestsHash: make(map[string]string),
@@ -58,15 +60,7 @@ func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey stri
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
 	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.OverseerrRequests + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.OverseerrRequests)
-				}
-			}
-		}()
+		// Cache hit; no background refresh (TTL metadata not available).
 		return &data, nil
 	}
 
@@ -338,7 +332,6 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 	// Set warning status if there are pending requests
 	if stats.PendingCount > 0 {
 		serviceStatus = "warning"
-		message = fmt.Sprintf("%d pending requests", stats.PendingCount)
 	}
 
 	health := models.ServiceHealth{
@@ -360,7 +353,7 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 		},
 	}
 
-	BroadcastHealth(health)
+	h.bc.Publish(health)
 }
 
 // createOverseerrRequestsHash generates a deterministic hash of the requests state

@@ -34,6 +34,7 @@ const (
 type SonarrHandler struct {
 	db              *database.DB
 	cache           cache.Store
+	bc              *Broadcaster
 	sf              *singleflight.Group
 	circuitBreaker  *resilience.CircuitBreaker
 	lastQueueHash   map[string]string
@@ -42,10 +43,11 @@ type SonarrHandler struct {
 	lastStatsHashMu sync.Mutex
 }
 
-func NewSonarrHandler(db *database.DB, cache cache.Store) *SonarrHandler {
+func NewSonarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *SonarrHandler {
 	return &SonarrHandler{
 		db:             db,
 		cache:          cache,
+		bc:             bc,
 		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastQueueHash:  make(map[string]string),
@@ -60,15 +62,7 @@ func (h *SonarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
 	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.SonarrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.SonarrStatus)
-				}
-			}
-		}()
+		// Cache hit; no background refresh (store does not expose TTL metadata).
 		return data, nil
 	}
 
@@ -497,13 +491,15 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 		episodeCount += len(record.Episodes)
 	}
 
-	BroadcastHealth(models.ServiceHealth{
+	h.bc.Publish(models.ServiceHealth{
 		ServiceID:   instanceId,
-		Status:      "ok",
+		Status:      "online",
 		Message:     "sonarr_queue",
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
-			"sonarr": queueResp,
+			"sonarr": map[string]interface{}{
+				"queue": queueResp,
+			},
 		},
 		Details: map[string]interface{}{
 			"sonarr": map[string]interface{}{
@@ -518,9 +514,9 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 }
 
 func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types.SonarrStatsResponse, version string) {
-	BroadcastHealth(models.ServiceHealth{
+	h.bc.Publish(models.ServiceHealth{
 		ServiceID:   instanceId,
-		Status:      "ok",
+		Status:      "online",
 		Message:     "sonarr_stats",
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{

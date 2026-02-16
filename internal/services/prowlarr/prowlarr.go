@@ -64,16 +64,7 @@ func NewProwlarrService() models.ServiceHealthChecker {
 
 // makeRequest is a helper function to make requests with proper headers
 func (s *ProwlarrService) makeRequest(ctx context.Context, method, url, apiKey string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("X-Api-Key", apiKey)
-	req.Header.Set("Accept", "*/*")
-
-	client := &http.Client{}
-	return client.Do(req)
+	return arr.MakeArrRequest(ctx, method, url, apiKey, nil)
 }
 
 // GetSystemStatus fetches the system status from Prowlarr

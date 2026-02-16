@@ -62,15 +62,7 @@ func (h *OmegabrrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
 	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.OmegabrrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.OmegabrrStatus)
-				}
-			}
-		}()
+		// Cache hit; no background refresh (store does not expose TTL metadata).
 		return data, nil
 	}
 
@@ -285,6 +277,21 @@ func (h *OmegabrrHandler) executeWebhook(c *gin.Context, webhookType string, req
 
 // TriggerWebhookArrs handles webhook trigger for ARRs
 func (h *OmegabrrHandler) TriggerWebhookArrs(c *gin.Context) {
+	// Preferred: use stored config (no secrets in browser)
+	if instanceID := c.Query("instanceId"); instanceID != "" {
+		cfg, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
+		if err != nil || cfg == nil || cfg.URL == "" || cfg.APIKey == "" {
+			c.JSON(http.StatusBadRequest, WebhookResponse{Success: false, Message: "service not configured", Code: http.StatusBadRequest})
+			return
+		}
+
+		service := &omegabrr.OmegabrrService{ServiceCore: core.ServiceCore{}}
+		h.executeWebhook(c, "ARRs", WebhookRequest{TargetURL: cfg.URL, APIKey: cfg.APIKey}, func() int {
+			return service.TriggerARRsWebhook(c, cfg.URL, cfg.APIKey)
+		})
+		return
+	}
+
 	req, resp := validateWebhookRequest(c)
 	if resp != nil {
 		c.JSON(resp.Code, resp)
@@ -301,6 +308,20 @@ func (h *OmegabrrHandler) TriggerWebhookArrs(c *gin.Context) {
 
 // TriggerWebhookLists handles webhook trigger for Lists
 func (h *OmegabrrHandler) TriggerWebhookLists(c *gin.Context) {
+	if instanceID := c.Query("instanceId"); instanceID != "" {
+		cfg, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
+		if err != nil || cfg == nil || cfg.URL == "" || cfg.APIKey == "" {
+			c.JSON(http.StatusBadRequest, WebhookResponse{Success: false, Message: "service not configured", Code: http.StatusBadRequest})
+			return
+		}
+
+		service := &omegabrr.OmegabrrService{ServiceCore: core.ServiceCore{}}
+		h.executeWebhook(c, "Lists", WebhookRequest{TargetURL: cfg.URL, APIKey: cfg.APIKey}, func() int {
+			return service.TriggerListsWebhook(c, cfg.URL, cfg.APIKey)
+		})
+		return
+	}
+
 	req, resp := validateWebhookRequest(c)
 	if resp != nil {
 		c.JSON(resp.Code, resp)
@@ -317,6 +338,20 @@ func (h *OmegabrrHandler) TriggerWebhookLists(c *gin.Context) {
 
 // TriggerWebhookAll handles webhook trigger for all updates
 func (h *OmegabrrHandler) TriggerWebhookAll(c *gin.Context) {
+	if instanceID := c.Query("instanceId"); instanceID != "" {
+		cfg, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
+		if err != nil || cfg == nil || cfg.URL == "" || cfg.APIKey == "" {
+			c.JSON(http.StatusBadRequest, WebhookResponse{Success: false, Message: "service not configured", Code: http.StatusBadRequest})
+			return
+		}
+
+		service := &omegabrr.OmegabrrService{ServiceCore: core.ServiceCore{}}
+		h.executeWebhook(c, "All", WebhookRequest{TargetURL: cfg.URL, APIKey: cfg.APIKey}, func() int {
+			return service.TriggerAllWebhooks(c, cfg.URL, cfg.APIKey)
+		})
+		return
+	}
+
 	req, resp := validateWebhookRequest(c)
 	if resp != nil {
 		c.JSON(resp.Code, resp)

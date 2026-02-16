@@ -4,7 +4,6 @@
 package handlers
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 	"strings"
@@ -35,6 +34,11 @@ type SettingsHandler struct {
 	lastDebugLog   time.Time
 }
 
+func sanitizeServiceConfig(c models.ServiceConfiguration) models.ServiceConfiguration {
+	c.APIKey = ""
+	return c
+}
+
 func NewSettingsHandler(db *database.DB, health *services.HealthService, cache cache.Store) *SettingsHandler {
 	return &SettingsHandler{
 		db:             db,
@@ -46,9 +50,10 @@ func NewSettingsHandler(db *database.DB, health *services.HealthService, cache c
 }
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
+	ctx := c.Request.Context()
 	// Try to get configurations from cache
 	var configurations []models.ServiceConfiguration
-	err := h.cache.Get(context.Background(), configCacheKey, &configurations)
+	err := h.cache.Get(ctx, configCacheKey, &configurations)
 	if err == nil {
 		// Only log debug messages every 30 seconds to reduce spam
 		if time.Since(h.lastDebugLog) > configDebugLogTTL {
@@ -64,14 +69,14 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 
 		configMap := make(map[string]models.ServiceConfiguration)
 		for _, config := range configurations {
-			configMap[config.InstanceID] = config
+			configMap[config.InstanceID] = sanitizeServiceConfig(config)
 		}
 		c.JSON(http.StatusOK, configMap)
 		return
 	}
 
 	// If not in cache, fetch from database
-	configurations, err = h.db.GetAllServices(context.Background())
+	configurations, err = h.db.GetAllServices(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Error fetching configurations")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch settings"})
@@ -79,7 +84,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	}
 
 	// Cache the configurations
-	if err := h.cache.Set(context.Background(), configCacheKey, configurations, configCacheTTL); err != nil {
+	if err := h.cache.Set(ctx, configCacheKey, configurations, configCacheTTL); err != nil {
 		log.Warn().Err(err).Msg("Failed to cache configurations")
 	}
 
@@ -97,7 +102,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 
 	configMap := make(map[string]models.ServiceConfiguration)
 	for _, config := range configurations {
-		configMap[config.InstanceID] = config
+		configMap[config.InstanceID] = sanitizeServiceConfig(config)
 	}
 	c.JSON(http.StatusOK, configMap)
 }
@@ -121,7 +126,7 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		Msg("Saving configuration")
 
 	// Check if configuration exists
-	existing, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceID})
+	existing, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
 	if err != nil && err != sql.ErrNoRows {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})
@@ -131,6 +136,11 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	// If updating, stop health monitoring first
 	if existing != nil && h.health != nil {
 		h.health.StopMonitoring(instanceID)
+	}
+
+	// API keys are write-only. If omitted on update, keep existing.
+	if existing != nil && config.APIKey == "" {
+		config.APIKey = existing.APIKey
 	}
 
 	var saveErr error
@@ -154,19 +164,19 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	h.serviceManager.InitializeService(c.Request.Context(), &config)
 
 	// Invalidate cache
-	if err := h.cache.Delete(context.Background(), configCacheKey); err != nil {
+	if err := h.cache.Delete(c.Request.Context(), configCacheKey); err != nil {
 		log.Warn().Err(err).Msg("Failed to delete configuration cache")
 	}
 
 	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")
-	c.JSON(http.StatusOK, config)
+	c.JSON(http.StatusOK, sanitizeServiceConfig(config))
 }
 
 func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
 
 	// Check if configuration exists before deleting
-	existing, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceID})
+	existing, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
 	if err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})
@@ -193,7 +203,7 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	}
 
 	// Invalidate cache
-	if err := h.cache.Delete(context.Background(), configCacheKey); err != nil {
+	if err := h.cache.Delete(c.Request.Context(), configCacheKey); err != nil {
 		log.Warn().Err(err).Msg("Failed to delete configuration cache")
 	}
 

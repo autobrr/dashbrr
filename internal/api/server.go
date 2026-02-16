@@ -13,6 +13,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/sse"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/web"
 
@@ -25,6 +26,9 @@ type Server struct {
 	db         *database.DB
 	cache      cache.Store
 	healthSvc  *services.HealthService
+	hub        *sse.Hub
+	poller     *handlers.Poller
+	pollerStop context.CancelFunc
 	httpServer *http.Server
 }
 
@@ -34,6 +38,7 @@ func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, healthSvc
 		db:        db,
 		cache:     cache,
 		healthSvc: healthSvc,
+		hub:       sse.NewHub(),
 	}
 }
 
@@ -62,6 +67,12 @@ func (s *Server) ListenAndServe() error {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	//s.cache.Close()
+	if s.pollerStop != nil {
+		s.pollerStop()
+	}
+	if s.hub != nil {
+		s.hub.Close()
+	}
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -99,19 +110,20 @@ func (s *Server) Handler() http.Handler {
 	cacheMiddleware := middleware.NewCacheMiddleware(s.cache)
 
 	// Initialize handlers with cache
+	bc := handlers.NewBroadcaster(s.hub)
 	settingsHandler := handlers.NewSettingsHandler(s.db, s.healthSvc, s.cache)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
 	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc)
-	eventsHandler := handlers.NewEventsHandler(s.db, s.healthSvc)
-	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache)
+	eventsHandler := handlers.NewEventsHandler(s.hub)
+	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, bc)
 	omegabrrHandler := handlers.NewOmegabrrHandler(s.db, s.cache)
-	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache)
-	plexHandler := handlers.NewPlexHandler(s.db, s.cache)
+	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache, bc)
+	plexHandler := handlers.NewPlexHandler(s.db, s.cache, bc)
 	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
-	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache)
-	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache)
-	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache)
-	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache)
+	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache, bc)
+	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache, bc)
+	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache, bc)
+	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
 
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
@@ -129,8 +141,13 @@ func (s *Server) Handler() http.Handler {
 		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
 	}
 
-	// Start the health monitor
-	eventsHandler.StartHealthMonitor()
+	// Background polling will publish SSE updates.
+	if s.poller == nil {
+		s.poller = handlers.NewPoller(s.db, s.cache, bc)
+		pctx, cancel := context.WithCancel(context.Background())
+		s.pollerStop = cancel
+		s.poller.Start(pctx)
+	}
 
 	// Public routes (no auth required)
 	public := r.Group("")
@@ -199,8 +216,33 @@ func (s *Server) Handler() http.Handler {
 		health.Use(healthRateLimiter.RateLimit())
 		{
 			health.GET("/:service", healthHandler.CheckHealth)
-			health.GET("/events", eventsHandler.StreamHealth)
+			health.GET("/events", eventsHandler.Stream) // backwards-compatible
 		}
+
+		// SSE events (preferred)
+		api.GET("/events", eventsHandler.Stream)
+
+		// Manual refresh trigger (useful after actions)
+		api.POST("/services/:instanceId/refresh", func(c *gin.Context) {
+			instanceID := c.Param("instanceId")
+			if instanceID == "" {
+				c.JSON(400, gin.H{"error": "instanceId is required"})
+				return
+			}
+			kind := handlers.RefreshAll
+			if q := c.Query("kind"); q != "" {
+				switch q {
+				case "health":
+					kind = handlers.RefreshHealth
+				case "stats":
+					kind = handlers.RefreshStats
+				case "all":
+					kind = handlers.RefreshAll
+				}
+			}
+			s.poller.Refresh(instanceID, kind)
+			c.JSON(200, gin.H{"ok": true})
+		})
 
 		//serviceRoutes := api.Group("/services")
 		//serviceRoutes.Use(cacheMiddleware.Cache())

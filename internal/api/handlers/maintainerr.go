@@ -35,6 +35,7 @@ const (
 type MaintainerrHandler struct {
 	db             *database.DB
 	cache          cache.Store
+	bc             *Broadcaster
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
 
@@ -42,10 +43,11 @@ type MaintainerrHandler struct {
 	lastCollectionsHashMu sync.Mutex
 }
 
-func NewMaintainerrHandler(db *database.DB, cache cache.Store) *MaintainerrHandler {
+func NewMaintainerrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *MaintainerrHandler {
 	return &MaintainerrHandler{
 		db:                  db,
 		cache:               cache,
+		bc:                  bc,
 		sf:                  &singleflight.Group{},
 		circuitBreaker:      resilience.NewCircuitBreaker(5, 1*time.Minute),
 		lastCollectionsHash: make(map[string]string),
@@ -111,15 +113,7 @@ func (h *MaintainerrHandler) fetchDataWithCache(ctx context.Context, cacheKey st
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
 	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.MaintainerrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.MaintainerrStatus)
-				}
-			}
-		}()
+		// Cache hit; no background refresh (store does not expose TTL metadata).
 		return data, nil
 	}
 
@@ -354,13 +348,15 @@ func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, c
 
 // broadcastMaintainerrCollections broadcasts collections updates to all connected SSE clients
 func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []maintainerr.Collection) {
-	BroadcastHealth(models.ServiceHealth{
+	h.bc.Publish(models.ServiceHealth{
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "maintainerr_collections",
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
-			"maintainerr": collections,
+			"maintainerr": map[string]interface{}{
+				"collections": collections,
+			},
 		},
 		Details: map[string]interface{}{
 			"maintainerr": map[string]interface{}{

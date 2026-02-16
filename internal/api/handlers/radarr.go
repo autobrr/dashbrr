@@ -33,16 +33,18 @@ const (
 type RadarrHandler struct {
 	db              *database.DB
 	cache           cache.Store
+	bc              *Broadcaster
 	sf              *singleflight.Group
 	circuitBreaker  *resilience.CircuitBreaker
 	lastQueueHash   map[string]string
 	lastQueueHashMu sync.Mutex
 }
 
-func NewRadarrHandler(db *database.DB, cache cache.Store) *RadarrHandler {
+func NewRadarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *RadarrHandler {
 	return &RadarrHandler{
 		db:             db,
 		cache:          cache,
+		bc:             bc,
 		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastQueueHash:  make(map[string]string),
@@ -56,15 +58,7 @@ func (h *RadarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string,
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &cachedData)
 	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.RadarrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.RadarrStatus)
-				}
-			}
-		}()
+		// Cache hit; no background refresh (store does not expose TTL metadata).
 		return cachedData, nil
 	}
 
@@ -241,9 +235,11 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 		}
 	}
 
-	// Create stats and details as map[string]interface{} directly
+	// Match frontend shape: stats.radarr.queue
 	stats := map[string]interface{}{
-		"radarr": queueResp,
+		"radarr": map[string]interface{}{
+			"queue": queueResp,
+		},
 	}
 
 	details := map[string]interface{}{
@@ -255,9 +251,9 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 	}
 
 	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(models.ServiceHealth{
+	h.bc.Publish(models.ServiceHealth{
 		ServiceID:   instanceId,
-		Status:      "ok",
+		Status:      "online",
 		Message:     "radarr_queue",
 		LastChecked: time.Now(),
 		Stats:       stats,

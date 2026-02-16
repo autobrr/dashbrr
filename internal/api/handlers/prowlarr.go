@@ -37,6 +37,7 @@ const (
 type ProwlarrHandler struct {
 	db             *database.DB
 	cache          cache.Store
+	bc             *Broadcaster
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
 
@@ -45,10 +46,11 @@ type ProwlarrHandler struct {
 	lastHashMu sync.Mutex
 }
 
-func NewProwlarrHandler(db *database.DB, cache cache.Store) *ProwlarrHandler {
+func NewProwlarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *ProwlarrHandler {
 	return &ProwlarrHandler{
 		db:             db,
 		cache:          cache,
+		bc:             bc,
 		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastHash:       make(map[string]string),
@@ -62,15 +64,7 @@ func (h *ProwlarrHandler) fetchDataWithCache(ctx context.Context, cacheKey strin
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
 	if err == nil && data != nil {
-		// Data found in cache and is not nil
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.ProwlarrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil && newData != nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.ProwlarrStatus)
-				}
-			}
-		}()
+		// Cache hit; no background refresh (store does not expose TTL metadata).
 		return data, nil
 	}
 
@@ -219,29 +213,14 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 	}
 
 	var (
-		stats                                  types.ProwlarrStatsResponse
-		indexers                               []types.ProwlarrIndexer
-		indexerStats                           types.ProwlarrIndexerStatsResponse
-		statsErr, indexersErr, indexerStatsErr error
+		stats                        types.ProwlarrStatsResponse
+		indexers                     []types.ProwlarrIndexer
+		indexerStats                 types.ProwlarrIndexerStatsResponse
+		indexersErr, indexerStatsErr error
 	)
 
 	// Create request functions for concurrent execution
 	requests := []func() (interface{}, error){
-		// Stats request
-		func() (interface{}, error) {
-			apiURL := fmt.Sprintf("%s/api/v1/system/status", prowlarrConfig.URL)
-			resp, err := arr.MakeArrRequest(ctx, http.MethodGet, apiURL, prowlarrConfig.APIKey, nil)
-			if err != nil {
-				return nil, err
-			}
-			defer resp.Body.Close()
-
-			var s types.ProwlarrStatsResponse
-			if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
-				return nil, err
-			}
-			return s, nil
-		},
 		// Indexers request
 		func() (interface{}, error) {
 			apiURL := fmt.Sprintf("%s/api/v1/indexer", prowlarrConfig.URL)
@@ -291,17 +270,6 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 		switch result.index {
 		case 0:
 			if result.err != nil {
-				statsErr = result.err
-			} else {
-				converted, err := utils.SafeStructConvert[types.ProwlarrStatsResponse](result.result)
-				if err != nil {
-					statsErr = fmt.Errorf("failed to convert stats: %w", err)
-				} else {
-					stats = converted
-				}
-			}
-		case 1:
-			if result.err != nil {
 				indexersErr = result.err
 			} else {
 				// Handle the case where result is already []types.ProwlarrIndexer
@@ -319,7 +287,7 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 					indexersErr = fmt.Errorf("unexpected indexer data type: %T", result.result)
 				}
 			}
-		case 2:
+		case 1:
 			if result.err != nil {
 				indexerStatsErr = result.err
 			} else {
@@ -334,17 +302,21 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 	}
 
 	// Check for errors
-	if statsErr != nil && indexersErr != nil && indexerStatsErr != nil {
+	if indexersErr != nil && indexerStatsErr != nil {
 		return types.ProwlarrStatsResponse{}, nil, types.ProwlarrIndexerStatsResponse{},
-			fmt.Errorf("all requests failed: stats: %v, indexers: %v, indexer stats: %v",
-				statsErr, indexersErr, indexerStatsErr)
+			fmt.Errorf("all requests failed: indexers: %v, indexer stats: %v",
+				indexersErr, indexerStatsErr)
 	}
 
 	// Enrich indexers with stats if both are available
 	if indexerStatsErr == nil && indexersErr == nil {
 		statsMap := make(map[int]types.ProwlarrIndexerStats)
+		totalGrabs := 0
+		totalFails := 0
 		for _, stat := range indexerStats.Indexers {
 			statsMap[stat.IndexerID] = stat
+			totalGrabs += stat.NumberOfGrabs
+			totalFails += stat.NumberOfFailedGrabs
 		}
 
 		for i := range indexers {
@@ -354,6 +326,14 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 				indexers[i].NumberOfQueries = stats.NumberOfQueries
 			}
 		}
+
+		stats = types.ProwlarrStatsResponse{
+			GrabCount:    totalGrabs,
+			FailCount:    totalFails,
+			IndexerCount: len(indexers),
+		}
+	} else if indexersErr == nil {
+		stats = types.ProwlarrStatsResponse{IndexerCount: len(indexers)}
 	}
 
 	return stats, indexers, indexerStats, nil
@@ -597,9 +577,9 @@ func (h *ProwlarrHandler) compareAndLogIndexerStatsChanges(instanceId string, st
 }
 
 func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.ProwlarrStatsResponse) {
-	BroadcastHealth(models.ServiceHealth{
+	h.bc.Publish(models.ServiceHealth{
 		ServiceID: instanceId,
-		Status:    "ok",
+		Status:    "online",
 		Message:   "prowlarr_stats",
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
@@ -610,9 +590,9 @@ func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.Prowlarr
 }
 
 func (h *ProwlarrHandler) broadcastIndexers(instanceId string, indexers []types.ProwlarrIndexer) {
-	BroadcastHealth(models.ServiceHealth{
+	h.bc.Publish(models.ServiceHealth{
 		ServiceID: instanceId,
-		Status:    "ok",
+		Status:    "online",
 		Message:   "prowlarr_indexers",
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{

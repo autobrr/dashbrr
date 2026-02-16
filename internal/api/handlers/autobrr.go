@@ -40,6 +40,7 @@ const (
 type AutobrrHandler struct {
 	db             *database.DB
 	store          cache.Store
+	bc             *Broadcaster
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
 
@@ -49,10 +50,11 @@ type AutobrrHandler struct {
 	hashMu            sync.Mutex
 }
 
-func NewAutobrrHandler(db *database.DB, store cache.Store) *AutobrrHandler {
+func NewAutobrrHandler(db *database.DB, store cache.Store, bc *Broadcaster) *AutobrrHandler {
 	return &AutobrrHandler{
 		db:             db,
 		store:          store,
+		bc:             bc,
 		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute),
 
@@ -69,37 +71,7 @@ func fetchDataWithCache[T any](ctx context.Context, store cache.Store, circuitBr
 	// Try to get from cache first
 	err := store.Get(ctx, cacheKey, &data)
 	if err == nil {
-		// Data found in cache
-		// Create a new context with timeout for background refresh
-		bgCtx, cancel := context.WithTimeout(context.Background(), backgroundTimeout)
-
-		go func() {
-			defer cancel() // Ensure context is cancelled when goroutine exits
-
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.AutobrrStatus + 5*time.Second)) {
-				// Use the background context for the fetch operation
-				done := make(chan struct{})
-
-				go func() {
-					defer close(done)
-					if newData, err := fetchFn(); err == nil {
-						// Use background context for cache set
-						_ = store.Set(bgCtx, cacheKey, newData, middleware.CacheDurations.AutobrrStatus)
-					}
-				}()
-
-				// Wait for either completion or timeout
-				select {
-				case <-bgCtx.Done():
-					log.Warn().Err(bgCtx.Err()).Str("cacheKey", cacheKey).Msg("Background cache refresh timed out")
-					return
-				case <-done:
-					return
-				}
-			}
-		}()
-
+		// Cache hit; don't spawn background refresh (store does not expose TTL metadata).
 		return data, nil
 	}
 
@@ -403,7 +375,7 @@ func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.Rel
 		},
 	}
 
-	BroadcastHealth(health)
+	h.bc.Publish(health)
 }
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
@@ -418,7 +390,7 @@ func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrSt
 		},
 	}
 
-	BroadcastHealth(health)
+	h.bc.Publish(health)
 }
 
 // broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
@@ -447,7 +419,7 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 		},
 	}
 
-	BroadcastHealth(health)
+	h.bc.Publish(health)
 }
 
 // Hash generation functions

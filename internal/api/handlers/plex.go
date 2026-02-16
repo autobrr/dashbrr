@@ -33,16 +33,18 @@ const (
 type PlexHandler struct {
 	db                *database.DB
 	cache             cache.Store
+	bc                *Broadcaster
 	sf                singleflight.Group
 	circuitBreaker    *resilience.CircuitBreaker
 	lastSessionHash   map[string]string
 	lastSessionHashMu sync.Mutex
 }
 
-func NewPlexHandler(db *database.DB, cache cache.Store) *PlexHandler {
+func NewPlexHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *PlexHandler {
 	return &PlexHandler{
 		db:              db,
 		cache:           cache,
+		bc:              bc,
 		circuitBreaker:  resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastSessionHash: make(map[string]string),
 	}
@@ -55,15 +57,7 @@ func (h *PlexHandler) fetchDataWithCache(ctx context.Context, cacheKey string, f
 	// Try to get from cache first
 	err := h.cache.Get(ctx, cacheKey, &data)
 	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.PlexSessions + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.PlexSessions)
-				}
-			}
-		}()
+		// Cache hit; no background refresh (store does not expose TTL metadata).
 		return data, nil
 	}
 
@@ -220,9 +214,9 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*ty
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
 func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.PlexSessionsResponse) {
 	// Use the existing BroadcastHealth function with a special message type
-	BroadcastHealth(models.ServiceHealth{
+	h.bc.Publish(models.ServiceHealth{
 		ServiceID:   instanceId,
-		Status:      "ok",
+		Status:      "online",
 		Message:     "plex_sessions",
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
