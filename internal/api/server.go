@@ -140,7 +140,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Background polling will publish SSE updates.
 	if s.poller == nil {
-		s.poller = handlers.NewPoller(s.db, s.cache, bc)
+		s.poller = handlers.NewPoller(s.db, bc)
 		pctx, cancel := context.WithCancel(context.Background())
 		s.pollerStop = cancel
 		s.poller.Start(pctx)

@@ -185,3 +185,6 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (perf)
 - Web: `useServiceHealth` no longer double-fetches; now triggers refresh-only; statusCounts reduce no longer allocates per-service objects
+
+### 2026-02-16 (refactor)
+- Poller: declarative job table + no per-tick closure allocs; ctx-aware semaphore acquisition (no goroutine leak on shutdown); remove unused cache injection; add `LastChecked` for Prowlarr stats/indexers publishes
