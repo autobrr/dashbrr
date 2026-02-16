@@ -92,8 +92,8 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	return resp, nil
 }
 
-// GetArrSystemStatus provides a common implementation for getting system status
-func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(string) string, cacheVersion func(string, string, time.Duration) error) (string, error) {
+// GetArrSystemStatus provides a common implementation for getting system status.
+func GetArrSystemStatus(ctx context.Context, service, url, apiKey string, getVersionFromCache func(string) string, cacheVersion func(string, string, time.Duration) error) (string, error) {
 	if url == "" {
 		return "", &ErrArr{Service: service, Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
@@ -104,7 +104,7 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 	}
 
 	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, statusURL, apiKey, nil)
@@ -131,13 +131,13 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 }
 
 // CheckArrForUpdates provides a common implementation for checking updates
-func CheckArrForUpdates(service, url, apiKey string) (bool, error) {
+func CheckArrForUpdates(ctx context.Context, service, url, apiKey string) (bool, error) {
 	if url == "" {
 		return false, &ErrArr{Service: service, Op: "check_for_updates", Err: fmt.Errorf("URL is required")}
 	}
 
 	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, updateURL, apiKey, nil)

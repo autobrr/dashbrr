@@ -268,7 +268,7 @@ func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, s
 }
 
 // GetSystemStatus fetches the system status from Sonarr
-func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
+func (s *SonarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
 	if url == "" {
 		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
@@ -278,7 +278,7 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return version, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
@@ -312,8 +312,8 @@ func (s *SonarrService) GetSystemStatus(url, apiKey string) (string, error) {
 }
 
 // CheckForUpdates checks if there are any updates available for Sonarr
-func (s *SonarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates("sonarr", url, apiKey)
+func (s *SonarrService) CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error) {
+	return arr.CheckArrForUpdates(ctx, "sonarr", url, apiKey)
 }
 
 func (s *SonarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {

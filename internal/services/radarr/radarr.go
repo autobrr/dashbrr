@@ -232,13 +232,13 @@ func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, mo
 }
 
 // GetSystemStatus fetches the system status from Radarr
-func (s *RadarrService) GetSystemStatus(url, apiKey string) (string, error) {
-	return arr.GetArrSystemStatus("radarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
+func (s *RadarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
+	return arr.GetArrSystemStatus(ctx, "radarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
 }
 
 // CheckForUpdates checks if there are any updates available for Radarr
-func (s *RadarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates("radarr", url, apiKey)
+func (s *RadarrService) CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error) {
+	return arr.CheckArrForUpdates(ctx, "radarr", url, apiKey)
 }
 
 func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {

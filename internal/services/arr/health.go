@@ -30,8 +30,8 @@ type HealthResponse struct {
 
 // HealthChecker interface defines methods required for health checking
 type HealthChecker interface {
-	GetSystemStatus(url, apiKey string) (string, error)
-	CheckForUpdates(url, apiKey string) (bool, error)
+	GetSystemStatus(ctx context.Context, url, apiKey string) (string, error)
+	CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error)
 	GetHealthEndpoint(baseURL string) string
 }
 
@@ -62,7 +62,7 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	version := s.GetVersionFromCache(url)
 	if version == "" {
 		var err error
-		version, err = checker.GetSystemStatus(url, apiKey)
+		version, err = checker.GetSystemStatus(ctx, url, apiKey)
 		if err == nil {
 			s.CacheVersion(url, version, time.Hour)
 		}
@@ -75,17 +75,22 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	}
 
 	updateAvailable := s.GetUpdateStatusFromCache(url)
-	go func() {
-		hasUpdate, err := checker.CheckForUpdates(url, apiKey)
-		if err != nil {
-			log.Debug().Err(err).Str("url", url).Msg("Update check failed")
-			return
-		}
+	if ctx.Err() == nil {
+		go func() {
+			updateCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
+			defer cancel()
 
-		if err := s.CacheUpdateStatus(url, hasUpdate, updateCacheTTL); err != nil {
-			log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
-		}
-	}()
+			hasUpdate, err := checker.CheckForUpdates(updateCtx, url, apiKey)
+			if err != nil {
+				log.Debug().Err(err).Str("url", url).Msg("Update check failed")
+				return
+			}
+
+			if err := s.CacheUpdateStatus(url, hasUpdate, updateCacheTTL); err != nil {
+				log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
+			}
+		}()
+	}
 
 	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {

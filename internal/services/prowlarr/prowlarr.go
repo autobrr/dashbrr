@@ -70,7 +70,7 @@ func (s *ProwlarrService) makeRequest(ctx context.Context, method, url, apiKey s
 }
 
 // GetSystemStatus fetches the system status from Prowlarr
-func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
+func (s *ProwlarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
 	if url == "" {
 		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
@@ -80,7 +80,7 @@ func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
 		return version, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	statusURL := fmt.Sprintf("%s/api/v1/system/status", strings.TrimRight(url, "/"))
@@ -110,6 +110,11 @@ func (s *ProwlarrService) GetSystemStatus(url, apiKey string) (string, error) {
 	}
 
 	return status.Version, nil
+}
+
+// CheckForUpdates checks if there are any updates available for Prowlarr.
+func (s *ProwlarrService) CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error) {
+	return arr.CheckArrForUpdates(ctx, "prowlarr", url, apiKey)
 }
 
 // GetIndexerStats fetches indexer statistics from Prowlarr
@@ -148,11 +153,6 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 	}
 
 	return &stats, nil
-}
-
-// CheckForUpdates checks if there are any updates available
-func (s *ProwlarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates("prowlarr", url, apiKey)
 }
 
 // GetQueue gets the current queue status
