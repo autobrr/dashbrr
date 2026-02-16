@@ -55,7 +55,7 @@ const getBlocklistText = (value: DeleteOptions["blocklist"]) => {
 };
 
 export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
+  const { services, refreshService } = useServiceData();
   const service = services.find((s) => s.instanceId === instanceId);
   const isLoading = service?.status === "loading";
 
@@ -105,13 +105,8 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
         `/api/radarr/queue/${selectedItem.id}?${queryParams.toString()}`
       );
 
-      if (service?.stats?.radarr?.queue) {
-        service.stats.radarr.queue.records =
-          service.stats.radarr.queue.records.filter(
-            (item) => item.id !== selectedItem.id
-          );
-        service.stats.radarr.queue.totalRecords--;
-      }
+      // Avoid mutating service stats directly; trigger backend refresh + SSE update.
+      await refreshService(instanceId, "stats");
 
       setShowDeleteModal(false);
       setSelectedItem(null);

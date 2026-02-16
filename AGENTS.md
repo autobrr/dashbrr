@@ -194,3 +194,7 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (refactor)
 - Web: centralize repeated service loading skeleton into `web/src/components/ui/StatsSkeleton.tsx` (used by Radarr/Sonarr/Plex/Autobrr/Prowlarr/Omegabrr/Maintainerr/General)
+
+### 2026-02-16 (bugfix)
+- Web: Radarr/Sonarr queue delete no longer mutates `service.stats` directly; uses `refreshService(instanceId, "stats")` after delete
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

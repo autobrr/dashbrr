@@ -55,7 +55,7 @@ const getBlocklistText = (value: DeleteOptions["blocklist"]) => {
 };
 
 export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
+  const { services, refreshService } = useServiceData();
   const service = services.find((s) => s.instanceId === instanceId);
   const isLoading = service?.status === "loading";
 
@@ -105,13 +105,8 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
         `/api/sonarr/queue/${selectedItem.id}?${queryParams.toString()}`
       );
 
-      if (service?.stats?.sonarr?.queue) {
-        service.stats.sonarr.queue.records =
-          service.stats.sonarr.queue.records.filter(
-            (item) => item.id !== selectedItem.id
-          );
-        service.stats.sonarr.queue.totalRecords--;
-      }
+      // Avoid mutating service stats directly; trigger backend refresh + SSE update.
+      await refreshService(instanceId, "stats");
 
       setShowDeleteModal(false);
       setSelectedItem(null);
