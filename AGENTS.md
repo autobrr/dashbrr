@@ -87,10 +87,11 @@ Owner: soup (s0up4200@pm.me)
 - Web cleanup: removed unused `ConfigurationForm` prop (`serviceName`)
 - Backend cleanup: init fetch goroutines use `context.WithoutCancel(ctx)` (no request-cancel bleed)
 - Auth: builtin auth handlers now use `c.Request.Context()` for cache ops (avoid passing `*gin.Context`); logout uses `getSessionToken`
-- Web/auth: drop token-in-URL/localStorage flow; cookie-only bootstrap; `/auth/callback` now just handles errors + redirects
+- Web/auth: drop token-in-URL/localStorage flow; cookie-only bootstrap; removed unused SPA `/auth/callback` route
 - Web: removed unused local cache utility (`web/src/utils/cache.ts`)
 - Web: removed unused `validateServiceConfig` legacy helper from `web/src/contexts/useConfiguration.ts`
 - Web/auth: `frontendUrl` for OIDC endpoints now uses `window.location.origin` (supports backend proxy dev mode)
+- Web: removed unused `web/src/components/auth/CallbackPage.tsx` + route
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`

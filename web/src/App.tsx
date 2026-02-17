@@ -11,11 +11,6 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 const LoginPage = lazy(() =>
   import("./components/auth/LoginPage").then((m) => ({ default: m.LoginPage }))
 );
-const CallbackPage = lazy(() =>
-  import("./components/auth/CallbackPage").then((m) => ({
-    default: m.CallbackPage,
-  }))
-);
 const AppContent = lazy(() => import("./AppContent"));
 
 function App() {
@@ -32,7 +27,6 @@ function App() {
           >
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/auth/callback" element={<CallbackPage />} />
               <Route
                 path="/"
                 element={
