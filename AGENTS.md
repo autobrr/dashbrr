@@ -238,3 +238,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (refactor)
 - Go/cli: propagate `cmd.Context()` for config export + version JSON update check (no `context.Background()` in CLI network/db ops)
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-16 (perf)
+- Make/web: remove double-build in `make frontend` (was running `vite build` twice); add `pnpm typecheck` and wire `make type-check` to it
+- Web gate: pass (`pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`)

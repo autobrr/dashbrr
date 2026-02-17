@@ -55,7 +55,7 @@ deps-frontend:
 	cd web && $(PNPM) install
 
 # Build frontend
-frontend: deps-frontend type-check lint
+frontend: deps-frontend lint
 	@echo "Building frontend..."
 	cd web && $(PNPM) build
 
@@ -73,7 +73,7 @@ lint:
 # Type check frontend code
 type-check:
 	@echo "Type checking frontend code..."
-	cd web && $(PNPM) run build --mode=typecheck
+	cd web && $(PNPM) typecheck
 
 # Preview frontend build
 preview:
