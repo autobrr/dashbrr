@@ -242,3 +242,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (perf)
 - Make/web: remove double-build in `make frontend` (was running `vite build` twice); add `pnpm typecheck` and wire `make type-check` to it
 - Web gate: pass (`pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-16 (refactor)
+- Go/cli: health command now uses `internal/models` service registry + side-effect imports (less duplication; new services auto-wire)
+- Go gate: pass (`go test ./...`)
