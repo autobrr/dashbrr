@@ -4,11 +4,7 @@
  */
 
 import React from "react";
-import {
-  triggerWebhookArrs,
-  triggerWebhookLists,
-  triggerWebhookAll,
-} from "../../../config/api";
+import { api } from "../../../utils/api";
 import { toast } from "react-hot-toast";
 
 interface OmegabrrControlsProps {
@@ -20,7 +16,8 @@ export const OmegabrrControls: React.FC<OmegabrrControlsProps> = ({
 }) => {
   const handleTriggerArrs = async () => {
     try {
-      await triggerWebhookArrs(instanceId);
+      const params = new URLSearchParams({ instanceId });
+      await api.post(`/omegabrr/webhook/arrs?${params}`);
       toast.success("ARRs webhook triggered successfully");
     } catch (err) {
       console.error("Failed to trigger ARRs webhook:", err);
@@ -32,7 +29,8 @@ export const OmegabrrControls: React.FC<OmegabrrControlsProps> = ({
 
   const handleTriggerLists = async () => {
     try {
-      await triggerWebhookLists(instanceId);
+      const params = new URLSearchParams({ instanceId });
+      await api.post(`/omegabrr/webhook/lists?${params}`);
       toast.success("Lists webhook triggered successfully");
     } catch (err) {
       console.error("Failed to trigger Lists webhook:", err);
@@ -44,7 +42,8 @@ export const OmegabrrControls: React.FC<OmegabrrControlsProps> = ({
 
   const handleTriggerAll = async () => {
     try {
-      await triggerWebhookAll(instanceId);
+      const params = new URLSearchParams({ instanceId });
+      await api.post(`/omegabrr/webhook/all?${params}`);
       toast.success("All webhooks triggered successfully");
     } catch (err) {
       console.error("Failed to trigger all webhooks:", err);

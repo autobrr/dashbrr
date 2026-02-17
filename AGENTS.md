@@ -286,3 +286,8 @@ Owner: soup (s0up4200@pm.me)
 - Web/config: `ConfigurationContext` now uses `web/src/utils/api.ts` (remove duplicate base-url/header logic)
 - Web/api: treat 401 as session-expired redirect by default; allowlist auth bootstrap endpoints to surface 401 to caller; stop sending empty `Authorization` header
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-17 (cleanup)
+- Web: delete unused legacy `web/src/config/api.ts` wrapper module (had stale helpers + console logs)
+- Web/omegabrr: controls now call webhook endpoints via `web/src/utils/api.ts` directly
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
