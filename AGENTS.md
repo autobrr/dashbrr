@@ -365,6 +365,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (refactor)
 - CLI: dedupe `dashbrr service <type> {list,add,remove}` commands via shared CRUD helpers; move `getNextInstanceID` + URL validation into common utils
+
+### 2026-02-17 (cleanup)
+- Go: remove unused `internal/utils/type_conversion.go` (no remaining callers); `go test ./...` pass
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
