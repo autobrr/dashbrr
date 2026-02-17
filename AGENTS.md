@@ -355,7 +355,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/api: stop sending `Authorization` from `localStorage` by default (cookie-first sessions, less XSS blast radius)
 
 ### 2026-02-17 (refactor)
-- API/cache: add typed SWR cache helper + tests; migrate Sonarr + Radarr + Prowlarr + Plex + Maintainerr handlers to shared helper (drop local cache funcs + `SafeStructConvert`)
+- API/cache: add typed SWR cache helper + tests; migrate Sonarr + Radarr + Prowlarr + Plex + Maintainerr + Overseerr handlers to shared helper (drop local cache funcs + `SafeStructConvert`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening

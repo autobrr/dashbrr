@@ -24,7 +24,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
-	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -52,55 +51,6 @@ func NewOverseerrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *O
 		circuitBreaker:   resilience.NewCircuitBreaker(5, 1*time.Minute),
 		lastRequestsHash: make(map[string]string),
 	}
-}
-
-func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (*types.RequestsStats, error)) (*types.RequestsStats, error) {
-	var data types.RequestsStats
-
-	// Try to get from cache first
-	err := h.cache.Get(ctx, cacheKey, &data)
-	if err == nil {
-		// Cache hit; no background refresh (TTL metadata not available).
-		return &data, nil
-	}
-
-	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
-		// Try to get stale data when circuit is open
-		var staleData types.RequestsStats
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return &staleData, nil
-		}
-		return nil, fmt.Errorf("circuit breaker is open")
-	}
-
-	// Cache miss or error, fetch fresh data with retry
-	var freshData *types.RequestsStats
-	err = resilience.RetryWithBackoff(ctx, func() error {
-		var fetchErr error
-		freshData, fetchErr = fetchFn()
-		return fetchErr
-	})
-
-	if err != nil {
-		h.circuitBreaker.RecordFailure()
-		// Try to get stale data
-		var staleData types.RequestsStats
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return &staleData, nil
-		}
-		return nil, err
-	}
-
-	h.circuitBreaker.RecordSuccess()
-
-	// Cache the fresh data
-	if err := h.cache.Set(ctx, cacheKey, freshData, middleware.CacheDurations.OverseerrRequests); err == nil {
-		// Also cache as stale data with longer duration
-		_ = h.cache.Set(ctx, cacheKey+":stale", freshData, overseerrStaleDataDuration)
-	}
-
-	return freshData, nil
 }
 
 func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
@@ -192,6 +142,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	if err := h.cache.Delete(ctx, cacheKey); err != nil {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after status update")
 	}
+	_ = h.cache.Delete(ctx, cacheKey+":stale")
 
 	// Fetch fresh data and broadcast update using singleflight
 	sfKey = fmt.Sprintf("requests:%s", instanceId)
@@ -200,10 +151,11 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	})
 
 	if err == nil && result != nil {
-		stats, err := utils.SafeConvert[*types.RequestsStats](result)
-		if err == nil {
-			h.broadcastOverseerrRequests(instanceId, stats)
+		stats := result.(*types.RequestsStats)
+		if stats != nil && stats.Requests == nil {
+			stats.Requests = []types.MediaRequest{}
 		}
+		h.broadcastOverseerrRequests(instanceId, stats)
 	}
 
 	c.Status(http.StatusOK)
@@ -230,9 +182,33 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("requests:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchDataWithCache(ctx, cacheKey, func() (*types.RequestsStats, error) {
-			return h.fetchRequests(ctx, instanceId)
+		data, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RequestsStats]{
+			Store:          h.cache,
+			Key:            cacheKey,
+			FreshTTL:       middleware.CacheDurations.OverseerrRequests,
+			StaleTTL:       overseerrStaleDataDuration,
+			CircuitBreaker: h.circuitBreaker,
+			Fetch: func() (types.RequestsStats, error) {
+				fresh, err := h.fetchRequests(ctx, instanceId)
+				if err != nil {
+					return types.RequestsStats{}, err
+				}
+				if fresh == nil {
+					return types.RequestsStats{
+						PendingCount: 0,
+						Requests:     []types.MediaRequest{},
+					}, nil
+				}
+				if fresh.Requests == nil {
+					fresh.Requests = []types.MediaRequest{}
+				}
+				return *fresh, nil
+			},
 		})
+		if err != nil {
+			return nil, err
+		}
+		return &data, nil
 	})
 
 	if err != nil {
@@ -256,11 +232,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
-	stats, err := utils.SafeConvert[*types.RequestsStats](result)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
-		return
-	}
+	stats := result.(*types.RequestsStats)
 
 	h.hashMu.Lock()
 	currentHash, changes := createOverseerrRequestsHash(stats)
