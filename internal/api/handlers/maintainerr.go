@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -52,109 +51,6 @@ func NewMaintainerrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) 
 		circuitBreaker:      resilience.NewCircuitBreaker(5, 1*time.Minute),
 		lastCollectionsHash: make(map[string]string),
 	}
-}
-
-// convertCachedCollection converts a cached map to a maintainerr.Collection
-func convertCachedCollection(input map[string]interface{}) (maintainerr.Collection, error) {
-	// Marshal the map back to JSON
-	jsonData, err := json.Marshal(input)
-	if err != nil {
-		return maintainerr.Collection{}, fmt.Errorf("failed to marshal cached data: %w", err)
-	}
-
-	// Unmarshal into Collection struct
-	var collection maintainerr.Collection
-	if err := json.Unmarshal(jsonData, &collection); err != nil {
-		return maintainerr.Collection{}, fmt.Errorf("failed to unmarshal to Collection: %w", err)
-	}
-
-	return collection, nil
-}
-
-// fetchCollectionsWithCache is a type-safe wrapper around fetchDataWithCache for Collections
-func (h *MaintainerrHandler) fetchCollectionsWithCache(ctx context.Context, cacheKey string, fetchFn func() ([]maintainerr.Collection, error)) ([]maintainerr.Collection, error) {
-	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return fetchFn()
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle the cached data based on its type
-	switch v := data.(type) {
-	case []maintainerr.Collection:
-		return v, nil
-	case []interface{}:
-		collections := make([]maintainerr.Collection, 0, len(v))
-		for i, item := range v {
-			if mapData, ok := item.(map[string]interface{}); ok {
-				collection, err := convertCachedCollection(mapData)
-				if err != nil {
-					log.Error().
-						Err(err).
-						Int("index", i).
-						Str("input_type", fmt.Sprintf("%T", item)).
-						Msg("Failed to convert cached collection")
-					continue
-				}
-				collections = append(collections, collection)
-			}
-		}
-		return collections, nil
-	default:
-		return nil, fmt.Errorf("unexpected data type in cache: %T", data)
-	}
-}
-
-// fetchDataWithCache implements a stale-while-revalidate pattern
-func (h *MaintainerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
-	var data interface{}
-
-	// Try to get from cache first
-	err := h.cache.Get(ctx, cacheKey, &data)
-	if err == nil {
-		// Cache hit; no background refresh (store does not expose TTL metadata).
-		return data, nil
-	}
-
-	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
-		// Try to get stale data when circuit is open
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			log.Warn().Msg("[Maintainerr] Circuit breaker open, serving stale data")
-			return staleData, nil
-		}
-		return nil, fmt.Errorf("circuit breaker is open")
-	}
-
-	// Cache miss or error, fetch fresh data with retry
-	var fetchErr error
-	err = resilience.RetryWithBackoff(ctx, func() error {
-		data, fetchErr = fetchFn()
-		return fetchErr
-	})
-
-	if err != nil {
-		h.circuitBreaker.RecordFailure()
-		// Try to get stale data
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			log.Warn().Err(err).Msg("[Maintainerr] Failed to fetch fresh data, serving stale")
-			return staleData, nil
-		}
-		return nil, err
-	}
-
-	h.circuitBreaker.RecordSuccess()
-
-	// Cache the fresh data
-	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.MaintainerrStatus); err == nil {
-		// Also cache as stale data with longer duration
-		_ = h.cache.Set(ctx, cacheKey+":stale", data, maintainerrStaleDataDuration)
-	}
-
-	return data, nil
 }
 
 // handleHTTPStatusCode processes HTTP status codes from Maintainerr errors
@@ -229,9 +125,27 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("collections:%s", instanceId)
 	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchCollectionsWithCache(ctx, cacheKey, func() ([]maintainerr.Collection, error) {
-			return h.fetchCollections(ctx, instanceId)
+		collections, err := FetchWithSWRCache(ctx, SWRCacheOptions[[]maintainerr.Collection]{
+			Store:          h.cache,
+			Key:            cacheKey,
+			FreshTTL:       middleware.CacheDurations.MaintainerrStatus,
+			StaleTTL:       maintainerrStaleDataDuration,
+			CircuitBreaker: h.circuitBreaker,
+			Fetch: func() ([]maintainerr.Collection, error) {
+				c, err := h.fetchCollections(ctx, instanceId)
+				if err != nil {
+					return nil, err
+				}
+				if c == nil {
+					c = make([]maintainerr.Collection, 0)
+				}
+				return c, nil
+			},
 		})
+		if err != nil {
+			return nil, err
+		}
+		return collections, nil
 	})
 
 	if err != nil {
