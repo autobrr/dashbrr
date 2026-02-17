@@ -13,7 +13,6 @@ import { api } from "../../utils/api";
 import { useServiceHealth } from "../../hooks/useServiceHealth";
 
 interface ConfigurationFormProps {
-  serviceName: string;
   instanceId: string;
   displayName: string;
   onClose: () => void;

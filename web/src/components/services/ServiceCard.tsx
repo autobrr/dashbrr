@@ -238,7 +238,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
         title={`Configure ${service.displayName}`}
       >
         <ConfigurationForm
-          serviceName={service.name}
           instanceId={service.instanceId}
           displayName={service.displayName}
           onClose={() => setShowConfig(false)}
