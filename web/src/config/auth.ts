@@ -22,7 +22,6 @@ const COMMON_ENDPOINTS = {
 // OIDC-specific endpoints
 const OIDC_ENDPOINTS = {
   login: `/api/auth/oidc/login?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
-  callback: `/api/auth/oidc/callback?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
   logout: `/api/auth/oidc/logout?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
   refresh: '/api/auth/oidc/refresh',
   verify: '/api/auth/oidc/verify',
