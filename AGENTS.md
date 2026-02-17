@@ -93,6 +93,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/auth: `frontendUrl` for OIDC endpoints now uses `window.location.origin` (supports backend proxy dev mode)
 - Web: removed unused `web/src/components/auth/CallbackPage.tsx` + route
 - OIDC: added `/api/auth/oidc/callback` alias; updated default/example `OIDC_REDIRECT_URL` (legacy `/api/auth/callback` kept)
+- Web: only unregister service-worker on 401 in dev (prod keeps PWA registered)
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`

@@ -188,7 +188,10 @@ const handleRequest = async <T>(
         localStorage.removeItem('access_token');
         localStorage.removeItem('id_token');
         localStorage.removeItem('auth_type');
-        await unregisterServiceWorker();
+        // Dev-only: stale Workbox caches can cause "unstyled Tailwind" reload loops.
+        if (import.meta.env.DEV) {
+          await unregisterServiceWorker();
+        }
         window.location.href = '/login';
         throw new Error('Authentication required');
       } finally {
