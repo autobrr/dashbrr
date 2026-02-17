@@ -22,7 +22,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
-	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -50,78 +49,6 @@ func NewPlexHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *PlexHa
 	}
 }
 
-// fetchDataWithCache implements a stale-while-revalidate pattern
-func (h *PlexHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
-	var data interface{}
-
-	// Try to get from cache first
-	err := h.cache.Get(ctx, cacheKey, &data)
-	if err == nil {
-		// Cache hit; no background refresh (store does not expose TTL metadata).
-		return data, nil
-	}
-
-	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
-		// Try to get stale data when circuit is open
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return staleData, nil
-		}
-		return nil, fmt.Errorf("circuit breaker is open")
-	}
-
-	// Cache miss or error, fetch fresh data with retry
-	var fetchErr error
-	err = resilience.RetryWithBackoff(ctx, func() error {
-		data, fetchErr = fetchFn()
-		return fetchErr
-	})
-
-	if err != nil {
-		h.circuitBreaker.RecordFailure()
-		// Try to get stale data
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return staleData, nil
-		}
-		return nil, err
-	}
-
-	h.circuitBreaker.RecordSuccess()
-
-	// Cache the fresh data
-	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.PlexSessions); err == nil {
-		// Also cache as stale data with longer duration
-		_ = h.cache.Set(ctx, cacheKey+":stale", data, plexStaleDataDuration)
-	}
-
-	return data, nil
-}
-
-// fetchSessionsWithCache is a type-safe wrapper around fetchDataWithCache for PlexSessionsResponse
-func (h *PlexHandler) fetchSessionsWithCache(ctx context.Context, cacheKey string, fetchFn func() (*types.PlexSessionsResponse, error)) (*types.PlexSessionsResponse, error) {
-	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return fetchFn()
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert the cached data to PlexSessionsResponse
-	converted, err := utils.SafeStructConvert[types.PlexSessionsResponse](data)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("cache_key", cacheKey).
-			Str("type", utils.GetTypeString(data)).
-			Msg("[Plex] Failed to convert cached data")
-		return nil, fmt.Errorf("failed to convert cached data: %w", err)
-	}
-
-	return &converted, nil
-}
-
 func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
@@ -143,9 +70,20 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("sessions:%s", instanceId)
 	sessionsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchSessionsWithCache(ctx, cacheKey, func() (*types.PlexSessionsResponse, error) {
-			return h.fetchSessions(ctx, instanceId)
+		result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.PlexSessionsResponse]{
+			Store:          h.cache,
+			Key:            cacheKey,
+			FreshTTL:       middleware.CacheDurations.PlexSessions,
+			StaleTTL:       plexStaleDataDuration,
+			CircuitBreaker: h.circuitBreaker,
+			Fetch: func() (types.PlexSessionsResponse, error) {
+				return h.fetchSessions(ctx, instanceId)
+			},
 		})
+		if err != nil {
+			return nil, err
+		}
+		return &result, nil
 	})
 
 	if err != nil {
@@ -183,24 +121,28 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
-func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*types.PlexSessionsResponse, error) {
+func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (types.PlexSessionsResponse, error) {
+	var empty types.PlexSessionsResponse
+
 	plexConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return nil, err
+		return empty, err
 	}
 
 	if plexConfig == nil || plexConfig.URL == "" {
-		return nil, fmt.Errorf("service not configured")
+		return empty, fmt.Errorf("service not configured")
 	}
 
 	service := &plex.PlexService{}
 	sessions, err := service.GetSessions(ctx, plexConfig.URL, plexConfig.APIKey)
 	if err != nil {
-		return nil, err
+		return empty, err
 	}
 
 	if sessions == nil {
-		return nil, nil
+		empty.MediaContainer.Size = 0
+		empty.MediaContainer.Metadata = []types.PlexSession{}
+		return empty, nil
 	}
 
 	// Initialize empty metadata if nil
@@ -208,7 +150,7 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (*ty
 		sessions.MediaContainer.Metadata = []types.PlexSession{}
 	}
 
-	return sessions, nil
+	return *sessions, nil
 }
 
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
