@@ -94,6 +94,7 @@ Owner: soup (s0up4200@pm.me)
 - Web: removed unused `web/src/components/auth/CallbackPage.tsx` + route
 - OIDC: added `/api/auth/oidc/callback` alias; updated default/example `OIDC_REDIRECT_URL` (legacy `/api/auth/callback` kept)
 - Web: only unregister service-worker on 401 in dev (prod keeps PWA registered)
+- Web/tailscale: remove axios-style error parsing; align with fetch-based api client errors + simplify UI states
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`

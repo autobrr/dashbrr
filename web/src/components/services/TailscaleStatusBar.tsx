@@ -29,10 +29,6 @@ interface DevicesResponse {
   devices: Device[];
 }
 
-interface ErrorResponse {
-  error: string;
-}
-
 interface TailscaleStatusBarProps {
   initialConfigOpen?: boolean;
   onConfigOpen?: () => void;
@@ -54,6 +50,17 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
     );
     return tailscale?.[0] ?? null;
   }, [configurations]);
+
+  const formatError = useCallback((err: unknown): string => {
+    const msg = err instanceof Error ? err.message : String(err);
+    const lower = msg.toLowerCase();
+
+    if (lower.includes("api token invalid")) return "Invalid API token";
+    if (lower.includes("timed out")) return "Connection timeout";
+    if (lower.includes("failed to fetch")) return "Network error";
+
+    return msg || "Failed to fetch devices";
+  }, []);
 
   const fetchDevices = useCallback(async () => {
     if (!instanceId) {
@@ -78,37 +85,12 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
       setError(null);
     } catch (err) {
       console.error("Failed to fetch Tailscale devices:", err);
-
-      if (err instanceof Error) {
-        if ("code" in err && err.code === "ECONNABORTED") {
-          setError("Connection timeout");
-        } else if ("code" in err && err.code === "ERR_NETWORK") {
-          setError("Network error - Is the backend running?");
-        } else {
-          const error = err as {
-            response?: { data?: ErrorResponse; status?: number };
-          };
-          if (error.response?.status === 401) {
-            setError("Not authenticated");
-          } else if (
-            error.response?.data?.error &&
-            error.response.data.error.includes("API token invalid")
-          ) {
-            setError("Invalid API token");
-          } else if (error.response?.data?.error) {
-            setError(error.response.data.error);
-          } else {
-            setError(err.message || "Failed to fetch devices");
-          }
-        }
-      } else {
-        setError("Unknown error occurred");
-      }
+      setError(formatError(err));
 
       setIsOnline(false);
       setDevices([]);
     }
-  }, [instanceId, isAuthenticated]);
+  }, [formatError, instanceId, isAuthenticated]);
 
   useEffect(() => {
     if (!loading && isAuthenticated && instanceId) {
@@ -138,7 +120,7 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
   };
 
   const baseButtonClasses =
-    "flex items-center font-medium text-gray-300 dark:text-gray-300";
+    "flex items-center font-medium text-zinc-300";
 
   const getStatusDisplay = () => {
     if (loading || isOnline === null) {
@@ -159,8 +141,8 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
                 ? "Not Authenticated"
                 : error === "Connection timeout"
                 ? "Timeout"
-                : error === "Network error - Is the backend running?"
-                ? "Network Error"
+                : error === "Network error"
+                ? "Network"
                 : "Error"}
             </span>
           </>
