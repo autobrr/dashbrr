@@ -13,6 +13,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 )
@@ -81,7 +82,10 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 
 	// Fetch requests in a goroutine
 	go func() {
-		stats, err := service.GetRequests(ctx, config.URL, config.APIKey)
+		bgCtx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+		defer cancel()
+
+		stats, err := service.GetRequests(bgCtx, config.URL, config.APIKey)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -91,7 +95,7 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 		}
 
 		// Cache the results
-		if err := m.cache.Set(ctx, cacheKey, stats, 5*time.Minute); err != nil {
+		if err := m.cache.Set(bgCtx, cacheKey, stats, 5*time.Minute); err != nil {
 			log.Warn().
 				Err(err).
 				Str("instance", config.InstanceID).
@@ -123,7 +127,10 @@ func (m *ServiceManager) initializePlex(ctx context.Context, config *models.Serv
 
 	// Fetch sessions in a goroutine
 	go func() {
-		sessions, err := service.GetSessions(ctx, config.URL, config.APIKey)
+		bgCtx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+		defer cancel()
+
+		sessions, err := service.GetSessions(bgCtx, config.URL, config.APIKey)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -133,7 +140,7 @@ func (m *ServiceManager) initializePlex(ctx context.Context, config *models.Serv
 		}
 
 		// Cache the results with a shorter TTL since sessions are more real-time
-		if err := m.cache.Set(ctx, cacheKey, sessions, 30*time.Second); err != nil {
+		if err := m.cache.Set(bgCtx, cacheKey, sessions, 30*time.Second); err != nil {
 			log.Warn().
 				Err(err).
 				Str("instance", config.InstanceID).
