@@ -76,7 +76,7 @@ func (s *ProwlarrService) GetSystemStatus(ctx context.Context, url, apiKey strin
 	}
 
 	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
+	if version := s.GetVersionFromCache(ctx, url); version != "" && version != "true" {
 		return version, nil
 	}
 
@@ -105,7 +105,7 @@ func (s *ProwlarrService) GetSystemStatus(ctx context.Context, url, apiKey strin
 	}
 
 	// Cache version for 1 hour
-	if err := s.CacheVersion(url, status.Version, time.Hour); err != nil {
+	if err := s.CacheVersion(ctx, url, status.Version, time.Hour); err != nil {
 		log.Debug().Err(err).Str("url", url).Str("version", status.Version).Msg("Failed to cache Prowlarr version")
 	}
 

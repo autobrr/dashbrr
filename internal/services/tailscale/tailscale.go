@@ -126,7 +126,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, baseURL string, apiKe
 		version = "unknown"
 	}
 
-	if err := s.CacheUpdateStatus(baseURL, updateAvailable, time.Hour); err != nil {
+	if err := s.CacheUpdateStatus(ctx, baseURL, updateAvailable, time.Hour); err != nil {
 		log.Debug().Err(err).Str("url", baseURL).Bool("updateAvailable", updateAvailable).Msg("Failed to cache Tailscale update status")
 	}
 
@@ -164,7 +164,7 @@ func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey s
 	extras := map[string]interface{}{
 		"responseTime":    responseTime.Milliseconds(),
 		"version":         version,
-		"updateAvailable": s.GetUpdateStatusFromCache(url),
+		"updateAvailable": s.GetUpdateStatusFromCache(healthCtx, url),
 	}
 
 	return s.CreateHealthResponse(startTime, "online", fmt.Sprintf("%d devices online", onlineCount), extras), http.StatusOK

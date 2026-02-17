@@ -59,12 +59,12 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	startTime := time.Now()
 
 	// Get version synchronously first
-	version := s.GetVersionFromCache(url)
+	version := s.GetVersionFromCache(ctx, url)
 	if version == "" {
 		var err error
 		version, err = checker.GetSystemStatus(ctx, url, apiKey)
 		if err == nil {
-			s.CacheVersion(url, version, time.Hour)
+			s.CacheVersion(ctx, url, version, time.Hour)
 		}
 	}
 
@@ -74,7 +74,7 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		"X-Api-Key": apiKey,
 	}
 
-	updateAvailable := s.GetUpdateStatusFromCache(url)
+	updateAvailable := s.GetUpdateStatusFromCache(ctx, url)
 	if ctx.Err() == nil {
 		go func() {
 			updateCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
@@ -86,7 +86,7 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 				return
 			}
 
-			if err := s.CacheUpdateStatus(url, hasUpdate, updateCacheTTL); err != nil {
+			if err := s.CacheUpdateStatus(updateCtx, url, hasUpdate, updateCacheTTL); err != nil {
 				log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
 			}
 		}()

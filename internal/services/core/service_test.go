@@ -19,21 +19,21 @@ func TestCacheUpdateStatusRoundTrip(t *testing.T) {
 	}
 
 	baseURL := "http://example.com"
-	if got := s.GetUpdateStatusFromCache(baseURL); got {
+	if got := s.GetUpdateStatusFromCache(context.Background(), baseURL); got {
 		t.Fatalf("expected cache miss to be false, got true")
 	}
 
-	if err := s.CacheUpdateStatus(baseURL, true, time.Minute); err != nil {
+	if err := s.CacheUpdateStatus(context.Background(), baseURL, true, time.Minute); err != nil {
 		t.Fatalf("CacheUpdateStatus(true) failed: %v", err)
 	}
-	if got := s.GetUpdateStatusFromCache(baseURL); !got {
+	if got := s.GetUpdateStatusFromCache(context.Background(), baseURL); !got {
 		t.Fatalf("expected cached value true, got false")
 	}
 
-	if err := s.CacheUpdateStatus(baseURL, false, time.Minute); err != nil {
+	if err := s.CacheUpdateStatus(context.Background(), baseURL, false, time.Minute); err != nil {
 		t.Fatalf("CacheUpdateStatus(false) failed: %v", err)
 	}
-	if got := s.GetUpdateStatusFromCache(baseURL); got {
+	if got := s.GetUpdateStatusFromCache(context.Background(), baseURL); got {
 		t.Fatalf("expected cached value false, got true")
 	}
 }
@@ -51,7 +51,7 @@ func TestGetUpdateStatusFromCache_LegacyVersionPrefixedKey(t *testing.T) {
 		t.Fatalf("failed to seed legacy key: %v", err)
 	}
 
-	if got := s.GetUpdateStatusFromCache(baseURL); !got {
+	if got := s.GetUpdateStatusFromCache(context.Background(), baseURL); !got {
 		t.Fatalf("expected legacy cached value true, got false")
 	}
 }

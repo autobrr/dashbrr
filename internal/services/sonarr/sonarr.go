@@ -274,7 +274,7 @@ func (s *SonarrService) GetSystemStatus(ctx context.Context, url, apiKey string)
 	}
 
 	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
+	if version := s.GetVersionFromCache(ctx, url); version != "" && version != "true" {
 		return version, nil
 	}
 
@@ -304,7 +304,7 @@ func (s *SonarrService) GetSystemStatus(ctx context.Context, url, apiKey string)
 	}
 
 	// Cache version for 1 hour
-	if err := s.CacheVersion(url, status.Version, time.Hour); err != nil {
+	if err := s.CacheVersion(ctx, url, status.Version, time.Hour); err != nil {
 		log.Debug().Err(err).Str("url", url).Str("version", status.Version).Msg("Failed to cache Sonarr version")
 	}
 

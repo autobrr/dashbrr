@@ -98,7 +98,7 @@ func (s *MaintainerrService) GetHealthEndpoint(baseURL string) string {
 
 func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string, error) {
 	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
+	if version := s.GetVersionFromCache(ctx, url); version != "" && version != "true" {
 		return version, nil
 	}
 
@@ -119,11 +119,11 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	}
 
 	// Cache version for 1 hour
-	if err := s.CacheVersion(url, statusResponse.Version, time.Hour); err != nil {
+	if err := s.CacheVersion(ctx, url, statusResponse.Version, time.Hour); err != nil {
 		log.Debug().Err(err).Str("url", url).Str("version", statusResponse.Version).Msg("Failed to cache Maintainerr version")
 	}
 
-	if err := s.CacheUpdateStatus(url, statusResponse.UpdateAvailable, time.Hour); err != nil {
+	if err := s.CacheUpdateStatus(ctx, url, statusResponse.UpdateAvailable, time.Hour); err != nil {
 		log.Debug().Err(err).Str("url", url).Bool("updateAvailable", statusResponse.UpdateAvailable).Msg("Failed to cache Maintainerr update status")
 	}
 
@@ -204,7 +204,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 		versionErr = healthCtx.Err()
 	}
 
-	if err := s.CacheUpdateStatus(url, statusResponse.UpdateAvailable, time.Hour); err != nil {
+	if err := s.CacheUpdateStatus(ctx, url, statusResponse.UpdateAvailable, time.Hour); err != nil {
 		log.Debug().Err(err).Str("url", url).Bool("updateAvailable", statusResponse.UpdateAvailable).Msg("Failed to cache Maintainerr update status")
 	}
 

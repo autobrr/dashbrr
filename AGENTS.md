@@ -226,3 +226,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (refactor)
 - Go/tailscale: background devices-cache refresh now has timeout (no unbounded retry loop on `context.Background()`)
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-16 (refactor)
+- Go/cache: thread ctx through `ServiceCore` version/update cache helpers; remove remaining `context.Background()` usage in `internal/services/*`
+- Go gate: pass (`go test ./...`)

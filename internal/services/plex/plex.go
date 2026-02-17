@@ -192,7 +192,7 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 	extras := map[string]interface{}{
 		"version":         version,
 		"responseTime":    responseTime,
-		"updateAvailable": s.GetUpdateStatusFromCache(url), // Add update status from cache
+		"updateAvailable": s.GetUpdateStatusFromCache(ctx, url), // Add update status from cache
 	}
 
 	// Always set status to "online" when healthy and include a message

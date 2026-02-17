@@ -130,7 +130,7 @@ func (s *OmegabrrService) CheckHealth(ctx context.Context, url, apiKey string) (
 	if version != "" {
 		extras["version"] = version
 		// Check update status from cache
-		extras["updateAvailable"] = s.GetUpdateStatusFromCache(url)
+		extras["updateAvailable"] = s.GetUpdateStatusFromCache(healthCtx, url)
 	}
 
 	return s.CreateHealthResponse(startTime, "online", "Healthy", extras), http.StatusOK

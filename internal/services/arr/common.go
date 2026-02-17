@@ -93,13 +93,18 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 }
 
 // GetArrSystemStatus provides a common implementation for getting system status.
-func GetArrSystemStatus(ctx context.Context, service, url, apiKey string, getVersionFromCache func(string) string, cacheVersion func(string, string, time.Duration) error) (string, error) {
+func GetArrSystemStatus(
+	ctx context.Context,
+	service, url, apiKey string,
+	getVersionFromCache func(context.Context, string) string,
+	cacheVersion func(context.Context, string, string, time.Duration) error,
+) (string, error) {
 	if url == "" {
 		return "", &ErrArr{Service: service, Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
 
 	// Check cache first using version-specific cache key
-	if version := getVersionFromCache(url); version != "" && version != "true" {
+	if version := getVersionFromCache(ctx, url); version != "" && version != "true" {
 		return version, nil
 	}
 
@@ -123,7 +128,7 @@ func GetArrSystemStatus(ctx context.Context, service, url, apiKey string, getVer
 	}
 
 	// Cache version for 1 hour
-	if err := cacheVersion(url, status.Version, time.Hour); err != nil {
+	if err := cacheVersion(ctx, url, status.Version, time.Hour); err != nil {
 		log.Debug().Err(err).Str("url", url).Str("service", service).Msg("Failed to cache version")
 	}
 
