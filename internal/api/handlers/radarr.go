@@ -154,7 +154,7 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 				Msg("[Radarr] Failed to fetch queue")
 
 			if arrErr.HttpCode > 0 {
-				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
 				return
 			}
 		}
@@ -299,7 +299,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 				Msg("[Radarr] Failed to delete queue item")
 
 			if arrErr.HttpCode > 0 {
-				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
 				return
 			}
 		}

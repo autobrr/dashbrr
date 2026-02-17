@@ -195,7 +195,7 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 				Msg("[Sonarr] Failed to fetch queue")
 
 			if arrErr.HttpCode > 0 {
-				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
 				return
 			}
 		}
@@ -288,7 +288,7 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 				Msg("[Sonarr] Failed to fetch stats")
 
 			if arrErr.HttpCode > 0 {
-				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
 				return
 			}
 		}
@@ -408,7 +408,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 				Msg("[Sonarr] Failed to delete queue item")
 
 			if arrErr.HttpCode > 0 {
-				c.JSON(arrErr.HttpCode, gin.H{"error": arrErr.Error()})
+				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
 				return
 			}
 		}

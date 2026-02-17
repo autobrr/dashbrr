@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -230,6 +231,10 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 			}
 			defer resp.Body.Close()
 
+			if resp.StatusCode != http.StatusOK {
+				return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexers", HttpCode: resp.StatusCode}
+			}
+
 			var i []types.ProwlarrIndexer
 			if err := json.NewDecoder(resp.Body).Decode(&i); err != nil {
 				return nil, err
@@ -364,6 +369,14 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch stats")
 		status := http.StatusInternalServerError
+		var arrErr *arr.ErrArr
+		if errors.As(err, &arrErr) && arrErr.HttpCode > 0 {
+			status = normalizeUpstreamStatus(arrErr.HttpCode)
+		}
+		var prowErr *prowlarr.ErrProwlarr
+		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
+			status = normalizeUpstreamStatus(prowErr.HttpCode)
+		}
 		if err.Error() == "prowlarr is not configured" {
 			status = http.StatusNotFound
 		}
@@ -402,6 +415,14 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch indexers")
 		status := http.StatusInternalServerError
+		var arrErr *arr.ErrArr
+		if errors.As(err, &arrErr) && arrErr.HttpCode > 0 {
+			status = normalizeUpstreamStatus(arrErr.HttpCode)
+		}
+		var prowErr *prowlarr.ErrProwlarr
+		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
+			status = normalizeUpstreamStatus(prowErr.HttpCode)
+		}
 		if err.Error() == "prowlarr is not configured" {
 			status = http.StatusNotFound
 		}
@@ -440,6 +461,14 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch indexer stats")
 		status := http.StatusInternalServerError
+		var arrErr *arr.ErrArr
+		if errors.As(err, &arrErr) && arrErr.HttpCode > 0 {
+			status = normalizeUpstreamStatus(arrErr.HttpCode)
+		}
+		var prowErr *prowlarr.ErrProwlarr
+		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
+			status = normalizeUpstreamStatus(prowErr.HttpCode)
+		}
 		if err.Error() == "prowlarr is not configured" {
 			status = http.StatusNotFound
 		}

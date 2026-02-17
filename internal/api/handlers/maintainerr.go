@@ -167,11 +167,11 @@ func handleHTTPStatusCode(code int) (int, string) {
 	case http.StatusGatewayTimeout:
 		return code, "Service request timed out (504)"
 	case http.StatusUnauthorized:
-		return code, "Invalid API key"
+		return http.StatusBadGateway, "Invalid API key"
 	case http.StatusForbidden:
-		return code, "Access forbidden"
+		return http.StatusBadGateway, "Access forbidden"
 	case http.StatusNotFound:
-		return code, "Service endpoint not found"
+		return http.StatusBadGateway, "Service endpoint not found"
 	default:
 		return code, fmt.Sprintf("Service returned error: %s (%d)", http.StatusText(code), code)
 	}

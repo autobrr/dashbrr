@@ -276,3 +276,8 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-17 (refactor)
 - Web/auth: gate noisy auth console logs to dev-only via `debug()` helper (keep errors; stop leaking userinfo to prod console)
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-17 (fix)
+- API: normalize upstream service HTTP codes (map upstream 401/403/404 -> 502) to avoid confusing dashbrr user-auth 401 with service API-key failures
+- API/prowlarr: check HTTP status before JSON decode for `/api/v1/indexer` fetch; propagate `HttpCode` for better client errors
+- Go gate: pass (`go test ./...`)
