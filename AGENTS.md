@@ -95,6 +95,7 @@ Owner: soup (s0up4200@pm.me)
 - OIDC: added `/api/auth/oidc/callback` alias; updated default/example `OIDC_REDIRECT_URL` (legacy `/api/auth/callback` kept)
 - Web: only unregister service-worker on 401 in dev (prod keeps PWA registered)
 - Web/tailscale: remove axios-style error parsing; align with fetch-based api client errors + simplify UI states
+- Web/tailscale: render "Add Tailscale" affordance when not configured; hook up `onConfigOpen` from `AppContent`
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`

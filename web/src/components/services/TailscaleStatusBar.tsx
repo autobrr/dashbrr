@@ -30,11 +30,12 @@ interface DevicesResponse {
 }
 
 interface TailscaleStatusBarProps {
-  initialConfigOpen?: boolean;
   onConfigOpen?: () => void;
 }
 
-export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
+export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
+  onConfigOpen,
+}) => {
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
@@ -167,9 +168,39 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
     );
   };
 
-  // Only render if Tailscale is configured
+  // Render a minimal "add/configure" affordance even when not configured.
   if (!instanceId) {
-    return null;
+    return (
+      <button
+        onClick={onConfigOpen}
+        disabled={!onConfigOpen}
+        className="flex items-center gap-2 text-zinc-300 hover:text-blue-400 transition-colors disabled:opacity-50 disabled:hover:text-zinc-300"
+        title="Add Tailscale"
+      >
+        <div className="w-6 pb-1">
+          <img
+            src={tailscaleLogo}
+            alt="Tailscale"
+            className="w-full h-full"
+            draggable="false"
+            style={{
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              MozUserSelect: "none",
+              msUserSelect: "none",
+            }}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+        </div>
+        <div className="text-sm flex items-center justify-center">
+          <>
+            Tailscale:
+            <span className="text-yellow-500 ml-1">Add</span>
+          </>
+        </div>
+      </button>
+    );
   }
 
   return (
