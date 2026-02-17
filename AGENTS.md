@@ -318,6 +318,11 @@ Owner: soup (s0up4200@pm.me)
 - API: CORS now supports explicit origin allowlist + credentialed requests (cookies/SSE); new config/env knobs (`cors_origins`, `DASHBRR__CORS_ORIGINS`, etc)
 - Web: SSE uses `EventSource(..., { withCredentials: true })` when supported
 
+### 2026-02-17 (refactor)
+- Auth/oidc: session cookie is now a server-generated stable session id (no longer provider access token); callback redirect no longer leaks tokens in URL
+- Auth/web: cookie-first auth bootstrap (no longer requires `localStorage.access_token`); `ConfigurationContext` no longer gates on stored token
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
