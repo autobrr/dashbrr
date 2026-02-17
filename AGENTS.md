@@ -362,6 +362,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (chore)
 - Web deps: `pnpm -C web up`; gate pass (`pnpm -C web typecheck`, `lint`, `build`)
+
+### 2026-02-17 (refactor)
+- CLI: dedupe `dashbrr service <type> {list,add,remove}` commands via shared CRUD helpers; move `getNextInstanceID` + URL validation into common utils
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
