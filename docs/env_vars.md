@@ -7,6 +7,32 @@
   - Format: `<host>:<port>`
   - Default: `0.0.0.0:8080`
 
+### CORS (Optional)
+
+Only needed if you serve the web UI from a different origin than the API (different host/port).
+
+- `DASHBRR__CORS_ORIGINS`
+  - Purpose: Comma-separated list of allowed origins (no wildcard when using cookies)
+  - Example: `http://localhost:3000,https://dash.example.com`
+  - Default: unset (allow all origins; credentials disabled)
+
+- `DASHBRR__CORS_ALLOW_CREDENTIALS`
+  - Purpose: Allow credentialed requests (cookies), required for browser auth + SSE across origins
+  - Values: `true|false`
+  - Default: `true` when `DASHBRR__CORS_ORIGINS` is set to an explicit allowlist; otherwise `false`
+
+- `DASHBRR__CORS_HEADERS`
+  - Purpose: Comma-separated list of allowed request headers
+  - Default: `Origin,Authorization,Content-Type,Accept,X-Requested-With`
+
+- `DASHBRR__CORS_METHODS`
+  - Purpose: Comma-separated list of allowed methods
+  - Default: `GET,POST,PUT,PATCH,DELETE,OPTIONS`
+
+- `DASHBRR__CORS_MAX_AGE_HOURS`
+  - Purpose: Preflight cache max-age, in hours
+  - Default: `12`
+
 ## Configuration Path
 
 - `DASHBRR__CONFIG_PATH`

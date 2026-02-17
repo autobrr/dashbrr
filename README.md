@@ -147,6 +147,9 @@ Dashbrr uses a simple TOML configuration file. Default location: `./config.toml`
 ```toml
 [server]
 listen_addr = ":8080"
+# Optional: if UI is served from a different origin than the API
+# cors_origins = ["http://localhost:3000", "https://dash.example.com"]
+# cors_allow_credentials = true
 
 [database]
 type = "sqlite"

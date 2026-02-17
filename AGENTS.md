@@ -314,6 +314,10 @@ Owner: soup (s0up4200@pm.me)
 - Remove deprecated Omegabrr end-to-end: API handlers/routes, service registry/CLI, UI templates/components/types, cache TTLs, docs/README
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`)
 
+### 2026-02-17 (fix)
+- API: CORS now supports explicit origin allowlist + credentialed requests (cookies/SSE); new config/env knobs (`cors_origins`, `DASHBRR__CORS_ORIGINS`, etc)
+- Web: SSE uses `EventSource(..., { withCredentials: true })` when supported
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening

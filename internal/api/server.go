@@ -93,7 +93,13 @@ func (s *Server) Handler() http.Handler {
 		log.Error().Err(err).Msg("Failed to set trusted proxies")
 	}
 
-	r.Use(middleware.SetupCORS())
+	r.Use(middleware.SetupCORS(
+		s.cfg.Server.CORSOrigins,
+		s.cfg.Server.CORSHeaders,
+		s.cfg.Server.CORSMethods,
+		time.Duration(s.cfg.Server.CORSMaxAgeH)*time.Hour,
+		s.cfg.Server.CORSCreds,
+	))
 
 	// Create rate limiters with different configurations
 	apiRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 60, "api:")       // 60 requests per minute for API
