@@ -331,6 +331,7 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (security)
 - Auth/oidc: store nonce in state; validate `id_token` nonce claim on callback (adds unit test)
+- Auth/oidc: typed state payload (avoid map/type-assert footguns)
 
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
