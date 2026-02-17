@@ -82,6 +82,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-17
 - Removed deprecated omegabrr integration (backend routes/handlers/services/commands; frontend templates/types/UI; docs/env vars)
 - Gates: `go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`
+- Web cleanup: removed unused `ConfigurationForm` prop (`serviceName`)
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`
