@@ -13,7 +13,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -23,7 +22,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
-	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -35,7 +33,6 @@ type RadarrHandler struct {
 	db              *database.DB
 	cache           cache.Store
 	bc              *Broadcaster
-	sf              *singleflight.Group
 	circuitBreaker  *resilience.CircuitBreaker
 	lastQueueHash   map[string]string
 	lastQueueHashMu sync.Mutex
@@ -46,83 +43,9 @@ func NewRadarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *Rada
 		db:             db,
 		cache:          cache,
 		bc:             bc,
-		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastQueueHash:  make(map[string]string),
 	}
-}
-
-// fetchDataWithCache implements a stale-while-revalidate pattern
-func (h *RadarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
-	var cachedData interface{}
-
-	// Try to get from cache first
-	err := h.cache.Get(ctx, cacheKey, &cachedData)
-	if err == nil {
-		// Cache hit; no background refresh (store does not expose TTL metadata).
-		return cachedData, nil
-	}
-
-	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
-		// Try to get stale data when circuit is open
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return staleData, nil
-		}
-		return nil, fmt.Errorf("circuit breaker is open")
-	}
-
-	// Cache miss or error, fetch fresh data with retry
-	var data interface{}
-	var fetchErr error
-	err = resilience.RetryWithBackoff(ctx, func() error {
-		data, fetchErr = fetchFn()
-		return fetchErr
-	})
-
-	if err != nil {
-		h.circuitBreaker.RecordFailure()
-		// Try to get stale data
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return staleData, nil
-		}
-		return nil, err
-	}
-
-	h.circuitBreaker.RecordSuccess()
-
-	// Cache the fresh data
-	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.RadarrStatus); err == nil {
-		// Also cache as stale data with longer duration
-		_ = h.cache.Set(ctx, cacheKey+":stale", data, radarrStaleDataDuration)
-	}
-
-	return data, nil
-}
-
-// fetchQueueWithCache is a type-safe wrapper around fetchDataWithCache for RadarrQueueResponse
-func (h *RadarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.RadarrQueueResponse, error)) (types.RadarrQueueResponse, error) {
-	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return fetchFn()
-	})
-	if err != nil {
-		return types.RadarrQueueResponse{}, err
-	}
-
-	// Convert the cached data to RadarrQueueResponse
-	converted, err := utils.SafeStructConvert[types.RadarrQueueResponse](data)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("cache_key", cacheKey).
-			Str("type", utils.GetTypeString(data)).
-			Msg("[Radarr] Failed to convert cached data")
-		return types.RadarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
-	}
-
-	return converted, nil
 }
 
 func (h *RadarrHandler) GetQueue(c *gin.Context) {
@@ -142,8 +65,15 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	cacheKey := radarrQueuePrefix + instanceId
 	ctx := c.Request.Context()
 
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
-		return h.fetchQueue(ctx, instanceId)
+	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RadarrQueueResponse]{
+		Store:          h.cache,
+		CircuitBreaker: h.circuitBreaker,
+		Key:            cacheKey,
+		FreshTTL:       middleware.CacheDurations.RadarrStatus,
+		StaleTTL:       radarrStaleDataDuration,
+		Fetch: func() (types.RadarrQueueResponse, error) {
+			return h.fetchQueue(ctx, instanceId)
+		},
 	})
 
 	if err != nil {
@@ -312,10 +242,18 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	if err := h.cache.Delete(ctx, cacheKey); err != nil {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("[Radarr] Failed to clear cache after queue item deletion")
 	}
+	_ = h.cache.Delete(ctx, cacheKey+":stale")
 
 	// Fetch fresh queue data
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.RadarrQueueResponse, error) {
-		return h.fetchQueue(ctx, instanceId)
+	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RadarrQueueResponse]{
+		Store:          h.cache,
+		CircuitBreaker: h.circuitBreaker,
+		Key:            cacheKey,
+		FreshTTL:       middleware.CacheDurations.RadarrStatus,
+		StaleTTL:       radarrStaleDataDuration,
+		Fetch: func() (types.RadarrQueueResponse, error) {
+			return h.fetchQueue(ctx, instanceId)
+		},
 	})
 
 	if err == nil {
