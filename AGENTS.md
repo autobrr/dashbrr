@@ -295,3 +295,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-17 (cleanup)
 - Web/api: remove unused `getEventSourceUrl()` export from `web/src/utils/api.ts`
 - Web gate: pass (`pnpm -C web lint`)
+
+### 2026-02-17 (cleanup)
+- Web: remove unused PWA/`virtual:pwa-register` type declarations from `web/src/vite-env.d.ts`
+- Web gate: pass (`pnpm -C web typecheck`, `pnpm -C web lint`)
