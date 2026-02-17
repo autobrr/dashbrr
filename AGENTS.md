@@ -356,6 +356,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (refactor)
 - API/cache: add typed SWR cache helper + tests; migrate Sonarr + Radarr + Prowlarr + Plex + Maintainerr + Overseerr + Autobrr handlers to shared helper (drop local cache funcs + `SafeStructConvert`)
+
+### 2026-02-17 (chore)
+- Go deps: `go get -u ./...` + `go mod tidy`; `go test ./...` pass
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
