@@ -116,7 +116,7 @@ func ConfigExportCommand() *cobra.Command {
 		}
 
 		// Get all services from database
-		services, err := db.GetAllServices(context.Background())
+		services, err := db.GetAllServices(cmd.Context())
 		if err != nil {
 			return fmt.Errorf("failed to retrieve services: %v", err)
 		}

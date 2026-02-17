@@ -57,7 +57,7 @@ func VersionCommand() *cobra.Command {
 		}
 
 		if outputJson {
-			return versionOutputJSON(checkUpdate, current)
+			return versionOutputJSON(cmd.Context(), checkUpdate, current)
 		}
 
 		// Print current version
@@ -117,7 +117,7 @@ func getLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 	return &release, nil
 }
 
-func versionOutputJSON(check bool, info VersionInfo) error {
+func versionOutputJSON(ctx context.Context, check bool, info VersionInfo) error {
 	type jsonOutput struct {
 		Current VersionInfo    `json:"current"`
 		Latest  *GitHubRelease `json:"latest,omitempty"`
@@ -128,7 +128,7 @@ func versionOutputJSON(check bool, info VersionInfo) error {
 	}
 
 	if check {
-		latest, err := getLatestRelease(context.Background())
+		latest, err := getLatestRelease(ctx)
 		if err != nil {
 			return err
 		}

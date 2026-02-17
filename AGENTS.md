@@ -234,3 +234,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (refactor)
 - Go/manager: service initialization now uses background ctx + timeout (avoid request-ctx cancellation killing initial fetch)
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-16 (refactor)
+- Go/cli: propagate `cmd.Context()` for config export + version JSON update check (no `context.Background()` in CLI network/db ops)
+- Go gate: pass (`go test ./...`)
