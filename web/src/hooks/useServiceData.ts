@@ -146,10 +146,19 @@ export const useServiceData = () => {
     }
   }, []);
 
+  const createEventSource = useCallback((url: string) => {
+    // `EventSourceInit.withCredentials` is supported in modern browsers; fall back gracefully.
+    try {
+      return new EventSource(url, { withCredentials: true });
+    } catch {
+      return new EventSource(url);
+    }
+  }, []);
+
   const connectSSE = useCallback(() => {
     cleanupSSE();
 
-    const es = new EventSource("/api/events");
+    const es = createEventSource("/api/events");
     eventSourceRef.current = es;
 
     es.onopen = () => {
@@ -179,7 +188,7 @@ export const useServiceData = () => {
         }
       }, delay);
     };
-  }, [applyHealthUpdate, cleanupSSE, isAuthenticated]);
+  }, [applyHealthUpdate, cleanupSSE, createEventSource, isAuthenticated]);
 
   useEffect(() => {
     mountedRef.current = true;
