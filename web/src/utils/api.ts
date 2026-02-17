@@ -212,12 +212,18 @@ const handleRequest = async <T>(
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    const text = await response.text();
-    if (!text) {
+    if (response.status === 204) {
       return {} as T;
     }
-    
-    return JSON.parse(text);
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return (await response.json()) as T;
+    }
+
+    const text = await response.text();
+    if (!text) return {} as T;
+    return text as unknown as T;
   } catch (error) {
     if (error instanceof Error) {
       if (error.name === 'AbortError') {

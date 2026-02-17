@@ -299,3 +299,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-17 (cleanup)
 - Web: remove unused PWA/`virtual:pwa-register` type declarations from `web/src/vite-env.d.ts`
 - Web gate: pass (`pnpm -C web typecheck`, `pnpm -C web lint`)
+
+### 2026-02-17 (refactor)
+- Web/api: parse successful responses via `content-type` (use `response.json()` when JSON; tolerate empty/204); avoid brittle `JSON.parse(text)`
+- Web gate: pass (`pnpm -C web lint`)
