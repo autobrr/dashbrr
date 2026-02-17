@@ -333,6 +333,8 @@ Owner: soup (s0up4200@pm.me)
 - Auth/oidc: store nonce in state; validate `id_token` nonce claim on callback (adds unit test)
 - Auth/oidc: typed state payload (avoid map/type-assert footguns)
 
+### 2026-02-17 (refactor)
+- Go/models: add `ServiceTypeFromInstanceID`; use it in poller + service manager + discovery display (less string-split duplication)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
