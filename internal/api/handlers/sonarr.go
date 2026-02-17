@@ -339,11 +339,28 @@ func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (stru
 		}{}, err
 	}
 
+	// Minimal stats: derive queue counts so the endpoint isn't a no-op.
+	records, err := service.GetQueueForHealth(ctx, sonarrConfig.URL, sonarrConfig.APIKey)
+	if err != nil {
+		return struct {
+			Stats   types.SonarrStatsResponse
+			Version string
+		}{}, err
+	}
+
+	episodeCount := 0
+	for _, record := range records {
+		episodeCount += len(record.Episodes)
+	}
+
 	return struct {
 		Stats   types.SonarrStatsResponse
 		Version string
 	}{
-		Stats:   types.SonarrStatsResponse{},
+		Stats: types.SonarrStatsResponse{
+			QueuedCount:  len(records),
+			EpisodeCount: episodeCount,
+		},
 		Version: version,
 	}, nil
 }

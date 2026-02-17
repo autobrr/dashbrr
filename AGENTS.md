@@ -246,3 +246,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (refactor)
 - Go/cli: health command now uses `internal/models` service registry + side-effect imports (less duplication; new services auto-wire)
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-16 (bugfix)
+- Go/sonarr: `/api/sonarr/stats` no longer returns empty stats; derives minimal queue counts via `GetQueueForHealth`
+- Go gate: pass (`go test ./...`)
