@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -143,6 +144,29 @@ func generateSecureRandomString(length int) (string, error) {
 	return hex.EncodeToString(bytes)[:length], nil
 }
 
+func extractJWTNonce(rawIDToken string) (string, error) {
+	parts := strings.Split(rawIDToken, ".")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid id_token format")
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("decode id_token payload: %w", err)
+	}
+
+	var claims struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", fmt.Errorf("parse id_token payload: %w", err)
+	}
+	if claims.Nonce == "" {
+		return "", fmt.Errorf("id_token missing nonce")
+	}
+	return claims.Nonce, nil
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	// Create context with timeout for login flow
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -172,11 +196,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
-	nonceKey := fmt.Sprintf("oidc:nonce:%s", nonce)
 
 	stateData := map[string]interface{}{
 		"timestamp":   time.Now().Unix(),
 		"frontendUrl": frontendUrl,
+		"nonce":       nonce,
 	}
 
 	if err := h.cache.Set(ctx, stateKey, stateData, 5*time.Minute); err != nil {
@@ -186,19 +210,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			return
 		}
 		log.Error().Err(err).Msg("failed to store state in cache")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
-	if err := h.cache.Set(ctx, nonceKey, time.Now().Unix(), 5*time.Minute); err != nil {
-		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context canceled while storing nonce")
-			_ = h.cache.Delete(ctx, stateKey)
-			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-			return
-		}
-		log.Error().Err(err).Msg("failed to store nonce in cache")
-		_ = h.cache.Delete(ctx, stateKey)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
@@ -249,6 +260,12 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_state")
 		return
 	}
+	expectedNonce, ok := stateData["nonce"].(string)
+	if !ok || expectedNonce == "" {
+		log.Error().Msg("no nonce in state data")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_state", frontendUrl))
+		return
+	}
 
 	if err := h.cache.Delete(ctx, stateKey); err != nil {
 		if err != cache.ErrKeyNotFound {
@@ -273,6 +290,18 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	if !ok {
 		log.Error().Msg("no id_token in token response")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=no_id_token", frontendUrl))
+		return
+	}
+
+	gotNonce, err := extractJWTNonce(rawIDToken)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to extract nonce from id_token")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_nonce", frontendUrl))
+		return
+	}
+	if gotNonce != expectedNonce {
+		log.Error().Msg("id_token nonce mismatch")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_nonce", frontendUrl))
 		return
 	}
 
