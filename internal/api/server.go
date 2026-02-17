@@ -171,9 +171,11 @@ func (s *Server) Handler() http.Handler {
 				oidcAuth.Use(authRateLimiter.RateLimit())
 				{
 					oidcAuth.GET("/login", oidcAuthHandler.Login)
-				oidcAuth.POST("/logout", oidcAuthHandler.Logout)
+					// Support top-level browser navigation (GET) and programmatic (POST).
+					oidcAuth.GET("/logout", oidcAuthHandler.Logout)
+					oidcAuth.POST("/logout", oidcAuthHandler.Logout)
+				}
 			}
-		}
 
 		// Built-in auth endpoints
 		builtinAuth := public.Group("/api/auth")

@@ -96,6 +96,7 @@ Owner: soup (s0up4200@pm.me)
 - Web: only unregister service-worker on 401 in dev (prod keeps PWA registered)
 - Web/tailscale: remove axios-style error parsing; align with fetch-based api client errors + simplify UI states
 - Web/tailscale: render "Add Tailscale" affordance when not configured; hook up `onConfigOpen` from `AppContent`
+- Auth/OIDC: add GET `/api/auth/oidc/logout` and switch frontend to navigation-based logout (fetch cannot follow provider redirects)
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`

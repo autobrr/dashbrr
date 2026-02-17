@@ -276,6 +276,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         currentAuthType
       );
 
+      if (currentAuthType === "oidc") {
+        // Must be a navigation to follow provider redirects.
+        clearAuth();
+        window.location.href = logoutUrl;
+        return;
+      }
+
       const response = await fetch(logoutUrl, {
         method: "POST",
         credentials: "include",
