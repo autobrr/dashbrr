@@ -291,3 +291,7 @@ Owner: soup (s0up4200@pm.me)
 - Web: delete unused legacy `web/src/config/api.ts` wrapper module (had stale helpers + console logs)
 - Web/omegabrr: controls now call webhook endpoints via `web/src/utils/api.ts` directly
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-17 (cleanup)
+- Web/api: remove unused `getEventSourceUrl()` export from `web/src/utils/api.ts`
+- Web gate: pass (`pnpm -C web lint`)

@@ -250,8 +250,3 @@ export const api = {
     return requestQueue.add(() => handleRequest<T>(path, createRequest('DELETE'), 0, timeout));
   },
 };
-
-export const getEventSourceUrl = (path: string): string => {
-  const apiPath = path.startsWith('/api') ? path : `/api${path}`;
-  return `${window.location.origin}${apiPath}`;
-};
