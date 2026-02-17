@@ -326,6 +326,9 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-17 (fix)
 - Auth/oidc: preserve existing refresh token if provider omits it during refresh
 
+### 2026-02-17 (cleanup)
+- Web/auth: remove unused `AUTH_URLS.oidc.callback` (no matching backend route)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
