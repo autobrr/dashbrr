@@ -24,8 +24,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   }, [configurations]);
 
   const fetchConfigurations = useCallback(async () => {
-    const token = localStorage.getItem("access_token");
-    if (!isAuthenticated || !token) {
+    if (!isAuthenticated) {
       // Avoid an update loop: only clear if we actually had config.
       setConfigurations((prev) => (Object.keys(prev).length > 0 ? {} : prev));
       setIsLoading(false);
