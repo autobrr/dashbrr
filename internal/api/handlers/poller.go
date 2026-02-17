@@ -159,7 +159,10 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 			continue
 		}
 
-		serviceType, _, _ := strings.Cut(svc.InstanceID, "-")
+		serviceType, ok := models.ServiceTypeFromInstanceID(svc.InstanceID)
+		if !ok {
+			continue
+		}
 		configured := isServiceConfigured(serviceType, svc)
 
 		if kind == RefreshAll || kind == RefreshHealth {

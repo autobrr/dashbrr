@@ -5,7 +5,6 @@ package manager
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -35,7 +34,13 @@ func NewServiceManager(db *database.DB, cache cache.Store) *ServiceManager {
 // InitializeService handles initial data fetching for a newly configured service
 func (m *ServiceManager) InitializeService(ctx context.Context, config *models.ServiceConfiguration) {
 	// Extract service type from instance ID (e.g., "overseerr-1" -> "overseerr")
-	serviceType := strings.Split(config.InstanceID, "-")[0]
+	serviceType, ok := models.ServiceTypeFromInstanceID(config.InstanceID)
+	if !ok {
+		log.Debug().
+			Str("instance", config.InstanceID).
+			Msg("Skipping initialization - invalid instance id")
+		return
+	}
 
 	// Skip initialization if URL or API key is missing
 	if config.URL == "" || config.APIKey == "" {

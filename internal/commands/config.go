@@ -200,7 +200,10 @@ func handleDiscoveredServices(ctx context.Context, db *database.DB, services []m
 	// Group services by type for display
 	servicesByType := make(map[string][]string)
 	for _, service := range services {
-		serviceType := strings.Split(service.InstanceID, "-")[0]
+		serviceType, ok := models.ServiceTypeFromInstanceID(service.InstanceID)
+		if !ok {
+			serviceType = "unknown"
+		}
 		info := fmt.Sprintf("  - %s (URL: %s)", service.DisplayName, service.URL)
 		servicesByType[serviceType] = append(servicesByType[serviceType], info)
 	}
