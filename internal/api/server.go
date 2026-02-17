@@ -133,15 +133,15 @@ func (s *Server) Handler() http.Handler {
 	authMiddleware := middleware.NewAuthMiddleware(s.cache)
 
 	// Initialize OIDC if configuration is provided
-	if hasOIDCConfig() {
-		authConfig := &types.AuthConfig{
-			Issuer:       getEnvOrDefault("OIDC_ISSUER", ""),
-			ClientID:     getEnvOrDefault("OIDC_CLIENT_ID", ""),
-			ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),
-			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/callback"),
+		if hasOIDCConfig() {
+			authConfig := &types.AuthConfig{
+				Issuer:       getEnvOrDefault("OIDC_ISSUER", ""),
+				ClientID:     getEnvOrDefault("OIDC_CLIENT_ID", ""),
+				ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),
+				RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/oidc/callback"),
+			}
+			oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
 		}
-		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
-	}
 
 	// Background polling will publish SSE updates.
 	if s.poller == nil {
@@ -162,13 +162,15 @@ func (s *Server) Handler() http.Handler {
 		// Auth configuration endpoint
 		public.GET("/api/auth/config", handlers.GetAuthConfig)
 
-		// OIDC auth endpoints (only if OIDC is configured)
-		if oidcAuthHandler != nil {
-			public.GET("/api/auth/callback", oidcAuthHandler.Callback)
-			oidcAuth := public.Group("/api/auth/oidc")
-			oidcAuth.Use(authRateLimiter.RateLimit())
-			{
-				oidcAuth.GET("/login", oidcAuthHandler.Login)
+			// OIDC auth endpoints (only if OIDC is configured)
+			if oidcAuthHandler != nil {
+				public.GET("/api/auth/callback", oidcAuthHandler.Callback)
+				// Alias: keep callback under the OIDC path for consistency.
+				public.GET("/api/auth/oidc/callback", oidcAuthHandler.Callback)
+				oidcAuth := public.Group("/api/auth/oidc")
+				oidcAuth.Use(authRateLimiter.RateLimit())
+				{
+					oidcAuth.GET("/login", oidcAuthHandler.Login)
 				oidcAuth.POST("/logout", oidcAuthHandler.Logout)
 			}
 		}

@@ -92,6 +92,7 @@ Owner: soup (s0up4200@pm.me)
 - Web: removed unused `validateServiceConfig` legacy helper from `web/src/contexts/useConfiguration.ts`
 - Web/auth: `frontendUrl` for OIDC endpoints now uses `window.location.origin` (supports backend proxy dev mode)
 - Web: removed unused `web/src/components/auth/CallbackPage.tsx` + route
+- OIDC: added `/api/auth/oidc/callback` alias; updated default/example `OIDC_REDIRECT_URL` (legacy `/api/auth/callback` kept)
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`

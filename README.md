@@ -225,7 +225,7 @@ Required OIDC environment variables:
 OIDC_ISSUER=https://your-provider.com
 OIDC_CLIENT_ID=your-client-id
 OIDC_CLIENT_SECRET=your-client-secret
-OIDC_REDIRECT_URL=http://localhost:3000/api/auth/callback
+OIDC_REDIRECT_URL=http://localhost:3000/api/auth/oidc/callback
 ```
 
 ## Tech Stack

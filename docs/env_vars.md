@@ -125,5 +125,5 @@ Only needed if you serve the web UI from a different origin than the API (differ
 
 - `OIDC_REDIRECT_URL`
   - Purpose: Callback URL for OIDC authentication
-  - Example: `http://localhost:3000/api/auth/callback`
+  - Example: `http://localhost:3000/api/auth/oidc/callback` (legacy `/api/auth/callback` also works)
   - Required if using OIDC
