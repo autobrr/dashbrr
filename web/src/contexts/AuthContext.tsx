@@ -18,6 +18,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Utility function for exponential backoff
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const debug = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    // Keep auth chatter out of production logs.
+    console.debug(...args);
+  }
+};
+
 async function readApiError(response: Response): Promise<string> {
   const contentType = response.headers.get("content-type") || "";
 
@@ -61,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
 
   const clearAuth = useCallback(() => {
-    console.log("[AuthProvider] Clearing authentication state");
+    debug("[AuthProvider] Clearing authentication state");
     localStorage.removeItem("access_token");
     localStorage.removeItem("id_token");
     localStorage.removeItem("auth_type");
@@ -73,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const MAX_RETRIES = 5;
     let attempt = 0;
 
-    console.log("[AuthProvider] Checking auth status");
+    debug("[AuthProvider] Checking auth status");
     setLoading(true);
 
     try {
@@ -84,12 +91,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         | null;
 
       if (!accessToken || !currentAuthType) {
-        console.log("[AuthProvider] No access token or auth type found");
+        debug("[AuthProvider] No access token or auth type found");
         clearAuth();
         return;
       }
 
-      console.log(
+      debug(
         "[AuthProvider] Verifying token for auth type:",
         currentAuthType
       );
@@ -99,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ? AUTH_URLS.oidc.verify
           : AUTH_URLS.builtin.verify;
 
-      console.log("[AuthProvider] Verifying token at:", verifyUrl);
+      debug("[AuthProvider] Verifying token at:", verifyUrl);
 
       while (attempt < MAX_RETRIES) {
         const verifyResponse = await fetch(verifyUrl, {
@@ -114,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const waitTime = retryAfter
             ? parseInt(retryAfter) * 1000
             : Math.min(1000 * Math.pow(2, attempt), 30000);
-          console.log(
+          debug(
             `[AuthProvider] Rate limited, waiting ${waitTime}ms before retry`
           );
           await wait(waitTime);
@@ -131,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        console.log("[AuthProvider] Token verified successfully");
+        debug("[AuthProvider] Token verified successfully");
         break;
       }
 
@@ -142,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userInfoUrl =
         currentAuthType === "oidc" ? AUTH_URLS.oidc.userInfo : AUTH_URLS.userInfo;
 
-      console.log("[AuthProvider] Fetching user info from:", userInfoUrl);
+      debug("[AuthProvider] Fetching user info from:", userInfoUrl);
 
       attempt = 0;
       while (attempt < MAX_RETRIES) {
@@ -158,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const waitTime = retryAfter
             ? parseInt(retryAfter) * 1000
             : Math.min(1000 * Math.pow(2, attempt), 30000);
-          console.log(
+          debug(
             `[AuthProvider] Rate limited, waiting ${waitTime}ms before retry`
           );
           await wait(waitTime);
@@ -176,14 +183,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const userData = await userInfoResponse.json();
-        console.log("[AuthProvider] User info received:", {
+        debug("[AuthProvider] User info received:", {
           ...userData,
           auth_type: currentAuthType,
         });
 
         setUser({ ...userData, auth_type: currentAuthType });
         setIsAuthenticated(true);
-        console.log("[AuthProvider] Authentication successful");
+        debug("[AuthProvider] Authentication successful");
         return;
       }
 
@@ -198,12 +205,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    console.log("[AuthProvider] Initializing auth provider");
+    debug("[AuthProvider] Initializing auth provider");
 
     // Fetch auth configuration
     getAuthConfig().then((config) => {
       if (mounted) {
-        console.log("[AuthProvider] Received auth config:", config);
+        debug("[AuthProvider] Received auth config:", config);
         setAuthConfig(config);
       }
     });
@@ -214,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const idToken = params.get("id_token");
 
     if (accessToken && idToken) {
-      console.log("[AuthProvider] Found OIDC tokens in URL");
+      debug("[AuthProvider] Found OIDC tokens in URL");
       // Store tokens and remove them from URL
       localStorage.setItem("access_token", accessToken);
       localStorage.setItem("id_token", idToken);
@@ -238,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [checkAuthStatus]);
 
   const loginWithOIDC = () => {
-    console.log("[AuthProvider] Initiating OIDC login");
+    debug("[AuthProvider] Initiating OIDC login");
     if (!authConfig?.methods.oidc) {
       throw new Error("OIDC authentication is not configured");
     }
@@ -247,7 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (credentials?: LoginCredentials) => {
-    console.log(
+    debug(
       "[AuthProvider] Login attempt",
       credentials ? "with credentials" : "with OIDC"
     );
@@ -272,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = await response.json();
-      console.log("[AuthProvider] Login successful");
+      debug("[AuthProvider] Login successful");
       localStorage.setItem("access_token", data.access_token);
       localStorage.setItem("auth_type", "builtin");
       await checkAuthStatus();
@@ -283,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (credentials: RegisterCredentials) => {
-    console.log("[AuthProvider] Registration attempt");
+    debug("[AuthProvider] Registration attempt");
     try {
       const response = await fetch(AUTH_URLS.builtin.register, {
         method: "POST",
@@ -300,7 +307,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(message || "Registration failed");
       }
 
-      console.log(
+      debug(
         "[AuthProvider] Registration successful, proceeding to login"
       );
       // After successful registration, log in with the same credentials
@@ -315,7 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    console.log("[AuthProvider] Initiating logout");
+    debug("[AuthProvider] Initiating logout");
     try {
       const currentAuthType = localStorage.getItem("auth_type") as
         | "oidc"
@@ -326,7 +333,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           : AUTH_URLS.builtin.logout;
       const accessToken = localStorage.getItem("access_token");
 
-      console.log(
+      debug(
         "[AuthProvider] Logging out with auth type:",
         currentAuthType
       );
@@ -346,7 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Logout failed");
       }
 
-      console.log("[AuthProvider] Logout successful");
+      debug("[AuthProvider] Logout successful");
       clearAuth();
       navigate("/login", { replace: true });
     } catch (error) {

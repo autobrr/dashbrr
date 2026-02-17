@@ -272,3 +272,7 @@ Owner: soup (s0up4200@pm.me)
 - Web: `useServiceData` now batches config upserts/removals into a single `setServices` update (avoid N renders for N services)
 - Web: SSE connect is now driven only by `isAuthenticated` (no reconnect on every configuration change)
 - Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-17 (refactor)
+- Web/auth: gate noisy auth console logs to dev-only via `debug()` helper (keep errors; stop leaking userinfo to prod console)
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)
