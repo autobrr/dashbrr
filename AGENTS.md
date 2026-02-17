@@ -359,6 +359,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (chore)
 - Go deps: `go get -u ./...` + `go mod tidy`; `go test ./...` pass
+
+### 2026-02-17 (chore)
+- Web deps: `pnpm -C web up`; gate pass (`pnpm -C web typecheck`, `lint`, `build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
