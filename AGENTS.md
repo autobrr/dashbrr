@@ -250,3 +250,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (bugfix)
 - Go/sonarr: `/api/sonarr/stats` no longer returns empty stats; derives minimal queue counts via `GetQueueForHealth`
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-16 (perf)
+- Web: `Cache` singleton anchored to `globalThis` to avoid stacking `setInterval` timers across Vite HMR reloads
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

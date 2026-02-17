@@ -106,7 +106,7 @@ export class Cache {
 
   private constructor() {
     this.loadFromLocalStorage();
-    setInterval(() => this.cleanup(), 60000); // Run cleanup every minute
+    window.setInterval(() => this.cleanup(), 60000); // Run cleanup every minute
   }
 
   static getInstance(): Cache {
@@ -311,5 +311,7 @@ export class Cache {
   }
 }
 
-export const cache = Cache.getInstance();
+// Vite HMR reloads modules; anchor the singleton to globalThis to avoid stacking timers.
+const globalCache = globalThis as unknown as { __dashbrrCache?: Cache };
+export const cache = globalCache.__dashbrrCache ?? (globalCache.__dashbrrCache = Cache.getInstance());
 export { CACHE_PREFIXES };
