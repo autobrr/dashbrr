@@ -119,7 +119,10 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 
 	log.Debug().
 		Str("instance", instanceID).
-		Interface("config", config).
+		Str("url", config.URL).
+		Str("access_url", config.AccessURL).
+		Str("display_name", config.DisplayName).
+		Bool("api_key_set", config.APIKey != "").
 		Msg("Saving configuration")
 
 	// Check if configuration exists

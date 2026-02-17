@@ -257,3 +257,7 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-16 (security)
 - Go: `govulncheck ./...` clean after dependency churn
+
+### 2026-02-16 (security)
+- API: stop logging secrets when saving settings (remove full config dump that included API keys)
+- Go gate: pass (`go test ./...`)
