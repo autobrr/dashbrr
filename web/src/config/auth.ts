@@ -5,11 +5,7 @@
 
 // Get the current frontend URL
 const getFrontendUrl = () => {
-  // In development, use localhost:3000
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3000';
-  }
-  // In production, use the current origin
+  // Always use current origin (works for Vite dev server and backend proxy mode).
   return window.location.origin;
 };
 
