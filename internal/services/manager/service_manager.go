@@ -82,7 +82,8 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 
 	// Fetch requests in a goroutine
 	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+		// Detach from the request lifecycle, but keep values/deadlines if any.
+		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), core.DefaultTimeout)
 		defer cancel()
 
 		stats, err := service.GetRequests(bgCtx, config.URL, config.APIKey)
@@ -127,7 +128,8 @@ func (m *ServiceManager) initializePlex(ctx context.Context, config *models.Serv
 
 	// Fetch sessions in a goroutine
 	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+		// Detach from the request lifecycle, but keep values/deadlines if any.
+		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), core.DefaultTimeout)
 		defer cancel()
 
 		sessions, err := service.GetSessions(bgCtx, config.URL, config.APIKey)
