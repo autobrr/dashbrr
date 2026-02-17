@@ -281,3 +281,8 @@ Owner: soup (s0up4200@pm.me)
 - API: normalize upstream service HTTP codes (map upstream 401/403/404 -> 502) to avoid confusing dashbrr user-auth 401 with service API-key failures
 - API/prowlarr: check HTTP status before JSON decode for `/api/v1/indexer` fetch; propagate `HttpCode` for better client errors
 - Go gate: pass (`go test ./...`)
+
+### 2026-02-17 (refactor)
+- Web/config: `ConfigurationContext` now uses `web/src/utils/api.ts` (remove duplicate base-url/header logic)
+- Web/api: treat 401 as session-expired redirect by default; allowlist auth bootstrap endpoints to surface 401 to caller; stop sending empty `Authorization` header
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

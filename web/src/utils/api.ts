@@ -89,8 +89,8 @@ class RequestQueue {
 const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('access_token');
   return {
-    'Authorization': token ? `Bearer ${token}` : '',
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };
 
@@ -136,15 +136,19 @@ const unregisterServiceWorker = async (): Promise<void> => {
 };
 
 // Check if the path is an authentication-related endpoint
-const isAuthEndpoint = (path: string): boolean => {
-  const authPaths = [
-    '/api/auth',
-    '/api/login',
-    '/api/verify',
-    '/api/userinfo',
-    '/api/token'
+const isNoRedirectOn401Endpoint = (path: string): boolean => {
+  // Endpoints where a 401 should be surfaced to the caller (bad creds, etc),
+  // not treated as "session expired, redirect to /login".
+  const paths = [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/registration-status',
+    '/api/auth/config',
+    '/api/auth/oidc/login',
+    '/api/auth/oidc/logout',
+    '/api/auth/callback',
   ];
-  return authPaths.some(authPath => path.includes(authPath));
+  return paths.some((p) => path.includes(p));
 };
 
 // Track auth state changes to prevent cascading 401 handlers
@@ -179,23 +183,21 @@ const handleRequest = async <T>(
         throw new Error('Authentication in progress');
       }
 
-      // Only handle auth once
-      if (isAuthEndpoint(path)) {
-        isHandlingAuth = true;
-        try {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('id_token');
-          localStorage.removeItem('auth_type');
-          await unregisterServiceWorker();
-          window.location.href = '/login';
-          throw new Error('Authentication required');
-        } finally {
-          isHandlingAuth = false;
-        }
-      } else {
-        // For service-related 401s (like invalid API keys), just throw an error
+      if (isNoRedirectOn401Endpoint(apiPath)) {
         const errorData = await response.json().catch(() => ({ error: 'Unauthorized' }));
-        throw new Error(errorData.error || 'Service authentication failed');
+        throw new Error(errorData.error || 'Unauthorized');
+      }
+
+      isHandlingAuth = true;
+      try {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('id_token');
+        localStorage.removeItem('auth_type');
+        await unregisterServiceWorker();
+        window.location.href = '/login';
+        throw new Error('Authentication required');
+      } finally {
+        isHandlingAuth = false;
       }
     }
 
