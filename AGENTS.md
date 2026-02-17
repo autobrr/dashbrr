@@ -33,7 +33,7 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web lint` clean except 3 hook-deps warnings
 - Critical bug/inefficiency: cache hit path always triggers background refresh.
   - Pattern: `time.Now().After(time.Now().Add(-CacheDuration + 5s))` is always true.
-  - Affects: autobrr/sonarr/maintainerr/plex/prowlarr/overseerr/omegabrr/radarr handlers.
+  - Affects: autobrr/sonarr/maintainerr/plex/prowlarr/overseerr/radarr handlers.
 
 ### 2026-02-16 (build 1)
 - Implemented SSE hub + `/api/events` default-message SSE stream (JSON ServiceHealth)
@@ -84,6 +84,7 @@ Owner: soup (s0up4200@pm.me)
 - Gates: `go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`
 - Web cleanup: removed unused `ConfigurationForm` prop (`serviceName`)
 - Backend cleanup: init fetch goroutines use `context.WithoutCancel(ctx)` (no request-cancel bleed)
+- Auth: builtin auth handlers now use `c.Request.Context()` for cache ops (avoid passing `*gin.Context`); logout uses `getSessionToken`
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`

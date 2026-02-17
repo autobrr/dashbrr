@@ -127,6 +127,8 @@ func (h *BuiltinAuthHandler) Register(c *gin.Context) {
 
 // Login handles user login
 func (h *BuiltinAuthHandler) Login(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	var req types.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
@@ -134,7 +136,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	}
 
 	// Get user by username
-	user, err := h.db.FindUser(c.Request.Context(), types.FindUserParams{Username: req.Username})
+	user, err := h.db.FindUser(ctx, types.FindUserParams{Username: req.Username})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -171,7 +173,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 
 	// Store session in cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	if err := h.cache.Set(c, sessionKey, sessionData, time.Until(expiresAt)); err != nil {
+	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(expiresAt)); err != nil {
 		log.Error().Err(err).Msg("failed to store session in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
@@ -204,6 +206,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 
 // Verify verifies the session token
 func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	sessionToken, err := getSessionToken(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
@@ -213,7 +217,7 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 	// Get session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
 	var sessionData types.SessionData
-	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
+	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
 		} else {
@@ -225,7 +229,7 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 
 	// Check if session is expired
 	if time.Now().After(sessionData.ExpiresAt) {
-		_ = h.cache.Delete(c, sessionKey)
+		_ = h.cache.Delete(ctx, sessionKey)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
 		return
 	}
@@ -238,8 +242,9 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 
 // Logout handles user logout
 func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
-	// Get session cookie
-	sessionToken, err := c.Cookie("session")
+	ctx := c.Request.Context()
+
+	sessionToken, err := getSessionToken(c)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "Already logged out"})
 		return
@@ -247,7 +252,7 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 
 	// Delete session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	if err := h.cache.Delete(c, sessionKey); err != nil && err != cache.ErrKeyNotFound {
+	if err := h.cache.Delete(ctx, sessionKey); err != nil && err != cache.ErrKeyNotFound {
 		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
 
@@ -269,6 +274,8 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 
 // GetUserInfo returns the current user's information
 func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	sessionToken, err := getSessionToken(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
@@ -278,7 +285,7 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 	// Get session from cache
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
 	var sessionData types.SessionData
-	if err := h.cache.Get(c, sessionKey, &sessionData); err != nil {
+	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
 		} else {
@@ -289,7 +296,7 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 	}
 
 	// Get user from database
-	user, err := h.db.FindUser(c.Request.Context(), types.FindUserParams{ID: sessionData.UserID})
+	user, err := h.db.FindUser(ctx, types.FindUserParams{ID: sessionData.UserID})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
