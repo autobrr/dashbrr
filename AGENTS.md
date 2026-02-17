@@ -267,3 +267,8 @@ Owner: soup (s0up4200@pm.me)
 - Web: remove app-level `virtual:pwa-register` import/registration (avoid dev import-analysis failure + double-register)
 - Web: remove duplicate `vite-pwa.d.ts` (keep single declaration in `vite-env.d.ts`)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-17 (perf)
+- Web: `useServiceData` now batches config upserts/removals into a single `setServices` update (avoid N renders for N services)
+- Web: SSE connect is now driven only by `isAuthenticated` (no reconnect on every configuration change)
+- Web gate: pass (`pnpm -C web lint`, `pnpm -C web build`)

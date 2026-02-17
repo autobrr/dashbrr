@@ -19,6 +19,10 @@ import { api } from "../utils/api";
 
 type RefreshKind = "health" | "stats" | "all";
 
+const templateByType: Map<string, (typeof serviceTemplates)[number]> = new Map(
+  serviceTemplates.map((t) => [t.type, t] as const)
+);
+
 const parseDate = (v: unknown): Date | undefined => {
   if (!v) return undefined;
   if (v instanceof Date) return v;
@@ -75,38 +79,28 @@ export const useServiceData = () => {
     [setServicesState]
   );
 
-  const upsertFromConfig = useCallback(
-    (instanceId: string, config: ServiceConfig) => {
-      const [type] = instanceId.split("-");
-      const template = serviceTemplates.find((t) => t.type === type);
-      // API keys are write-only; only URL presence is known client-side.
-      const hasRequiredConfig = Boolean(config.url);
+  const serviceFromConfig = useCallback((instanceId: string, config: ServiceConfig): Service => {
+    const [type] = instanceId.split("-");
+    const template = templateByType.get(type);
+    // API keys are write-only; only URL presence is known client-side.
+    const hasRequiredConfig = Boolean(config.url);
 
-      const base: Service = {
-        id: instanceId,
-        instanceId,
-        name: template?.name || "Unknown Service",
-        type: (template?.type || "other") as ServiceType,
-        status: (hasRequiredConfig ? "loading" : "pending") as ServiceStatus,
-        url: config.url,
-        accessUrl: config.accessUrl,
-        apiKey: config.apiKey,
-        displayName: config.displayName,
-        healthEndpoint: template?.healthEndpoint,
-        message: hasRequiredConfig ? "Waiting for updates" : "Service not configured",
-        stats: {},
-        details: {},
-      };
-
-      setServicesState((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(instanceId);
-        next.set(instanceId, existing ? { ...existing, ...base } : base);
-        return next;
-      });
-    },
-    [setServicesState]
-  );
+    return {
+      id: instanceId,
+      instanceId,
+      name: template?.name || "Unknown Service",
+      type: (template?.type || "other") as ServiceType,
+      status: (hasRequiredConfig ? "loading" : "pending") as ServiceStatus,
+      url: config.url,
+      accessUrl: config.accessUrl,
+      apiKey: config.apiKey,
+      displayName: config.displayName,
+      healthEndpoint: template?.healthEndpoint,
+      message: hasRequiredConfig ? "Waiting for updates" : "Service not configured",
+      stats: {},
+      details: {},
+    };
+  }, []);
 
   const applyHealthUpdate = useCallback(
     (raw: ServiceHealth) => {
@@ -198,8 +192,16 @@ export const useServiceData = () => {
   useEffect(() => {
     if (!isAuthenticated) {
       cleanupSSE();
-      setServicesState(() => new Map());
       setIsLoading(false);
+      return;
+    }
+
+    connectSSE();
+  }, [cleanupSSE, connectSSE, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setServicesState(() => new Map());
       return;
     }
 
@@ -208,24 +210,29 @@ export const useServiceData = () => {
       return;
     }
 
-    // Upsert configured services
-    for (const [instanceId, config] of Object.entries(configurations)) {
-      upsertFromConfig(instanceId, config);
-    }
+    const entries = Object.entries(configurations);
+    const configuredIds = new Set(entries.map(([id]) => id));
 
-    // Remove deleted services
-    const configuredIds = new Set(Object.keys(configurations));
     setServicesState((prev) => {
       const next = new Map(prev);
+
+      // Upsert configured services (single state update).
+      for (const [instanceId, config] of entries) {
+        const base = serviceFromConfig(instanceId, config);
+        const existing = next.get(instanceId);
+        next.set(instanceId, existing ? { ...existing, ...base } : base);
+      }
+
+      // Remove deleted services.
       for (const id of next.keys()) {
         if (!configuredIds.has(id)) next.delete(id);
       }
+
       return next;
     });
 
-    connectSSE();
     setIsLoading(false);
-  }, [configurations, connectSSE, cleanupSSE, isAuthenticated, setServicesState, upsertFromConfig]);
+  }, [configurations, isAuthenticated, serviceFromConfig, setServicesState]);
 
   const refreshService = useCallback(async (instanceId: string, kind: RefreshKind = "all") => {
     try {
