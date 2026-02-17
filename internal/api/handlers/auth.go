@@ -167,6 +167,12 @@ func extractJWTNonce(rawIDToken string) (string, error) {
 	return claims.Nonce, nil
 }
 
+type oidcStateData struct {
+	Timestamp   int64  `json:"timestamp"`
+	FrontendURL string `json:"frontendUrl"`
+	Nonce       string `json:"nonce"`
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	// Create context with timeout for login flow
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -197,10 +203,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
 
-	stateData := map[string]interface{}{
-		"timestamp":   time.Now().Unix(),
-		"frontendUrl": frontendUrl,
-		"nonce":       nonce,
+	stateData := oidcStateData{
+		Timestamp:   time.Now().Unix(),
+		FrontendURL: frontendUrl,
+		Nonce:       nonce,
 	}
 
 	if err := h.cache.Set(ctx, stateKey, stateData, 5*time.Minute); err != nil {
@@ -238,7 +244,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
-	var stateData map[string]interface{}
+	var stateData oidcStateData
 	if err := h.cache.Get(ctx, stateKey, &stateData); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while retrieving state")
@@ -254,16 +260,11 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	frontendUrl, ok := stateData["frontendUrl"].(string)
-	if !ok {
-		log.Error().Msg("no frontend URL in state data")
+	frontendUrl := stateData.FrontendURL
+	expectedNonce := stateData.Nonce
+	if frontendUrl == "" || expectedNonce == "" {
+		log.Error().Msg("invalid state data")
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_state")
-		return
-	}
-	expectedNonce, ok := stateData["nonce"].(string)
-	if !ok || expectedNonce == "" {
-		log.Error().Msg("no nonce in state data")
-		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_state", frontendUrl))
 		return
 	}
 
