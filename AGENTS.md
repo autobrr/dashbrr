@@ -98,6 +98,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/tailscale: render "Add Tailscale" affordance when not configured; hook up `onConfigOpen` from `AppContent`
 - Auth/OIDC: add GET `/api/auth/oidc/logout` and switch frontend to navigation-based logout (fetch cannot follow provider redirects)
 - Web/deps: removed unused `axios` + `lodash` (+ types). `pnpm audit --prod` clean; `pnpm audit` still flags dev-only `ajv@6` via eslint toolchain.
+- Go/cache: added shared typed SWR helper `FetchWithSWRCache` + tests; migrated Sonarr handler off `interface{}`+convert to typed cache ops
 
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`
@@ -352,10 +353,14 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (refactor)
 - Web/api: stop sending `Authorization` from `localStorage` by default (cookie-first sessions, less XSS blast radius)
+
+### 2026-02-17 (refactor)
+- API/cache: add typed SWR cache helper + tests; migrate Sonarr handler to shared helper (drop local cache funcs + `SafeStructConvert`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
 - Frontend: continue de-bloat `useServiceData`; tighten types; reduce re-render paths
 - Backend: service-type parsing helper; handle unsupported legacy `instance_id` types cleanly (esp. removed services)
+- Backend: dedupe SWR caching across handlers (Radarr/Prowlarr/Plex/Maintainerr/Overseerr/Autobrr)
 - Backend: remove remaining `context.Background()` in request paths; keep ctx flow explicit
 - Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)

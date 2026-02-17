@@ -23,7 +23,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/types"
-	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -31,6 +30,11 @@ const (
 	sonarrStatsPrefix       = "sonarr:stats:"
 	sonarrStaleDataDuration = 5 * time.Minute
 )
+
+type sonarrStatsResult struct {
+	Stats   types.SonarrStatsResponse
+	Version string
+}
 
 type SonarrHandler struct {
 	db              *database.DB
@@ -56,116 +60,6 @@ func NewSonarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *Sona
 	}
 }
 
-// fetchDataWithCache implements a stale-while-revalidate pattern
-func (h *SonarrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
-	var data interface{}
-
-	// Try to get from cache first
-	err := h.cache.Get(ctx, cacheKey, &data)
-	if err == nil {
-		// Cache hit; no background refresh (store does not expose TTL metadata).
-		return data, nil
-	}
-
-	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
-		// Try to get stale data when circuit is open
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return staleData, nil
-		}
-		return nil, fmt.Errorf("circuit breaker is open")
-	}
-
-	// Cache miss or error, fetch fresh data with retry
-	var fetchErr error
-	err = resilience.RetryWithBackoff(ctx, func() error {
-		data, fetchErr = fetchFn()
-		return fetchErr
-	})
-
-	if err != nil {
-		h.circuitBreaker.RecordFailure()
-		// Try to get stale data
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return staleData, nil
-		}
-		return nil, err
-	}
-
-	h.circuitBreaker.RecordSuccess()
-
-	// Cache the fresh data
-	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.SonarrStatus); err == nil {
-		// Also cache as stale data with longer duration
-		_ = h.cache.Set(ctx, cacheKey+":stale", data, sonarrStaleDataDuration)
-	}
-
-	return data, nil
-}
-
-// fetchQueueWithCache is a type-safe wrapper around fetchDataWithCache for SonarrQueueResponse
-func (h *SonarrHandler) fetchQueueWithCache(ctx context.Context, cacheKey string, fetchFn func() (types.SonarrQueueResponse, error)) (types.SonarrQueueResponse, error) {
-	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return fetchFn()
-	})
-	if err != nil {
-		return types.SonarrQueueResponse{}, err
-	}
-
-	// Convert the cached data to SonarrQueueResponse
-	converted, err := utils.SafeStructConvert[types.SonarrQueueResponse](data)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("cache_key", cacheKey).
-			Str("type", utils.GetTypeString(data)).
-			Msg("[Sonarr] Failed to convert cached data")
-		return types.SonarrQueueResponse{}, fmt.Errorf("failed to convert cached data: %w", err)
-	}
-
-	return converted, nil
-}
-
-// fetchStatsWithCache is a type-safe wrapper around fetchDataWithCache for SonarrStatsResponse
-func (h *SonarrHandler) fetchStatsWithCache(ctx context.Context, cacheKey string, fetchFn func() (struct {
-	Stats   types.SonarrStatsResponse
-	Version string
-}, error)) (struct {
-	Stats   types.SonarrStatsResponse
-	Version string
-}, error) {
-	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return fetchFn()
-	})
-	if err != nil {
-		return struct {
-			Stats   types.SonarrStatsResponse
-			Version string
-		}{}, err
-	}
-
-	// Convert the cached data
-	converted, err := utils.SafeStructConvert[struct {
-		Stats   types.SonarrStatsResponse
-		Version string
-	}](data)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("cache_key", cacheKey).
-			Str("type", utils.GetTypeString(data)).
-			Msg("[Sonarr] Failed to convert cached stats data")
-		return struct {
-			Stats   types.SonarrStatsResponse
-			Version string
-		}{}, fmt.Errorf("failed to convert cached stats data: %w", err)
-	}
-
-	return converted, nil
-}
-
 func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	instanceId := c.Query("instanceId")
 	if instanceId == "" {
@@ -183,8 +77,15 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	cacheKey := sonarrQueuePrefix + instanceId
 	ctx := c.Request.Context()
 
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
-		return h.fetchQueue(ctx, instanceId)
+	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.SonarrQueueResponse]{
+		Store:          h.cache,
+		Key:            cacheKey,
+		FreshTTL:       middleware.CacheDurations.SonarrStatus,
+		StaleTTL:       sonarrStaleDataDuration,
+		CircuitBreaker: h.circuitBreaker,
+		Fetch: func() (types.SonarrQueueResponse, error) {
+			return h.fetchQueue(ctx, instanceId)
+		},
 	})
 
 	if err != nil {
@@ -273,11 +174,15 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	cacheKey := sonarrStatsPrefix + instanceId
 	ctx := c.Request.Context()
 
-	result, err := h.fetchStatsWithCache(ctx, cacheKey, func() (struct {
-		Stats   types.SonarrStatsResponse
-		Version string
-	}, error) {
-		return h.fetchStats(ctx, instanceId)
+	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[sonarrStatsResult]{
+		Store:          h.cache,
+		Key:            cacheKey,
+		FreshTTL:       middleware.CacheDurations.SonarrStatus,
+		StaleTTL:       sonarrStaleDataDuration,
+		CircuitBreaker: h.circuitBreaker,
+		Fetch: func() (sonarrStatsResult, error) {
+			return h.fetchStats(ctx, instanceId)
+		},
 	})
 
 	if err != nil {
@@ -308,23 +213,14 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	})
 }
 
-func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (struct {
-	Stats   types.SonarrStatsResponse
-	Version string
-}, error) {
+func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (sonarrStatsResult, error) {
 	sonarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
 	if err != nil {
-		return struct {
-			Stats   types.SonarrStatsResponse
-			Version string
-		}{}, err
+		return sonarrStatsResult{}, err
 	}
 
 	if sonarrConfig == nil {
-		return struct {
-			Stats   types.SonarrStatsResponse
-			Version string
-		}{}, fmt.Errorf("sonarr is not configured")
+		return sonarrStatsResult{}, fmt.Errorf("sonarr is not configured")
 	}
 
 	// Create Sonarr service instance
@@ -333,19 +229,13 @@ func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (stru
 	// Get system status using the service
 	version, err := service.GetSystemStatus(ctx, sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
-		return struct {
-			Stats   types.SonarrStatsResponse
-			Version string
-		}{}, err
+		return sonarrStatsResult{}, err
 	}
 
 	// Minimal stats: derive queue counts so the endpoint isn't a no-op.
 	records, err := service.GetQueueForHealth(ctx, sonarrConfig.URL, sonarrConfig.APIKey)
 	if err != nil {
-		return struct {
-			Stats   types.SonarrStatsResponse
-			Version string
-		}{}, err
+		return sonarrStatsResult{}, err
 	}
 
 	episodeCount := 0
@@ -353,10 +243,7 @@ func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (stru
 		episodeCount += len(record.Episodes)
 	}
 
-	return struct {
-		Stats   types.SonarrStatsResponse
-		Version string
-	}{
+	return sonarrStatsResult{
 		Stats: types.SonarrStatsResponse{
 			QueuedCount:  len(records),
 			EpisodeCount: episodeCount,
@@ -424,10 +311,18 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 			Str("instanceId", instanceId).
 			Msg("[Sonarr] Failed to clear queue cache")
 	}
+	_ = h.cache.Delete(ctx, cacheKey+":stale")
 
 	// Fetch fresh queue data
-	result, err := h.fetchQueueWithCache(ctx, cacheKey, func() (types.SonarrQueueResponse, error) {
-		return h.fetchQueue(ctx, instanceId)
+	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.SonarrQueueResponse]{
+		Store:          h.cache,
+		Key:            cacheKey,
+		FreshTTL:       middleware.CacheDurations.SonarrStatus,
+		StaleTTL:       sonarrStaleDataDuration,
+		CircuitBreaker: h.circuitBreaker,
+		Fetch: func() (types.SonarrQueueResponse, error) {
+			return h.fetchQueue(ctx, instanceId)
+		},
 	})
 
 	if err == nil {
