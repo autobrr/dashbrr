@@ -46,7 +46,6 @@ var (
 	NewProwlarrService    func() ServiceHealthChecker
 	NewOverseerrService   func() ServiceHealthChecker
 	NewPlexService        func() ServiceHealthChecker
-	NewOmegabrrService    func() ServiceHealthChecker
 	NewTailscaleService   func() ServiceHealthChecker
 	NewMaintainerrService func() ServiceHealthChecker
 	NewGeneralService     func() ServiceHealthChecker

@@ -5,7 +5,7 @@
 
 export type ServiceStatus = 'online' | 'offline' | 'warning' | 'error' | 'loading' | 'pending' | 'unknown';
 
-export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'general' | 'other';
+export type ServiceType = 'autobrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'general' | 'other';
 
 export interface ServiceHealth {
   status: ServiceStatus;
@@ -440,12 +440,6 @@ export interface ProwlarrIndexerStats {
   numberOfFailedAuthQueries: number;
 }
 
-// Omegabrr Types
-export interface OmegabrrWebhookStatus {
-  arrs: boolean;
-  lists: boolean;
-}
-
 // Service Stats Union Type
 export interface ServiceStats {
   autobrr?: AutobrrStats;
@@ -472,9 +466,6 @@ export interface ServiceStats {
       indexers: ProwlarrIndexerStats[];
     };
   }
-  omegabrr?: {
-    webhookStatus: OmegabrrWebhookStatus;
-  };
 }
 
 // Service Details Union Type
@@ -482,9 +473,6 @@ export interface ServiceDetails {
   autobrr?: {
     irc: AutobrrIRC[];
     base_url: string;
-  };
-  omegabrr?: {
-    webhookStatus: OmegabrrWebhookStatus;
   };
   plex?: {
     activeStreams: number;

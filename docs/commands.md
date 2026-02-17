@@ -151,21 +151,6 @@ Example: dashbrr service maintainerr remove http://localhost:7476
 dashbrr service maintainerr list
 ```
 
-### Omegabrr
-
-```bash
-# Add an Omegabrr service
-dashbrr service omegabrr add <url> <api-key>
-Example: dashbrr service omegabrr add http://localhost:7477 your-api-key
-
-# Remove an Omegabrr service
-dashbrr service omegabrr remove <url>
-Example: dashbrr service omegabrr remove http://localhost:7477
-
-# List Omegabrr services
-dashbrr service omegabrr list
-```
-
 ### Overseerr
 
 ```bash

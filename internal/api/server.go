@@ -113,7 +113,6 @@ func (s *Server) Handler() http.Handler {
 	healthHandler := handlers.NewHealthHandler(s.db)
 	eventsHandler := handlers.NewEventsHandler(s.hub)
 	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, bc)
-	omegabrrHandler := handlers.NewOmegabrrHandler(s.db, s.cache)
 	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache, bc)
 	plexHandler := handlers.NewPlexHandler(s.db, s.cache, bc)
 	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
@@ -293,18 +292,6 @@ func (s *Server) Handler() http.Handler {
 				{
 					prowlarr.GET("/stats", prowlarrHandler.GetStats)
 					prowlarr.GET("/indexers", prowlarrHandler.GetIndexers)
-				}
-
-				// Omegabrr endpoints
-				omegabrr := regularServices.Group("/omegabrr")
-				{
-					omegabrr.GET("/status", omegabrrHandler.GetOmegabrrStatus)
-					webhook := omegabrr.Group("/webhook")
-					{
-						webhook.POST("/arrs", omegabrrHandler.TriggerWebhookArrs)
-						webhook.POST("/lists", omegabrrHandler.TriggerWebhookLists)
-						webhook.POST("/all", omegabrrHandler.TriggerWebhookAll)
-					}
 				}
 			}
 

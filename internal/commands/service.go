@@ -36,7 +36,6 @@ func ServiceCommand() *cobra.Command {
 	command.AddCommand(ServiceAutobrrCommand())
 	command.AddCommand(ServiceGeneralCommand())
 	command.AddCommand(ServiceMaintainerrCommand())
-	command.AddCommand(ServiceOmegabrrCommand())
 	command.AddCommand(ServiceOverseerrCommand())
 	command.AddCommand(ServicePlexCommand())
 	command.AddCommand(ServiceProwlarrCommand())
@@ -82,7 +81,6 @@ func ServiceListCommand() *cobra.Command {
 		//		"  Service Types:\n"+
 		//		"    autobrr    - Autobrr service management\n"+
 		//		"    maintainerr - Maintainerr service management\n"+
-		//		"    omegabrr   - Omegabrr service management\n\n"+
 		//		"    overseerr  - Overseerr service management\n"+
 		//		"    plex       - Plex service management\n"+
 		//		"    prowlarr   - Prowlarr service management\n"+

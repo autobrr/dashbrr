@@ -79,6 +79,10 @@ Owner: soup (s0up4200@pm.me)
   - `Dockerfile`: `golang:1.25-alpine3.23`
   - `ci.Dockerfile`: `golang:1.25-alpine3.23`
 
+### 2026-02-17
+- Removed deprecated omegabrr integration (backend routes/handlers/services/commands; frontend templates/types/UI; docs/env vars)
+- Gates: `go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`
+
 ### 2026-02-16 (cleanup)
 - Branch pushed: `refactor/modernize` -> `origin/refactor/modernize`
 - Removed unused hooks (no imports found): moved to Trash
@@ -303,3 +307,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-17 (refactor)
 - Web/api: parse successful responses via `content-type` (use `response.json()` when JSON; tolerate empty/204); avoid brittle `JSON.parse(text)`
 - Web gate: pass (`pnpm -C web lint`)
+
+### 2026-02-17 (chore)
+- Remove deprecated Omegabrr end-to-end: API handlers/routes, service registry/CLI, UI templates/components/types, cache TTLs, docs/README
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`)

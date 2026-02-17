@@ -113,7 +113,6 @@ When using environment variables for API keys (${SERVICE_API_KEY}), the followin
 - `DASHBRR_TAILSCALE_API_KEY`
 - `DASHBRR_PLEX_API_KEY`
 - `DASHBRR_AUTOBRR_API_KEY`
-- `DASHBRR_OMEGABRR_API_KEY`
 
 ## Security Considerations
 

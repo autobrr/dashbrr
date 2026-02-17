@@ -42,10 +42,6 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewPlexService != nil {
 			return NewPlexService()
 		}
-	case "omegabrr":
-		if NewOmegabrrService != nil {
-			return NewOmegabrrService()
-		}
 	case "tailscale":
 		if NewTailscaleService != nil {
 			return NewTailscaleService()

@@ -14,7 +14,6 @@ import (
 	_ "github.com/autobrr/dashbrr/internal/services/autobrr"
 	_ "github.com/autobrr/dashbrr/internal/services/general"
 	_ "github.com/autobrr/dashbrr/internal/services/maintainerr"
-	_ "github.com/autobrr/dashbrr/internal/services/omegabrr"
 	_ "github.com/autobrr/dashbrr/internal/services/overseerr"
 	_ "github.com/autobrr/dashbrr/internal/services/plex"
 	_ "github.com/autobrr/dashbrr/internal/services/prowlarr"

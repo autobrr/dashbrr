@@ -36,7 +36,6 @@ var CacheDurations = struct {
 	SonarrStatus      time.Duration
 	RadarrStatus      time.Duration
 	ProwlarrStatus    time.Duration
-	OmegabrrStatus    time.Duration
 }{
 	Default:           30 * time.Second,
 	HealthCheck:       10 * time.Minute,
@@ -50,7 +49,6 @@ var CacheDurations = struct {
 	SonarrStatus:      1 * time.Minute,
 	RadarrStatus:      1 * time.Minute,
 	ProwlarrStatus:    1 * time.Minute,
-	OmegabrrStatus:    1 * time.Minute,
 }
 
 type CacheMiddleware struct {

@@ -8,7 +8,6 @@ import { Service } from "../../types/service";
 import { ConfigurationForm } from "../configuration/ConfigurationForm";
 import { ServiceHeader } from "../ui/ServiceHeader";
 import { PlexStats } from "./plex/PlexStats";
-import { OmegabrrStats } from "./omegabrr/OmegabrrStats";
 import { OverseerrStats } from "./overseerr/OverseerrStats";
 import { AutobrrStats } from "./autobrr/AutobrrStats";
 import { MaintainerrService } from "./maintainerr/MaintainerrService";
@@ -102,8 +101,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             <AutobrrStats instanceId={service.instanceId} />
           </div>
         );
-      case "omegabrr":
-        return <OmegabrrStats instanceId={service.instanceId} />;
       case "overseerr":
         return <OverseerrStats instanceId={service.instanceId} />;
       case "plex":
