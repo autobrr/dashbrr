@@ -204,8 +204,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 
 // Verify verifies the session token
 func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
-	// Get session cookie
-	sessionToken, err := c.Cookie("session")
+	sessionToken, err := getSessionToken(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
 		return
@@ -270,8 +269,7 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 
 // GetUserInfo returns the current user's information
 func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
-	// Get session cookie
-	sessionToken, err := c.Cookie("session")
+	sessionToken, err := getSessionToken(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
 		return

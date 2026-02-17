@@ -285,7 +285,16 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		AuthType:     "oidc",
 	}
 
-	sessionKey := fmt.Sprintf("oidc:session:%s", token.AccessToken)
+	// Use a server-generated session ID. Provider access tokens can rotate and should
+	// not be used as stable session identifiers.
+	sessionID, err := generateSecureRandomString(32)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to generate session id")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
+		return
+	}
+
+	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
@@ -301,7 +310,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	c.SetCookie(
 		"session",
-		token.AccessToken,
+		sessionID,
 		int(time.Until(token.Expiry).Seconds()),
 		"/",
 		"",
@@ -309,11 +318,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		true,
 	)
 
-	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s?access_token=%s&id_token=%s",
-		frontendUrl,
-		token.AccessToken,
-		rawIDToken,
-	))
+	// Cookie carries the session; avoid leaking tokens in URLs.
+	c.Redirect(http.StatusTemporaryRedirect, frontendUrl)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -328,7 +334,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	sessionID, err := c.Cookie("session")
+	sessionID, err := getSessionToken(c)
 	if err != nil {
 		log.Error().Err(err).Msg("no session cookie found")
 		c.JSON(http.StatusOK, gin.H{"message": "Already logged out"})
@@ -368,7 +374,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 func (h *AuthHandler) VerifyToken(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
+	sessionID, err := getSessionToken(c)
 	if err != nil {
 		log.Trace().Msg("no session cookie found")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
@@ -402,7 +408,7 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
+	sessionID, err := getSessionToken(c)
 	if err != nil {
 		log.Error().Err(err).Msg("no session cookie found")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
@@ -463,7 +469,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 }
 
 func (h *AuthHandler) UserInfo(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
+	sessionID, err := getSessionToken(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
 		return
