@@ -86,18 +86,14 @@ class RequestQueue {
   }
 }
 
-const getAuthHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem('access_token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-};
+const getDefaultHeaders = (): Record<string, string> => ({
+  "Content-Type": "application/json",
+});
 
 const createRequest = (method: string, data?: unknown): RequestOptions => {
   const options: RequestOptions = {
     method,
-    headers: getAuthHeaders(),
+    headers: getDefaultHeaders(),
     credentials: 'include',
   };
 

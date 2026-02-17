@@ -53,6 +53,7 @@ data/
 license.sh
 unit-tests.xml
 dump.rdb
+sessions.json
 
 # OS Generated Files
 ######################
