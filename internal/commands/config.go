@@ -211,7 +211,11 @@ func handleDiscoveredServices(ctx context.Context, db *database.DB, services []m
 	// Display discovered services
 	fmt.Printf("Discovered %d services:\n\n", len(services))
 	for serviceType, infos := range servicesByType {
-		fmt.Printf("%s:\n", strings.Title(serviceType))
+		title := serviceType
+		if len(title) > 0 {
+			title = strings.ToUpper(title[:1]) + title[1:]
+		}
+		fmt.Printf("%s:\n", title)
 		for _, info := range infos {
 			fmt.Println(info)
 		}
