@@ -18,7 +18,9 @@ Owner: soup (s0up4200@pm.me)
   - Many `context.Background()` usage where request ctx should flow
 
 ## Next
-- Architecture proposal (no code yet): single event stream contract, consolidate health check scheduling, shared HTTP client + typed service adapters, frontend data layer split + query/cache strategy.
+- Keep PR `#82` green; iterate CI till all checks complete.
+- Continue dead-code/legacy cleanup (esp. web auth + unused utilities) with small commits.
+- Follow up: reconcile docs with cookie-first auth + dev proxy mode; audit GitHub security alerts.
 
 ### 2026-02-16 (cont)
 - Confirmed: backend has no `/api/events` route. Only SSE route is `GET /api/health/events`.
