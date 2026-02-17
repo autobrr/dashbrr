@@ -447,7 +447,10 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	// Update session data with new token
 	sessionData.AccessToken = newToken.AccessToken
-	sessionData.RefreshToken = newToken.RefreshToken
+	// Some providers omit refresh_token on refresh. Preserve the existing token.
+	if newToken.RefreshToken != "" {
+		sessionData.RefreshToken = newToken.RefreshToken
+	}
 	sessionData.ExpiresAt = newToken.Expiry
 	if rawIDToken, ok := newToken.Extra("id_token").(string); ok {
 		sessionData.IDToken = rawIDToken
