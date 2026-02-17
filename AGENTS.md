@@ -313,3 +313,11 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-17 (chore)
 - Remove deprecated Omegabrr end-to-end: API handlers/routes, service registry/CLI, UI templates/components/types, cache TTLs, docs/README
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`)
+
+## Rolling Plan
+- CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
+- Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
+- Frontend: continue de-bloat `useServiceData`; tighten types; reduce re-render paths
+- Backend: service-type parsing helper; handle unsupported legacy `instance_id` types cleanly (esp. removed services)
+- Backend: remove remaining `context.Background()` in request paths; keep ctx flow explicit
+- Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)
