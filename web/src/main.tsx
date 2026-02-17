@@ -11,45 +11,39 @@ import "./index.css";
 // Force dark mode
 document.documentElement.classList.add("dark");
 
-function unregisterServiceWorkerInDev() {
+async function unregisterServiceWorkerInDev() {
   if (!import.meta.env.DEV) return;
   if (!("serviceWorker" in navigator)) return;
 
+  const wasControlled = !!navigator.serviceWorker.controller;
+
   // Fix dev state where a previously-registered SW is still controlling the page
   // and serves stale/raw CSS (e.g. `@tailwind` directives) from cache.
-  navigator.serviceWorker
-    .getRegistrations()
-    .then((regs) => Promise.all(regs.map((r) => r.unregister())))
-    .catch(() => {});
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((r) => r.unregister()));
+  } catch {
+    // Ignore: best-effort dev cleanup.
+  }
 
   if ("caches" in window) {
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-      .catch(() => {});
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    } catch {
+      // Ignore: best-effort dev cleanup.
+    }
+  }
+
+  // If a SW was controlling the page, this load can still be stale.
+  // Reload once (per tab) after unregistering + cache purge.
+  if (wasControlled && !sessionStorage.getItem("dashbrr_dev_sw_killed")) {
+    sessionStorage.setItem("dashbrr_dev_sw_killed", "1");
+    location.reload();
   }
 }
 
-unregisterServiceWorkerInDev();
-
-if (import.meta.env.PROD) {
-  // Register service worker with auto update handling
-  import("virtual:pwa-register")
-    .then(({ registerSW }) => {
-      const updateSW = registerSW({
-        onNeedRefresh() {
-          if (confirm("New version available! Click OK to update.")) {
-            updateSW(true);
-          }
-        },
-        onOfflineReady() {
-          console.log("App ready to work offline");
-        },
-        immediate: true,
-      });
-    })
-    .catch(() => {});
-}
+void unregisterServiceWorkerInDev();
 
 const root = document.getElementById("root");
 if (!root) {
