@@ -14,45 +14,30 @@ export function CallbackPage() {
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    const handleCallback = async () => {
-      // First check for tokens in URL (in case of direct callback from Auth0)
-      const accessToken = searchParams.get("access_token");
-      const idToken = searchParams.get("id_token");
+    const error = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
+    if (error) {
+      setError(errorDescription || error);
+      return;
+    }
 
-      if (accessToken && idToken) {
-        // Store tokens
-        localStorage.setItem("access_token", accessToken);
-        localStorage.setItem("id_token", idToken);
-        // Remove tokens from URL
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname
-        );
-        // Redirect to home
-        navigate("/", { replace: true });
-        return;
-      }
-
-      // If no tokens in URL, check for error
-      const error = searchParams.get("error");
-      const errorDescription = searchParams.get("error_description");
-
-      if (error) {
-        setError(errorDescription || error);
-        return;
-      }
-
-      // If no tokens and no error, redirect to home
+    // Backend callback sets an HttpOnly cookie and redirects back to the SPA.
+    // If someone lands here, just wait for AuthProvider to mark the session.
+    if (isAuthenticated) {
       navigate("/", { replace: true });
-    };
+      return;
+    }
 
-    handleCallback();
+    const timeoutId = window.setTimeout(() => {
+      navigate("/login", { replace: true });
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
   }, [searchParams, navigate, isAuthenticated]);
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
         <div className="max-w-md w-full space-y-8">
           <div className="rounded-md bg-red-50 p-4">
             <div className="flex">
@@ -80,9 +65,9 @@ export function CallbackPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950">
       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-      <span className="ml-2 text-gray-600">Completing authentication...</span>
+      <span className="ml-2 text-zinc-200">Completing authentication...</span>
     </div>
   );
 }

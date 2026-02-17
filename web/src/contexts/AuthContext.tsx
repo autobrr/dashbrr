@@ -83,7 +83,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     debug("[AuthProvider] Checking auth status");
     setLoading(true);
 
-    const accessToken = localStorage.getItem("access_token");
     const storedAuthType = localStorage.getItem("auth_type") as
       | "oidc"
       | "builtin"
@@ -97,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const baseRequest: RequestInit = {
       credentials: "include",
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
     };
 
     const verify = async (url: string): Promise<boolean> => {
@@ -178,20 +176,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthConfig(config);
       }
     });
-
-    // Check for OIDC auth tokens in URL (after callback)
-    const params = new URLSearchParams(window.location.search);
-    const accessToken = params.get("access_token");
-    const idToken = params.get("id_token");
-
-    if (accessToken && idToken) {
-      debug("[AuthProvider] Found OIDC tokens in URL");
-      // Store tokens and remove them from URL
-      localStorage.setItem("access_token", accessToken);
-      localStorage.setItem("id_token", idToken);
-      localStorage.setItem("auth_type", "oidc");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
 
     // Always check once: supports cookie-only sessions.
     checkAuthStatus();
