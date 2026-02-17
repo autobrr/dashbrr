@@ -323,6 +323,9 @@ Owner: soup (s0up4200@pm.me)
 - Auth/web: cookie-first auth bootstrap (no longer requires `localStorage.access_token`); `ConfigurationContext` no longer gates on stored token
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`)
 
+### 2026-02-17 (fix)
+- Auth/oidc: preserve existing refresh token if provider omits it during refresh
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
