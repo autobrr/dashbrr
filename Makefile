@@ -134,7 +134,7 @@ dev: check-air redis-dev
 	@echo "Redis is running on localhost:6379"
 	@echo "Starting backend server with SQLite in debug mode..."
 	@echo "Using air for backend hot reload..."
-	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml & \
+	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 DASHBRR_AUTH_BYPASS=true air -c .air.toml & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -149,7 +149,7 @@ dev-memory: check-air
 	@echo "Starting development servers with memory cache..."
 	@echo "Starting backend server with SQLite in debug mode..."
 	@echo "Using air for backend hot reload..."
-	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml & \
+	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 DASHBRR_AUTH_BYPASS=true air -c .air.toml & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
