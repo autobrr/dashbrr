@@ -18,6 +18,30 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Utility function for exponential backoff
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const MAX_RETRIES = 5;
+
+const fetchWith429Retry = async (
+  url: string,
+  init: RequestInit,
+  maxRetries = MAX_RETRIES
+): Promise<Response> => {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 || attempt === maxRetries - 1) {
+      return response;
+    }
+
+    const retryAfter = response.headers.get("Retry-After");
+    const waitTime = retryAfter
+      ? Number.parseInt(retryAfter, 10) * 1000
+      : Math.min(1000 * Math.pow(2, attempt), 30000);
+    await wait(waitTime);
+    attempt++;
+  }
+
+  return fetch(url, init);
+};
 
 const debug = (...args: unknown[]) => {
   if (import.meta.env.DEV) {
@@ -43,7 +67,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkAuthStatus = useCallback(async () => {
-    const MAX_RETRIES = 5;
     debug("[AuthProvider] Checking auth status");
     setLoading(true);
 
@@ -63,21 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const verify = async (url: string): Promise<boolean> => {
-      let attempt = 0;
-      while (attempt < MAX_RETRIES) {
-        const res = await fetch(url, baseRequest);
-        if (res.status === 429) {
-          const retryAfter = res.headers.get("Retry-After");
-          const waitTime = retryAfter
-            ? parseInt(retryAfter) * 1000
-            : Math.min(1000 * Math.pow(2, attempt), 30000);
-          await wait(waitTime);
-          attempt++;
-          continue;
-        }
-        return res.ok;
-      }
-      return false;
+      const response = await fetchWith429Retry(url, baseRequest);
+      return response.ok;
     };
 
     try {
@@ -99,28 +109,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("auth_type", detected);
 
       const userInfoUrl = detected === "oidc" ? AUTH_URLS.oidc.userInfo : AUTH_URLS.userInfo;
-      let attempt = 0;
-      while (attempt < MAX_RETRIES) {
-        const res = await fetch(userInfoUrl, baseRequest);
-        if (res.status === 429) {
-          const retryAfter = res.headers.get("Retry-After");
-          const waitTime = retryAfter
-            ? parseInt(retryAfter) * 1000
-            : Math.min(1000 * Math.pow(2, attempt), 30000);
-          await wait(waitTime);
-          attempt++;
-          continue;
-        }
-        if (!res.ok) {
-          clearAuth();
-          return;
-        }
-
-        const userData = await res.json();
-        setUser({ ...userData, auth_type: detected });
-        setIsAuthenticated(true);
+      const userInfoResponse = await fetchWith429Retry(userInfoUrl, baseRequest);
+      if (!userInfoResponse.ok) {
+        clearAuth();
         return;
       }
+
+      const userData = await userInfoResponse.json();
+      setUser({ ...userData, auth_type: detected });
+      setIsAuthenticated(true);
     } catch (error) {
       console.error("[AuthProvider] Auth check failed:", error);
       clearAuth();
