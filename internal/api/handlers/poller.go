@@ -108,7 +108,6 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"qui": {
 			{name: "qui_overview", interval: 20 * time.Second, run: (*Poller).runQuiOverview},
-			{name: "qui_cross_seed", interval: 45 * time.Second, run: (*Poller).runQuiCrossSeed},
 		},
 	}
 
@@ -722,41 +721,6 @@ func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfigura
 		Details: map[string]interface{}{
 			"qui": map[string]interface{}{
 				"summary": summary,
-			},
-		},
-	})
-}
-
-func (p *Poller) runQuiCrossSeed(ctx context.Context, svc models.ServiceConfiguration, _ string) {
-	service := qui.NewQuiService().(*qui.QuiService)
-
-	status, err := service.GetCrossSeedStatus(ctx, svc.URL, svc.APIKey)
-	if err != nil || status == nil {
-		return
-	}
-
-	healthStatus := "online"
-	if status.LastRun != nil && status.LastRun.Status == "failed" {
-		healthStatus = "warning"
-	}
-
-	p.bc.Publish(models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      healthStatus,
-		Message:     "qui_cross_seed",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"qui": map[string]interface{}{
-				"crossSeed": status,
-			},
-		},
-		Details: map[string]interface{}{
-			"qui": map[string]interface{}{
-				"crossSeed": map[string]interface{}{
-					"enabled":   status.Settings != nil && status.Settings.Enabled,
-					"running":   status.Running,
-					"nextRunAt": status.NextRunAt,
-				},
 			},
 		},
 	})

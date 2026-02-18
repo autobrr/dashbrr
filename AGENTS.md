@@ -261,6 +261,10 @@ Owner: soup (s0up4200@pm.me)
 - Poller scheduling: non-blocking semaphore acquisition in `maybeRun` (no queued waiters), `lastRun` now stamped at actual job start, and upstream concurrency raised `4 -> 8` to reduce startup starvation from slow services.
 - Autobrr releases: bounded fetch now uses `/api/release?limit=5&offset=0` with dedicated 8s timeout to avoid long-running release pulls delaying other updates.
 - Tests: added `internal/services/autobrr/autobrr_test.go` (release query params/header regression) and `TestPollerMaybeRun_SemaphoreFullSkipsWithoutMarkingLastRun` in `internal/api/handlers/poller_test.go`.
+- Qui card: replaced DHT/cross-seed display with practical transfer metrics (combined speed + combined data, plus down/up breakdown) and kept per-instance speed rows for active qBittorrent instances.
+- Poller: removed qui cross-seed polling job (`qui_cross_seed`) to cut noisy/unused upstream calls.
+- Tests: added `TestNewPoller_QuiJobsAreOverviewOnly` to lock job list to `qui_overview`.
+- Gates: pass (`go test ./internal/api/handlers`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 - Web/messages: `ArrMessage` now renders message boxes only for actionable states (`warning|error|offline`), not healthy/online noise
 - Web/messages: filtered machine event keys (`*_queue`, `plex_sessions`, etc.) from rendered message content to avoid useless green/yellow boxes
 - Web/SSE: deduped reconnect scheduling in `useServiceData` (single pending reconnect timer + stale-connection guard) to avoid parallel EventSource reconnect storms

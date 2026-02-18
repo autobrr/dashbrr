@@ -30,17 +30,6 @@ const formatBytes = (value: number) => {
 
 const formatSpeed = (value: number) => `${formatBytes(value)}/s`;
 
-const formatDateTime = (value?: string) => {
-  if (!value) {
-    return "Not scheduled";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "Not scheduled";
-  }
-  return parsed.toLocaleString();
-};
-
 const toSpeedScore = (transfer: QuiInstanceTransfer) =>
   transfer.downloadSpeed + transfer.uploadSpeed;
 
@@ -50,7 +39,6 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
 
   const quiStats = service?.stats?.qui;
   const summary = service?.details?.qui?.summary;
-  const crossSeed = quiStats?.crossSeed;
 
   const transfers = [...(quiStats?.transfers ?? [])]
     .sort((a, b) => toSpeedScore(b) - toSpeedScore(a))
@@ -59,7 +47,6 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
   const isInitialLoading =
     service?.status === "loading" &&
     !summary &&
-    !crossSeed &&
     (quiStats?.instances?.length ?? 0) === 0;
 
   if (isInitialLoading) {
@@ -85,22 +72,22 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
             </div>
           </div>
           <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-            <div className="text-zinc-400">Transfer</div>
+            <div className="text-zinc-400">Combined Speed</div>
             <div className="mt-0.5 text-zinc-100">
-              {formatSpeed(summary.downloadSpeed)} down
+              {formatSpeed(summary.downloadSpeed + summary.uploadSpeed)}
             </div>
-            <div className="text-zinc-100">{formatSpeed(summary.uploadSpeed)} up</div>
+            <div className="text-zinc-400">
+              {formatSpeed(summary.downloadSpeed)} down · {formatSpeed(summary.uploadSpeed)} up
+            </div>
           </div>
           <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-            <div className="text-zinc-400">Data</div>
+            <div className="text-zinc-400">Combined Data</div>
             <div className="mt-0.5 text-zinc-100">
-              {formatBytes(summary.downloaded)} down
+              {formatBytes(summary.downloaded + summary.uploaded)}
             </div>
-            <div className="text-zinc-100">{formatBytes(summary.uploaded)} up</div>
-          </div>
-          <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-            <div className="text-zinc-400">DHT Nodes</div>
-            <div className="mt-0.5 text-zinc-100">{summary.dhtNodes}</div>
+            <div className="text-zinc-400">
+              {formatBytes(summary.downloaded)} down · {formatBytes(summary.uploaded)} up
+            </div>
           </div>
         </div>
       )}
@@ -136,45 +123,6 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {crossSeed && (
-        <div className="rounded-md bg-zinc-900/80 px-3.5 py-3 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-zinc-300">Cross-seed automation</span>
-            <span
-              className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
-                crossSeed.running
-                  ? "bg-blue-500/20 text-blue-200"
-                  : crossSeed.settings?.enabled
-                  ? "bg-emerald-500/15 text-emerald-300"
-                  : "bg-zinc-700 text-zinc-300"
-              }`}
-            >
-              {crossSeed.running
-                ? "Running"
-                : crossSeed.settings?.enabled
-                ? "Enabled"
-                : "Disabled"}
-            </span>
-          </div>
-
-          <div className="mt-2 space-y-1 text-zinc-400">
-            <div>Next run: {formatDateTime(crossSeed.nextRunAt)}</div>
-            {crossSeed.lastRun && (
-              <>
-                <div>
-                  Last run: {crossSeed.lastRun.status} ({crossSeed.lastRun.mode})
-                </div>
-                <div>
-                  Added {crossSeed.lastRun.torrentsAdded}, Failed{" "}
-                  {crossSeed.lastRun.torrentsFailed}, Skipped{" "}
-                  {crossSeed.lastRun.torrentsSkipped}
-                </div>
-              </>
-            )}
           </div>
         </div>
       )}

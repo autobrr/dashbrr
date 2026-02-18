@@ -40,3 +40,18 @@ func TestNewPoller_ProwlarrJobsAreSplit(t *testing.T) {
 		}
 	}
 }
+
+func TestNewPoller_QuiJobsAreOverviewOnly(t *testing.T) {
+	t.Parallel()
+
+	poller := NewPoller(nil, nil)
+	jobs := poller.jobs["qui"]
+
+	if len(jobs) != 1 {
+		t.Fatalf("qui job count = %d, want 1", len(jobs))
+	}
+
+	if jobs[0].name != "qui_overview" {
+		t.Fatalf("qui job[0] = %q, want %q", jobs[0].name, "qui_overview")
+	}
+}
