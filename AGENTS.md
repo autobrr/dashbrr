@@ -901,6 +901,20 @@ Owner: soup (s0up4200@pm.me)
   - `internal/api/handlers/broadcast_test.go`
   - `web/src/hooks/serviceData/merge.ts`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Overseerr request status mapping hardening:
+  - removed fragile single-source status rendering that produced frequent `Unknown` pills.
+  - now resolves display status from:
+    - request status enum (source of truth), then
+    - media lifecycle status enum fallback (for variant payloads).
+  - status icon + color now derived from normalized status tone (`pending/success/error/neutral`).
+  - fallback statuses are explicitly marked as `(media)` for clarity.
+- Source validation:
+  - checked `~/github/oss/seerr/server/constants/media.ts` enums before mapping update.
+- File:
+  - `web/src/components/services/overseerr/OverseerrStats.tsx`
+- Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

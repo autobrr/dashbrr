@@ -26,20 +26,36 @@ interface OverseerrStatsProps {
 }
 
 const EMPTY_REQUESTS: OverseerrMediaRequest[] = [];
-const REQUEST_STATUS_LABELS: Record<number, string> = {
-  1: "Pending",
-  2: "Approved",
-  3: "Declined",
-  4: "Failed",
-  5: "Completed",
+type StatusTone = "pending" | "success" | "error" | "neutral";
+
+type StatusMeta = {
+  label: string;
+  color: string;
+  tone: StatusTone;
 };
 
-const REQUEST_STATUS_COLORS: Record<number, string> = {
-  1: "text-yellow-500",
-  2: "text-green-500",
-  3: "text-red-500",
-  4: "text-red-500",
-  5: "text-green-500",
+// Mirrors seerr/server/constants/media.ts (MediaRequestStatus)
+const REQUEST_STATUS_META: Record<number, StatusMeta> = {
+  1: { label: "Pending", color: "text-yellow-500", tone: "pending" },
+  2: { label: "Approved", color: "text-green-500", tone: "success" },
+  3: { label: "Declined", color: "text-red-500", tone: "error" },
+  4: { label: "Failed", color: "text-red-500", tone: "error" },
+  5: { label: "Completed", color: "text-green-500", tone: "success" },
+};
+
+// Fallback for instances that expose media lifecycle statuses.
+const MEDIA_STATUS_META: Record<number, StatusMeta> = {
+  1: { label: "Unknown", color: "text-zinc-400", tone: "neutral" },
+  2: { label: "Pending", color: "text-yellow-500", tone: "pending" },
+  3: { label: "Processing", color: "text-blue-400", tone: "neutral" },
+  4: {
+    label: "Partially Available",
+    color: "text-blue-400",
+    tone: "neutral",
+  },
+  5: { label: "Available", color: "text-green-500", tone: "success" },
+  6: { label: "Blacklisted", color: "text-red-500", tone: "error" },
+  7: { label: "Deleted", color: "text-zinc-400", tone: "neutral" },
 };
 
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
@@ -127,11 +143,26 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   // Combine service message with health message if available
   const message = combineServiceMessage(service);
 
-  const getStatusLabel = (status: number) =>
-    REQUEST_STATUS_LABELS[status] ?? `Unknown (${status})`;
+  const resolveStatusMeta = (
+    request: OverseerrMediaRequest
+  ): StatusMeta & { isFallback: boolean } => {
+    const requestStatus = REQUEST_STATUS_META[request.status];
+    if (requestStatus) {
+      return { ...requestStatus, isFallback: false };
+    }
 
-  const getStatusColor = (status: number) =>
-    REQUEST_STATUS_COLORS[status] ?? "text-zinc-400";
+    const mediaStatus = MEDIA_STATUS_META[request.media?.status];
+    if (mediaStatus) {
+      return { ...mediaStatus, isFallback: true };
+    }
+
+    return {
+      label: `Unknown (${request.status})`,
+      color: "text-zinc-400",
+      tone: "neutral",
+      isFallback: false,
+    };
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -172,122 +203,129 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   }: {
     request: OverseerrMediaRequest;
     isPending?: boolean;
-  }) => (
-    <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          {request.status === 1 ? (
-            <span className="text-yellow-500">
-              <ClockIcon className="h-4 w-4" />
-            </span>
-          ) : request.status === 2 || request.status === 5 ? (
-            <span className="text-green-500">
-              <CheckCircleIcon className="h-4 w-4" />
-            </span>
-          ) : (
-            <span className="text-red-500">
-              <XCircleIcon className="h-4 w-4" />
-            </span>
-          )}
-          {isPending ? (
-            <div className="flex items-center justify-between flex-1">
-              <span
-                className="text-xs font-medium text-gray-200 truncate"
-                title={getMediaTitle(request)}
-              >
-                {getMediaTitle(request)}
+  }) => {
+    const statusMeta = resolveStatusMeta(request);
+
+    return (
+      <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            {statusMeta.tone === "pending" ? (
+              <span className="text-yellow-500">
+                <ClockIcon className="h-4 w-4" />
               </span>
-              <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                {request.media.tmdbId !== 0 && (
-                  <a
-                    href={`https://www.themoviedb.org/${
-                      request.media.mediaType === "tv" ? "tv" : "movie"
-                    }/${request.media.tmdbId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-gray-800/50 border border-gray-700/50 text-gray-300 hover:text-blue-400"
-                  >
-                    TMDB
-                    <ArrowTopRightOnSquareIcon className="h-3 w-3" />
-                  </a>
-                )}
-                {request.media.tvdbId !== 0 && (
-                  <a
-                    href={`https://www.thetvdb.com/dereferrer/series/${request.media.tvdbId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-gray-800/50 border border-gray-700/50 text-gray-300 hover:text-blue-400"
-                  >
-                    TVDB
-                    <ArrowTopRightOnSquareIcon className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            </div>
-          ) : (
-            <a
-              href={request.media.serviceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-gray-200 truncate hover:text-blue-400 transition-colors flex items-center"
-              title="View Details"
-            >
-              {getMediaTitle(request)}
-              <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 ml-1 text-blue-400" />
-            </a>
-          )}
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
-            <span className="flex items-center gap-2 bg-gray-800/50 -ml-1 px-1.5 py-0.5 rounded">
-              {getMediaType(request) === "Show" ? (
-                <FaTv className="h-3.5 w-3.5 text-gray-400" />
-              ) : (
-                <FaFilm className="h-3.5 w-3.5 text-gray-400" />
-              )}
-              {getMediaType(request)}
-            </span>
-            <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-              <FaUser className="h-3.5 w-3.5 text-gray-400" />
-              {getUserDisplayName(request.requestedBy)}
-            </span>
-            <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-              <ClockIcon className="h-3.5 w-3.5 text-gray-400" />
-              {formatDate(request.createdAt)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {request.status === 1 ? (
-              <>
-                <button
-                  onClick={() => handleAction(request, "approve")}
-                  className="text-green-500 hover:text-green-400 p-1.5 hover:bg-gray-700/50 rounded transition-colors"
-                  title="Approve request"
-                >
-                  <CheckCircleIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => handleAction(request, "reject")}
-                  className="text-red-500 hover:text-red-400 p-1.5 hover:bg-gray-700/50 rounded transition-colors"
-                  title="Reject request"
-                >
-                  <XCircleIcon className="h-4 w-4" />
-                </button>
-              </>
+            ) : statusMeta.tone === "success" ? (
+              <span className="text-green-500">
+                <CheckCircleIcon className="h-4 w-4" />
+              </span>
+            ) : statusMeta.tone === "error" ? (
+              <span className="text-red-500">
+                <XCircleIcon className="h-4 w-4" />
+              </span>
             ) : (
-              <span
-                className={`${getStatusColor(
-                  request.status
-                )} bg-gray-800/50 px-2 py-0.5 rounded font-medium`}
-              >
-                {getStatusLabel(request.status)}
+              <span className="text-zinc-400">
+                <ClockIcon className="h-4 w-4" />
               </span>
             )}
+            {isPending ? (
+              <div className="flex items-center justify-between flex-1">
+                <span
+                  className="text-xs font-medium text-gray-200 truncate"
+                  title={getMediaTitle(request)}
+                >
+                  {getMediaTitle(request)}
+                </span>
+                <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                  {request.media.tmdbId !== 0 && (
+                    <a
+                      href={`https://www.themoviedb.org/${
+                        request.media.mediaType === "tv" ? "tv" : "movie"
+                      }/${request.media.tmdbId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-gray-800/50 border border-gray-700/50 text-gray-300 hover:text-blue-400"
+                    >
+                      TMDB
+                      <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                    </a>
+                  )}
+                  {request.media.tvdbId !== 0 && (
+                    <a
+                      href={`https://www.thetvdb.com/dereferrer/series/${request.media.tvdbId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-gray-800/50 border border-gray-700/50 text-gray-300 hover:text-blue-400"
+                    >
+                      TVDB
+                      <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <a
+                href={request.media.serviceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-gray-200 truncate hover:text-blue-400 transition-colors flex items-center"
+                title="View Details"
+              >
+                {getMediaTitle(request)}
+                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 ml-1 text-blue-400" />
+              </a>
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
+              <span className="flex items-center gap-2 bg-gray-800/50 -ml-1 px-1.5 py-0.5 rounded">
+                {getMediaType(request) === "Show" ? (
+                  <FaTv className="h-3.5 w-3.5 text-gray-400" />
+                ) : (
+                  <FaFilm className="h-3.5 w-3.5 text-gray-400" />
+                )}
+                {getMediaType(request)}
+              </span>
+              <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                <FaUser className="h-3.5 w-3.5 text-gray-400" />
+                {getUserDisplayName(request.requestedBy)}
+              </span>
+              <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                <ClockIcon className="h-3.5 w-3.5 text-gray-400" />
+                {formatDate(request.createdAt)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {request.status === 1 ? (
+                <>
+                  <button
+                    onClick={() => handleAction(request, "approve")}
+                    className="text-green-500 hover:text-green-400 p-1.5 hover:bg-gray-700/50 rounded transition-colors"
+                    title="Approve request"
+                  >
+                    <CheckCircleIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleAction(request, "reject")}
+                    className="text-red-500 hover:text-red-400 p-1.5 hover:bg-gray-700/50 rounded transition-colors"
+                    title="Reject request"
+                  >
+                    <XCircleIcon className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <span
+                  className={`${statusMeta.color} bg-gray-800/50 px-2 py-0.5 rounded font-medium`}
+                >
+                  {statusMeta.label}
+                  {statusMeta.isFallback ? " (media)" : ""}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4">
