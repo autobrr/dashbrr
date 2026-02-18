@@ -44,6 +44,7 @@ export interface AuthConfig {
     oidc: boolean;
   };
   default: 'builtin' | 'oidc';
+  bypass?: boolean;
 }
 
 export async function getAuthConfig(): Promise<AuthConfig> {
@@ -62,6 +63,7 @@ export async function getAuthConfig(): Promise<AuthConfig> {
         oidc: false,
       },
       default: 'builtin',
+      bypass: false,
     };
   }
 }

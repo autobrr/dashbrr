@@ -504,6 +504,19 @@ Owner: soup (s0up4200@pm.me)
 - Added helper coverage in `internal/api/handlers/queue_delete_test.go`
 - Commit: `bcc7091`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Diagnosed variable hard-refresh load times as frontend hydration race:
+  - SSE snapshot events could arrive before `ConfigurationContext` populated service map
+  - dropped early events left some services in `loading` until next poll interval (appears instant or "forever")
+- Fix: `useServiceData` now stores latest SSE health per instance and reapplies it during config hydration (`latestHealthRef` + merge-on-config path).
+- Auth bypass for troubleshooting:
+  - new env flag `DASHBRR_AUTH_BYPASS=true`
+  - middleware short-circuits auth checks and injects synthetic session context
+  - `/api/auth/config` exposes `bypass` boolean
+  - frontend `AuthProvider` auto-authenticates when bypass is enabled
+- Added bypass env unit test (`internal/api/middleware/auth_bypass_test.go`)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible

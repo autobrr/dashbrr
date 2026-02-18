@@ -65,6 +65,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   const reconnectTimeoutRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const mountedRef = useRef(true);
+  const latestHealthRef = useRef<Map<string, ServiceHealth>>(new Map());
 
   const setServicesState = useCallback(
     (updater: (prev: Map<string, Service>) => Map<string, Service>) => {
@@ -116,6 +117,20 @@ const useProvideServiceData = (): ServiceDataContextValue => {
     };
   }, []);
 
+  const servicePatchFromHealth = useCallback((health: ServiceHealth): Partial<Service> => {
+    return {
+      status: health.status,
+      message: health.message,
+      responseTime: health.responseTime,
+      version: health.version,
+      updateAvailable: health.updateAvailable,
+      lastChecked: health.lastChecked,
+      stats: health.stats,
+      details: health.details,
+      health,
+    };
+  }, []);
+
   const applyHealthUpdate = useCallback(
     (raw: ServiceHealth) => {
       const instanceId = raw.serviceId;
@@ -127,17 +142,8 @@ const useProvideServiceData = (): ServiceDataContextValue => {
         lastChecked: lastChecked || new Date(),
       };
 
-      updateService(instanceId, {
-        status: health.status,
-        message: health.message,
-        responseTime: health.responseTime,
-        version: health.version,
-        updateAvailable: health.updateAvailable,
-        lastChecked: health.lastChecked,
-        stats: health.stats,
-        details: health.details,
-        health,
-      });
+      latestHealthRef.current.set(instanceId, health);
+      updateService(instanceId, servicePatchFromHealth(health));
 
       if (health.message === "autobrr_releases" && health.stats?.autobrr) {
         const releases = health.stats.autobrr as unknown as AutobrrReleases;
@@ -146,7 +152,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
         }
       }
     },
-    [updateService]
+    [servicePatchFromHealth, updateService]
   );
 
   const cleanupSSE = useCallback(() => {
@@ -223,6 +229,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   useEffect(() => {
     if (!isAuthenticated) {
       setServicesState(() => new Map());
+      latestHealthRef.current.clear();
       return;
     }
 
@@ -240,7 +247,27 @@ const useProvideServiceData = (): ServiceDataContextValue => {
       for (const [instanceId, config] of entries) {
         const base = serviceFromConfig(instanceId, config);
         const existing = next.get(instanceId);
-        next.set(instanceId, existing ? { ...existing, ...base } : base);
+        let merged: Service = existing ? { ...existing, ...base } : base;
+
+        const latestHealth = latestHealthRef.current.get(instanceId);
+        if (latestHealth) {
+          const patch = servicePatchFromHealth(latestHealth);
+          merged = {
+            ...merged,
+            ...patch,
+            stats: patch.stats ? { ...(merged.stats || {}), ...patch.stats } : merged.stats,
+            details: patch.details ? { ...(merged.details || {}), ...patch.details } : merged.details,
+          };
+
+          if (latestHealth.message === "autobrr_releases" && latestHealth.stats?.autobrr) {
+            const releases = latestHealth.stats.autobrr as unknown as AutobrrReleases;
+            if (releases && Array.isArray(releases.data)) {
+              merged = { ...merged, releases };
+            }
+          }
+        }
+
+        next.set(instanceId, merged);
       }
 
       for (const id of next.keys()) {
@@ -251,7 +278,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
     });
 
     setIsLoading(false);
-  }, [configurations, isAuthenticated, serviceFromConfig, setServicesState]);
+  }, [configurations, isAuthenticated, serviceFromConfig, servicePatchFromHealth, setServicesState]);
 
   const refreshService = useCallback(async (instanceId: string, kind: RefreshKind = "all") => {
     try {

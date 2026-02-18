@@ -36,10 +36,35 @@ func NewAuthMiddleware(cache cache.Store) *AuthMiddleware {
 	}
 }
 
+func attachAuthContext(c *gin.Context, baseCtx context.Context, sessionData types.SessionData) {
+	newCtx := context.WithValue(baseCtx, SessionContextKey, sessionData)
+	newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
+	if sessionData.UserID != 0 {
+		newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
+	}
+
+	c.Request = c.Request.WithContext(newCtx)
+
+	c.Set("session", sessionData)
+	c.Set("auth_type", sessionData.AuthType)
+	if sessionData.UserID != 0 {
+		c.Set("user_id", sessionData.UserID)
+	}
+}
+
 // RequireAuth middleware checks for valid authentication
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		baseCtx := c.Request.Context()
+		if IsAuthBypassEnabled() {
+			attachAuthContext(c, baseCtx, types.SessionData{
+				AccessToken: "bypass",
+				AuthType:    "builtin",
+				UserID:      1,
+			})
+			c.Next()
+			return
+		}
 		lookupCtx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
 		defer cancel()
 
@@ -95,21 +120,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 
 		// Attach auth metadata to the original request context.
 		// Do not propagate the short lookup timeout to downstream handlers (e.g. SSE streams).
-		newCtx := context.WithValue(baseCtx, SessionContextKey, sessionData)
-		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
-		}
-
-		// Update request context
-		c.Request = c.Request.WithContext(newCtx)
-
-		// Also set in gin context for backward compatibility
-		c.Set("session", sessionData)
-		c.Set("auth_type", sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			c.Set("user_id", sessionData.UserID)
-		}
+		attachAuthContext(c, baseCtx, sessionData)
 
 		c.Next()
 	}
@@ -119,6 +130,15 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		baseCtx := c.Request.Context()
+		if IsAuthBypassEnabled() {
+			attachAuthContext(c, baseCtx, types.SessionData{
+				AccessToken: "bypass",
+				AuthType:    "builtin",
+				UserID:      1,
+			})
+			c.Next()
+			return
+		}
 		lookupCtx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
 		defer cancel()
 
@@ -152,21 +172,7 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 		}
 
 		// Attach auth metadata to original request context; avoid leaking short lookup timeout.
-		newCtx := context.WithValue(baseCtx, SessionContextKey, sessionData)
-		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
-		}
-
-		// Update request context
-		c.Request = c.Request.WithContext(newCtx)
-
-		// Also set in gin context for backward compatibility
-		c.Set("session", sessionData)
-		c.Set("auth_type", sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			c.Set("user_id", sessionData.UserID)
-		}
+		attachAuthContext(c, baseCtx, sessionData)
 
 		c.Next()
 	}

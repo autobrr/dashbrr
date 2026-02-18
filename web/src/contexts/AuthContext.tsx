@@ -130,16 +130,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
     debug("[AuthProvider] Initializing auth provider");
 
-    // Fetch auth configuration
-    getAuthConfig().then((config) => {
-      if (mounted) {
-        debug("[AuthProvider] Received auth config:", config);
-        setAuthConfig(config);
-      }
-    });
+    const init = async () => {
+      const config = await getAuthConfig();
+      if (!mounted) return;
 
-    // Always check once: supports cookie-only sessions.
-    checkAuthStatus();
+      debug("[AuthProvider] Received auth config:", config);
+      setAuthConfig(config);
+
+      if (config.bypass) {
+        debug("[AuthProvider] Auth bypass enabled");
+        localStorage.setItem("auth_type", "builtin");
+        setAuthType("builtin");
+        setUser({
+          id: 1,
+          username: "auth-bypass",
+          email: "bypass@dashbrr.local",
+          auth_type: "builtin",
+        });
+        setIsAuthenticated(true);
+        setLoading(false);
+        return;
+      }
+
+      // Always check once: supports cookie-only sessions.
+      await checkAuthStatus();
+    };
+
+    void init();
 
     return () => {
       mounted = false;
