@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -44,10 +43,6 @@ type SonarrService struct {
 	core.ServiceCore
 }
 
-type SystemStatusResponse struct {
-	Version string `json:"version"`
-}
-
 func init() {
 	models.NewSonarrService = NewSonarrService
 }
@@ -66,12 +61,6 @@ func NewSonarrService() models.ServiceHealthChecker {
 func (s *SonarrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/api/v3/health", baseURL)
-}
-
-// makeRequest is a helper function to make requests with proper headers
-func (s *SonarrService) makeRequest(ctx context.Context, method, url, apiKey string, body []byte) (*http.Response, error) {
-	// arr.MakeArrRequest uses a shared client pool + sane defaults.
-	return arr.MakeArrRequest(ctx, method, url, apiKey, body)
 }
 
 // DeleteQueueItem deletes a queue item with the specified options
@@ -102,7 +91,7 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 		Msg("Attempting to delete queue item")
 
 	// Execute DELETE request
-	resp, err := s.makeRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
+	resp, err := arr.MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -148,7 +137,7 @@ func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
 		strings.TrimRight(url, "/"))
 
-	resp, err := s.makeRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
+	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
 	if err != nil {
 		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
@@ -195,7 +184,7 @@ func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey stri
 
 	lookupURL := fmt.Sprintf("%s/api/v3/series/lookup?term=tvdb%%3A%d", strings.TrimRight(baseURL, "/"), tvdbId)
 
-	resp, err := s.makeRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
+	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
 	if err != nil {
 		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
@@ -235,7 +224,7 @@ func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, s
 
 	seriesURL := fmt.Sprintf("%s/api/v3/series/%d", strings.TrimRight(baseURL, "/"), seriesID)
 
-	resp, err := s.makeRequest(ctx, http.MethodGet, seriesURL, apiKey, nil)
+	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, seriesURL, apiKey, nil)
 	if err != nil {
 		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
@@ -260,46 +249,7 @@ func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, s
 
 // GetSystemStatus fetches the system status from Sonarr
 func (s *SonarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
-	if url == "" {
-		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
-	}
-
-	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(ctx, url); version != "" && version != "true" {
-		return version, nil
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
-	defer cancel()
-
-	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
-
-	resp, err := s.makeRequest(ctx, http.MethodGet, statusURL, apiKey, nil)
-	if err != nil {
-		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to make request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ErrSonarr{Op: "get_system_status", HttpCode: resp.StatusCode}
-	}
-
-	body, err := s.ReadBody(resp)
-	if err != nil {
-		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to read response: %w", err)}
-	}
-
-	var status SystemStatusResponse
-	if err := json.Unmarshal(body, &status); err != nil {
-		return "", &ErrSonarr{Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
-	}
-
-	// Cache version for 1 hour
-	if err := s.CacheVersion(ctx, url, status.Version, time.Hour); err != nil {
-		log.Debug().Err(err).Str("url", url).Str("version", status.Version).Msg("Failed to cache Sonarr version")
-	}
-
-	return status.Version, nil
+	return arr.GetArrSystemStatus(ctx, "sonarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
 }
 
 // CheckForUpdates checks if there are any updates available for Sonarr
