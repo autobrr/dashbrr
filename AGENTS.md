@@ -752,6 +752,22 @@ Owner: soup (s0up4200@pm.me)
   - assert warning state survives internal payload updates
   - assert snapshot message not overwritten by `*_stats`/`*_indexers` events
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Autobrr "Recent Releases" intermittent blank/slow-on-refresh root cause:
+  - hydration race in web data layer
+  - releases were only restored when latest SSE event for instance was exactly `autobrr_releases`
+  - if `autobrr_stats`/`autobrr_irc_status` arrived last, releases were dropped until next releases tick
+- Fix:
+  - add dedicated `latestReleasesRef` cache in `web/src/hooks/useServiceData.ts`
+  - pass `latestReleasesByInstance` through hydrate action/reducer
+  - hydrate service cards from cached releases map (independent of latest message ordering)
+  - remove stale/unused hydrate health arg from reducer/merge path
+- Files:
+  - `web/src/hooks/useServiceData.ts`
+  - `web/src/hooks/serviceData/reducer.ts`
+  - `web/src/hooks/serviceData/merge.ts`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

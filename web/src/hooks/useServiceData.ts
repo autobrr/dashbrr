@@ -14,7 +14,7 @@ import {
   useRef,
   useReducer,
 } from "react";
-import { Service, ServiceHealth } from "../types/service";
+import { AutobrrReleases, Service } from "../types/service";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { useAuth } from "./useAuth";
 import { deriveHealthUpdate } from "./serviceData/merge";
@@ -45,8 +45,8 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   const reconnectTimeoutRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const mountedRef = useRef(true);
-  const latestHealthRef = useRef<Map<string, ServiceHealth>>(new Map());
   const latestPatchRef = useRef<Map<string, Partial<Service>>>(new Map());
+  const latestReleasesRef = useRef<Map<string, AutobrrReleases>>(new Map());
 
   const applyHealthUpdate = useCallback(
     (payload: unknown) => {
@@ -55,7 +55,6 @@ const useProvideServiceData = (): ServiceDataContextValue => {
         return;
       }
 
-      latestHealthRef.current.set(update.instanceId, update.health);
       latestPatchRef.current.set(update.instanceId, update.patch);
 
       dispatch({
@@ -65,6 +64,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
       });
 
       if (update.releases) {
+        latestReleasesRef.current.set(update.instanceId, update.releases);
         dispatch({
           type: "apply_releases",
           instanceId: update.instanceId,
@@ -158,8 +158,8 @@ const useProvideServiceData = (): ServiceDataContextValue => {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      latestHealthRef.current.clear();
       latestPatchRef.current.clear();
+      latestReleasesRef.current.clear();
       dispatch({ type: "reset" });
       return;
     }
@@ -173,7 +173,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
       type: "hydrate_configurations",
       configurations,
       latestPatchByInstance: new Map(latestPatchRef.current),
-      latestHealthByInstance: new Map(latestHealthRef.current),
+      latestReleasesByInstance: new Map(latestReleasesRef.current),
     });
   }, [configurations, isAuthenticated]);
 

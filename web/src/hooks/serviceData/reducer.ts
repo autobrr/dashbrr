@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { AutobrrReleases, Service, ServiceConfig, ServiceHealth } from "../../types/service";
+import { AutobrrReleases, Service, ServiceConfig } from "../../types/service";
 import {
   applyServicePatch,
   hydrateServicesFromConfigurations,
@@ -21,7 +21,7 @@ export type ServiceDataAction =
       type: "hydrate_configurations";
       configurations: Record<string, ServiceConfig>;
       latestPatchByInstance: Map<string, Partial<Service>>;
-      latestHealthByInstance: Map<string, ServiceHealth>;
+      latestReleasesByInstance: Map<string, AutobrrReleases>;
     }
   | { type: "apply_patch"; instanceId: string; patch: Partial<Service> }
   | {
@@ -61,7 +61,7 @@ export const serviceDataReducer = (
           state.services,
           action.configurations,
           action.latestPatchByInstance,
-          action.latestHealthByInstance
+          action.latestReleasesByInstance
         ),
         isLoading: false,
       };

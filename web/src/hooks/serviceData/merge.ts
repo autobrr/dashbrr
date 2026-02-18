@@ -163,7 +163,6 @@ export const deriveHealthUpdate = (
 ):
   | {
       instanceId: string;
-      health: ServiceHealth;
       patch: Partial<Service>;
       releases?: AutobrrReleases;
     }
@@ -202,7 +201,6 @@ export const deriveHealthUpdate = (
 
   return {
     instanceId,
-    health,
     patch,
     releases,
   };
@@ -212,7 +210,7 @@ export const hydrateServicesFromConfigurations = (
   previous: Map<string, Service>,
   configurations: Record<string, ServiceConfig>,
   latestPatchByInstance: Map<string, Partial<Service>>,
-  latestHealthByInstance: Map<string, ServiceHealth>
+  latestReleasesByInstance: Map<string, AutobrrReleases>
 ): Map<string, Service> => {
   const next = new Map(previous);
   const configuredIds = new Set(Object.keys(configurations));
@@ -227,12 +225,9 @@ export const hydrateServicesFromConfigurations = (
       merged = mergeServiceWithPatch(merged, patch);
     }
 
-    const latestHealth = latestHealthByInstance.get(instanceId);
-    if (latestHealth?.message === "autobrr_releases" && latestHealth.stats?.autobrr) {
-      const releases = latestHealth.stats.autobrr as unknown as AutobrrReleases;
-      if (releases && Array.isArray(releases.data)) {
-        merged = { ...merged, releases };
-      }
+    const releases = latestReleasesByInstance.get(instanceId);
+    if (releases && Array.isArray(releases.data)) {
+      merged = { ...merged, releases };
     }
 
     next.set(instanceId, merged);
