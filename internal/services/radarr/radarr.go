@@ -50,8 +50,7 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 	}, s.ReadBody)
 }
 
-// GetQueue fetches the current queue from Radarr
-func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+func (s *RadarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
 	if url == "" {
 		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -87,16 +86,18 @@ func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 	return queue.Records, nil
 }
 
-// GetQueueForHealth is a wrapper around GetQueue that returns []types.RadarrQueueRecord
-func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
-	records, err := s.GetQueue(ctx, url, apiKey)
+// GetQueue fetches the current queue from Radarr.
+func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+	records, err := s.getQueueRecords(ctx, url, apiKey)
 	if err != nil {
 		return nil, err
 	}
-	if records == nil {
-		return nil, nil
-	}
-	return records.([]types.RadarrQueueRecord), nil
+	return records, nil
+}
+
+// GetQueueForHealth is a wrapper around GetQueue that returns []types.RadarrQueueRecord
+func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
+	return s.getQueueRecords(ctx, url, apiKey)
 }
 
 // LookupByTmdbId fetches movie details from Radarr by TMDB ID

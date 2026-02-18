@@ -50,8 +50,7 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 	}, s.ReadBody)
 }
 
-// GetQueue fetches the current queue from Sonarr
-func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+func (s *SonarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
 	if url == "" {
 		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
 	}
@@ -86,16 +85,18 @@ func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 	return queue.Records, nil
 }
 
-// GetQueueForHealth is a wrapper around GetQueue that returns []types.QueueRecord
-func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
-	records, err := s.GetQueue(ctx, url, apiKey)
+// GetQueue fetches the current queue from Sonarr.
+func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+	records, err := s.getQueueRecords(ctx, url, apiKey)
 	if err != nil {
 		return nil, err
 	}
-	if records == nil {
-		return nil, nil
-	}
-	return records.([]types.QueueRecord), nil
+	return records, nil
+}
+
+// GetQueueForHealth is a wrapper around GetQueue that returns []types.QueueRecord
+func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
+	return s.getQueueRecords(ctx, url, apiKey)
 }
 
 // LookupByTvdbId fetches series details from Sonarr by TVDB ID
