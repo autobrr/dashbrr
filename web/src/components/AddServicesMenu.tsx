@@ -292,7 +292,7 @@ export function AddServicesMenu({
         {({ open }) => (
           <>
             <div>
-              <Menu.Button className="px-2 py-2 text-sm bg-gray-800 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1">
+              <Menu.Button className="px-2 py-2 text-sm bg-zinc-800 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1">
                 <span>Add Service</span>
                 <svg
                   className="w-4 h-4"
@@ -320,13 +320,13 @@ export function AddServicesMenu({
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 w-64 mt-2 bg-white rounded-md shadow-lg border-2 border-gray-750 dark:bg-gray-800 focus:outline-none max-h-[calc(100vh-100px)] overflow-y-auto overflow-x-hidden origin-top-right sm:right-0 sm:left-auto left-0">
+              <Menu.Items className="absolute right-0 w-64 mt-2 bg-white rounded-md shadow-lg border-2 border-zinc-700 dark:bg-zinc-800 focus:outline-none max-h-[calc(100vh-100px)] overflow-y-auto overflow-x-hidden origin-top-right sm:right-0 sm:left-auto left-0">
                 <div className="p-2">
                   <div className="px-2 pb-2">
                     <input
                       type="text"
                       placeholder="Search services..."
-                      className="w-full px-3 py-1 text-sm text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md"
+                      className="w-full px-3 py-1 text-sm text-zinc-300 bg-zinc-100 dark:bg-zinc-700 rounded-md"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -338,7 +338,7 @@ export function AddServicesMenu({
 
                     return (
                       <div key={category} className="mb-2">
-                        <div className="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        <div className="px-3 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                           {SERVICE_CATEGORIES[category]}
                         </div>
                         {services.map((template) => (
@@ -348,10 +348,10 @@ export function AddServicesMenu({
                                 onClick={() =>
                                   onAddService(template.type, template.name)
                                 }
-                                className={`block w-full px-4 py-2 text-left text-sm ${
+                                  className={`block w-full px-4 py-2 text-left text-sm ${
                                   active
-                                    ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-300"
-                                    : "text-gray-700 dark:text-gray-300"
+                                    ? "bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-300"
+                                    : "text-zinc-700 dark:text-zinc-300"
                                 }`}
                               >
                                 Add {template.name}
@@ -376,7 +376,7 @@ export function AddServicesMenu({
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Basic Settings
             </h3>
             <FormInput
@@ -390,7 +390,7 @@ export function AddServicesMenu({
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Connection Settings
             </h3>
             {pendingService?.type !== "tailscale" && (
@@ -444,7 +444,7 @@ export function AddServicesMenu({
             <button
               type="button"
               onClick={onCancelService}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600"
+              className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-600"
               disabled={isSubmitting}
             >
               Cancel
