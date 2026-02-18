@@ -152,6 +152,14 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 		return
 	}
 
+	type pollerService struct {
+		cfg        models.ServiceConfiguration
+		kind       string
+		configured bool
+	}
+
+	pollServices := make([]pollerService, 0, len(services))
+
 	for _, svc := range services {
 		if onlyInstance != "" && svc.InstanceID != onlyInstance {
 			continue
@@ -161,26 +169,36 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 		if !ok {
 			continue
 		}
-		configured := isServiceConfigured(serviceType, svc)
+		pollServices = append(pollServices, pollerService{
+			cfg:        svc,
+			kind:       serviceType,
+			configured: isServiceConfigured(serviceType, svc),
+		})
+	}
 
-		if kind == RefreshAll || kind == RefreshHealth {
-			if configured {
-				p.maybeRun(ctx, sem, svc, serviceType, "health", 30*time.Second, force, (*Poller).runHealth)
-			} else {
-				p.maybeRun(ctx, sem, svc, serviceType, "health", 60*time.Second, force, (*Poller).runPending)
+	// Pass 1: enqueue health for every service first so version-bearing health checks
+	// are not delayed behind stats jobs on startup and forced refreshes.
+	if kind == RefreshAll || kind == RefreshHealth {
+		for _, ps := range pollServices {
+			if ps.configured {
+				p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 30*time.Second, force, (*Poller).runHealth)
+				continue
 			}
+			p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 60*time.Second, force, (*Poller).runPending)
 		}
+	}
 
-		if !configured {
+	if !(kind == RefreshAll || kind == RefreshStats) {
+		return
+	}
+
+	// Pass 2: enqueue stats only for configured services.
+	for _, ps := range pollServices {
+		if !ps.configured {
 			continue
 		}
-
-		if !(kind == RefreshAll || kind == RefreshStats) {
-			continue
-		}
-
-		for _, job := range p.jobs[serviceType] {
-			p.maybeRun(ctx, sem, svc, serviceType, job.name, job.interval, force, job.run)
+		for _, job := range p.jobs[ps.kind] {
+			p.maybeRun(ctx, sem, ps.cfg, ps.kind, job.name, job.interval, force, job.run)
 		}
 	}
 }

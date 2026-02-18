@@ -592,6 +592,12 @@ Owner: soup (s0up4200@pm.me)
   - `internal/api/handlers/broadcast_test.go` for version preservation across partial updates
   - `internal/api/handlers/broadcast_test.go` for nested stats merge in snapshot replay
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Poller scheduling now prioritizes health pass before stats pass in each tick (`internal/api/handlers/poller.go`)
+  - health/version events get queued first for all services
+  - avoids stats jobs starving version-bearing health updates on cold start
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
