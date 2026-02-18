@@ -282,6 +282,58 @@ func (p *Poller) runPending(_ context.Context, svc models.ServiceConfiguration, 
 	})
 }
 
+func countTranscodingSessions(sessions []types.PlexSession) int {
+	transcoding := 0
+	for _, session := range sessions {
+		if session.TranscodeSession != nil {
+			transcoding++
+		}
+	}
+
+	return transcoding
+}
+
+func summarizeRadarrQueue(records []types.RadarrQueueRecord) (int, int64) {
+	downloading := 0
+	var totalSize int64
+
+	for _, record := range records {
+		totalSize += record.Size
+		if record.Status == "downloading" {
+			downloading++
+		}
+	}
+
+	return downloading, totalSize
+}
+
+func summarizeSonarrQueue(records []types.QueueRecord) (int, int, int64) {
+	downloading := 0
+	episodeCount := 0
+	var totalSize int64
+
+	for _, record := range records {
+		totalSize += record.Size
+		if record.Status == "downloading" {
+			downloading++
+		}
+		episodeCount += len(record.Episodes)
+	}
+
+	return downloading, episodeCount, totalSize
+}
+
+func countOnlineTailscaleDevices(devices []tailscale.Device) int {
+	online := 0
+	for _, device := range devices {
+		if device.Online {
+			online++
+		}
+	}
+
+	return online
+}
+
 func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfiguration, _ string) {
 	service := &plex.PlexService{}
 	sessions, err := service.GetSessions(ctx, svc.URL, svc.APIKey)
@@ -294,12 +346,7 @@ func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfigur
 		metadata = []types.PlexSession{}
 	}
 
-	transcoding := 0
-	for _, s := range metadata {
-		if s.TranscodeSession != nil {
-			transcoding++
-		}
-	}
+	transcoding := countTranscodingSessions(metadata)
 
 	p.bc.Publish(models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
@@ -373,14 +420,7 @@ func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfigura
 		TotalRecords: len(records),
 	}
 
-	var totalSize int64
-	downloading := 0
-	for _, r := range records {
-		totalSize += r.Size
-		if r.Status == "downloading" {
-			downloading++
-		}
-	}
+	downloading, totalSize := summarizeRadarrQueue(records)
 
 	p.bc.Publish(models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
@@ -418,16 +458,7 @@ func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfigura
 		TotalRecords: len(records),
 	}
 
-	var totalSize int64
-	downloading := 0
-	episodeCount := 0
-	for _, r := range records {
-		totalSize += r.Size
-		if r.Status == "downloading" {
-			downloading++
-		}
-		episodeCount += len(r.Episodes)
-	}
+	downloading, episodeCount, totalSize := summarizeSonarrQueue(records)
 
 	p.bc.Publish(models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
@@ -597,12 +628,7 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 		devices = []tailscale.Device{}
 	}
 
-	online := 0
-	for _, d := range devices {
-		if d.Online {
-			online++
-		}
-	}
+	online := countOnlineTailscaleDevices(devices)
 
 	p.bc.Publish(models.ServiceHealth{
 		ServiceID:   svc.InstanceID,

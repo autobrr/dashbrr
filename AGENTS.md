@@ -236,6 +236,9 @@ Owner: soup (s0up4200@pm.me)
 - Web/arr-queue: zinc palette alignment pass in `ArrQueueStatsBase` (removed remaining gray-* classes)
 - Prowlarr backend: added `ProwlarrService.GetIndexers` and switched handler + poller to shared implementation (removed duplicated HTTP decode logic)
 - Prowlarr backend: replaced remaining TODO in indexer stats window with explicit constants + clarified default (last 30 days)
+- Poller: extracted pure aggregation helpers from run paths (`countTranscodingSessions`, `summarizeRadarrQueue`, `summarizeSonarrQueue`, `countOnlineTailscaleDevices`) to reduce inline loop noise
+- Poller tests: added `internal/api/handlers/poller_stats_test.go` coverage for queue/device/transcode aggregations
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
@@ -425,4 +428,5 @@ Owner: soup (s0up4200@pm.me)
 - Frontend: continue zinc palette consistency pass in frequently used components
 - Backend: remove leftover dead fields/imports after SWR/singleflight migration
 - Backend: remove remaining `context.Background()` in request paths; keep ctx flow explicit
+- Backend: continue poller decomposition (extract payload-build helpers, add unit tests before behavior changes)
 - Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)
