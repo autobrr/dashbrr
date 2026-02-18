@@ -14,7 +14,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -41,7 +40,6 @@ type SonarrHandler struct {
 	db              *database.DB
 	cache           cache.Store
 	bc              *Broadcaster
-	sf              *singleflight.Group
 	circuitBreaker  *resilience.CircuitBreaker
 	lastQueueHash   map[string]string
 	lastStatsHash   map[string]string
@@ -54,7 +52,6 @@ func NewSonarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *Sona
 		db:             db,
 		cache:          cache,
 		bc:             bc,
-		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastQueueHash:  make(map[string]string),
 		lastStatsHash:  make(map[string]string),
