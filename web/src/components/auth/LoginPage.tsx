@@ -256,7 +256,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-900 pattern">
-      <div className="max-w-md w-full space-y-8 p-8 bg-zinc-900/40 border border-black/40 rounded-lg shadow-lg">
+      <div className="max-w-md w-full space-y-8 p-8 bg-zinc-900 border border-black/40 rounded-lg shadow-lg">
         <div className="flex flex-col items-center">
           <img
             src={logo}
