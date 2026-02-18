@@ -205,6 +205,7 @@ Owner: soup (s0up4200@pm.me)
 - Handlers: add `ServiceNotConfiguredError` wrapper (keeps old messages) + migrate Prowlarr off `err.Error()==...`
 - Handlers: migrate Sonarr/Radarr "not configured" errors to `NewServiceNotConfigured(...)`
 - Tailscale handler: switch devices endpoint to shared `FetchWithSWRCache` (drop manual stale/cache refresh goroutines)
+- Handlers: add `DeleteSWRCacheKeys` helper; remove repeated `Delete(key)` + `Delete(key+":stale")` blocks
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

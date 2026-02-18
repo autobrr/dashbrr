@@ -140,10 +140,9 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	// Clear the cache for this instance to force a refresh
 	cacheKey := overseerrCachePrefix + instanceId
-	if err := h.cache.Delete(ctx, cacheKey); err != nil {
+	if err := DeleteSWRCacheKeys(ctx, h.cache, cacheKey); err != nil {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after status update")
 	}
-	_ = h.cache.Delete(ctx, cacheKey+":stale")
 
 	// Fetch fresh data and broadcast update using singleflight
 	sfKey = fmt.Sprintf("requests:%s", instanceId)

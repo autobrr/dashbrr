@@ -239,10 +239,9 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 
 	// Clear cache after successful deletion
 	cacheKey := radarrQueuePrefix + instanceId
-	if err := h.cache.Delete(ctx, cacheKey); err != nil {
+	if err := DeleteSWRCacheKeys(ctx, h.cache, cacheKey); err != nil {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("[Radarr] Failed to clear cache after queue item deletion")
 	}
-	_ = h.cache.Delete(ctx, cacheKey+":stale")
 
 	// Fetch fresh queue data
 	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RadarrQueueResponse]{

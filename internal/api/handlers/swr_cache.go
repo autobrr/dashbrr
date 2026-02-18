@@ -13,6 +13,8 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const swrStaleSuffix = ":stale"
+
 type SWRCacheOptions[T any] struct {
 	Store          cache.Store
 	Key            string
@@ -49,7 +51,7 @@ func FetchWithSWRCache[T any](ctx context.Context, opts SWRCacheOptions[T]) (T, 
 	}
 
 	fetchAndCache := func() (T, error) {
-		staleKey := opts.Key + ":stale"
+		staleKey := opts.Key + swrStaleSuffix
 
 		if opts.CircuitBreaker != nil && opts.CircuitBreaker.IsOpen() {
 			if opts.StaleTTL > 0 {
@@ -119,4 +121,16 @@ func FetchWithSWRCache[T any](ctx context.Context, opts SWRCacheOptions[T]) (T, 
 	}
 
 	return fetchAndCache()
+}
+
+func DeleteSWRCacheKeys(ctx context.Context, store cache.Store, key string) error {
+	if store == nil {
+		return fmt.Errorf("cache store is nil")
+	}
+	if key == "" {
+		return fmt.Errorf("cache key is required")
+	}
+	err := store.Delete(ctx, key)
+	_ = store.Delete(ctx, key+swrStaleSuffix)
+	return err
 }
