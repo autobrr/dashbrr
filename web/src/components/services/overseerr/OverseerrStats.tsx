@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { ArrMessage } from "../common/ArrMessage";
 import { OverseerrMediaRequest } from "../../../types/service";
@@ -25,18 +25,25 @@ interface OverseerrStatsProps {
   instanceId: string;
 }
 
+const EMPTY_REQUESTS: OverseerrMediaRequest[] = [];
+
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
 }) => {
   const { getService, refreshService } = useServiceData();
   const service = getService(instanceId);
-  const [localRequests, setLocalRequests] = useState<OverseerrMediaRequest[]>(
-    []
+  const serviceRequests = service?.stats?.overseerr?.requests ?? EMPTY_REQUESTS;
+  const [statusOverrides, setStatusOverrides] = useState<Record<number, number>>(
+    {}
   );
-  const requests =
-    localRequests.length > 0
-      ? localRequests
-      : service?.stats?.overseerr?.requests || [];
+
+  const requests = useMemo(() => {
+    if (Object.keys(statusOverrides).length === 0) return serviceRequests;
+    return serviceRequests.map((req) => {
+      const next = statusOverrides[req.id];
+      return next ? { ...req, status: next } : req;
+    });
+  }, [serviceRequests, statusOverrides]);
   const pendingRequests = requests.filter((req) => req.status === 1);
   const pendingCount = pendingRequests.length;
   const isLoading = !service || service.status === "loading";
@@ -66,11 +73,8 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
         `/api/services/${instanceId}/overseerr/request/${selectedRequest.id}/${status}`
       );
 
-      // Update local state immediately
-      const updatedRequests = requests.map((req) =>
-        req.id === selectedRequest.id ? { ...req, status } : req
-      );
-      setLocalRequests(updatedRequests);
+      // Optimistic UI: override status locally; SSE refresh will reconcile.
+      setStatusOverrides((prev) => ({ ...prev, [selectedRequest.id]: status }));
 
       // Show success toast
       toast.custom((t) => (
