@@ -400,7 +400,9 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 		extras := map[string]interface{}{
 			"responseTime": responseTime,
 			"stats": map[string]interface{}{
-				"autobrr": stats,
+				"autobrr": map[string]interface{}{
+					"stats": stats,
+				},
 			},
 			"details": map[string]interface{}{
 				"autobrr": map[string]interface{}{
@@ -441,7 +443,9 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 	extras := map[string]interface{}{
 		"responseTime": responseTime,
 		"stats": map[string]interface{}{
-			"autobrr": stats,
+			"autobrr": map[string]interface{}{
+				"stats": stats,
+			},
 		},
 	}
 

@@ -834,6 +834,19 @@ Owner: soup (s0up4200@pm.me)
 - File:
   - `web/src/components/services/autobrr/AutobrrStats.tsx`
 - Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Root cause confirmed for flaky Autobrr releases after refresh:
+  - not Redis persistence; SSE snapshot overwrite.
+  - `AutobrrService.CheckHealth` still emitted legacy shape `stats.autobrr = <stats struct>`.
+  - health tick (30s) overwrote nested snapshot payload and dropped `autobrr.releases`.
+- Fix:
+  - `internal/services/autobrr/autobrr.go`: `CheckHealth` now emits nested shape `stats.autobrr.stats` (same as poller/handler broadcast contract).
+  - added regression in `internal/api/handlers/broadcast_test.go` to assert releases survive a subsequent Autobrr health update.
+- Files:
+  - `internal/services/autobrr/autobrr.go`
+  - `internal/api/handlers/broadcast_test.go`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
