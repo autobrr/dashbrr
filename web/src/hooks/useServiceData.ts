@@ -3,7 +3,17 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactNode,
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AutobrrReleases,
   Service,
@@ -19,6 +29,17 @@ import { api } from "../utils/api";
 
 type RefreshKind = "health" | "stats" | "all";
 
+type ServiceDataContextValue = {
+  services: Service[];
+  isLoading: boolean;
+  getService: (instanceId: string) => Service | undefined;
+  refreshService: (instanceId: string, kind?: RefreshKind) => Promise<void>;
+};
+
+const ServiceDataContext = createContext<ServiceDataContextValue | undefined>(
+  undefined
+);
+
 const templateByType: Map<string, (typeof serviceTemplates)[number]> = new Map(
   serviceTemplates.map((t) => [t.type, t] as const)
 );
@@ -33,7 +54,7 @@ const parseDate = (v: unknown): Date | undefined => {
   return undefined;
 };
 
-export const useServiceData = () => {
+const useProvideServiceData = (): ServiceDataContextValue => {
   const { configurations } = useConfiguration();
   const { isAuthenticated } = useAuth();
 
@@ -47,10 +68,7 @@ export const useServiceData = () => {
 
   const setServicesState = useCallback(
     (updater: (prev: Map<string, Service>) => Map<string, Service>) => {
-      setServices((prev) => {
-        const next = updater(prev);
-        return next;
-      });
+      setServices((prev) => updater(prev));
     },
     []
   );
@@ -65,11 +83,8 @@ export const useServiceData = () => {
         const merged: Service = {
           ...cur,
           ...partial,
-          // shallow-merge nested bags
           stats: partial.stats ? { ...(cur.stats || {}), ...partial.stats } : cur.stats,
-          details: partial.details
-            ? { ...(cur.details || {}), ...partial.details }
-            : cur.details,
+          details: partial.details ? { ...(cur.details || {}), ...partial.details } : cur.details,
         };
 
         next.set(instanceId, merged);
@@ -82,7 +97,6 @@ export const useServiceData = () => {
   const serviceFromConfig = useCallback((instanceId: string, config: ServiceConfig): Service => {
     const [type] = instanceId.split("-");
     const template = templateByType.get(type);
-    // API keys are write-only; only URL presence is known client-side.
     const hasRequiredConfig = Boolean(config.url);
 
     return {
@@ -147,7 +161,6 @@ export const useServiceData = () => {
   }, []);
 
   const createEventSource = useCallback((url: string) => {
-    // `EventSourceInit.withCredentials` is supported in modern browsers; fall back gracefully.
     try {
       return new EventSource(url, { withCredentials: true });
     } catch {
@@ -178,7 +191,6 @@ export const useServiceData = () => {
       if (!mountedRef.current) return;
       es.close();
 
-      // backoff: 1s, 2s, 4s, ... max 30s
       const retry = retryCountRef.current++;
       const delay = Math.min(1000 * Math.pow(2, retry), 30000);
 
@@ -225,14 +237,12 @@ export const useServiceData = () => {
     setServicesState((prev) => {
       const next = new Map(prev);
 
-      // Upsert configured services (single state update).
       for (const [instanceId, config] of entries) {
         const base = serviceFromConfig(instanceId, config);
         const existing = next.get(instanceId);
         next.set(instanceId, existing ? { ...existing, ...base } : base);
       }
 
-      // Remove deleted services.
       for (const id of next.keys()) {
         if (!configuredIds.has(id)) next.delete(id);
       }
@@ -266,4 +276,17 @@ export const useServiceData = () => {
     getService,
     refreshService,
   };
+};
+
+export const ServiceDataProvider = ({ children }: { children: ReactNode }) => {
+  const value = useProvideServiceData();
+  return createElement(ServiceDataContext.Provider, { value }, children);
+};
+
+export const useServiceData = () => {
+  const context = useContext(ServiceDataContext);
+  if (!context) {
+    throw new Error("useServiceData must be used within a ServiceDataProvider");
+  }
+  return context;
 };

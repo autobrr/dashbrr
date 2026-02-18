@@ -258,6 +258,8 @@ Owner: soup (s0up4200@pm.me)
 - Arr service core: added shared `arr.DeleteQueueItem(...)` helper for queue-delete request/validation/log/error behavior
 - Radarr/Sonarr services: `DeleteQueueItem` now delegate to shared `arr.DeleteQueueItem` (removed duplicated HTTP/delete/error codepaths)
 - Arr tests: expanded `internal/services/arr/queue_test.go` with delete validation + upstream message/status mapping coverage
+- SSE root-cause fix: `useServiceData` moved behind singleton `ServiceDataProvider`; multiple component hook calls now share one data/SSE instance
+- App wiring: `web/src/App.tsx` now wraps routes with `ServiceDataProvider` (inside auth/config providers) so only one `/api/events` connection is created app-wide
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
