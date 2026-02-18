@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
-import { OverseerrMessage } from "./OverseerrMessage";
+import { ArrMessage } from "../common/ArrMessage";
 import { OverseerrMediaRequest } from "../../../types/service";
 import { OverseerrRequestModal } from "./OverseerrRequestModal";
 import {
@@ -19,6 +19,7 @@ import Toast from "../../Toast";
 import { FaFilm, FaTv, FaUser } from "react-icons/fa";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { ChevronUpIcon } from "@heroicons/react/24/outline";
+import { combineServiceMessage } from "../../../utils/serviceMessage";
 
 interface OverseerrStatsProps {
   instanceId: string;
@@ -47,10 +48,6 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
     null
   );
   const [isExpanded, setIsExpanded] = useState(true);
-
-  useEffect(() => {
-    localStorage.setItem("overseerr-recent-expanded", JSON.stringify(isExpanded));
-  }, [isExpanded]);
 
   const handleAction = async (
     request: OverseerrMediaRequest,
@@ -111,11 +108,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   }
 
   // Combine service message with health message if available
-  const message = service.health?.message
-    ? service.message
-      ? `${service.message}\n${service.health.message}`
-      : service.health.message
-    : service.message;
+  const message = combineServiceMessage(service);
 
   const getStatusLabel = (status: number) => {
     switch (status) {
@@ -301,7 +294,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
 
   return (
     <div className="space-y-4">
-      <OverseerrMessage status={service.status} message={message} />
+      <ArrMessage status={service.status} message={message} />
 
       {/* Pending Requests */}
       {pendingCount > 0 && (

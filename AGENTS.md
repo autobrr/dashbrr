@@ -210,6 +210,7 @@ Owner: soup (s0up4200@pm.me)
 - Tailscale handler: return 404 for `ErrServiceNotConfigured`
 - Web/auth: remove dead access/id token localStorage + unused `AuthResponse` type (cookie-only)
 - Web/*arr: de-dupe Sonarr/Radarr queue stats UI into shared `ArrQueueStatsBase`; remove unused message re-export files
+- Web/messages: delete duplicated `{Autobrr,General,Overseerr,Plex}Message` components; use shared `ArrMessage` + new `combineServiceMessage` helper; remove dead Overseerr localStorage write
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

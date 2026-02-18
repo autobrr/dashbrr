@@ -16,7 +16,6 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
   return (
     <ArrQueueStatsBase
       instanceId={instanceId}
-      serviceKey="sonarr"
       serviceName="Sonarr"
       queuePath="/api/sonarr/queue"
       getQueue={(stats) => stats.sonarr?.queue}
@@ -25,7 +24,7 @@ export const SonarrStats: React.FC<SonarrStatsProps> = ({ instanceId }) => {
         "Can only remove items that are import blocked"
       }
       renderMessage={({ status, message }) => (
-        <ArrMessage status={status as never} message={message} />
+        <ArrMessage status={status} message={message} />
       )}
     />
   );

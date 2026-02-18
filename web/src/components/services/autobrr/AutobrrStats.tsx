@@ -6,7 +6,7 @@
 import React, { useState } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { StatusIcon } from "../../ui/StatusIcon";
-import { AutobrrMessage } from "./AutobrrMessage";
+import { ArrMessage } from "../common/ArrMessage";
 import {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
@@ -70,7 +70,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
     <div className="space-y-4">
       {/* Status and Messages */}
       {showMessage && (
-        <AutobrrMessage status={service.status} message={service.message} />
+        <ArrMessage status={service.status} message={service.message} />
       )}
 
       {/* IRC Status */}

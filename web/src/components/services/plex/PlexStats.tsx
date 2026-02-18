@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { PlexSession } from "../../../types/service";
-import { PlexMessage } from "./PlexMessage";
+import { ArrMessage } from "../common/ArrMessage";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import {
   FaUser,
@@ -22,6 +22,7 @@ import {
   FaPlayCircle,
 } from "react-icons/fa";
 import { ChevronUpIcon } from "@heroicons/react/24/outline";
+import { combineServiceMessage } from "../../../utils/serviceMessage";
 
 interface PlexStatsProps {
   instanceId: string;
@@ -210,15 +211,11 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
 
   const activeStreams = service.details?.plex?.activeStreams || 0;
 
-  const message = service.health?.message
-    ? service.message
-      ? `${service.message}\n${service.health.message}`
-      : service.health.message
-    : service.message;
+  const message = combineServiceMessage(service);
 
   return (
     <div className="space-y-4">
-      <PlexMessage status={service.status} message={message} />
+      <ArrMessage status={service.status} message={message} />
 
       {activeStreams > 0 && (
         <div className="space-y-3">

@@ -13,7 +13,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import { useServiceData } from "../../../hooks/useServiceData";
-import { ServiceStats } from "../../../types/service";
+import { ServiceStats, ServiceStatus } from "../../../types/service";
 import { api } from "../../../utils/api";
 import Toast from "../../../components/Toast";
 import AnimatedModal from "../../ui/AnimatedModal";
@@ -39,7 +39,6 @@ type ArrQueueRecord = {
 type Props = {
   instanceId: string;
   // stable labels for copy/links/api
-  serviceKey: "sonarr" | "radarr";
   serviceName: "Sonarr" | "Radarr";
   queuePath: "/api/sonarr/queue" | "/api/radarr/queue";
   // service.stats[serviceKey].queue
@@ -49,12 +48,11 @@ type Props = {
   // allow Radarr importPending as well
   canManageRecord: (record: ArrQueueRecord) => boolean;
   getManageDisabledReason: (record: ArrQueueRecord) => string;
-  renderMessage: (props: { status: string; message?: string }) => React.ReactNode;
+  renderMessage: (props: { status: ServiceStatus; message?: string }) => React.ReactNode;
 };
 
 export const ArrQueueStatsBase: React.FC<Props> = ({
   instanceId,
-  serviceKey,
   serviceName,
   queuePath,
   getQueue,
@@ -103,9 +101,6 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   if (!service) {
     return null;
   }
-
-  // keep for future per-service behavior tweaks; avoids unused-prop lint issues now
-  void serviceKey;
 
   return (
     <div className="space-y-4">

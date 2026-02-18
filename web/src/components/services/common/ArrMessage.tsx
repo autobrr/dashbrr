@@ -8,18 +8,11 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
+import { ServiceStatus } from "../../../types/service";
 
 interface Props {
   message?: string;
-  status:
-    | "online"
-    | "offline"
-    | "warning"
-    | "error"
-    | "loading"
-    | "unknown"
-    | "healthy"
-    | "pending";
+  status: ServiceStatus | "healthy";
 }
 
 export const ArrMessage: React.FC<Props> = ({ message, status }) => {

@@ -16,7 +16,6 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
   return (
     <ArrQueueStatsBase
       instanceId={instanceId}
-      serviceKey="radarr"
       serviceName="Radarr"
       queuePath="/api/radarr/queue"
       getQueue={(stats) => stats.radarr?.queue}
@@ -28,7 +27,7 @@ export const RadarrStats: React.FC<RadarrStatsProps> = ({ instanceId }) => {
         "Can only remove items that are import blocked or pending"
       }
       renderMessage={({ status, message }) => (
-        <ArrMessage status={status as never} message={message} />
+        <ArrMessage status={status} message={message} />
       )}
     />
   );

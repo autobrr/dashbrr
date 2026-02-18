@@ -5,7 +5,7 @@
 
 import React from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
-import { GeneralMessage } from "./GeneralMessage";
+import { ArrMessage } from "../common/ArrMessage";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 
 interface GeneralStatsProps {
@@ -31,7 +31,7 @@ export const GeneralStats: React.FC<GeneralStatsProps> = ({ instanceId }) => {
   return (
     <div className="space-y-4">
       {showMessage && (
-        <GeneralMessage status={service.status} message={service.message} />
+        <ArrMessage status={service.status} message={service.message} />
       )}
     </div>
   );
