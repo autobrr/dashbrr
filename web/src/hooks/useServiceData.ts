@@ -59,6 +59,33 @@ const hasOwn = (value: unknown, key: string): boolean =>
   value !== null &&
   Object.prototype.hasOwnProperty.call(value, key);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const mergeServicePayload = <T extends object>(
+  current: T | undefined,
+  incoming: T | undefined
+): T | undefined => {
+  if (!incoming) return current;
+  if (!current) return { ...incoming };
+
+  const merged = { ...current } as T;
+  for (const key of Object.keys(incoming) as Array<keyof T>) {
+    const nextValue = incoming[key];
+    const prevValue = current[key];
+    if (isRecord(prevValue) && isRecord(nextValue)) {
+      (merged as Record<string, unknown>)[key as string] = {
+        ...prevValue,
+        ...nextValue,
+      };
+      continue;
+    }
+    merged[key] = nextValue;
+  }
+
+  return merged;
+};
+
 type HealthPatchPresence = {
   hasVersion: boolean;
   hasUpdateAvailable: boolean;
@@ -96,8 +123,8 @@ const useProvideServiceData = (): ServiceDataContextValue => {
         const merged: Service = {
           ...cur,
           ...partial,
-          stats: partial.stats ? { ...(cur.stats || {}), ...partial.stats } : cur.stats,
-          details: partial.details ? { ...(cur.details || {}), ...partial.details } : cur.details,
+          stats: mergeServicePayload(cur.stats, partial.stats),
+          details: mergeServicePayload(cur.details, partial.details),
         };
 
         next.set(instanceId, merged);
@@ -148,6 +175,9 @@ const useProvideServiceData = (): ServiceDataContextValue => {
       }
       if (presence.hasUpdateAvailable) {
         patch.updateAvailable = health.updateAvailable;
+      }
+      if (health.message === "autobrr_releases") {
+        patch.stats = undefined;
       }
 
       return patch;
@@ -302,8 +332,8 @@ const useProvideServiceData = (): ServiceDataContextValue => {
           merged = {
             ...merged,
             ...patch,
-            stats: patch.stats ? { ...(merged.stats || {}), ...patch.stats } : merged.stats,
-            details: patch.details ? { ...(merged.details || {}), ...patch.details } : merged.details,
+            stats: mergeServicePayload(merged.stats, patch.stats),
+            details: mergeServicePayload(merged.details, patch.details),
           };
 
           if (latestHealth.message === "autobrr_releases" && latestHealth.stats?.autobrr) {

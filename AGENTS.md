@@ -542,8 +542,18 @@ Owner: soup (s0up4200@pm.me)
   - frontend `AuthProvider` auto-authenticates when bypass is enabled
 - Added bypass env unit test (`internal/api/middleware/auth_bypass_test.go`)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Diagnosed Autobrr stats showing zeros as frontend SSE merge clobber:
+  - backend emits separate `autobrr_stats` and `autobrr_releases` events under same `stats.autobrr` key
+  - shallow merge caused last event to overwrite prior payload shape
+- Fix in `web/src/hooks/useServiceData.ts`:
+  - added typed nested merge helper for `stats`/`details` service payload maps
+  - keep Autobrr releases in `service.releases`; ignore `stats` write on `autobrr_releases` patch
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
+- Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
 - Frontend: continue zinc palette consistency pass in frequently used components
 - Backend: remove leftover dead fields/imports after SWR/singleflight migration
