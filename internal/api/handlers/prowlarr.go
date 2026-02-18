@@ -435,10 +435,5 @@ func statusFromProwlarrError(err error) int {
 		return normalizeUpstreamStatus(arrErr.HttpCode)
 	}
 
-	var prowErr *prowlarr.ErrProwlarr
-	if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
-		return normalizeUpstreamStatus(prowErr.HttpCode)
-	}
-
 	return http.StatusInternalServerError
 }

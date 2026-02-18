@@ -10,9 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
@@ -26,33 +23,8 @@ const (
 	prowlarrIndexerStatsEndDaysAgo   = 30
 )
 
-// Custom error types for better error handling
-type ErrProwlarr struct {
-	Op       string // Operation that failed
-	Err      error  // Underlying error
-	HttpCode int    // HTTP status code if applicable
-}
-
-func (e *ErrProwlarr) Error() string {
-	if e.HttpCode > 0 {
-		return fmt.Sprintf("prowlarr %s: server returned %s (%d)", e.Op, http.StatusText(e.HttpCode), e.HttpCode)
-	}
-	if e.Err != nil {
-		return fmt.Sprintf("prowlarr %s: %v", e.Op, e.Err)
-	}
-	return fmt.Sprintf("prowlarr %s", e.Op)
-}
-
-func (e *ErrProwlarr) Unwrap() error {
-	return e.Err
-}
-
 type ProwlarrService struct {
 	core.ServiceCore
-}
-
-type SystemStatusResponse struct {
-	Version string `json:"version"`
 }
 
 func init() {
@@ -70,52 +42,9 @@ func NewProwlarrService() models.ServiceHealthChecker {
 	return service
 }
 
-// makeRequest is a helper function to make requests with proper headers
-func (s *ProwlarrService) makeRequest(ctx context.Context, method, url, apiKey string) (*http.Response, error) {
-	return arr.MakeArrRequest(ctx, method, url, apiKey, nil)
-}
-
 // GetSystemStatus fetches the system status from Prowlarr
 func (s *ProwlarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
-	if url == "" {
-		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("URL is required")}
-	}
-
-	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(ctx, url); version != "" && version != "true" {
-		return version, nil
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
-	defer cancel()
-
-	statusURL := fmt.Sprintf("%s/api/v1/system/status", strings.TrimRight(url, "/"))
-	resp, err := s.makeRequest(ctx, http.MethodGet, statusURL, apiKey)
-	if err != nil {
-		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to make request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ErrProwlarr{Op: "get_system_status", HttpCode: resp.StatusCode}
-	}
-
-	body, err := s.ReadBody(resp)
-	if err != nil {
-		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to read response: %w", err)}
-	}
-
-	var status SystemStatusResponse
-	if err := json.Unmarshal(body, &status); err != nil {
-		return "", &ErrProwlarr{Op: "get_system_status", Err: fmt.Errorf("failed to parse response: %w", err)}
-	}
-
-	// Cache version for 1 hour
-	if err := s.CacheVersion(ctx, url, status.Version, time.Hour); err != nil {
-		log.Debug().Err(err).Str("url", url).Str("version", status.Version).Msg("Failed to cache Prowlarr version")
-	}
-
-	return status.Version, nil
+	return arr.GetArrSystemStatus(ctx, "prowlarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
 }
 
 // CheckForUpdates checks if there are any updates available for Prowlarr.
@@ -126,28 +55,30 @@ func (s *ProwlarrService) CheckForUpdates(ctx context.Context, url, apiKey strin
 // GetIndexers fetches indexer configuration and stats baseline from Prowlarr.
 func (s *ProwlarrService) GetIndexers(ctx context.Context, baseURL, apiKey string) ([]types.ProwlarrIndexer, error) {
 	if baseURL == "" {
-		return nil, &ErrProwlarr{Op: "get_indexers", Err: fmt.Errorf("URL is required")}
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexers", Err: fmt.Errorf("URL is required")}
 	}
 
 	indexersURL := fmt.Sprintf("%s/api/v1/indexer", strings.TrimRight(baseURL, "/"))
-	resp, err := s.makeRequest(ctx, http.MethodGet, indexersURL, apiKey)
+	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, indexersURL, apiKey, nil)
 	if err != nil {
-		return nil, &ErrProwlarr{
-			Op:  "get_indexers",
-			Err: fmt.Errorf("failed to make request: %w", err),
+		return nil, &arr.ErrArr{
+			Service: "prowlarr",
+			Op:      "get_indexers",
+			Err:     fmt.Errorf("failed to make request: %w", err),
 		}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &ErrProwlarr{Op: "get_indexers", HttpCode: resp.StatusCode}
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexers", HttpCode: resp.StatusCode}
 	}
 
 	var indexers []types.ProwlarrIndexer
 	if err := json.NewDecoder(resp.Body).Decode(&indexers); err != nil {
-		return nil, &ErrProwlarr{
-			Op:  "get_indexers",
-			Err: fmt.Errorf("failed to parse response: %w", err),
+		return nil, &arr.ErrArr{
+			Service: "prowlarr",
+			Op:      "get_indexers",
+			Err:     fmt.Errorf("failed to parse response: %w", err),
 		}
 	}
 	if indexers == nil {
@@ -160,7 +91,7 @@ func (s *ProwlarrService) GetIndexers(ctx context.Context, baseURL, apiKey strin
 // GetIndexerStats fetches indexer statistics from Prowlarr
 func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey string) (*types.ProwlarrIndexerStatsResponse, error) {
 	if baseURL == "" {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("URL is required")}
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", Err: fmt.Errorf("URL is required")}
 	}
 
 	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
@@ -171,24 +102,24 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 	query.Add("endDate", fmt.Sprintf("%d", prowlarrIndexerStatsEndDaysAgo))
 	statsURL = statsURL + "?" + query.Encode()
 
-	resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, apiKey)
+	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, statsURL, apiKey, nil)
 	if err != nil {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", HttpCode: resp.StatusCode}
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var stats types.ProwlarrIndexerStatsResponse
 	if err := json.Unmarshal(body, &stats); err != nil {
-		return nil, &ErrProwlarr{Op: "get_indexer_stats", Err: fmt.Errorf("failed to parse response: %w", err)}
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	return &stats, nil

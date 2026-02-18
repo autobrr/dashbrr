@@ -16,27 +16,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-// Custom error types for better error handling
-type ErrSonarr struct {
-	Op       string // Operation that failed
-	Err      error  // Underlying error
-	HttpCode int    // HTTP status code if applicable
-}
-
-func (e *ErrSonarr) Error() string {
-	if e.HttpCode > 0 {
-		return fmt.Sprintf("sonarr %s: server returned %s (%d)", e.Op, http.StatusText(e.HttpCode), e.HttpCode)
-	}
-	if e.Err != nil {
-		return fmt.Sprintf("sonarr %s: %v", e.Op, e.Err)
-	}
-	return fmt.Sprintf("sonarr %s", e.Op)
-}
-
-func (e *ErrSonarr) Unwrap() error {
-	return e.Err
-}
-
 type SonarrService struct {
 	core.ServiceCore
 }
@@ -74,11 +53,11 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 // GetQueue fetches the current queue from Sonarr
 func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
 	if url == "" {
-		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("URL is required")}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("API key is required")}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
 	}
 
 	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
@@ -86,22 +65,22 @@ func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (inter
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
 	if err != nil {
-		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &ErrSonarr{Op: "get_queue", HttpCode: resp.StatusCode}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var queue types.SonarrQueueResponse
 	if err := json.Unmarshal(body, &queue); err != nil {
-		return nil, &ErrSonarr{Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	return queue.Records, nil
@@ -122,33 +101,33 @@ func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey strin
 // LookupByTvdbId fetches series details from Sonarr by TVDB ID
 func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey string, tvdbId int) (*types.Series, error) {
 	if baseURL == "" {
-		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("URL is required")}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "lookup_tvdb", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("API key is required")}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "lookup_tvdb", Err: fmt.Errorf("API key is required")}
 	}
 
 	lookupURL := fmt.Sprintf("%s/api/v3/series/lookup?term=tvdb%%3A%d", strings.TrimRight(baseURL, "/"), tvdbId)
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, lookupURL, apiKey, nil)
 	if err != nil {
-		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "lookup_tvdb", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &ErrSonarr{Op: "lookup_tvdb", HttpCode: resp.StatusCode}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "lookup_tvdb", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "lookup_tvdb", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var series []types.Series
 	if err := json.Unmarshal(body, &series); err != nil {
-		return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("failed to parse response: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "lookup_tvdb", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	// Return the first match
@@ -156,39 +135,39 @@ func (s *SonarrService) LookupByTvdbId(ctx context.Context, baseURL, apiKey stri
 		return &series[0], nil
 	}
 
-	return nil, &ErrSonarr{Op: "lookup_tvdb", Err: fmt.Errorf("no series found for TVDB ID: %d", tvdbId)}
+	return nil, &arr.ErrArr{Service: "sonarr", Op: "lookup_tvdb", Err: fmt.Errorf("no series found for TVDB ID: %d", tvdbId)}
 }
 
 // GetSeries fetches series details from Sonarr by ID
 func (s *SonarrService) GetSeries(ctx context.Context, baseURL, apiKey string, seriesID int) (*types.Series, error) {
 	if baseURL == "" {
-		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("URL is required")}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_series", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("API key is required")}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_series", Err: fmt.Errorf("API key is required")}
 	}
 
 	seriesURL := fmt.Sprintf("%s/api/v3/series/%d", strings.TrimRight(baseURL, "/"), seriesID)
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, seriesURL, apiKey, nil)
 	if err != nil {
-		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_series", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &ErrSonarr{Op: "get_series", HttpCode: resp.StatusCode}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_series", HttpCode: resp.StatusCode}
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_series", Err: fmt.Errorf("failed to read response: %w", err)}
 	}
 
 	var series types.Series
 	if err := json.Unmarshal(body, &series); err != nil {
-		return nil, &ErrSonarr{Op: "get_series", Err: fmt.Errorf("failed to parse response: %w", err)}
+		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_series", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	return &series, nil
