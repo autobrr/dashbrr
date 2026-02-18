@@ -231,6 +231,22 @@ func TestGetProviderEndpoints(t *testing.T) {
 			wantPath:   "/realms/myrealm/.well-known/openid-configuration",
 			wantErr:    false,
 		},
+		{
+			name:       "non-200 status with JSON body",
+			issuer:     "https://accounts.google.com",
+			mockStatus: http.StatusInternalServerError,
+			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","token_endpoint":"https://oauth2.googleapis.com/token","userinfo_endpoint":"https://openidconnect.googleapis.com/v1/userinfo"}`,
+			wantPath:   "/.well-known/openid-configuration",
+			wantErr:    true,
+		},
+		{
+			name:       "missing required token endpoint",
+			issuer:     "https://accounts.google.com",
+			mockStatus: http.StatusOK,
+			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","userinfo_endpoint":"https://openidconnect.googleapis.com/v1/userinfo"}`,
+			wantPath:   "/.well-known/openid-configuration",
+			wantErr:    true,
+		},
 	}
 
 	for _, tt := range tests {

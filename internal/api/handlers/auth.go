@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -102,6 +103,20 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		snippet, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		if readErr != nil {
+			return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d", resp.StatusCode)
+		}
+
+		msg := strings.TrimSpace(string(snippet))
+		if msg == "" {
+			return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d", resp.StatusCode)
+		}
+
+		return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d: %s", resp.StatusCode, msg)
+	}
+
 	log.Debug().
 		Str("issuer", issuer).
 		Str("well_known_url", wellKnown).
@@ -115,6 +130,9 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 
 	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
 		return oauth2.Endpoint{}, "", fmt.Errorf("parsing discovery document: %w", err)
+	}
+	if discovery.AuthURL == "" || discovery.TokenURL == "" {
+		return oauth2.Endpoint{}, "", fmt.Errorf("discovery document missing required endpoints")
 	}
 
 	return oauth2.Endpoint{

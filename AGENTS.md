@@ -239,6 +239,8 @@ Owner: soup (s0up4200@pm.me)
 - Poller: extracted pure aggregation helpers from run paths (`countTranscodingSessions`, `summarizeRadarrQueue`, `summarizeSonarrQueue`, `countOnlineTailscaleDevices`) to reduce inline loop noise
 - Poller tests: added `internal/api/handlers/poller_stats_test.go` coverage for queue/device/transcode aggregations
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+- Auth/oidc: hardened discovery fetch to fail fast on non-200 status (even with JSON body) and on missing required endpoints
+- Auth tests: expanded `TestGetProviderEndpoints` for non-200 + malformed discovery payload cases
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
