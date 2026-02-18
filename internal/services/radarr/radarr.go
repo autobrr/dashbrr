@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
@@ -44,63 +42,12 @@ func (s *RadarrService) GetHealthEndpoint(baseURL string) string {
 
 // DeleteQueueItem deletes a queue item with the specified options
 func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.RadarrQueueDeleteOptions) error {
-	if baseURL == "" {
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("URL is required")}
-	}
-
-	if apiKey == "" {
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
-	}
-
-	deleteURL := arr.BuildQueueDeleteURL(baseURL, queueId, arr.QueueDeleteOptions{
+	return arr.DeleteQueueItem(ctx, "radarr", baseURL, apiKey, queueId, arr.QueueDeleteOptions{
 		RemoveFromClient: options.RemoveFromClient,
 		Blocklist:        options.Blocklist,
 		SkipRedownload:   options.SkipRedownload,
 		ChangeCategory:   options.ChangeCategory,
-	})
-
-	// Log delete attempt with all parameters
-	log.Info().
-		Str("url", deleteURL).
-		Str("queueId", queueId).
-		Bool("removeFromClient", options.RemoveFromClient).
-		Bool("blocklist", options.Blocklist).
-		Bool("skipRedownload", options.SkipRedownload).
-		Bool("changeCategory", options.ChangeCategory).
-		Msg("Attempting to delete queue item")
-
-	// Execute DELETE request
-	resp, err := arr.MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", deleteURL).
-			Str("queueId", queueId).
-			Msg("Failed to execute delete request")
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := s.ReadBody(resp)
-		log.Error().
-			Int("statusCode", resp.StatusCode).
-			Str("url", deleteURL).
-			Str("queueId", queueId).
-			Str("response", string(body)).
-			Msg("Delete request failed")
-
-		if msg := arr.ExtractMessageField(body); msg != "" {
-			return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("%s", msg), HttpCode: resp.StatusCode}
-		}
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", HttpCode: resp.StatusCode}
-	}
-
-	log.Info().
-		Str("queueId", queueId).
-		Msg("Successfully deleted queue item")
-
-	return nil
+	}, s.ReadBody)
 }
 
 // GetQueue fetches the current queue from Radarr

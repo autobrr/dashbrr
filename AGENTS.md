@@ -255,6 +255,9 @@ Owner: soup (s0up4200@pm.me)
 - Sonarr tests: added `internal/services/sonarr/sonarr_test.go` regression coverage for delete validation errors returning `arr.ErrArr`
 - Sonarr service: removed local `makeRequest` passthrough; calls `arr.MakeArrRequest` directly
 - Sonarr service: `GetSystemStatus` now delegates to shared `arr.GetArrSystemStatus` (drops duplicated status/version parse/cache logic)
+- Arr service core: added shared `arr.DeleteQueueItem(...)` helper for queue-delete request/validation/log/error behavior
+- Radarr/Sonarr services: `DeleteQueueItem` now delegate to shared `arr.DeleteQueueItem` (removed duplicated HTTP/delete/error codepaths)
+- Arr tests: expanded `internal/services/arr/queue_test.go` with delete validation + upstream message/status mapping coverage
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
