@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -89,6 +90,10 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrServiceNotConfigured) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
@@ -186,6 +191,10 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrServiceNotConfigured) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
@@ -287,6 +296,10 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrServiceNotConfigured) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).

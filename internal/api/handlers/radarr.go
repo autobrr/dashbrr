@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -77,6 +78,10 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrServiceNotConfigured) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
@@ -221,6 +226,10 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrServiceNotConfigured) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		if arrErr, ok := err.(*arr.ErrArr); ok {
 			log.Error().
 				Err(arrErr).
