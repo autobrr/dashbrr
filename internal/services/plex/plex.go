@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -54,6 +55,83 @@ func (s *PlexService) getPlexHeaders(apiKey string) map[string]string {
 		"X-Plex-Platform":          "Web",
 		"X-Plex-Device":            "Browser",
 	}
+}
+
+func (s *PlexService) getPlexAuthHeaders(clientIdentifier, product string) map[string]string {
+	if strings.TrimSpace(product) == "" {
+		product = "Dashbrr"
+	}
+
+	return map[string]string{
+		"Accept":                   "application/json",
+		"X-Plex-Client-Identifier": clientIdentifier,
+		"X-Plex-Product":           product,
+		"X-Plex-Version":           "1.0.0",
+		"X-Plex-Platform":          "Web",
+		"X-Plex-Device":            "Browser",
+	}
+}
+
+func (s *PlexService) CreateAuthPIN(ctx context.Context, clientIdentifier, product string) (*types.PlexPIN, error) {
+	if strings.TrimSpace(clientIdentifier) == "" {
+		return nil, fmt.Errorf("client identifier is required")
+	}
+
+	endpoint := "https://plex.tv/api/v2/pins?strong=true"
+	resp, err := s.DoRequest(ctx, http.MethodPost, endpoint, s.getPlexAuthHeaders(clientIdentifier, product), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plex auth pin: %w", err)
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read plex auth pin response: %w", err)
+	}
+
+	var pin types.PlexPIN
+	if err := json.Unmarshal(body, &pin); err != nil {
+		return nil, fmt.Errorf("failed to parse plex auth pin response: %w", err)
+	}
+
+	if pin.ID == 0 || strings.TrimSpace(pin.Code) == "" {
+		return nil, fmt.Errorf("plex auth pin response missing required fields")
+	}
+
+	return &pin, nil
+}
+
+func (s *PlexService) CheckAuthPIN(ctx context.Context, pinID int, code, clientIdentifier, product string) (*types.PlexPIN, error) {
+	if pinID <= 0 {
+		return nil, fmt.Errorf("pin id is required")
+	}
+	if strings.TrimSpace(code) == "" {
+		return nil, fmt.Errorf("pin code is required")
+	}
+	if strings.TrimSpace(clientIdentifier) == "" {
+		return nil, fmt.Errorf("client identifier is required")
+	}
+
+	endpoint := fmt.Sprintf(
+		"https://plex.tv/api/v2/pins/%d?code=%s",
+		pinID,
+		url.QueryEscape(code),
+	)
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, s.getPlexAuthHeaders(clientIdentifier, product), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query plex auth pin: %w", err)
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read plex auth pin status response: %w", err)
+	}
+
+	var pin types.PlexPIN
+	if err := json.Unmarshal(body, &pin); err != nil {
+		return nil, fmt.Errorf("failed to parse plex auth pin status response: %w", err)
+	}
+
+	return &pin, nil
 }
 
 func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*types.PlexSessionsResponse, error) {

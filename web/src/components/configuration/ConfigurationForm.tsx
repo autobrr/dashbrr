@@ -10,6 +10,7 @@ import { Button } from "../ui/Button";
 import { FormInput } from "../ui/FormInput";
 import { toast } from "react-hot-toast";
 import { api } from "../../utils/api";
+import { usePlexPinAuth } from "../../hooks/usePlexPinAuth";
 
 interface ConfigurationFormProps {
   instanceId: string;
@@ -34,6 +35,7 @@ export const ConfigurationForm = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { isAuthenticating, authenticate } = usePlexPinAuth();
 
   const validateConfiguration = async (config: ServiceConfig) => {
     try {
@@ -133,9 +135,9 @@ export const ConfigurationForm = ({
         };
       case "plex":
         return {
-          prefix: "Get your ",
-          text: "X-Plex-Token",
-          link: "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
+          prefix: "Authenticate via ",
+          text: "Plex PIN flow guide",
+          link: "https://forums.plex.tv/t/authenticating-with-plex/609370",
         };
       case "radarr":
       case "sonarr":
@@ -225,17 +227,42 @@ export const ConfigurationForm = ({
       />
 
       {serviceType !== "general" && (
-        <FormInput
-          id="apiKey"
-          label={getApiKeyLabel()}
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={`Enter ${getApiKeyLabel()}`}
-          helpText={apiKeyHelp}
-          required
-          data-1p-ignore
-        />
+        <>
+          <FormInput
+            id="apiKey"
+            label={getApiKeyLabel()}
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={`Enter ${getApiKeyLabel()}`}
+            helpText={apiKeyHelp}
+            required
+            data-1p-ignore
+          />
+          {serviceType === "plex" && (
+            <div className="mt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={async () => {
+                  try {
+                    await authenticate((token) => setApiKey(token));
+                  } catch (err) {
+                    const message =
+                      err instanceof Error
+                        ? err.message
+                        : "Failed to start Plex authentication";
+                    toast.error(message);
+                    setError(message);
+                  }
+                }}
+                disabled={isSubmitting || isAuthenticating}
+              >
+                {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {error && (

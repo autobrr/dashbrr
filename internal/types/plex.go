@@ -29,6 +29,13 @@ type PlexSessionsResponse struct {
 	} `json:"MediaContainer"`
 }
 
+type PlexPIN struct {
+	ID        int    `json:"id"`
+	Code      string `json:"code"`
+	AuthToken string `json:"authToken"`
+	ExpiresIn int    `json:"expiresIn"`
+}
+
 type PlexUser struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`

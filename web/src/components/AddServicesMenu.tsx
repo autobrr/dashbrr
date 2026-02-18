@@ -11,6 +11,7 @@ import { FormInput } from "./ui/FormInput";
 import { api } from "../utils/api";
 import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
+import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
 
 interface AddServicesMenuProps {
   serviceTemplates: Array<{
@@ -97,9 +98,9 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     link: getSettingsUrl("/settings/api"),
   }),
   plex: () => ({
-    prefix: "Get your ",
-    text: "X-Plex-Token",
-    link: "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
+    prefix: "Authenticate via ",
+    text: "Plex PIN flow guide",
+    link: "https://forums.plex.tv/t/authenticating-with-plex/609370",
   }),
   radarr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",
@@ -165,6 +166,7 @@ export function AddServicesMenu({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { configurations } = useConfiguration();
+  const { isAuthenticating, authenticate } = usePlexPinAuth();
 
   // Filter out Tailscale if it's already configured
   const availableTemplates = useMemo(() => {
@@ -439,6 +441,29 @@ export function AddServicesMenu({
               required={isApiKeyRequired}
               data-1p-ignore
             />
+            {pendingService?.type === "plex" && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  className="px-3 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-600"
+                  onClick={async () => {
+                    try {
+                      await authenticate((token) => setApiKey(token));
+                    } catch (err) {
+                      const message =
+                        err instanceof Error
+                          ? err.message
+                          : "Failed to start Plex authentication";
+                      toast.error(message);
+                      setError(message);
+                    }
+                  }}
+                  disabled={isSubmitting || isAuthenticating}
+                >
+                  {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="text-red-600 dark:text-red-400 text-sm">

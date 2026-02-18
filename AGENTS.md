@@ -271,6 +271,23 @@ Owner: soup (s0up4200@pm.me)
 - Fix: stop emitting `details.qui.summary` from `CheckHealth`; emit count fields on `details.qui` (`totalInstances`, `activeInstances`, `connectedInstances`) so health/status updates do not clobber overview metrics.
 - Regression test: `TestCheckHealth_SummarizesInstanceState` now asserts health details do not include `summary`.
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (plex pin auth)
+- Added first-class Plex PIN authentication flow (replacing token-from-XML guidance as primary path):
+  - Backend endpoints (auth required): `POST /api/plex/auth/pin`, `GET /api/plex/auth/pin/:pinId`
+  - Backend handler: `internal/api/handlers/plex_auth.go`
+  - Backend service support: `PlexService.CreateAuthPIN` + `PlexService.CheckAuthPIN` using Plex `api/v2/pins` flow
+  - Plex PIN response model: `internal/types/plex.go` (`PlexPIN`)
+- Added backend tests for PIN handler:
+  - `internal/api/handlers/plex_auth_test.go`
+- Frontend PIN auth UX:
+  - New hook: `web/src/hooks/usePlexPinAuth.ts`
+  - Added "Authenticate with Plex" button in both:
+    - add service modal (`web/src/components/AddServicesMenu.tsx`)
+    - edit configuration modal (`web/src/components/configuration/ConfigurationForm.tsx`)
+  - Button opens Plex auth tab, polls PIN status, and auto-fills `X-Plex-Token` on success
+- Updated Plex help link to Plex forum PIN auth guide in both forms.
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 - Poller scheduling: non-blocking semaphore acquisition in `maybeRun` (no queued waiters), `lastRun` now stamped at actual job start, and upstream concurrency raised `4 -> 8` to reduce startup starvation from slow services.
 - Autobrr releases: bounded fetch now uses `/api/release?limit=5&offset=0` with dedicated 8s timeout to avoid long-running release pulls delaying other updates.
 - Tests: added `internal/services/autobrr/autobrr_test.go` (release query params/header regression) and `TestPollerMaybeRun_SemaphoreFullSkipsWithoutMarkingLastRun` in `internal/api/handlers/poller_test.go`.

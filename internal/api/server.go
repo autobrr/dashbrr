@@ -130,6 +130,7 @@ func (s *Server) Handler() http.Handler {
 	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, bc)
 	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache, bc)
 	plexHandler := handlers.NewPlexHandler(s.db, s.cache, bc)
+	plexAuthHandler := handlers.NewPlexAuthHandler()
 	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
 	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache, bc)
 	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache, bc)
@@ -223,6 +224,13 @@ func (s *Server) Handler() http.Handler {
 		{
 			uiPreferences.GET("/collapse", uiPreferencesHandler.GetCollapsePreferences)
 			uiPreferences.PUT("/collapse", uiPreferencesHandler.UpsertCollapsePreference)
+		}
+
+		plexAuth := api.Group("/plex/auth")
+		plexAuth.Use(apiRateLimiter.RateLimit())
+		{
+			plexAuth.POST("/pin", plexAuthHandler.CreatePIN)
+			plexAuth.GET("/pin/:pinId", plexAuthHandler.GetPIN)
 		}
 
 		// Health check endpoints (no cache for SSE)
