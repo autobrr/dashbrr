@@ -168,12 +168,15 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	seenWarnings := make(map[string]struct{}, len(healthIssues))
 	for _, issue := range healthIssues {
 		if issue.Type == "warning" || issue.Type == "error" {
-			warning := fmt.Sprintf("[%s] %s", issue.Source, issue.Message)
-			if _, seen := seenWarnings[warning]; seen {
+			display, dedupeKey := formatWarningMessage(issue.Source, issue.Message)
+			if display == "" {
 				continue
 			}
-			seenWarnings[warning] = struct{}{}
-			warnings = append(warnings, warning)
+			if _, seen := seenWarnings[dedupeKey]; seen {
+				continue
+			}
+			seenWarnings[dedupeKey] = struct{}{}
+			warnings = append(warnings, display)
 			status = "warning"
 		}
 	}
@@ -186,4 +189,22 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	health := s.CreateHealthResponse(startTime, status, message, extras)
 
 	return health, nil
+}
+
+func formatWarningMessage(source, message string) (display string, dedupeKey string) {
+	normalizedSource := strings.Join(strings.Fields(strings.TrimSpace(source)), " ")
+	normalizedMessage := strings.Join(strings.Fields(strings.TrimSpace(message)), " ")
+
+	switch {
+	case normalizedSource == "" && normalizedMessage == "":
+		return "", ""
+	case normalizedSource == "":
+		display = normalizedMessage
+	case normalizedMessage == "":
+		display = "[" + normalizedSource + "]"
+	default:
+		display = fmt.Sprintf("[%s] %s", normalizedSource, normalizedMessage)
+	}
+
+	return display, strings.ToLower(display)
 }

@@ -1053,6 +1053,18 @@ Owner: soup (s0up4200@pm.me)
   - added timeout fallback/override coverage in `internal/api/handlers/poller_jobs_test.go` (`TestEffectiveJobTimeout`)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (warning dedupe hardening)
+- Root issue: warning dedupe in *arr health checks used strict string equality; whitespace variants could bypass dedupe and appear as duplicate warning lines in UI.
+- Fix (`internal/services/arr/health.go`):
+  - added `formatWarningMessage(source, message)` normalization helper
+  - trims + collapses whitespace in source/message
+  - creates stable case-insensitive dedupe key while preserving clean display text
+  - skips empty warning payloads safely
+- Regression coverage (`internal/services/arr/health_test.go`):
+  - existing exact-duplicate test kept
+  - added whitespace-variant duplicate test (`TestPerformHealthCheck_DeduplicatesWarningMessagesAfterWhitespaceNormalization`)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
