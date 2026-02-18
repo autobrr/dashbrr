@@ -323,7 +323,7 @@ func summarizeSonarrQueue(records []types.QueueRecord) (int, int, int64) {
 	return downloading, episodeCount, totalSize
 }
 
-func countOnlineTailscaleDevices(devices []tailscale.Device) int {
+func countOnlineDevices(devices []tailscale.Device) int {
 	online := 0
 	for _, device := range devices {
 		if device.Online {
@@ -628,7 +628,7 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 		devices = []tailscale.Device{}
 	}
 
-	online := countOnlineTailscaleDevices(devices)
+	online := countOnlineDevices(devices)
 
 	p.bc.Publish(models.ServiceHealth{
 		ServiceID:   svc.InstanceID,

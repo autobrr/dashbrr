@@ -243,6 +243,8 @@ Owner: soup (s0up4200@pm.me)
 - Auth tests: expanded `TestGetProviderEndpoints` for non-200 + malformed discovery payload cases
 - Auth/oidc: logout redirect URL now built via `net/url` query encoding (`buildLogoutURL`) to avoid malformed `returnTo` when frontend URL has query params/spaces
 - Auth tests: added `TestBuildLogoutURL` regression coverage for encoded logout redirect query
+- Handlers/dedupe: unified online-device counters across poller + tailscale handler (`countOnlineDevices`) and removed duplicate local helper
+- Plex handler: removed transcode session slice allocation in broadcast path; now uses shared `countTranscodingSessions` counter helper
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

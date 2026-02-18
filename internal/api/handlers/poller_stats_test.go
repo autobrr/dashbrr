@@ -63,7 +63,7 @@ func TestSummarizeSonarrQueue(t *testing.T) {
 	}
 }
 
-func TestCountOnlineTailscaleDevices(t *testing.T) {
+func TestCountOnlineDevices(t *testing.T) {
 	t.Parallel()
 
 	devices := []tailscale.Device{
@@ -72,7 +72,7 @@ func TestCountOnlineTailscaleDevices(t *testing.T) {
 		{Online: true},
 	}
 
-	if got := countOnlineTailscaleDevices(devices); got != 2 {
-		t.Fatalf("countOnlineTailscaleDevices() = %d, want 2", got)
+	if got := countOnlineDevices(devices); got != 2 {
+		t.Fatalf("countOnlineDevices() = %d, want 2", got)
 	}
 }

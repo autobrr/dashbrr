@@ -157,21 +157,10 @@ func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.P
 		Details: map[string]interface{}{
 			"plex": map[string]interface{}{
 				"activeStreams": len(sessions.MediaContainer.Metadata),
-				"transcoding":   len(filterTranscodingSessions(sessions.MediaContainer.Metadata)),
+				"transcoding":   countTranscodingSessions(sessions.MediaContainer.Metadata),
 			},
 		},
 	})
-}
-
-// filterTranscodingSessions returns sessions that are being transcoded
-func filterTranscodingSessions(sessions []types.PlexSession) []types.PlexSession {
-	transcoding := make([]types.PlexSession, 0)
-	for _, session := range sessions {
-		if session.TranscodeSession != nil {
-			transcoding = append(transcoding, session)
-		}
-	}
-	return transcoding
 }
 
 // createSessionHash generates a unique hash representing the current state of Plex sessions

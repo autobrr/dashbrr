@@ -157,12 +157,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	// Use the new change detection method
 	h.compareAndLogDeviceChanges(hashKey, devices)
 
-	onlineCount := 0
-	for _, device := range devices {
-		if device.Online {
-			onlineCount++
-		}
-	}
+	onlineCount := countOnlineDevices(devices)
 
 	log.Info().
 		Int("total", len(devices)).
@@ -226,14 +221,4 @@ func (h *TailscaleHandler) compareAndLogDeviceChanges(instanceId string, devices
 
 		h.lastDevicesHash[instanceId] = currentHash
 	}
-}
-
-func countOnlineDevices(devices []tailscale.Device) int {
-	onlineCount := 0
-	for _, device := range devices {
-		if device.Online {
-			onlineCount++
-		}
-	}
-	return onlineCount
 }
