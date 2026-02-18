@@ -26,6 +26,7 @@ export const ConfigurationForm = ({
   const { configurations, updateConfiguration } = useConfiguration();
   const currentConfig = configurations[instanceId];
   const serviceType = instanceId.split("-")[0];
+  const isPlexService = serviceType === "plex";
 
   const [url, setUrl] = useState(currentConfig?.url || "");
   const [accessUrl, setAccessUrl] = useState(currentConfig?.accessUrl || "");
@@ -69,6 +70,10 @@ export const ConfigurationForm = ({
     setError(null);
 
     try {
+      if (isPlexService && apiKey.trim() === "") {
+        throw new Error("Authenticate with Plex first");
+      }
+
       const config: ServiceConfig = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
         accessUrl: accessUrl
@@ -226,8 +231,36 @@ export const ConfigurationForm = ({
         data-1p-ignore
       />
 
-      {serviceType !== "general" && (
-        <>
+      {serviceType !== "general" &&
+        (isPlexService ? (
+          <div className="space-y-2">
+            <div className="text-sm text-zinc-400">
+              Plex authentication uses PIN login.
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await authenticate((token) => setApiKey(token));
+                } catch (err) {
+                  const message =
+                    err instanceof Error
+                      ? err.message
+                      : "Failed to start Plex authentication";
+                  toast.error(message);
+                  setError(message);
+                }
+              }}
+              disabled={isSubmitting || isAuthenticating}
+            >
+              {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
+            </Button>
+            {apiKey.trim() !== "" && (
+              <div className="text-xs text-emerald-400">Authenticated with Plex</div>
+            )}
+          </div>
+        ) : (
           <FormInput
             id="apiKey"
             label={getApiKeyLabel()}
@@ -239,31 +272,7 @@ export const ConfigurationForm = ({
             required
             data-1p-ignore
           />
-          {serviceType === "plex" && (
-            <div className="mt-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={async () => {
-                  try {
-                    await authenticate((token) => setApiKey(token));
-                  } catch (err) {
-                    const message =
-                      err instanceof Error
-                        ? err.message
-                        : "Failed to start Plex authentication";
-                    toast.error(message);
-                    setError(message);
-                  }
-                }}
-                disabled={isSubmitting || isAuthenticating}
-              >
-                {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+        ))}
 
       {error && (
         <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>

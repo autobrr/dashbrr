@@ -78,7 +78,6 @@ type ApiHelpContext = {
 };
 
 const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
-  plex: "X-Plex-Token",
   tailscale: "API Token",
 };
 
@@ -96,11 +95,6 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     prefix: "Found in ",
     text: "Settings > API",
     link: getSettingsUrl("/settings/api"),
-  }),
-  plex: () => ({
-    prefix: "Authenticate via ",
-    text: "Plex PIN flow guide",
-    link: "https://forums.plex.tv/t/authenticating-with-plex/609370",
   }),
   radarr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",
@@ -167,6 +161,7 @@ export function AddServicesMenu({
   const [error, setError] = useState<string | null>(null);
   const { configurations } = useConfiguration();
   const { isAuthenticating, authenticate } = usePlexPinAuth();
+  const isPlexService = pendingService?.type === "plex";
 
   // Filter out Tailscale if it's already configured
   const availableTemplates = useMemo(() => {
@@ -229,6 +224,10 @@ export function AddServicesMenu({
     setError(null);
 
     try {
+      if (isPlexService && apiKey.trim() === "") {
+        throw new Error("Authenticate with Plex first");
+      }
+
       // Special handling for Tailscale
       if (pendingService?.type === "tailscale") {
         await validateTailscaleApiToken(apiKey);
@@ -430,19 +429,33 @@ export function AddServicesMenu({
               data-1p-ignore
             />
 
-            <FormInput
-              id="apiKey"
-              label={apiKeyLabel}
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={`Enter ${apiKeyLabel}`}
-              helpText={apiKeyHelp}
-              required={isApiKeyRequired}
-              data-1p-ignore
-            />
-            {pendingService?.type === "plex" && (
+            {!isPlexService && (
+              <FormInput
+                id="apiKey"
+                label={apiKeyLabel}
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={`Enter ${apiKeyLabel}`}
+                helpText={apiKeyHelp}
+                required={isApiKeyRequired}
+                data-1p-ignore
+              />
+            )}
+            {isPlexService && (
               <div className="mt-2">
+                <p className="mb-2 text-sm text-zinc-400">
+                  Plex authentication uses PIN login.
+                </p>
+                <a
+                  href="https://forums.plex.tv/t/authenticating-with-plex/609370"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mb-3 inline-block text-sm text-blue-400 hover:text-blue-300"
+                >
+                  Plex PIN flow guide
+                </a>
+                <div>
                 <button
                   type="button"
                   className="px-3 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-600"
@@ -462,6 +475,10 @@ export function AddServicesMenu({
                 >
                   {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
                 </button>
+                </div>
+                {apiKey.trim() !== "" && (
+                  <div className="mt-2 text-xs text-emerald-400">Authenticated with Plex</div>
+                )}
               </div>
             )}
 

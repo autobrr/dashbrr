@@ -990,6 +990,17 @@ Owner: soup (s0up4200@pm.me)
   - `web/src/components/services/prowlarr/ProwlarrStats.tsx`
   - `web/src/components/services/plex/PlexStats.tsx`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (ui)
+- Plex configuration UX cleanup (KISS):
+  - removed manual `X-Plex-Token` text/password input from:
+    - `web/src/components/AddServicesMenu.tsx`
+    - `web/src/components/configuration/ConfigurationForm.tsx`
+  - Plex auth is now PIN-flow only in UI (`Authenticate with Plex` button).
+  - added explicit submit guards: fail fast with `Authenticate with Plex first` when token not acquired.
+  - show minimal state text (`Authenticated with Plex`) once token is obtained.
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
