@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { RegisterCredentials } from "../../types/auth";
@@ -14,6 +14,27 @@ import { faCheck, faTimes } from "@fortawesome/free-solid-svg-icons";
 import Toast from "../Toast";
 import logo from "../../assets/logo.svg";
 import { Footer } from "../shared/Footer";
+
+type PasswordValidation = {
+  minLength: boolean;
+  hasUppercase: boolean;
+  hasLowercase: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+  passwordsMatch: boolean;
+};
+
+const PASSWORD_REQUIREMENTS: Array<{
+  key: keyof PasswordValidation;
+  label: string;
+}> = [
+  { key: "minLength", label: "Minimum 8 characters" },
+  { key: "hasUppercase", label: "At least one uppercase letter" },
+  { key: "hasLowercase", label: "At least one lowercase letter" },
+  { key: "hasNumber", label: "At least one number" },
+  { key: "hasSpecial", label: "At least one special character" },
+  { key: "passwordsMatch", label: "Passwords match" },
+];
 
 export function LoginPage() {
   const {
@@ -42,19 +63,21 @@ export function LoginPage() {
     email: "", // Will be set during registration
   });
 
-  // Password validation state
-  const [passwordValidation, setPasswordValidation] = useState({
-    minLength: false,
-    hasUppercase: false,
-    hasLowercase: false,
-    hasNumber: false,
-    hasSpecial: false,
-    passwordsMatch: false,
-  });
-
   // Get the return URL from location state, or default to '/'
   const from =
     (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
+
+  const passwordValidation = useMemo<PasswordValidation>(() => {
+    const password = formData.password;
+    return {
+      minLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecial: /[^A-Za-z0-9]/.test(password),
+      passwordsMatch: password === formData.confirmPassword && password !== "",
+    };
+  }, [formData.password, formData.confirmPassword]);
 
   useEffect(() => {
     // Only check registration status if built-in auth is enabled
@@ -91,22 +114,6 @@ export function LoginPage() {
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, loading, navigate, from]);
-
-  // Password validation effect
-  useEffect(() => {
-    if (isRegistering) {
-      const password = formData.password;
-      setPasswordValidation({
-        minLength: password.length >= 8,
-        hasUppercase: /[A-Z]/.test(password),
-        hasLowercase: /[a-z]/.test(password),
-        hasNumber: /[0-9]/.test(password),
-        hasSpecial: /[^A-Za-z0-9]/.test(password),
-        passwordsMatch:
-          password === formData.confirmPassword && password !== "",
-      });
-    }
-  }, [formData.password, formData.confirmPassword, isRegistering]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -321,92 +328,23 @@ export function LoginPage() {
                     Password Requirements:
                   </h4>
                   <ul className="space-y-1">
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.minLength
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={passwordValidation.minLength ? faCheck : faTimes}
-                        className="w-4 h-4 mr-2"
-                      />
-                      Minimum 8 characters
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.hasUppercase
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          passwordValidation.hasUppercase ? faCheck : faTimes
-                        }
-                        className="w-4 h-4 mr-2"
-                      />
-                      At least one uppercase letter
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.hasLowercase
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          passwordValidation.hasLowercase ? faCheck : faTimes
-                        }
-                        className="w-4 h-4 mr-2"
-                      />
-                      At least one lowercase letter
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.hasNumber
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={passwordValidation.hasNumber ? faCheck : faTimes}
-                        className="w-4 h-4 mr-2"
-                      />
-                      At least one number
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.hasSpecial
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          passwordValidation.hasSpecial ? faCheck : faTimes
-                        }
-                        className="w-4 h-4 mr-2"
-                      />
-                      At least one special character
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.passwordsMatch
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          passwordValidation.passwordsMatch ? faCheck : faTimes
-                        }
-                        className="w-4 h-4 mr-2"
-                      />
-                      Passwords match
-                    </li>
+                    {PASSWORD_REQUIREMENTS.map((requirement) => {
+                      const met = passwordValidation[requirement.key];
+                      return (
+                        <li
+                          key={requirement.key}
+                          className={`flex items-center ${
+                            met ? "text-green-400" : "text-blue-400"
+                          }`}
+                        >
+                          <FontAwesomeIcon
+                            icon={met ? faCheck : faTimes}
+                            className="w-4 h-4 mr-2"
+                          />
+                          {requirement.label}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>
