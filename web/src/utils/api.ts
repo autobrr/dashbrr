@@ -5,13 +5,6 @@
 
 import { readErrorMessage } from "./http";
 
-interface RequestOptions {
-  method: string;
-  headers?: Record<string, string>;
-  credentials?: RequestCredentials;
-  body?: string;
-}
-
 // Service-specific timeouts
 const SERVICE_TIMEOUTS: Record<string, number> = {
   '/api/autobrr/stats': 60000,      // 1 minute for autobrr stats
@@ -26,74 +19,12 @@ const SERVICE_TIMEOUTS: Record<string, number> = {
   '/api/health': 600000,            // 10 minutes for health checks
 };
 
-// Request queue for handling requests during auth initialization
-class RequestQueue {
-  private static instance: RequestQueue;
-  private queue: Array<() => Promise<unknown>> = [];
-  private isProcessing = false;
-  private concurrentRequests = 0;
-  private readonly MAX_CONCURRENT = 4;  // Allow up to 4 concurrent requests
-
-  private constructor() {}
-
-  static getInstance(): RequestQueue {
-    if (!RequestQueue.instance) {
-      RequestQueue.instance = new RequestQueue();
-    }
-    return RequestQueue.instance;
-  }
-
-  async add<T>(request: () => Promise<T>): Promise<T> {
-    if (this.concurrentRequests < this.MAX_CONCURRENT) {
-      this.concurrentRequests++;
-      try {
-        return await request();
-      } finally {
-        this.concurrentRequests--;
-        this.processQueue();
-      }
-    }
-
-    return new Promise((resolve, reject) => {
-      this.queue.push(async () => {
-        try {
-          const result = await request();
-          resolve(result as T);
-        } catch (error) {
-          reject(error);
-        }
-      });
-      this.processQueue();
-    });
-  }
-
-  private async processQueue() {
-    if (this.isProcessing || this.queue.length === 0) return;
-
-    this.isProcessing = true;
-    while (this.queue.length > 0 && this.concurrentRequests < this.MAX_CONCURRENT) {
-      const request = this.queue.shift();
-      if (request) {
-        this.concurrentRequests++;
-        try {
-          await request();
-        } catch (error) {
-          console.error('[RequestQueue] Error processing queued request:', error);
-        } finally {
-          this.concurrentRequests--;
-        }
-      }
-    }
-    this.isProcessing = false;
-  }
-}
-
 const getDefaultHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
 });
 
-const createRequest = (method: string, data?: unknown): RequestOptions => {
-  const options: RequestOptions = {
+const createRequest = (method: string, data?: unknown): RequestInit => {
+  const options: RequestInit = {
     method,
     headers: getDefaultHeaders(),
     credentials: 'include',
@@ -153,7 +84,7 @@ let isHandlingAuth = false;
 
 const handleRequest = async <T>(
   path: string,
-  options: RequestOptions,
+  options: RequestInit,
   retryCount = 0,
   customTimeout?: number
 ): Promise<T> => {
@@ -185,17 +116,15 @@ const handleRequest = async <T>(
       }
 
       isHandlingAuth = true;
-      try {
-        localStorage.removeItem('auth_type');
-        // Dev-only: stale Workbox caches can cause "unstyled Tailwind" reload loops.
-        if (import.meta.env.DEV) {
-          await unregisterServiceWorker();
-        }
-        window.location.href = '/login';
-        throw new Error('Authentication required');
-      } finally {
-        isHandlingAuth = false;
+      localStorage.removeItem('auth_type');
+
+      // Dev-only: stale Workbox caches can cause "unstyled Tailwind" reload loops.
+      if (import.meta.env.DEV) {
+        await unregisterServiceWorker();
       }
+
+      window.location.href = '/login';
+      throw new Error('Authentication required');
     }
 
     if (!response.ok) {
@@ -236,22 +165,18 @@ const handleRequest = async <T>(
 
 export const api = {
   get: async <T>(path: string, timeout?: number): Promise<T> => {
-    const requestQueue = RequestQueue.getInstance();
-    return requestQueue.add(() => handleRequest<T>(path, createRequest('GET'), 0, timeout));
+    return handleRequest<T>(path, createRequest('GET'), 0, timeout);
   },
 
   post: async <T>(path: string, data?: unknown, timeout?: number): Promise<T> => {
-    const requestQueue = RequestQueue.getInstance();
-    return requestQueue.add(() => handleRequest<T>(path, createRequest('POST', data), 0, timeout));
+    return handleRequest<T>(path, createRequest('POST', data), 0, timeout);
   },
 
   put: async <T>(path: string, data: unknown, timeout?: number): Promise<T> => {
-    const requestQueue = RequestQueue.getInstance();
-    return requestQueue.add(() => handleRequest<T>(path, createRequest('PUT', data), 0, timeout));
+    return handleRequest<T>(path, createRequest('PUT', data), 0, timeout);
   },
 
   delete: async <T>(path: string, timeout?: number): Promise<T> => {
-    const requestQueue = RequestQueue.getInstance();
-    return requestQueue.add(() => handleRequest<T>(path, createRequest('DELETE'), 0, timeout));
+    return handleRequest<T>(path, createRequest('DELETE'), 0, timeout);
   },
 };
