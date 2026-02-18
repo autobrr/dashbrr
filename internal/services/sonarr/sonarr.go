@@ -51,30 +51,16 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 }
 
 func (s *SonarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
-	if url == "" {
-		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
-	}
-
-	if apiKey == "" {
-		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
-	}
-
-	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
-		strings.TrimRight(url, "/"))
-
-	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
+	body, err := arr.FetchQueueBody(
+		ctx,
+		"sonarr",
+		url,
+		apiKey,
+		"page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
+		s.ReadBody,
+	)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", HttpCode: resp.StatusCode}
-	}
-
-	body, err := s.ReadBody(resp)
-	if err != nil {
-		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, err
 	}
 
 	var queue types.SonarrQueueResponse

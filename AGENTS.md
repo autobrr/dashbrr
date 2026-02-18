@@ -265,6 +265,9 @@ Owner: soup (s0up4200@pm.me)
 - Arr health: update checks now run only on cache miss; update-check errors now cache fallback status for 10m (prevents repeated slow/canceled `/api/v3/update` probes every health tick)
 - Arr tests: added `internal/services/arr/health_test.go` coverage for cache-hit skip, async cache fill, and error fallback-cache behavior
 - Core cache API: added `GetUpdateStatusFromCacheWithFound` to distinguish cache misses from cached `false`
+- Arr queue plumbing: added shared `arr.BuildQueueURL` + `arr.FetchQueueBody` helper (URL/build/request/status/read validation)
+- Radarr/Sonarr: `getQueueRecords` now delegate queue HTTP path to shared ARR helper (less duplicated API-v3 queue fetch logic)
+- Arr queue tests: expanded `internal/services/arr/queue_test.go` with shared queue URL builder + queue fetch validation/status/success cases
 
 ### 2026-02-18 (sse async hardening)
 - SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.

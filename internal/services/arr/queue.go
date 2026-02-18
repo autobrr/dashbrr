@@ -4,7 +4,9 @@
 package arr
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"strings"
 )
 
@@ -31,4 +33,50 @@ func BuildQueueDeleteURL(baseURL, queueID string, opts QueueDeleteOptions) strin
 	}
 
 	return deleteURL
+}
+
+func BuildQueueURL(baseURL, rawQuery string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+	queueURL := fmt.Sprintf("%s/api/v3/queue", baseURL)
+	query := strings.TrimLeft(rawQuery, "?")
+	if query != "" {
+		queueURL += "?" + query
+	}
+	return queueURL
+}
+
+func FetchQueueBody(
+	ctx context.Context,
+	service, baseURL, apiKey, rawQuery string,
+	readBody func(*http.Response) ([]byte, error),
+) ([]byte, error) {
+	if baseURL == "" {
+		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("URL is required")}
+	}
+
+	if apiKey == "" {
+		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("API key is required")}
+	}
+
+	if readBody == nil {
+		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("readBody function is required")}
+	}
+
+	queueURL := BuildQueueURL(baseURL, rawQuery)
+	resp, err := MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
+	if err != nil {
+		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ErrArr{Service: service, Op: "get_queue", HttpCode: resp.StatusCode}
+	}
+
+	body, err := readBody(resp)
+	if err != nil {
+		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
+	}
+
+	return body, nil
 }

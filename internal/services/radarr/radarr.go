@@ -51,31 +51,16 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 }
 
 func (s *RadarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
-	if url == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
-	}
-
-	if apiKey == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
-	}
-
-	// Build queue URL with query parameters
-	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownMovieItems=false&includeMovie=false",
-		strings.TrimRight(url, "/"))
-
-	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
+	body, err := arr.FetchQueueBody(
+		ctx,
+		"radarr",
+		url,
+		apiKey,
+		"page=1&pageSize=10&includeUnknownMovieItems=false&includeMovie=false",
+		s.ReadBody,
+	)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", HttpCode: resp.StatusCode}
-	}
-
-	body, err := s.ReadBody(resp)
-	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, err
 	}
 
 	var queue types.RadarrQueueResponse
