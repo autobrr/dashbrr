@@ -318,6 +318,21 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (test)
 - Poller: add regression test ensuring `maybeRun` clears `inFlight` when ctx cancels before semaphore acquisition
 
+### 2026-02-18 (qui integration)
+- Backend: added new `qui` service integration (`internal/services/qui`) with health checks (`/health` + `/api/instances` auth), instances list, transfer-info fetch, cross-seed automation status fetch.
+- Backend poller: added `qui_overview` + `qui_cross_seed` jobs; publishes per-instance connectivity, aggregate transfer stats, and cross-seed scheduler/run status over SSE.
+- Backend CLI: added `dashbrr service qui {add|remove|list}` command set; wired service registry + global health command/service registration imports.
+- Types/tests: added `internal/types/qui.go`; added `internal/services/qui/qui_test.go`, poller status helper tests, and registry coverage for `qui` creator.
+- Frontend: added `qui` service type/template/category/config-help + `QuiStats` card renderer in `ServiceCard`.
+- Frontend card content: active/connected instance counts, aggregate up/down speeds, transfer totals, per-instance live speeds, cross-seed automation run metadata.
+- Docs: updated `README.md` supported services, `docs/commands.md` service command list, and `docs/config_management.md` env var list.
+
+## Next
+- Live-verify against real `qui` instance:
+  - check add/config flow (`/api/health/qui` validation with `X-API-Key`)
+  - confirm `qui` card fields populate quickly via SSE (no long skeleton hangs)
+- If needed: add follow-up job for per-instance `app-info` (qB version badges) once baseline stability is confirmed.
+
 ### 2026-02-16 (refactor)
 - Web: centralize repeated service loading skeleton into `web/src/components/ui/StatsSkeleton.tsx` (used by Radarr/Sonarr/Plex/Autobrr/Prowlarr/Omegabrr/Maintainerr/General)
 

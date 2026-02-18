@@ -196,6 +196,21 @@ Example: dashbrr service prowlarr remove http://localhost:9696
 dashbrr service prowlarr list
 ```
 
+### Qui
+
+```bash
+# Add a Qui service
+dashbrr service qui add <url> <api-key>
+Example: dashbrr service qui add http://localhost:7476 your-api-key
+
+# Remove a Qui service
+dashbrr service qui remove <url>
+Example: dashbrr service qui remove http://localhost:7476
+
+# List Qui services
+dashbrr service qui list
+```
+
 ### Radarr
 
 ```bash

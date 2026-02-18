@@ -17,6 +17,7 @@ import (
 	_ "github.com/autobrr/dashbrr/internal/services/overseerr"
 	_ "github.com/autobrr/dashbrr/internal/services/plex"
 	_ "github.com/autobrr/dashbrr/internal/services/prowlarr"
+	_ "github.com/autobrr/dashbrr/internal/services/qui"
 	_ "github.com/autobrr/dashbrr/internal/services/radarr"
 	_ "github.com/autobrr/dashbrr/internal/services/sonarr"
 	_ "github.com/autobrr/dashbrr/internal/services/tailscale"

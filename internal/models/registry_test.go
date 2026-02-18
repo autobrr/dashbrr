@@ -26,7 +26,11 @@ func TestCreateService(t *testing.T) {
 	// Test case insensitivity
 	// Mock a service creator for testing
 	originalAutobrrService := NewAutobrrService
-	defer func() { NewAutobrrService = originalAutobrrService }()
+	originalQuiService := NewQuiService
+	defer func() {
+		NewAutobrrService = originalAutobrrService
+		NewQuiService = originalQuiService
+	}()
 
 	called := false
 	NewAutobrrService = func() ServiceHealthChecker {
@@ -44,5 +48,15 @@ func TestCreateService(t *testing.T) {
 	registry.CreateService("autobrr")
 	if !called {
 		t.Error("Service creator not called for lowercase service type")
+	}
+
+	called = false
+	NewQuiService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("qui")
+	if !called {
+		t.Error("Service creator not called for qui service type")
 	}
 }

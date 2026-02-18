@@ -5,7 +5,7 @@
 
 export type ServiceStatus = 'online' | 'offline' | 'warning' | 'error' | 'loading' | 'pending' | 'unknown';
 
-export type ServiceType = 'autobrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'general' | 'other';
+export type ServiceType = 'autobrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'qui' | 'general' | 'other';
 
 export interface ServiceHealth {
   status: ServiceStatus;
@@ -452,6 +452,66 @@ export interface TailscaleDevice {
   tags?: string[];
 }
 
+export interface QuiInstance {
+  id: number;
+  name: string;
+  connected: boolean;
+  isActive: boolean;
+  connectionStatus?: string;
+  hasDecryptionError?: boolean;
+}
+
+export interface QuiInstanceTransfer {
+  instanceId: number;
+  name: string;
+  connected: boolean;
+  active: boolean;
+  connectionStatus?: string;
+  downloaded: number;
+  uploaded: number;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  dhtNodes: number;
+}
+
+export interface QuiTransferSummary {
+  totalInstances: number;
+  activeInstances: number;
+  connectedInstances: number;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  downloaded: number;
+  uploaded: number;
+  dhtNodes: number;
+}
+
+export interface QuiCrossSeedSettings {
+  enabled: boolean;
+  runIntervalMinutes: number;
+}
+
+export interface QuiCrossSeedRun {
+  id: number;
+  status: string;
+  mode: string;
+  triggeredBy: string;
+  startedAt: string;
+  completedAt?: string;
+  candidatesFound: number;
+  torrentsAdded: number;
+  torrentsFailed: number;
+  torrentsSkipped: number;
+  message?: string;
+  errorMessage?: string;
+}
+
+export interface QuiCrossSeedStatus {
+  settings?: QuiCrossSeedSettings;
+  lastRun?: QuiCrossSeedRun;
+  nextRunAt?: string;
+  running: boolean;
+}
+
 // Service Stats Union Type
 export interface ServiceStats {
   autobrr?: AutobrrStats;
@@ -480,6 +540,11 @@ export interface ServiceStats {
   };
   tailscale?: {
     devices: TailscaleDevice[];
+  };
+  qui?: {
+    instances?: QuiInstance[];
+    transfers?: QuiInstanceTransfer[];
+    crossSeed?: QuiCrossSeedStatus;
   };
 }
 
@@ -524,5 +589,13 @@ export interface ServiceDetails {
   tailscale?: {
     total: number;
     online: number;
+  };
+  qui?: {
+    summary?: QuiTransferSummary;
+    crossSeed?: {
+      enabled: boolean;
+      running: boolean;
+      nextRunAt?: string;
+    };
   };
 }

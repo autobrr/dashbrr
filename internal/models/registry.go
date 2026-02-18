@@ -50,6 +50,10 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewMaintainerrService != nil {
 			return NewMaintainerrService()
 		}
+	case "qui":
+		if NewQuiService != nil {
+			return NewQuiService()
+		}
 	case "general":
 		if NewGeneralService != nil {
 			return NewGeneralService()

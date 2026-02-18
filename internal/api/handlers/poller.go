@@ -17,6 +17,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
+	"github.com/autobrr/dashbrr/internal/services/qui"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
@@ -104,6 +105,10 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"tailscale": {
 			{name: "tailscale_devices", interval: 60 * time.Second, run: (*Poller).runTailscaleDevices},
+		},
+		"qui": {
+			{name: "qui_overview", interval: 20 * time.Second, run: (*Poller).runQuiOverview},
+			{name: "qui_cross_seed", interval: 45 * time.Second, run: (*Poller).runQuiCrossSeed},
 		},
 	}
 
@@ -353,6 +358,19 @@ func countOnlineDevices(devices []tailscale.Device) int {
 	}
 
 	return online
+}
+
+func summarizeQuiCardStatus(summary types.QuiTransferSummary) string {
+	if summary.TotalInstances == 0 {
+		return "warning"
+	}
+	if summary.ActiveInstances == 0 {
+		return "warning"
+	}
+	if summary.ConnectedInstances < summary.ActiveInstances {
+		return "warning"
+	}
+	return "online"
 }
 
 func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfiguration, _ string) {
@@ -665,6 +683,73 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 			"tailscale": map[string]interface{}{
 				"total":  len(devices),
 				"online": online,
+			},
+		},
+	})
+}
+
+func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+	service := qui.NewQuiService().(*qui.QuiService)
+
+	instances, err := service.GetInstances(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return
+	}
+	if instances == nil {
+		instances = []types.QuiInstance{}
+	}
+
+	summary, transfers := service.GetAggregatedTransferInfo(ctx, svc.URL, svc.APIKey, instances)
+
+	p.bc.Publish(models.ServiceHealth{
+		ServiceID:   svc.InstanceID,
+		Status:      summarizeQuiCardStatus(summary),
+		Message:     "qui_overview",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"qui": map[string]interface{}{
+				"instances": instances,
+				"transfers": transfers,
+			},
+		},
+		Details: map[string]interface{}{
+			"qui": map[string]interface{}{
+				"summary": summary,
+			},
+		},
+	})
+}
+
+func (p *Poller) runQuiCrossSeed(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+	service := qui.NewQuiService().(*qui.QuiService)
+
+	status, err := service.GetCrossSeedStatus(ctx, svc.URL, svc.APIKey)
+	if err != nil || status == nil {
+		return
+	}
+
+	healthStatus := "online"
+	if status.LastRun != nil && status.LastRun.Status == "failed" {
+		healthStatus = "warning"
+	}
+
+	p.bc.Publish(models.ServiceHealth{
+		ServiceID:   svc.InstanceID,
+		Status:      healthStatus,
+		Message:     "qui_cross_seed",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"qui": map[string]interface{}{
+				"crossSeed": status,
+			},
+		},
+		Details: map[string]interface{}{
+			"qui": map[string]interface{}{
+				"crossSeed": map[string]interface{}{
+					"enabled":   status.Settings != nil && status.Settings.Enabled,
+					"running":   status.Running,
+					"nextRunAt": status.NextRunAt,
+				},
 			},
 		},
 	})

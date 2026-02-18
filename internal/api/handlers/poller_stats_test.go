@@ -76,3 +76,55 @@ func TestCountOnlineDevices(t *testing.T) {
 		t.Fatalf("countOnlineDevices() = %d, want 2", got)
 	}
 }
+
+func TestSummarizeQuiCardStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		summary types.QuiTransferSummary
+		want    string
+	}{
+		{
+			name:    "no instances",
+			summary: types.QuiTransferSummary{},
+			want:    "warning",
+		},
+		{
+			name: "no active instances",
+			summary: types.QuiTransferSummary{
+				TotalInstances: 2,
+			},
+			want: "warning",
+		},
+		{
+			name: "partial connectivity",
+			summary: types.QuiTransferSummary{
+				TotalInstances:     3,
+				ActiveInstances:    2,
+				ConnectedInstances: 1,
+			},
+			want: "warning",
+		},
+		{
+			name: "all active connected",
+			summary: types.QuiTransferSummary{
+				TotalInstances:     2,
+				ActiveInstances:    2,
+				ConnectedInstances: 2,
+			},
+			want: "online",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := summarizeQuiCardStatus(tt.summary); got != tt.want {
+				t.Fatalf("summarizeQuiCardStatus() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

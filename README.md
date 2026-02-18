@@ -64,6 +64,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 ### Download Management
 
 - **Autobrr**: IRC network health, release statistics
+- **Qui**: qBittorrent instance connectivity, transfer telemetry, cross-seed automation status
 - **Prowlarr**: Indexer health monitoring
 - **Maintainerr**: Rule matching, scheduled deletion monitoring
 

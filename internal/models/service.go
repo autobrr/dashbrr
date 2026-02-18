@@ -48,5 +48,6 @@ var (
 	NewPlexService        func() ServiceHealthChecker
 	NewTailscaleService   func() ServiceHealthChecker
 	NewMaintainerrService func() ServiceHealthChecker
+	NewQuiService         func() ServiceHealthChecker
 	NewGeneralService     func() ServiceHealthChecker
 )

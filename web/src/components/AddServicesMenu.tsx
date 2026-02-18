@@ -55,6 +55,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   plex: "MEDIA_SERVER",
   overseerr: "REQUESTS",
   maintainerr: "REQUESTS",
+  qui: "AUTOMATION",
   general: "MONITORING",
   tailscale: "NETWORK",
   other: "MONITORING",
@@ -82,6 +83,7 @@ const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
 
 const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   plex: "http://localhost:32400",
+  qui: "http://localhost:7476",
   general: "Enter full URL including health endpoint",
   tailscale: "https://api.tailscale.com",
 };
@@ -123,6 +125,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     prefix: "Found in ",
     text: "Settings",
     link: getSettingsUrl("/settings/main"),
+  }),
+  qui: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > API Key",
+    link: getSettingsUrl("/settings"),
   }),
   general: () => ({
     prefix: "Optional - ",

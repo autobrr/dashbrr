@@ -160,6 +160,12 @@ export const ConfigurationForm = ({
           text: "Settings",
           link: getSettingsUrl("/settings/main"),
         };
+      case "qui":
+        return {
+          prefix: "Found in ",
+          text: "Settings > API Key",
+          link: getSettingsUrl("/settings"),
+        };
       default:
         return {
           prefix: "",
@@ -173,6 +179,8 @@ export const ConfigurationForm = ({
     switch (serviceType) {
       case "plex":
         return "http://localhost:32400";
+      case "qui":
+        return "http://localhost:7476";
       case "general":
         return "Enter full URL including health endpoint";
       default:
