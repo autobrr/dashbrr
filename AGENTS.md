@@ -218,6 +218,7 @@ Owner: soup (s0up4200@pm.me)
 - Omegabrr: confirmed fully removed (no code references remain; only this doc notes history)
 - CI: docker metadata action now passed explicit `github-token` (fix intermittent "Bad credentials" on PR docker jobs)
 - Web/login: removed effect-driven password validation state; now derived with `useMemo` + requirement map render loop (smaller, no derived-state effect)
+- Web/add-services: fixed odd import path for modal; replaced large service switch logic with typed config maps; grouped+filtered categories via memo
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
