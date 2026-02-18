@@ -36,6 +36,74 @@ type ArrQueueRecord = {
   statusMessages?: { title: string; messages: string[] }[];
 };
 
+type SelectOption<T extends string> = {
+  value: T;
+  label: string;
+};
+
+type QueueOptionSelectProps<T extends string> = {
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  displayText: string;
+  options: Array<SelectOption<T>>;
+};
+
+const QueueOptionSelect = <T extends string>({
+  label,
+  value,
+  onChange,
+  displayText,
+  options,
+}: QueueOptionSelectProps<T>) => {
+  return (
+    <div className="flex flex-col space-y-1">
+      <label className="text-xs text-gray-700 dark:text-gray-300">{label}</label>
+
+      <Listbox value={value} onChange={(nextValue) => onChange(nextValue as T)}>
+        {({ open }) => (
+          <div className="relative">
+            <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-xs">
+              <span className="block truncate">{displayText}</span>
+              <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
+                <ChevronDownIcon
+                  className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                    open ? "transform rotate-180" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </span>
+            </Listbox.Button>
+
+            <Transition
+              as={Fragment}
+              leave="transition ease-in duration-100"
+              leaveFrom="opacity-100"
+              leaveTo="opacity-0"
+            >
+              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-xs">
+                {options.map((option) => (
+                  <Listbox.Option
+                    key={option.value}
+                    value={option.value}
+                    className={({ active }) =>
+                      `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
+                        active ? "bg-gray-600 text-gray-200" : "text-gray-300"
+                      }`
+                    }
+                  >
+                    {option.label}
+                  </Listbox.Option>
+                ))}
+              </Listbox.Options>
+            </Transition>
+          </div>
+        )}
+      </Listbox>
+    </div>
+  );
+};
+
 type Props = {
   instanceId: string;
   // stable labels for copy/links/api
@@ -74,6 +142,27 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   const queue = service?.stats ? getQueue(service.stats) : undefined;
 
   const openUrl = service?.accessUrl || service?.url;
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setSelectedItem(null);
+  };
+  const removalOptions: Array<
+    SelectOption<ArrQueueDeleteOptions["removeFromClient"]>
+  > = [
+    { value: "remove", label: "Remove from Download Client" },
+    { value: "ignore", label: "Ignore Download" },
+  ];
+  if (selectedItem?.protocol !== "usenet") {
+    removalOptions.splice(1, 0, {
+      value: "change",
+      label: "Change Category",
+    });
+  }
+  const blocklistOptions: Array<SelectOption<ArrQueueDeleteOptions["blocklist"]>> = [
+    { value: "none", label: "Do not blocklist" },
+    { value: "blocklist", label: "Blocklist only" },
+    { value: "blocklistAndSearch", label: "Blocklist and search" },
+  ];
 
   const handleDelete = async () => {
     if (!selectedItem) return;
@@ -218,10 +307,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
       <AnimatedModal
         isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setSelectedItem(null);
-        }}
+        onClose={closeDeleteModal}
         title="Manage Download"
         className="min-h-[400px] max-h-[90vh]"
       >
@@ -261,159 +347,32 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
           <div className="space-y-4">
             <div className="space-y-2 max-w-full">
-              <div className="flex flex-col space-y-1">
-                <label className="text-xs text-gray-700 dark:text-gray-300">
-                  Removal Method
-                </label>
-
-                <Listbox
-                  value={deleteOptions.removeFromClient}
-                  onChange={(value) =>
-                    setDeleteOptions({
-                      ...deleteOptions,
-                      removeFromClient: value as ArrQueueDeleteOptions["removeFromClient"],
-                    })
-                  }
-                >
-                  {({ open }) => (
-                    <div className="relative">
-                      <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-xs">
-                        <span className="block truncate">
-                          {getRemovalMethodText(deleteOptions.removeFromClient)}
-                        </span>
-                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
-                          <ChevronDownIcon
-                            className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-                              open ? "transform rotate-180" : ""
-                            }`}
-                            aria-hidden="true"
-                          />
-                        </span>
-                      </Listbox.Button>
-
-                      <Transition
-                        as={Fragment}
-                        leave="transition ease-in duration-100"
-                        leaveFrom="opacity-100"
-                        leaveTo="opacity-0"
-                      >
-                        <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-xs">
-                          <Listbox.Option
-                            value="remove"
-                            className={({ active }) =>
-                              `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
-                                active ? "bg-gray-600 text-gray-200" : "text-gray-300"
-                              }`
-                            }
-                          >
-                            Remove from Download Client
-                          </Listbox.Option>
-
-                          {selectedItem?.protocol !== "usenet" && (
-                            <Listbox.Option
-                              value="change"
-                              className={({ active }) =>
-                                `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
-                                  active ? "bg-gray-600 text-gray-200" : "text-gray-300"
-                                }`
-                              }
-                            >
-                              Change Category
-                            </Listbox.Option>
-                          )}
-
-                          <Listbox.Option
-                            value="ignore"
-                            className={({ active }) =>
-                              `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
-                                active ? "bg-gray-600 text-gray-200" : "text-gray-300"
-                              }`
-                            }
-                          >
-                            Ignore Download
-                          </Listbox.Option>
-                        </Listbox.Options>
-                      </Transition>
-                    </div>
-                  )}
-                </Listbox>
-              </div>
+              <QueueOptionSelect
+                label="Removal Method"
+                value={deleteOptions.removeFromClient}
+                onChange={(removeFromClient) =>
+                  setDeleteOptions((prev) => ({
+                    ...prev,
+                    removeFromClient,
+                  }))
+                }
+                displayText={getRemovalMethodText(deleteOptions.removeFromClient)}
+                options={removalOptions}
+              />
 
               <div className="flex flex-col space-y-1">
-                <label className="text-xs text-gray-700 dark:text-gray-300">
-                  Blocklist Release
-                </label>
-
-                <Listbox
+                <QueueOptionSelect
+                  label="Blocklist Release"
                   value={deleteOptions.blocklist}
-                  onChange={(value) =>
-                    setDeleteOptions({
-                      ...deleteOptions,
-                      blocklist: value as ArrQueueDeleteOptions["blocklist"],
-                    })
+                  onChange={(blocklist) =>
+                    setDeleteOptions((prev) => ({
+                      ...prev,
+                      blocklist,
+                    }))
                   }
-                >
-                  {({ open }) => (
-                    <div className="relative">
-                      <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-xs">
-                        <span className="block truncate">
-                          {getBlocklistText(deleteOptions.blocklist)}
-                        </span>
-                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
-                          <ChevronDownIcon
-                            className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-                              open ? "transform rotate-180" : ""
-                            }`}
-                            aria-hidden="true"
-                          />
-                        </span>
-                      </Listbox.Button>
-
-                      <Transition
-                        as={Fragment}
-                        leave="transition ease-in duration-100"
-                        leaveFrom="opacity-100"
-                        leaveTo="opacity-0"
-                      >
-                        <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-xs">
-                          <Listbox.Option
-                            value="none"
-                            className={({ active }) =>
-                              `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
-                                active ? "bg-gray-600 text-gray-200" : "text-gray-300"
-                              }`
-                            }
-                          >
-                            Do not blocklist
-                          </Listbox.Option>
-
-                          <Listbox.Option
-                            value="block"
-                            className={({ active }) =>
-                              `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
-                                active ? "bg-gray-600 text-gray-200" : "text-gray-300"
-                              }`
-                            }
-                          >
-                            Add to blocklist
-                          </Listbox.Option>
-
-                          <Listbox.Option
-                            value="blacklist"
-                            className={({ active }) =>
-                              `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
-                                active ? "bg-gray-600 text-gray-200" : "text-gray-300"
-                              }`
-                            }
-                          >
-                            Add to blacklist
-                          </Listbox.Option>
-                        </Listbox.Options>
-                      </Transition>
-                    </div>
-                  )}
-                </Listbox>
-
+                  displayText={getBlocklistText(deleteOptions.blocklist)}
+                  options={blocklistOptions}
+                />
                 <p className="text-xs text-gray-500 mt-1">
                   {getBlocklistText(deleteOptions.blocklist)}
                 </p>
@@ -423,10 +382,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
           <div className="flex justify-end space-x-3 pt-4">
             <button
-              onClick={() => {
-                setShowDeleteModal(false);
-                setSelectedItem(null);
-              }}
+              onClick={closeDeleteModal}
               className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
             >
               Cancel
