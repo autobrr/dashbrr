@@ -185,8 +185,6 @@ const handleRequest = async <T>(
 
       isHandlingAuth = true;
       try {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('id_token');
         localStorage.removeItem('auth_type');
         // Dev-only: stale Workbox caches can cause "unstyled Tailwind" reload loops.
         if (import.meta.env.DEV) {
