@@ -440,6 +440,18 @@ export interface ProwlarrIndexerStats {
   numberOfFailedAuthQueries: number;
 }
 
+export interface TailscaleDevice {
+  id: string;
+  name: string;
+  ipAddress: string;
+  lastSeen: string;
+  online: boolean;
+  deviceType: string;
+  clientVersion: string;
+  updateAvailable: boolean;
+  tags?: string[];
+}
+
 // Service Stats Union Type
 export interface ServiceStats {
   autobrr?: AutobrrStats;
@@ -465,7 +477,10 @@ export interface ServiceStats {
       id: number;
       indexers: ProwlarrIndexerStats[];
     };
-  }
+  };
+  tailscale?: {
+    devices: TailscaleDevice[];
+  };
 }
 
 // Service Details Union Type
@@ -505,5 +520,9 @@ export interface ServiceDetails {
   prowlarr?: {
     activeIndexers: number;
     totalGrabs: number;
+  };
+  tailscale?: {
+    total: number;
+    online: number;
   };
 }

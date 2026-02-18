@@ -3,31 +3,15 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Cog6ToothIcon } from "@heroicons/react/24/solid";
 import TailscaleDeviceModal from "./TailscaleDeviceModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
-import { useAuth } from "../../hooks/useAuth";
-import { api } from "../../utils/api";
 import tailscaleLogo from "../../assets/tailscale.svg";
 import { useServiceManagement } from "../../hooks/useServiceManagement";
 import AnimatedModal from "../ui/AnimatedModal";
-
-interface Device {
-  name: string;
-  id: string;
-  ipAddress: string;
-  lastSeen: string;
-  online: boolean;
-  deviceType: string;
-  clientVersion: string;
-  updateAvailable: boolean;
-  tags?: string[];
-}
-
-interface DevicesResponse {
-  devices: Device[];
-}
+import { useServiceData } from "../../hooks/useServiceData";
+import { TailscaleDevice } from "../../types/service";
 
 interface TailscaleStatusBarProps {
   onConfigOpen?: () => void;
@@ -37,12 +21,9 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
   onConfigOpen,
 }) => {
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [isOnline, setIsOnline] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const { configurations } = useConfiguration();
-  const { isAuthenticated, loading } = useAuth();
   const { removeServiceInstance } = useServiceManagement();
+  const { getService, refreshService } = useServiceData();
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
   const instanceId = useMemo(() => {
@@ -52,62 +33,20 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
     return tailscale?.[0] ?? null;
   }, [configurations]);
 
-  const formatError = useCallback((err: unknown): string => {
-    const msg = err instanceof Error ? err.message : String(err);
-    const lower = msg.toLowerCase();
-
-    if (lower.includes("api token invalid")) return "Invalid API token";
-    if (lower.includes("timed out")) return "Connection timeout";
-    if (lower.includes("failed to fetch")) return "Network error";
-
-    return msg || "Failed to fetch devices";
-  }, []);
-
-  const fetchDevices = useCallback(async () => {
-    if (!instanceId) {
-      setError("Configuration missing");
-      return;
-    }
-
-    if (!isAuthenticated) {
-      setError("Not authenticated");
-      return;
-    }
-
-    try {
-      const response = await api.get<DevicesResponse>(
-        `/tailscale/devices?instanceId=${encodeURIComponent(instanceId)}`
-      );
-
-      const deviceData = response.devices || [];
-      setDevices(deviceData);
-      const hasOnlineDevices = deviceData.some((device) => device.online);
-      setIsOnline(hasOnlineDevices);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to fetch Tailscale devices:", err);
-      setError(formatError(err));
-
-      setIsOnline(false);
-      setDevices([]);
-    }
-  }, [formatError, instanceId, isAuthenticated]);
+  const service = instanceId ? getService(instanceId) : undefined;
+  const devices: TailscaleDevice[] = service?.stats?.tailscale?.devices || [];
+  const onlineCount =
+    service?.details?.tailscale?.online ??
+    devices.filter((device) => device.online).length;
+  const isOnline = onlineCount > 0;
+  const isLoading = service?.status === "loading" || service === undefined;
 
   useEffect(() => {
-    if (!loading && isAuthenticated && instanceId) {
-      fetchDevices();
-      const interval = setInterval(fetchDevices, 60000);
-      return () => clearInterval(interval);
-    } else {
-      setDevices([]);
-      setIsOnline(null);
-      if (!isAuthenticated && !loading) {
-        setError("Not authenticated");
-      } else if (!instanceId) {
-        setError("Not configured");
-      }
+    if (!instanceId) {
+      return;
     }
-  }, [instanceId, fetchDevices, isAuthenticated, loading]);
+    void refreshService(instanceId, "all");
+  }, [instanceId, refreshService]);
 
   const handleRemoveClick = () => {
     setIsRemoveModalOpen(true);
@@ -124,29 +63,24 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
     "flex items-center font-medium text-zinc-300";
 
   const getStatusDisplay = () => {
-    if (loading || isOnline === null) {
+    if (isLoading) {
       return <div className="w-16 h-4 bg-gray-700 rounded animate-pulse"></div>;
     }
 
-    if (error) {
+    if (service?.status === "error") {
       return (
         <div className="text-sm flex items-center justify-center">
-          <>
-            Tailscale:
-            <span className="text-red-500 ml-1">
-              {error === "Invalid API token"
-                ? "Invalid Token"
-                : error === "Not configured"
-                ? "Not Configured"
-                : error === "Not authenticated"
-                ? "Not Authenticated"
-                : error === "Connection timeout"
-                ? "Timeout"
-                : error === "Network error"
-                ? "Network"
-                : "Error"}
-            </span>
-          </>
+          Tailscale:
+          <span className="text-red-500 ml-1">Error</span>
+        </div>
+      );
+    }
+
+    if (service?.status === "pending") {
+      return (
+        <div className="text-sm flex items-center justify-center">
+          Tailscale:
+          <span className="text-yellow-500 ml-1">Not Configured</span>
         </div>
       );
     }
@@ -209,8 +143,8 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
         <button
           onClick={() => setIsDeviceModalOpen(true)}
           className={`${baseButtonClasses}`}
-          title={error || undefined}
-          disabled={!isAuthenticated || loading}
+          title={service?.message || undefined}
+          disabled={isLoading}
         >
           <div className="w-6 mr-1 pb-1">
             <img

@@ -9,23 +9,12 @@ import Toast from "../Toast";
 import AnimatedModal from "../ui/AnimatedModal";
 import { Button } from "../ui/Button";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/20/solid";
-
-interface Device {
-  name: string;
-  id: string;
-  ipAddress: string;
-  lastSeen: string;
-  online: boolean;
-  deviceType: string;
-  clientVersion: string;
-  updateAvailable: boolean;
-  tags?: string[];
-}
+import { TailscaleDevice } from "../../types/service";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  devices: Device[];
+  devices: TailscaleDevice[];
 }
 
 const TailscaleDeviceModal: React.FC<Props> = ({
@@ -34,7 +23,7 @@ const TailscaleDeviceModal: React.FC<Props> = ({
   devices,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredDevices, setFilteredDevices] = useState<Device[]>(devices);
+  const [filteredDevices, setFilteredDevices] = useState<TailscaleDevice[]>(devices);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {

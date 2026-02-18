@@ -258,6 +258,17 @@ Owner: soup (s0up4200@pm.me)
 - Arr service core: added shared `arr.DeleteQueueItem(...)` helper for queue-delete request/validation/log/error behavior
 - Radarr/Sonarr services: `DeleteQueueItem` now delegate to shared `arr.DeleteQueueItem` (removed duplicated HTTP/delete/error codepaths)
 - Arr tests: expanded `internal/services/arr/queue_test.go` with delete validation + upstream message/status mapping coverage
+
+### 2026-02-18 (sse async hardening)
+- SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.
+- SSE bootstrap: added broadcaster snapshot cache + replay on connect (`internal/api/handlers/broadcast.go`, `internal/api/handlers/events.go`) so new/reconnected clients get immediate latest service state instead of waiting next poller interval.
+- ARR noise reduction: suppress benign canceled/deadline update-check logs in async update checker (`internal/services/arr/health.go`).
+- Frontend no-polling pass: removed `TailscaleStatusBar` interval/API fetch loop; now consumes SSE-fed `useServiceData` only and triggers one-shot backend refresh (`web/src/components/services/TailscaleStatusBar.tsx`).
+- Types: added typed tailscale device/details shapes to `ServiceStats/ServiceDetails` and shared modal typing (`web/src/types/service.ts`, `web/src/components/services/TailscaleDeviceModal.tsx`).
+
+## Next
+- Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
+- Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.
 - SSE root-cause fix: `useServiceData` moved behind singleton `ServiceDataProvider`; multiple component hook calls now share one data/SSE instance
 - App wiring: `web/src/App.tsx` now wraps routes with `ServiceDataProvider` (inside auth/config providers) so only one `/api/events` connection is created app-wide
 - SSE middleware fix: auth middleware no longer replaces downstream request context with a 5s timeout context; timeout now used only for cache/session lookup
