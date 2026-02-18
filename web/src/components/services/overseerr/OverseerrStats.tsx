@@ -18,8 +18,8 @@ import { toast } from "react-hot-toast";
 import Toast from "../../Toast";
 import { FaFilm, FaTv, FaUser } from "react-icons/fa";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
-import { ChevronUpIcon } from "@heroicons/react/24/outline";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
 
 interface OverseerrStatsProps {
   instanceId: string;
@@ -325,25 +325,13 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
 
       {/* Recent Requests */}
       {requests.length > 0 ? (
-        <div>
-          <div
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="relative cursor-pointer select-none w-full flex items-center justify-between text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 group"
-          >
-            <span>Recent Requests ({requests.filter((request) => request.status !== 1).length})</span>
-            <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
-              <ChevronUpIcon
-                className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
-                  isExpanded ? "rotate-180" : ""
-                } group-hover:text-gray-400`}
-              />
-            </div>
-          </div>
-          <div
-            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-              isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-            }`}
-          >
+        <CollapsibleSection
+          title={`Recent Requests (${
+            requests.filter((request) => request.status !== 1).length
+          })`}
+          isExpanded={isExpanded}
+          onToggle={() => setIsExpanded(!isExpanded)}
+        >
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {requests
                 .filter((request) => request.status !== 1)
@@ -357,8 +345,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
                   <RequestItem key={request.id} request={request} />
                 ))}
             </div>
-          </div>
-        </div>
+        </CollapsibleSection>
       ) : (
         <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
           No recent requests

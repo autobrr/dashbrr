@@ -368,6 +368,14 @@ Owner: soup (s0up4200@pm.me)
 - Goal: make SSE merge semantics testable and reduce accidental behavior drift in hook-level effects.
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
+### 2026-02-18 (card primitives dedupe)
+- Added shared UI primitive `web/src/components/ui/CollapsibleSection.tsx` for card section disclosure/animation affordance.
+- Migrated duplicate collapse section logic in:
+  - `web/src/components/services/autobrr/AutobrrStats.tsx`
+  - `web/src/components/services/overseerr/OverseerrStats.tsx`
+- Goal: reduce repeated collapse markup and keep interaction semantics consistent across service cards.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.

@@ -16,11 +16,11 @@ import {
   ExclamationCircleIcon,
   NoSymbolIcon,
   ClockIcon,
-  ChevronUpIcon,
 } from "@heroicons/react/24/outline";
 import { AutobrrRelease } from "../../../types/service";
 import { getMediaType, getMediaTypeIcon } from "../../../utils/mediaTypes";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
 
 interface AutobrrStatsProps {
   instanceId: string;
@@ -167,25 +167,11 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
 
       {/* Recent Releases */}
       {(service.status === "online" || service.status === "warning") && (
-        <div>
-          <div
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="relative cursor-pointer select-none w-full flex items-center justify-between text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 group"
-          >
-            <span>Recent Releases:</span>
-            <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
-              <ChevronUpIcon
-                className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
-                  isExpanded ? "rotate-180" : ""
-                } group-hover:text-gray-400`}
-              />
-            </div>
-          </div>
-          <div
-            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-              isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-            }`}
-          >
+        <CollapsibleSection
+          title="Recent Releases:"
+          isExpanded={isExpanded}
+          onToggle={() => setIsExpanded(!isExpanded)}
+        >
             {releases.length > 0 ? (
               <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
                 {releases.slice(0, 5).map((release: AutobrrRelease) => (
@@ -294,8 +280,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                 No recent releases
               </div>
             )}
-          </div>
-        </div>
+        </CollapsibleSection>
       )}
     </div>
   );
