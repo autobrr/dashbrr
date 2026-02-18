@@ -336,6 +336,16 @@ Owner: soup (s0up4200@pm.me)
 - Goal: reduce row-height blowouts in grid rows and keep top-level card scanline stable while preserving drilldown on demand.
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
+### 2026-02-18 (masonry layout pass)
+- Replaced equal-row CSS grid with masonry-style column flow in `ServiceGrid` so shorter cards backfill vertical gaps under taller cards.
+- Added `break-inside-avoid` + vertical spacing wrappers for both service cards and loading skeletons to keep card bodies intact across columns.
+- Responsive column counts tuned for dashboard density: `1 -> 2 -> 3 -> 4` based on viewport width.
+- Research checkpoint (library/build-vs-buy):
+  - `react-masonry-css` latest publish is old (2021; npm metadata), so avoided adding stale dependency.
+  - `masonic` and `@egjs/react-grid` are active options, but current use case (dozens of cards max, existing dnd-kit wiring) does not need JS layout/virtualization overhead yet.
+  - Adopted native CSS multi-column now; keep active-library migration as fallback if drag/animation constraints appear.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.

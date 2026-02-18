@@ -105,7 +105,7 @@ const DraggableServiceCard = ({
     : undefined;
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className="mb-4 break-inside-avoid sm:mb-6">
       <ServiceCard
         service={service}
         onRemove={onRemove}
@@ -125,8 +125,8 @@ export const ServiceGrid = ({
   isLoading = false,
 }: ServiceGridProps) => {
   const [items, setItems] = useState<Service[]>([]);
-  const gridClasses =
-    "grid [grid-template-columns:repeat(auto-fit,minmax(min(100%,23rem),1fr))] gap-4 sm:gap-6";
+  const masonryClasses =
+    "columns-1 gap-4 sm:gap-6 md:columns-2 2xl:columns-3 [@media(min-width:2200px)]:columns-4";
 
   // Initialize and update items
   useEffect(() => {
@@ -201,9 +201,11 @@ export const ServiceGrid = ({
 
   if (isLoading) {
     return (
-      <div className={`${gridClasses} animate-fadeIn px-0 py-4 sm:py-6`}>
+      <div className={`${masonryClasses} animate-fadeIn px-0 py-4 sm:py-6`}>
         {[...Array(6)].map((_, i) => (
-          <LoadingSkeleton key={i} />
+          <div key={i} className="mb-4 break-inside-avoid sm:mb-6">
+            <LoadingSkeleton />
+          </div>
         ))}
       </div>
     );
@@ -235,7 +237,7 @@ export const ServiceGrid = ({
           items={items.map((item) => item.instanceId)}
           strategy={rectSortingStrategy}
         >
-          <div className={gridClasses}>
+          <div className={masonryClasses}>
             {items.map((service) => (
               <DraggableServiceCard
                 key={service.instanceId}
