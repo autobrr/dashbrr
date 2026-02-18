@@ -26,6 +26,21 @@ interface OverseerrStatsProps {
 }
 
 const EMPTY_REQUESTS: OverseerrMediaRequest[] = [];
+const REQUEST_STATUS_LABELS: Record<number, string> = {
+  1: "Pending",
+  2: "Approved",
+  3: "Declined",
+  4: "Failed",
+  5: "Completed",
+};
+
+const REQUEST_STATUS_COLORS: Record<number, string> = {
+  1: "text-yellow-500",
+  2: "text-green-500",
+  3: "text-red-500",
+  4: "text-red-500",
+  5: "text-green-500",
+};
 
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
@@ -114,31 +129,11 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   // Combine service message with health message if available
   const message = combineServiceMessage(service);
 
-  const getStatusLabel = (status: number) => {
-    switch (status) {
-      case 1:
-        return "Pending";
-      case 2:
-        return "Approved";
-      case 3:
-        return "Declined";
-      default:
-        return "Unknown";
-    }
-  };
+  const getStatusLabel = (status: number) =>
+    REQUEST_STATUS_LABELS[status] ?? `Unknown (${status})`;
 
-  const getStatusColor = (status: number) => {
-    switch (status) {
-      case 1:
-        return "text-yellow-500";
-      case 2:
-        return "text-green-500";
-      case 3:
-        return "text-red-500";
-      default:
-        return "text-gray-500";
-    }
-  };
+  const getStatusColor = (status: number) =>
+    REQUEST_STATUS_COLORS[status] ?? "text-zinc-400";
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -187,7 +182,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
             <span className="text-yellow-500">
               <ClockIcon className="h-4 w-4" />
             </span>
-          ) : request.status === 2 ? (
+          ) : request.status === 2 || request.status === 5 ? (
             <span className="text-green-500">
               <CheckCircleIcon className="h-4 w-4" />
             </span>

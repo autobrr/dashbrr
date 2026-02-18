@@ -624,6 +624,13 @@ Owner: soup (s0up4200@pm.me)
   - missing titles get enriched from Overseerr movie/tv endpoints
   - repeat `GetRequests` calls reuse title cache (no duplicate metadata lookup)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Overseerr request status labels in UI (`web/src/components/services/overseerr/OverseerrStats.tsx`):
+  - aligned with Seerr enum in `~/github/oss/seerr/server/constants/media.ts`
+  - added support for `FAILED` (`4`) and `COMPLETED` (`5`) statuses
+  - remove misleading generic `Unknown` for valid statuses; unknown numeric values now render as `Unknown (<code>)`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
