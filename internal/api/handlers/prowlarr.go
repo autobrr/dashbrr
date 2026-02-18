@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -78,27 +77,8 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 	go func() {
 		defer wg.Done()
 
-		i, err := func() ([]types.ProwlarrIndexer, error) {
-			apiURL := fmt.Sprintf("%s/api/v1/indexer", prowlarrConfig.URL)
-			resp, err := arr.MakeArrRequest(ctx, http.MethodGet, apiURL, prowlarrConfig.APIKey, nil)
-			if err != nil {
-				return nil, err
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != http.StatusOK {
-				return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexers", HttpCode: resp.StatusCode}
-			}
-
-			var decoded []types.ProwlarrIndexer
-			if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-				return nil, err
-			}
-			if decoded == nil {
-				decoded = make([]types.ProwlarrIndexer, 0)
-			}
-			return decoded, nil
-		}()
+		prowlarrService := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
+		i, err := prowlarrService.GetIndexers(ctx, prowlarrConfig.URL, prowlarrConfig.APIKey)
 
 		if err != nil {
 			indexersErr = err

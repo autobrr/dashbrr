@@ -234,6 +234,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/arr-queue: extracted reusable queue-option listbox UI in `ArrQueueStatsBase`; fixed blocklist option value mismatch (`block`/`blacklist` -> `blocklist`/`blocklistAndSearch`)
 - Web/auth-context: hardened retry-after parsing (`Retry-After` NaN/negative fallback) + removed unreachable extra fetch in retry helper
 - Web/arr-queue: zinc palette alignment pass in `ArrQueueStatsBase` (removed remaining gray-* classes)
+- Prowlarr backend: added `ProwlarrService.GetIndexers` and switched handler + poller to shared implementation (removed duplicated HTTP decode logic)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

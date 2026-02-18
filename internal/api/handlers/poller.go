@@ -5,10 +5,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +12,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
@@ -458,28 +453,14 @@ func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfigura
 
 func (p *Poller) runProwlarr(ctx context.Context, svc models.ServiceConfiguration, _ string) {
 	now := time.Now()
+	ps := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
 
-	// Indexers list
-	indexerURL := fmt.Sprintf("%s/api/v1/indexer", strings.TrimRight(svc.URL, "/"))
-	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, indexerURL, svc.APIKey, nil)
+	indexers, err := ps.GetIndexers(ctx, svc.URL, svc.APIKey)
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return
-	}
-
-	var indexers []types.ProwlarrIndexer
-	if err := json.NewDecoder(resp.Body).Decode(&indexers); err != nil {
-		return
-	}
-	if indexers == nil {
-		indexers = []types.ProwlarrIndexer{}
-	}
 
 	// Indexer stats (and derived totals)
-	ps := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
 	idxStats, err := ps.GetIndexerStats(ctx, svc.URL, svc.APIKey)
 	if err == nil && idxStats != nil {
 		statsMap := make(map[int]types.ProwlarrIndexerStats, len(idxStats.Indexers))

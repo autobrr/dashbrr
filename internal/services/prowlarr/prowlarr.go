@@ -117,6 +117,40 @@ func (s *ProwlarrService) CheckForUpdates(ctx context.Context, url, apiKey strin
 	return arr.CheckArrForUpdates(ctx, "prowlarr", url, apiKey)
 }
 
+// GetIndexers fetches indexer configuration and stats baseline from Prowlarr.
+func (s *ProwlarrService) GetIndexers(ctx context.Context, baseURL, apiKey string) ([]types.ProwlarrIndexer, error) {
+	if baseURL == "" {
+		return nil, &ErrProwlarr{Op: "get_indexers", Err: fmt.Errorf("URL is required")}
+	}
+
+	indexersURL := fmt.Sprintf("%s/api/v1/indexer", strings.TrimRight(baseURL, "/"))
+	resp, err := s.makeRequest(ctx, http.MethodGet, indexersURL, apiKey)
+	if err != nil {
+		return nil, &ErrProwlarr{
+			Op:  "get_indexers",
+			Err: fmt.Errorf("failed to make request: %w", err),
+		}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ErrProwlarr{Op: "get_indexers", HttpCode: resp.StatusCode}
+	}
+
+	var indexers []types.ProwlarrIndexer
+	if err := json.NewDecoder(resp.Body).Decode(&indexers); err != nil {
+		return nil, &ErrProwlarr{
+			Op:  "get_indexers",
+			Err: fmt.Errorf("failed to parse response: %w", err),
+		}
+	}
+	if indexers == nil {
+		indexers = []types.ProwlarrIndexer{}
+	}
+
+	return indexers, nil
+}
+
 // GetIndexerStats fetches indexer statistics from Prowlarr
 func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey string) (*types.ProwlarrIndexerStatsResponse, error) {
 	if baseURL == "" {
