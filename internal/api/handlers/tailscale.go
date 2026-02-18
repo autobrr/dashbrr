@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -134,6 +135,11 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrServiceNotConfigured) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+
 		status := http.StatusInternalServerError
 		if err == context.DeadlineExceeded || err == context.Canceled {
 			status = http.StatusGatewayTimeout
