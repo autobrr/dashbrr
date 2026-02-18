@@ -95,6 +95,9 @@ const buildServicePatchFromHealth = (
     patch.status = health.status;
     patch.message = health.message;
     patch.health = health;
+  }
+
+  if (shouldApplyHealthState && presence.hasUpdateAvailable) {
     patch.updateAvailable = Boolean(health.updateAvailable);
   }
 

@@ -1087,6 +1087,9 @@ Owner: soup (s0up4200@pm.me)
   - added broadcaster regression tests for explicit internal/health event semantics:
     - `TestBroadcasterSnapshotTreatsExplicitInternalEventTypeAsInternal`
     - `TestBroadcasterSnapshotTreatsExplicitHealthEventTypeAsHealth`
+- Frontend merge fix (`web/src/hooks/serviceData/merge.ts`):
+  - only apply `updateAvailable` patch when field exists on payload (`presence.hasUpdateAvailable`)
+  - avoids clearing existing update state on SSE events that omit `updateAvailable`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
 ## Rolling Plan
