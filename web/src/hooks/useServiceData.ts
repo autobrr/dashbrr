@@ -182,6 +182,10 @@ const useProvideServiceData = (): ServiceDataContextValue => {
 
     es.onopen = () => {
       retryCountRef.current = 0;
+      if (reconnectTimeoutRef.current) {
+        window.clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
     };
 
     es.onmessage = (event) => {
@@ -194,14 +198,20 @@ const useProvideServiceData = (): ServiceDataContextValue => {
     };
 
     es.onerror = () => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || eventSourceRef.current !== es) return;
+      if (reconnectTimeoutRef.current) return;
       es.close();
 
       const retry = retryCountRef.current++;
       const delay = Math.min(1000 * Math.pow(2, retry), 30000);
 
       reconnectTimeoutRef.current = window.setTimeout(() => {
-        if (mountedRef.current && isAuthenticated) {
+        reconnectTimeoutRef.current = null;
+        if (
+          mountedRef.current &&
+          isAuthenticated &&
+          eventSourceRef.current === es
+        ) {
           connectSSE();
         }
       }, delay);

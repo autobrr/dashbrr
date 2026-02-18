@@ -260,6 +260,11 @@ Owner: soup (s0up4200@pm.me)
 - Arr tests: expanded `internal/services/arr/queue_test.go` with delete validation + upstream message/status mapping coverage
 - Web/messages: `ArrMessage` now renders message boxes only for actionable states (`warning|error|offline`), not healthy/online noise
 - Web/messages: filtered machine event keys (`*_queue`, `plex_sessions`, etc.) from rendered message content to avoid useless green/yellow boxes
+- Web/SSE: deduped reconnect scheduling in `useServiceData` (single pending reconnect timer + stale-connection guard) to avoid parallel EventSource reconnect storms
+- Vite proxy: set `/api` `timeout` + `proxyTimeout` to `0` for dev/preview, preventing SSE stream timeouts through proxy
+- Arr health: update checks now run only on cache miss; update-check errors now cache fallback status for 10m (prevents repeated slow/canceled `/api/v3/update` probes every health tick)
+- Arr tests: added `internal/services/arr/health_test.go` coverage for cache-hit skip, async cache fill, and error fallback-cache behavior
+- Core cache API: added `GetUpdateStatusFromCacheWithFound` to distinguish cache misses from cached `false`
 
 ### 2026-02-18 (sse async hardening)
 - SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.

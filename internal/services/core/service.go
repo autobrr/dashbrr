@@ -282,17 +282,18 @@ func (s *ServiceCore) GetVersionFromCache(ctx context.Context, baseURL string) s
 	return version
 }
 
-// GetUpdateStatusFromCache retrieves the update status from cache
-func (s *ServiceCore) GetUpdateStatusFromCache(ctx context.Context, baseURL string) bool {
+// GetUpdateStatusFromCacheWithFound retrieves the update status from cache and
+// reports whether a value existed.
+func (s *ServiceCore) GetUpdateStatusFromCacheWithFound(ctx context.Context, baseURL string) (bool, bool) {
 	if err := s.initCache(ctx); err != nil {
 		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
-		return false
+		return false, false
 	}
 
 	var updateStatus string
 	cacheKey := fmt.Sprintf("%s:update", baseURL)
 	if err := s.cache.Get(ctx, cacheKey, &updateStatus); err == nil {
-		return updateStatus == "true"
+		return updateStatus == "true", true
 	}
 
 	// Legacy: older code incorrectly stored update status via CacheVersion(updateKey, ...),
@@ -300,10 +301,16 @@ func (s *ServiceCore) GetUpdateStatusFromCache(ctx context.Context, baseURL stri
 	var legacyStatus string
 	legacyKey := "version:" + cacheKey
 	if err := s.cache.Get(ctx, legacyKey, &legacyStatus); err == nil {
-		return legacyStatus == "true"
+		return legacyStatus == "true", true
 	}
 
-	return false
+	return false, false
+}
+
+// GetUpdateStatusFromCache retrieves the update status from cache.
+func (s *ServiceCore) GetUpdateStatusFromCache(ctx context.Context, baseURL string) bool {
+	updateStatus, _ := s.GetUpdateStatusFromCacheWithFound(ctx, baseURL)
+	return updateStatus
 }
 
 // CacheUpdateStatus stores update availability in the dedicated update cache key.

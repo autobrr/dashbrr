@@ -19,7 +19,10 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
-const updateCacheTTL = time.Hour
+const (
+	updateCacheTTL      = time.Hour
+	updateErrorCacheTTL = 10 * time.Minute
+)
 
 // HealthResponse represents a common health check response structure
 type HealthResponse struct {
@@ -75,25 +78,30 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		"X-Api-Key": apiKey,
 	}
 
-	updateAvailable := s.GetUpdateStatusFromCache(ctx, url)
-	if ctx.Err() == nil {
+	updateAvailable, hasCachedUpdate := s.GetUpdateStatusFromCacheWithFound(ctx, url)
+	if ctx.Err() == nil && !hasCachedUpdate {
 		go func() {
 			updateBaseCtx := context.WithoutCancel(ctx)
 			updateCtx, cancel := context.WithTimeout(updateBaseCtx, core.DefaultTimeout)
 			defer cancel()
+			cacheCtx, cacheCancel := context.WithTimeout(updateBaseCtx, core.DefaultTimeout)
+			defer cacheCancel()
 
 			hasUpdate, err := checker.CheckForUpdates(updateCtx, url, apiKey)
 			if err != nil {
-				if errors.Is(err, context.Canceled) ||
+				cancelledErr := errors.Is(err, context.Canceled) ||
 					errors.Is(err, context.DeadlineExceeded) ||
-					errors.Is(err, core.ErrContextCanceled) {
-					return
+					errors.Is(err, core.ErrContextCanceled)
+				if !cancelledErr {
+					log.Debug().Err(err).Str("url", url).Msg("Update check failed")
 				}
-				log.Debug().Err(err).Str("url", url).Msg("Update check failed")
+				if err := s.CacheUpdateStatus(cacheCtx, url, updateAvailable, updateErrorCacheTTL); err != nil {
+					log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
+				}
 				return
 			}
 
-			if err := s.CacheUpdateStatus(updateCtx, url, hasUpdate, updateCacheTTL); err != nil {
+			if err := s.CacheUpdateStatus(cacheCtx, url, hasUpdate, updateCacheTTL); err != nil {
 				log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
 			}
 		}()

@@ -218,6 +218,8 @@ export default defineConfig(({ mode }) => {
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
+        timeout: 0,
+        proxyTimeout: 0,
         ws: false, // Disable websocket for API proxy
         configure: (proxy) => {
           proxy.on('error', (err) => {
@@ -242,6 +244,8 @@ export default defineConfig(({ mode }) => {
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
+        timeout: 0,
+        proxyTimeout: 0,
         ws: false // Disable websocket for API proxy
       }
     }
