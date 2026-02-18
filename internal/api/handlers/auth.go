@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -70,13 +69,6 @@ func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	}
 }
 
-type providerConfig struct {
-	Issuer                string `json:"issuer"`
-	AuthorizationEndpoint string `json:"authorization_endpoint"`
-	TokenEndpoint         string `json:"token_endpoint"`
-	UserinfoEndpoint      string `json:"userinfo_endpoint"`
-}
-
 // getProviderEndpoints fetches provider configuration and returns oauth2.Endpoint
 // Examples:
 // Simple issuer (Google):
@@ -99,7 +91,7 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 		wellKnown = issuer + "/.well-known/openid-configuration"
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", wellKnown, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnown, nil)
 	if err != nil {
 		return oauth2.Endpoint{}, "", fmt.Errorf("creating discovery request: %w", err)
 	}
@@ -109,11 +101,6 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 		return oauth2.Endpoint{}, "", fmt.Errorf("fetching discovery document: %w", err)
 	}
 	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return oauth2.Endpoint{}, "", fmt.Errorf("reading discovery document: %w", err)
-	}
 
 	log.Debug().
 		Str("issuer", issuer).
@@ -126,7 +113,7 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 		UserinfoURL string `json:"userinfo_endpoint"`
 	}
 
-	if err := json.Unmarshal(body, &discovery); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
 		return oauth2.Endpoint{}, "", fmt.Errorf("parsing discovery document: %w", err)
 	}
 
