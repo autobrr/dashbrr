@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
@@ -39,6 +41,22 @@ type OverseerrService struct {
 	core.ServiceCore
 	db *database.DB
 }
+
+const (
+	overseerrTitleLookupTimeout  = 3 * time.Second
+	overseerrTitleCacheTTL       = 30 * time.Minute
+	overseerrTitleLookupParallel = 4
+)
+
+type titleCacheEntry struct {
+	title     string
+	expiresAt time.Time
+}
+
+var (
+	titleCacheMu sync.RWMutex
+	titleCache   = make(map[string]titleCacheEntry)
+)
 
 func init() {
 	models.NewOverseerrService = NewOverseerrService
@@ -142,10 +160,158 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 		mediaRequests = append(mediaRequests, mediaRequest)
 	}
 
+	s.enrichMissingRequestTitles(ctx, baseURL, apiKey, mediaRequests)
+
 	return &types.RequestsStats{
 		PendingCount: pendingCount,
 		Requests:     mediaRequests,
 	}, nil
+}
+
+func makeTitleCacheKey(baseURL, mediaType string, tmdbID int) string {
+	return fmt.Sprintf("%s|%s|%d", strings.TrimRight(baseURL, "/"), strings.ToLower(mediaType), tmdbID)
+}
+
+func getCachedTitle(cacheKey string) (string, bool) {
+	titleCacheMu.RLock()
+	entry, ok := titleCache[cacheKey]
+	titleCacheMu.RUnlock()
+	if !ok {
+		return "", false
+	}
+	if time.Now().After(entry.expiresAt) {
+		titleCacheMu.Lock()
+		delete(titleCache, cacheKey)
+		titleCacheMu.Unlock()
+		return "", false
+	}
+
+	return entry.title, true
+}
+
+func setCachedTitle(cacheKey, title string) {
+	if title == "" {
+		return
+	}
+	titleCacheMu.Lock()
+	titleCache[cacheKey] = titleCacheEntry{
+		title:     title,
+		expiresAt: time.Now().Add(overseerrTitleCacheTTL),
+	}
+	titleCacheMu.Unlock()
+}
+
+func mediaLookupEndpoint(mediaType string) string {
+	if strings.EqualFold(mediaType, "tv") {
+		return "tv"
+	}
+	return "movie"
+}
+
+func (s *OverseerrService) fetchTitle(ctx context.Context, baseURL, apiKey, mediaType string, tmdbID int) (string, error) {
+	if tmdbID <= 0 {
+		return "", nil
+	}
+
+	endpoint := fmt.Sprintf(
+		"%s/api/v1/%s/%d",
+		strings.TrimRight(baseURL, "/"),
+		mediaLookupEndpoint(mediaType),
+		tmdbID,
+	)
+	headers := map[string]string{"X-Api-Key": apiKey}
+
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, headers, nil)
+	if err != nil {
+		return "", err
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return "", err
+	}
+
+	var payload struct {
+		Title string `json:"title"`
+		Name  string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", err
+	}
+
+	title := strings.TrimSpace(payload.Title)
+	if title == "" {
+		title = strings.TrimSpace(payload.Name)
+	}
+	return title, nil
+}
+
+func (s *OverseerrService) enrichMissingRequestTitles(ctx context.Context, baseURL, apiKey string, requests []types.MediaRequest) {
+	type titleLookup struct {
+		mediaType string
+		tmdbID    int
+		indexes   []int
+		cacheKey  string
+	}
+
+	lookups := make(map[string]*titleLookup)
+	for i := range requests {
+		if strings.TrimSpace(requests[i].Media.Title) != "" {
+			continue
+		}
+		if requests[i].Media.TmdbID <= 0 {
+			continue
+		}
+
+		cacheKey := makeTitleCacheKey(baseURL, requests[i].Media.MediaType, requests[i].Media.TmdbID)
+		if cachedTitle, ok := getCachedTitle(cacheKey); ok {
+			requests[i].Media.Title = cachedTitle
+			continue
+		}
+
+		lookup, ok := lookups[cacheKey]
+		if !ok {
+			lookup = &titleLookup{
+				mediaType: requests[i].Media.MediaType,
+				tmdbID:    requests[i].Media.TmdbID,
+				cacheKey:  cacheKey,
+			}
+			lookups[cacheKey] = lookup
+		}
+		lookup.indexes = append(lookup.indexes, i)
+	}
+
+	if len(lookups) == 0 {
+		return
+	}
+
+	var reqMu sync.Mutex
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(overseerrTitleLookupParallel)
+
+	for _, lookup := range lookups {
+		lookup := lookup
+		group.Go(func() error {
+			lookupCtx, cancel := context.WithTimeout(groupCtx, overseerrTitleLookupTimeout)
+			defer cancel()
+
+			title, err := s.fetchTitle(lookupCtx, baseURL, apiKey, lookup.mediaType, lookup.tmdbID)
+			if err != nil || title == "" {
+				return nil
+			}
+
+			setCachedTitle(lookup.cacheKey, title)
+			reqMu.Lock()
+			for _, idx := range lookup.indexes {
+				requests[idx].Media.Title = title
+			}
+			reqMu.Unlock()
+
+			return nil
+		})
+	}
+
+	_ = group.Wait()
 }
 
 func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {

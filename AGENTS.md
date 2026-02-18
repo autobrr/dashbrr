@@ -607,13 +607,30 @@ Owner: soup (s0up4200@pm.me)
   - keep version-first experience by prioritizing health before stats per tick (`fix(api): prioritize health checks ahead of stats jobs`)
 - Decision:
   - no direct code cherry-pick from `refactor/services-health-checks`; continue incremental modernization on current branch
+
+### 2026-02-18 (fix)
+- Overseerr title regression fix after perf pass (`internal/services/overseerr/overseerr.go`):
+  - source-of-truth checked against `~/github/oss/seerr` (request list payload can omit resolved titles; Seerr fetches media details separately)
+  - added best-effort title enrichment for missing-title rows via Overseerr metadata endpoints:
+    - movie: `/api/v1/movie/:tmdbId`
+    - tv: `/api/v1/tv/:tmdbId`
+  - enrichment is bounded/async:
+    - worker limit (`4`) via `errgroup`
+    - per-lookup timeout (`3s`)
+    - dedupe by `baseURL+mediaType+tmdbId`
+    - in-process TTL cache (`30m`) for repeated rows/refreshes
+  - keeps prior perf gains: no Sonarr/Radarr N+1 fanout
+- Added regression coverage (`internal/services/overseerr/overseerr_test.go`):
+  - missing titles get enriched from Overseerr movie/tv endpoints
+  - repeat `GetRequests` calls reuse title cache (no duplicate metadata lookup)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
-- Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
-- Backend: split Prowlarr poller into independent jobs (stats/indexers) to remove remaining intra-service coupling
+- Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
 - Frontend: continue zinc palette consistency pass in frequently used components
 - Backend: remove leftover dead fields/imports after SWR/singleflight migration
 - Backend: remove remaining `context.Background()` in request paths; keep ctx flow explicit
 - Backend: continue poller decomposition (extract payload-build helpers, add unit tests before behavior changes)
+- Overseerr: follow-up on status-label mapping (`Unknown`) when upstream payload uses newer states
 - Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)
