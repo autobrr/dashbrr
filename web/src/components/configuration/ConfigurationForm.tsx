@@ -234,9 +234,6 @@ export const ConfigurationForm = ({
       {serviceType !== "general" &&
         (isPlexService ? (
           <div className="space-y-2">
-            <div className="text-sm text-zinc-400">
-              Plex authentication uses PIN login.
-            </div>
             <Button
               type="button"
               variant="secondary"

@@ -1001,6 +1001,15 @@ Owner: soup (s0up4200@pm.me)
   - show minimal state text (`Authenticated with Plex`) once token is obtained.
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (ui polish)
+- Removed remaining Plex auth helper noise in add/edit forms:
+  - dropped text `Plex authentication uses PIN login.`
+  - dropped external guide link row
+- Kept only actionable UI:
+  - `Authenticate with Plex` button
+  - `Authenticated with Plex` status text
+- Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
