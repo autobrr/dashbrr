@@ -91,7 +91,8 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 			{name: "sonarr_queue", interval: 60 * time.Second, run: (*Poller).runSonarrQueue},
 		},
 		"prowlarr": {
-			{name: "prowlarr", interval: 120 * time.Second, run: (*Poller).runProwlarr},
+			{name: "prowlarr_stats", interval: 120 * time.Second, run: (*Poller).runProwlarrStats},
+			{name: "prowlarr_indexers", interval: 120 * time.Second, run: (*Poller).runProwlarrIndexers},
 		},
 		"autobrr": {
 			{name: "autobrr_stats", interval: 120 * time.Second, run: (*Poller).runAutobrrStats},
@@ -484,8 +485,39 @@ func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfigura
 	})
 }
 
-func (p *Poller) runProwlarr(ctx context.Context, svc models.ServiceConfiguration, _ string) {
-	now := time.Now()
+func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+	ps := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
+
+	idxStats, err := ps.GetIndexerStats(ctx, svc.URL, svc.APIKey)
+	if err != nil || idxStats == nil {
+		return
+	}
+
+	totalGrabs := 0
+	totalFails := 0
+	for _, stat := range idxStats.Indexers {
+		totalGrabs += stat.NumberOfGrabs
+		totalFails += stat.NumberOfFailedGrabs
+	}
+
+	p.bc.Publish(models.ServiceHealth{
+		ServiceID:   svc.InstanceID,
+		Status:      "online",
+		Message:     "prowlarr_stats",
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"prowlarr": map[string]interface{}{
+				"stats": types.ProwlarrStatsResponse{
+					GrabCount:    totalGrabs,
+					FailCount:    totalFails,
+					IndexerCount: len(idxStats.Indexers),
+				},
+			},
+		},
+	})
+}
+
+func (p *Poller) runProwlarrIndexers(ctx context.Context, svc models.ServiceConfiguration, _ string) {
 	ps := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
 
 	indexers, err := ps.GetIndexers(ctx, svc.URL, svc.APIKey)
@@ -493,47 +525,11 @@ func (p *Poller) runProwlarr(ctx context.Context, svc models.ServiceConfiguratio
 		return
 	}
 
-	// Indexer stats (and derived totals)
-	idxStats, err := ps.GetIndexerStats(ctx, svc.URL, svc.APIKey)
-	if err == nil && idxStats != nil {
-		statsMap := make(map[int]types.ProwlarrIndexerStats, len(idxStats.Indexers))
-		totalGrabs := 0
-		totalFails := 0
-		for _, stat := range idxStats.Indexers {
-			statsMap[stat.IndexerID] = stat
-			totalGrabs += stat.NumberOfGrabs
-			totalFails += stat.NumberOfFailedGrabs
-		}
-		for i := range indexers {
-			if st, ok := statsMap[indexers[i].ID]; ok {
-				indexers[i].AverageResponseTime = st.AverageResponseTime
-				indexers[i].NumberOfGrabs = st.NumberOfGrabs
-				indexers[i].NumberOfQueries = st.NumberOfQueries
-			}
-		}
-
-		p.bc.Publish(models.ServiceHealth{
-			ServiceID:   svc.InstanceID,
-			Status:      "online",
-			Message:     "prowlarr_stats",
-			LastChecked: now,
-			Stats: map[string]interface{}{
-				"prowlarr": map[string]interface{}{
-					"stats": types.ProwlarrStatsResponse{
-						GrabCount:    totalGrabs,
-						FailCount:    totalFails,
-						IndexerCount: len(indexers),
-					},
-				},
-			},
-		})
-	}
-
 	p.bc.Publish(models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "prowlarr_indexers",
-		LastChecked: now,
+		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
 				"indexers": indexers,

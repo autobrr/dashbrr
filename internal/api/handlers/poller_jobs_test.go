@@ -22,3 +22,21 @@ func TestNewPoller_AutobrrJobsAreSplit(t *testing.T) {
 		}
 	}
 }
+
+func TestNewPoller_ProwlarrJobsAreSplit(t *testing.T) {
+	t.Parallel()
+
+	poller := NewPoller(nil, nil)
+	jobs := poller.jobs["prowlarr"]
+
+	if len(jobs) != 2 {
+		t.Fatalf("prowlarr job count = %d, want 2", len(jobs))
+	}
+
+	want := []string{"prowlarr_stats", "prowlarr_indexers"}
+	for i, name := range want {
+		if jobs[i].name != name {
+			t.Fatalf("prowlarr job[%d] = %q, want %q", i, jobs[i].name, name)
+		}
+	}
+}

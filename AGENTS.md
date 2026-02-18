@@ -573,6 +573,14 @@ Owner: soup (s0up4200@pm.me)
 - Web/Prowlarr: stop gating indexer rendering on both `indexers` and `stats` payloads in `ProwlarrStats`
 - Initial UI now unblocks as soon as indexers payload lands (stats can arrive later without keeping skeleton state)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (refactor)
+- Poller: split Prowlarr monolithic job into independent payload jobs:
+  - `prowlarr_stats`
+  - `prowlarr_indexers`
+- Removes intra-job coupling so one Prowlarr endpoint no longer blocks the other SSE payload
+- Added regression coverage in `internal/api/handlers/poller_jobs_test.go`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
