@@ -15,6 +15,11 @@ interface Props {
   status: ServiceStatus | "healthy";
 }
 
+const INTERNAL_EVENT_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)+$/;
+
+const isActionableStatus = (status: ServiceStatus | "healthy"): boolean =>
+  status === "warning" || status === "error" || status === "offline";
+
 export const ArrMessage: React.FC<Props> = ({ message, status }) => {
   const getMessageStyle = () => {
     const baseStyles =
@@ -118,7 +123,8 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
         trimmedLine === "Healthy" ||
         trimmedLine === "healthy" ||
         trimmedLine === "Status: Healthy" ||
-        trimmedLine === "Prowlarr is running"
+        trimmedLine === "Prowlarr is running" ||
+        INTERNAL_EVENT_PATTERN.test(trimmedLine)
       )
         return;
 
@@ -156,6 +162,7 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
 
   const statusDisplay = getStatusDisplay();
   const formattedMessage = formatMessage();
+  const showMessageBox = isActionableStatus(status) && Boolean(formattedMessage);
 
   return (
     <div className="space-y-2">
@@ -171,7 +178,7 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
         </div>
       </div>
 
-      {formattedMessage && (
+      {showMessageBox && (
         <div className={getMessageStyle()}>
           <div className="flex items-start space-x-2">
             <div className="space-y-1">{formattedMessage}</div>
