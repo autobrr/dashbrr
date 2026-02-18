@@ -738,6 +738,20 @@ Owner: soup (s0up4200@pm.me)
   - added support for `FAILED` (`4`) and `COMPLETED` (`5`) statuses
   - remove misleading generic `Unknown` for valid statuses; unknown numeric values now render as `Unknown (<code>)`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Prowlarr warning persistence/flap root cause: internal SSE payloads (e.g. `prowlarr_stats`, `prowlarr_indexers`) could overwrite top-level `status/message` in merge paths.
+- Backend fix (`internal/api/handlers/broadcast.go`):
+  - treat snake_case internal event messages as non-health-state payloads
+  - preserve prior health `status/message` when merging snapshots from those payloads
+- Frontend fix (`web/src/hooks/serviceData/merge.ts`):
+  - same internal-event guard for live SSE patch merge
+  - still merge `stats/details/lastChecked` from internal payloads; do not clobber warning/error state
+- Regression tests:
+  - `internal/api/handlers/broadcast_test.go`
+  - assert warning state survives internal payload updates
+  - assert snapshot message not overwritten by `*_stats`/`*_indexers` events
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

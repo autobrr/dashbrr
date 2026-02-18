@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/sse"
 )
+
+var internalEventMessagePattern = regexp.MustCompile(`^[a-z0-9]+(?:_[a-z0-9]+)+$`)
 
 // Broadcaster publishes service updates to SSE clients.
 type Broadcaster struct {
@@ -80,10 +83,12 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	merged := prev
 	merged.ServiceID = next.ServiceID
 
-	if next.Status != "" {
+	shouldMergeHealthState := next.Message != "" && !internalEventMessagePattern.MatchString(next.Message)
+
+	if shouldMergeHealthState && next.Status != "" {
 		merged.Status = next.Status
 	}
-	if next.Message != "" {
+	if shouldMergeHealthState && next.Message != "" {
 		merged.Message = next.Message
 	}
 	if !next.LastChecked.IsZero() {

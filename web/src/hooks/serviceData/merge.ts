@@ -23,6 +23,8 @@ type HealthPatchPresence = {
   hasResponseTime: boolean;
 };
 
+const INTERNAL_EVENT_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)+$/;
+
 const hasOwnProperty = (value: unknown, key: string): boolean =>
   typeof value === "object" &&
   value !== null &&
@@ -40,6 +42,9 @@ const parseDate = (value: unknown): Date | undefined => {
   }
   return undefined;
 };
+
+const isInternalEventMessage = (message: string): boolean =>
+  INTERNAL_EVENT_PATTERN.test(message.trim());
 
 export const mergeServicePayload = <T extends object>(
   current: T | undefined,
@@ -72,13 +77,19 @@ const buildServicePatchFromHealth = (
   presence: HealthPatchPresence
 ): Partial<Service> => {
   const patch: Partial<Service> = {
-    status: health.status,
-    message: health.message,
     lastChecked: health.lastChecked,
     stats: health.stats,
     details: health.details,
-    health,
   };
+
+  const shouldApplyHealthState =
+    health.message !== "" && !isInternalEventMessage(health.message);
+
+  if (shouldApplyHealthState) {
+    patch.status = health.status;
+    patch.message = health.message;
+    patch.health = health;
+  }
 
   if (presence.hasResponseTime) {
     patch.responseTime = health.responseTime;

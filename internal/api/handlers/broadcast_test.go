@@ -86,6 +86,52 @@ func TestBroadcasterSnapshotPreservesVersionAcrossPartialUpdates(t *testing.T) {
 	if event.Data.Version != "6.1.1" {
 		t.Fatalf("snapshot version = %q, want %q", event.Data.Version, "6.1.1")
 	}
+	if event.Data.Message != "Healthy" {
+		t.Fatalf("snapshot message = %q, want %q", event.Data.Message, "Healthy")
+	}
+}
+
+func TestBroadcasterSnapshotKeepsWarningStateAcrossInternalEvents(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "prowlarr-1",
+		Status:      "warning",
+		Message:     "[IndexerLongTermStatusCheck] Indexers unavailable",
+		LastChecked: now,
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "prowlarr-1",
+		Status:      "online",
+		Message:     "prowlarr_indexers",
+		LastChecked: now.Add(time.Second),
+		Stats: map[string]interface{}{
+			"prowlarr": map[string]interface{}{
+				"indexers": []interface{}{"a"},
+			},
+		},
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	if decoded.Status != "warning" {
+		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "warning")
+	}
+	if decoded.Message != "[IndexerLongTermStatusCheck] Indexers unavailable" {
+		t.Fatalf("snapshot message = %q", decoded.Message)
+	}
 }
 
 func TestBroadcasterSnapshotMergesNestedStatsPayloads(t *testing.T) {
