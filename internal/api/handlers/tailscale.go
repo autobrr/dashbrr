@@ -115,7 +115,7 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		go func() {
 			refreshKey := fmt.Sprintf("devices_refresh:%s", strings.TrimPrefix(cacheKey, devicesCachePrefix))
 			_, _, _ = h.sf.Do(refreshKey, func() (interface{}, error) {
-				h.refreshDevicesCache(instanceId, apiKey, cacheKey)
+				h.refreshDevicesCache(ctx, instanceId, apiKey, cacheKey)
 				return nil, nil
 			})
 		}()
@@ -272,11 +272,12 @@ func (h *TailscaleHandler) fetchAndCacheDevices(ctx context.Context, instanceId,
 	return devices, nil
 }
 
-func (h *TailscaleHandler) refreshDevicesCache(instanceId, apiKey, cacheKey string) {
+func (h *TailscaleHandler) refreshDevicesCache(baseCtx context.Context, instanceId, apiKey, cacheKey string) {
 	// Add a small delay to prevent immediate refresh
 	time.Sleep(100 * time.Millisecond)
 
-	ctx, cancel := context.WithTimeout(context.Background(), tailscaleRefreshTimeout)
+	// Refresh should not be canceled just because the request that triggered it finished.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(baseCtx), tailscaleRefreshTimeout)
 	defer cancel()
 	err := resilience.RetryWithBackoff(ctx, func() error {
 		_, err := h.fetchAndCacheDevices(ctx, instanceId, apiKey, cacheKey)

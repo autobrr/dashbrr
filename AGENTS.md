@@ -371,6 +371,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (refactor)
 - Arr services: dedupe Sonarr/Radarr queue delete URL construction + error message parsing into `internal/services/arr`; add unit test
+
+### 2026-02-17 (refactor)
+- Tailscale handler: background refresh now uses `context.WithoutCancel(requestCtx)` (no `context.Background()`); keeps refresh independent but preserves request-scoped values
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
