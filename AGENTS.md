@@ -260,6 +260,9 @@ Owner: soup (s0up4200@pm.me)
 - Arr tests: expanded `internal/services/arr/queue_test.go` with delete validation + upstream message/status mapping coverage
 - SSE root-cause fix: `useServiceData` moved behind singleton `ServiceDataProvider`; multiple component hook calls now share one data/SSE instance
 - App wiring: `web/src/App.tsx` now wraps routes with `ServiceDataProvider` (inside auth/config providers) so only one `/api/events` connection is created app-wide
+- SSE middleware fix: auth middleware no longer replaces downstream request context with a 5s timeout context; timeout now used only for cache/session lookup
+- Middleware tests: added `internal/api/middleware/auth_test.go` to lock no-deadline propagation for `RequireAuth` and `OptionalAuth`
+- Arr health async: update-check goroutine now uses detached context (`context.WithoutCancel`) + skips noisy canceled logs, avoiding immediate request-scoped cancellation
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

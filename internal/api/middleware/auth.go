@@ -39,8 +39,8 @@ func NewAuthMiddleware(cache cache.Store) *AuthMiddleware {
 // RequireAuth middleware checks for valid authentication
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Create a context with timeout for auth operations
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		baseCtx := c.Request.Context()
+		lookupCtx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
 		defer cancel()
 
 		// Get session cookie
@@ -70,15 +70,15 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 
 		// Try OIDC session format first
 		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)
-		err = m.cache.Get(ctx, sessionKey, &sessionData)
+		err = m.cache.Get(lookupCtx, sessionKey, &sessionData)
 		if err != nil {
 			// If not found, try built-in auth session format
 			sessionKey = fmt.Sprintf("session:%s", sessionToken)
-			err = m.cache.Get(ctx, sessionKey, &sessionData)
+			err = m.cache.Get(lookupCtx, sessionKey, &sessionData)
 			if err != nil {
 				// Check for context cancellation
-				if ctx.Err() != nil {
-					log.Error().Err(ctx.Err()).Msg("Context cancelled while checking session")
+				if lookupCtx.Err() != nil {
+					log.Error().Err(lookupCtx.Err()).Msg("Context cancelled while checking session")
 					c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Authentication check timed out"})
 					c.Abort()
 					return
@@ -93,8 +93,9 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			}
 		}
 
-		// Create new context with session data
-		newCtx := context.WithValue(ctx, SessionContextKey, sessionData)
+		// Attach auth metadata to the original request context.
+		// Do not propagate the short lookup timeout to downstream handlers (e.g. SSE streams).
+		newCtx := context.WithValue(baseCtx, SessionContextKey, sessionData)
 		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
 		if sessionData.UserID != 0 {
 			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
@@ -117,8 +118,8 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 // OptionalAuth middleware checks for authentication but doesn't require it
 func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Create a context with timeout for auth operations
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		baseCtx := c.Request.Context()
+		lookupCtx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
 		defer cancel()
 
 		sessionToken, err := c.Cookie("session")
@@ -132,15 +133,15 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 
 		// Try OIDC session format first
 		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)
-		err = m.cache.Get(ctx, sessionKey, &sessionData)
+		err = m.cache.Get(lookupCtx, sessionKey, &sessionData)
 		if err != nil {
 			// If not found, try built-in auth session format
 			sessionKey = fmt.Sprintf("session:%s", sessionToken)
-			err = m.cache.Get(ctx, sessionKey, &sessionData)
+			err = m.cache.Get(lookupCtx, sessionKey, &sessionData)
 			if err != nil {
 				// Check for context cancellation
-				if ctx.Err() != nil {
-					log.Debug().Err(ctx.Err()).Msg("Context cancelled while checking optional session")
+				if lookupCtx.Err() != nil {
+					log.Debug().Err(lookupCtx.Err()).Msg("Context cancelled while checking optional session")
 					c.Next()
 					return
 				}
@@ -150,8 +151,8 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 			}
 		}
 
-		// Create new context with session data
-		newCtx := context.WithValue(ctx, SessionContextKey, sessionData)
+		// Attach auth metadata to original request context; avoid leaking short lookup timeout.
+		newCtx := context.WithValue(baseCtx, SessionContextKey, sessionData)
 		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
 		if sessionData.UserID != 0 {
 			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)

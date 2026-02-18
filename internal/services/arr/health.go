@@ -6,6 +6,7 @@ package arr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -77,11 +78,15 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	updateAvailable := s.GetUpdateStatusFromCache(ctx, url)
 	if ctx.Err() == nil {
 		go func() {
-			updateCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
+			updateBaseCtx := context.WithoutCancel(ctx)
+			updateCtx, cancel := context.WithTimeout(updateBaseCtx, core.DefaultTimeout)
 			defer cancel()
 
 			hasUpdate, err := checker.CheckForUpdates(updateCtx, url, apiKey)
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
 				log.Debug().Err(err).Str("url", url).Msg("Update check failed")
 				return
 			}
