@@ -220,6 +220,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             type=semver,pattern={{version}},prefix=v
@@ -298,6 +299,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             type=semver,pattern={{version}},prefix=v
