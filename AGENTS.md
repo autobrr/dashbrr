@@ -1010,6 +1010,20 @@ Owner: soup (s0up4200@pm.me)
   - `Authenticated with Plex` status text
 - Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (plex auth tab flow)
+- Root cause: PIN auth opened new browser context and could leave an extra tab/window open after Plex redirect.
+- Fixes:
+  - `web/src/hooks/usePlexPinAuth.ts`
+    - switched `forwardUrl` to dedicated callback page (`/plex-auth-complete.html`)
+    - added popup lifecycle tracking + close-grace handling (avoid false failure when auth window closes right after successful Plex approval)
+    - added `postMessage` listener for immediate poll when callback page signals completion
+    - kept auth window cleanup centralized in `stop()`
+  - `web/public/plex-auth-complete.html`
+    - posts completion signal to opener
+    - focuses opener and self-closes
+    - fallback text if browser blocks close
+- Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
