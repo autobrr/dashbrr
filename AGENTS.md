@@ -460,6 +460,25 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (refactor)
 - Discovery: centralize label/env parsing for Docker/K8s/config-file imports; remove `strings.Title`; add unit tests
+
+### 2026-02-18 (fix)
+- SSE stream lifecycle hardening:
+  - server `WriteTimeout` disabled for long-lived streams
+  - SSE snapshot replay on connect (latest payload per service)
+  - async ARR update-check cancellation/deadline noise suppressed
+- Frontend Tailscale status switched to backend-driven SSE state (removed local polling loop)
+- Added snapshot regression tests (`internal/api/handlers/broadcast_test.go`)
+- Commits: `5747629`, `225063a`, `2792ca2`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (refactor)
+- ARR service error-model consolidation:
+  - Sonarr service migrated from local `ErrSonarr` to shared `arr.ErrArr`
+  - Prowlarr service migrated from local `ErrProwlarr` to shared `arr.ErrArr`
+  - Prowlarr `GetSystemStatus` now uses shared `arr.GetArrSystemStatus`
+- Prowlarr handler status mapping simplified to shared `arr.ErrArr` path
+- Added handler regression tests for prowlarr error->status mapping (`internal/api/handlers/prowlarr_error_test.go`)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
