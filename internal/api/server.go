@@ -115,7 +115,15 @@ func (s *Server) Handler() http.Handler {
 
 	// Initialize handlers with cache
 	bc := handlers.NewBroadcaster(s.hub)
-	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache)
+	// Background polling will publish SSE updates.
+	if s.poller == nil {
+		s.poller = handlers.NewPoller(s.db, bc)
+		pctx, cancel := context.WithCancel(context.Background())
+		s.pollerStop = cancel
+		s.poller.Start(pctx)
+	}
+
+	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache, s.poller)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
 	healthHandler := handlers.NewHealthHandler(s.db)
 	eventsHandler := handlers.NewEventsHandler(s.hub, bc)
@@ -142,14 +150,6 @@ func (s *Server) Handler() http.Handler {
 			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/oidc/callback"),
 		}
 		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
-	}
-
-	// Background polling will publish SSE updates.
-	if s.poller == nil {
-		s.poller = handlers.NewPoller(s.db, bc)
-		pctx, cancel := context.WithCancel(context.Background())
-		s.pollerStop = cancel
-		s.poller.Start(pctx)
 	}
 
 	// Public routes (no auth required)

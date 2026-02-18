@@ -29,6 +29,7 @@ type SettingsHandler struct {
 	db             *database.DB
 	cache          cache.Store
 	serviceManager *manager.ServiceManager
+	poller         *Poller
 	lastDebugLog   time.Time
 }
 
@@ -37,11 +38,12 @@ func sanitizeServiceConfig(c models.ServiceConfiguration) models.ServiceConfigur
 	return c
 }
 
-func NewSettingsHandler(db *database.DB, cache cache.Store) *SettingsHandler {
+func NewSettingsHandler(db *database.DB, cache cache.Store, poller *Poller) *SettingsHandler {
 	return &SettingsHandler{
 		db:             db,
 		cache:          cache,
 		serviceManager: manager.NewServiceManager(db, cache),
+		poller:         poller,
 		lastDebugLog:   time.Now().Add(-configDebugLogTTL), // Initialize to ensure first log happens
 	}
 }
@@ -161,6 +163,10 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	// Invalidate cache
 	if err := h.cache.Delete(c.Request.Context(), configCacheKey); err != nil {
 		log.Warn().Err(err).Msg("Failed to delete configuration cache")
+	}
+
+	if h.poller != nil {
+		h.poller.Refresh(instanceID, RefreshAll)
 	}
 
 	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")

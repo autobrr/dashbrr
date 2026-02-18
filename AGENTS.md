@@ -313,6 +313,16 @@ Owner: soup (s0up4200@pm.me)
 - Top-row UX polish: `AddServicesMenu` wrapper now `w-full` on mobile and `auto` on larger screens; logout/status colors aligned to zinc palette.
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
+### 2026-02-18 (push-first data flow pass)
+- Frontend: removed manual refresh hook API from `useServiceData` (`refreshService`) so components consume SSE-only state updates.
+- Frontend: removed post-action refresh calls from:
+  - `ConfigurationForm` save flow
+  - `ArrQueueStatsBase` queue delete flow
+  - `OverseerrStats` request approve/reject flow
+  - `TailscaleStatusBar` mount bootstrap flow
+- Backend: `SettingsHandler` now receives poller and triggers `poller.Refresh(instanceID, all)` after config save, so newly added/updated services publish state quickly without frontend-triggered refresh endpoints.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.

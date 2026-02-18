@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useServiceData } from './useServiceData';
 import { ServiceStatus } from '../types/service';
 
@@ -20,7 +20,7 @@ const initialStatusCount: StatusCount = {
 };
 
 export const useServiceHealth = () => {
-  const { services, isLoading, refreshService } = useServiceData();
+  const { services, isLoading } = useServiceData();
 
   // Memoize status counts to prevent unnecessary recalculations
   const statusCounts = useMemo((): StatusCount => {
@@ -31,18 +31,9 @@ export const useServiceHealth = () => {
     }, { ...initialStatusCount });
   }, [services]);
 
-  const refreshServiceHealth = useCallback(async (instanceId: string) => {
-    try {
-      await refreshService(instanceId, 'health');
-    } catch (error) {
-      console.error(`Error refreshing health for service ${instanceId}:`, error);
-    }
-  }, [refreshService]);
-
   return {
     services: services || [],
     isLoading,
-    refreshServiceHealth,
     statusCounts,
   };
 };

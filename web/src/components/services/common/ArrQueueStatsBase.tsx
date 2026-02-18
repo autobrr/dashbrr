@@ -128,7 +128,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   getManageDisabledReason,
   renderMessage,
 }) => {
-  const { getService, refreshService } = useServiceData();
+  const { getService } = useServiceData();
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
 
@@ -171,8 +171,6 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
       const queryParams = buildArrQueueDeleteQueryParams(instanceId, deleteOptions);
 
       await api.delete(`${queuePath}/${selectedItem.id}?${queryParams.toString()}`);
-
-      await refreshService(instanceId, "stats");
 
       setShowDeleteModal(false);
       setSelectedItem(null);

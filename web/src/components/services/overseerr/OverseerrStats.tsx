@@ -45,7 +45,7 @@ const REQUEST_STATUS_COLORS: Record<number, string> = {
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
 }) => {
-  const { getService, refreshService } = useServiceData();
+  const { getService } = useServiceData();
   const service = getService(instanceId);
   const serviceRequests = service?.stats?.overseerr?.requests ?? EMPTY_REQUESTS;
   const [statusOverrides, setStatusOverrides] = useState<Record<number, number>>(
@@ -102,8 +102,6 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
         />
       ));
 
-      // Refresh service data in background
-      refreshService(instanceId, "stats");
       setSelectedRequest(null);
       setModalAction(null);
     } catch (error) {

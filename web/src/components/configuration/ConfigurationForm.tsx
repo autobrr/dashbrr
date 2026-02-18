@@ -10,7 +10,6 @@ import { Button } from "../ui/Button";
 import { FormInput } from "../ui/FormInput";
 import { toast } from "react-hot-toast";
 import { api } from "../../utils/api";
-import { useServiceHealth } from "../../hooks/useServiceHealth";
 
 interface ConfigurationFormProps {
   instanceId: string;
@@ -23,9 +22,7 @@ export const ConfigurationForm = ({
   displayName: initialDisplayName,
   onClose,
 }: ConfigurationFormProps) => {
-  const { configurations, updateConfiguration, fetchConfigurations } =
-    useConfiguration();
-  const { refreshServiceHealth } = useServiceHealth();
+  const { configurations, updateConfiguration } = useConfiguration();
   const currentConfig = configurations[instanceId];
   const serviceType = instanceId.split("-")[0];
 
@@ -88,12 +85,6 @@ export const ConfigurationForm = ({
 
       // Update the configuration
       await updateConfiguration(instanceId, config);
-
-      // Immediately refresh the health status
-      await refreshServiceHealth(instanceId);
-
-      // Force a refresh of all configurations to ensure UI is up to date
-      await fetchConfigurations();
 
       toast.success("Configuration saved successfully");
       onClose();

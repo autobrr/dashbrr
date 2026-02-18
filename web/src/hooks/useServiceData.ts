@@ -25,15 +25,11 @@ import {
 import { useConfiguration } from "../contexts/useConfiguration";
 import { useAuth } from "./useAuth";
 import { serviceTemplates } from "../config/serviceTemplates";
-import { api } from "../utils/api";
-
-type RefreshKind = "health" | "stats" | "all";
 
 type ServiceDataContextValue = {
   services: Service[];
   isLoading: boolean;
   getService: (instanceId: string) => Service | undefined;
-  refreshService: (instanceId: string, kind?: RefreshKind) => Promise<void>;
 };
 
 const ServiceDataContext = createContext<ServiceDataContextValue | undefined>(
@@ -357,14 +353,6 @@ const useProvideServiceData = (): ServiceDataContextValue => {
     setIsLoading(false);
   }, [configurations, isAuthenticated, serviceFromConfig, servicePatchFromHealth, setServicesState]);
 
-  const refreshService = useCallback(async (instanceId: string, kind: RefreshKind = "all") => {
-    try {
-      await api.post(`/api/services/${instanceId}/refresh?kind=${kind}`);
-    } catch (err) {
-      console.error("Failed to refresh service:", err);
-    }
-  }, []);
-
   const getService = useCallback(
     (instanceId: string) => {
       return services.get(instanceId);
@@ -378,7 +366,6 @@ const useProvideServiceData = (): ServiceDataContextValue => {
     services: servicesArray,
     isLoading,
     getService,
-    refreshService,
   };
 };
 

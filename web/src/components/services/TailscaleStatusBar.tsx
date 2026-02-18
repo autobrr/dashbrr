@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Cog6ToothIcon } from "@heroicons/react/24/solid";
 import TailscaleDeviceModal from "./TailscaleDeviceModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
@@ -23,7 +23,7 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const { configurations } = useConfiguration();
   const { removeServiceInstance } = useServiceManagement();
-  const { getService, refreshService } = useServiceData();
+  const { getService } = useServiceData();
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
   const instanceId = useMemo(() => {
@@ -40,13 +40,6 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
     devices.filter((device) => device.online).length;
   const isOnline = onlineCount > 0;
   const isLoading = service?.status === "loading" || service === undefined;
-
-  useEffect(() => {
-    if (!instanceId) {
-      return;
-    }
-    void refreshService(instanceId, "all");
-  }, [instanceId, refreshService]);
 
   const handleRemoveClick = () => {
     setIsRemoveModalOpen(true);
