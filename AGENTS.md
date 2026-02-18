@@ -265,6 +265,9 @@ Owner: soup (s0up4200@pm.me)
 - ARR noise reduction: suppress benign canceled/deadline update-check logs in async update checker (`internal/services/arr/health.go`).
 - Frontend no-polling pass: removed `TailscaleStatusBar` interval/API fetch loop; now consumes SSE-fed `useServiceData` only and triggers one-shot backend refresh (`web/src/components/services/TailscaleStatusBar.tsx`).
 - Types: added typed tailscale device/details shapes to `ServiceStats/ServiceDetails` and shared modal typing (`web/src/types/service.ts`, `web/src/components/services/TailscaleDeviceModal.tsx`).
+- Tests: added `internal/api/handlers/broadcast_test.go` to lock snapshot replay behavior (latest-per-service + deterministic ordering).
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`).
+- Commits: `5747629`, `225063a`.
 
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
