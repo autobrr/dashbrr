@@ -319,38 +319,30 @@ func (h *AutobrrHandler) fetchIRC(ctx context.Context, instanceId string) ([]typ
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.ReleasesResponse) {
-	health := models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "autobrr_releases",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "online",
+		Message:   "autobrr_releases",
 		Stats: map[string]interface{}{
 			"autobrr": map[string]interface{}{
 				"releases": releases,
 			},
 		},
-	}
-
-	h.bc.Publish(health)
+	})
 }
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrStats) {
-	health := models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "autobrr_stats",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "online",
+		Message:   "autobrr_stats",
 		Stats: map[string]interface{}{
 			"autobrr": map[string]interface{}{
 				"stats": stats,
 			},
 		},
-	}
-
-	h.bc.Publish(health)
+	})
 }
 
 // broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
@@ -368,10 +360,9 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 	}
 
 	health := models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      serviceStatus,
-		Message:     message,
-		LastChecked: time.Now(),
+		ServiceID: instanceId,
+		Status:    serviceStatus,
+		Message:   message,
 		Details: map[string]interface{}{
 			"autobrr": types.AutobrrDetails{
 				IRC: status,
@@ -379,10 +370,11 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 		},
 	}
 	if message == "autobrr_irc_status" {
-		health.EventType = models.ServiceEventInternal
+		publishInternalServiceUpdate(h.bc, health)
+		return
 	}
 
-	h.bc.Publish(health)
+	publishHealthServiceUpdate(h.bc, health)
 }
 
 // Hash generation functions

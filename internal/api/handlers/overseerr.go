@@ -303,10 +303,9 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 	}
 
 	health := models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      serviceStatus,
-		Message:     message,
-		LastChecked: time.Now(),
+		ServiceID: instanceId,
+		Status:    serviceStatus,
+		Message:   message,
 		Stats: map[string]interface{}{
 			"overseerr": types.OverseerrStats{
 				Requests:     stats.Requests,
@@ -321,7 +320,7 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 		},
 	}
 
-	h.bc.Publish(health)
+	publishInternalServiceUpdate(h.bc, health)
 }
 
 // createOverseerrRequestsHash generates a deterministic hash of the requests state

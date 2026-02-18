@@ -1137,6 +1137,39 @@ Owner: soup (s0up4200@pm.me)
   - recent publish activity: `2025-11-30` (`npm view tsx time.modified`)
 - Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
 
+### 2026-02-19 (refactor #3: shared health/internal event pipeline)
+- Added shared backend utility: `internal/api/handlers/service_event.go`
+  - `classifyServiceEventType(...)`: single classifier for `health` vs `internal` (explicit `eventType` first, regex fallback only if unset)
+  - `normalizeServiceEvent(...)`: enforces non-zero `lastChecked` + explicit `eventType` on every publish
+  - `shouldMergeHealthState(...)`: single merge gate for snapshot semantics
+  - publish helpers:
+    - `publishInternalServiceUpdate(...)`
+    - `publishHealthServiceUpdate(...)`
+- Broadcaster refactor (`internal/api/handlers/broadcast.go`):
+  - `Publish(...)` now normalizes every event before SSE encode/snapshot merge
+  - snapshot merge now uses shared `shouldMergeHealthState(...)` instead of local ad-hoc logic
+  - removed duplicate internal-event regex logic from broadcaster
+- Handler pipeline wiring:
+  - switched internal emitters to shared helper in:
+    - `internal/api/handlers/poller.go`
+    - `internal/api/handlers/autobrr.go`
+    - `internal/api/handlers/plex.go`
+    - `internal/api/handlers/radarr.go`
+    - `internal/api/handlers/sonarr.go`
+    - `internal/api/handlers/prowlarr.go`
+    - `internal/api/handlers/maintainerr.go`
+    - `internal/api/handlers/overseerr.go`
+  - health emitters in poller now use shared health helper (`runHealth`, `runPending`)
+- Regression coverage:
+  - `internal/api/handlers/broadcast_test.go`
+    - `TestBroadcasterPublishNormalizesImplicitInternalEventType`
+    - `TestBroadcasterPublishNormalizesImplicitHealthEventType`
+    - adjusted first snapshot test to compare against normalized payload shape
+- Result:
+  - explicit event semantics on all runtime publishes
+  - one classification/merge rule path, less per-handler drift/edge cases
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

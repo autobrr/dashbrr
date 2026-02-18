@@ -4,16 +4,12 @@
 package handlers
 
 import (
-	"regexp"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/sse"
 )
-
-var internalEventMessagePattern = regexp.MustCompile(`^[a-z0-9]+(?:_[a-z0-9]+)+$`)
 
 // Broadcaster publishes service updates to SSE clients.
 type Broadcaster struct {
@@ -34,6 +30,8 @@ func (b *Broadcaster) Publish(health models.ServiceHealth) {
 	if b == nil || b.hub == nil {
 		return
 	}
+
+	health = normalizeServiceEvent(health)
 
 	payload := EncodeHealthAsSSE(health)
 	b.hub.Publish(payload)
@@ -83,24 +81,20 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	merged := prev
 	merged.ServiceID = next.ServiceID
 
-	shouldMergeHealthState := next.Message != "" && !isInternalServiceEvent(next)
+	shouldMergeState := shouldMergeHealthState(next)
 
-	if shouldMergeHealthState && next.Status != "" {
+	if shouldMergeState && next.Status != "" {
 		merged.Status = next.Status
 	}
-	if shouldMergeHealthState && next.Message != "" {
+	if shouldMergeState && next.Message != "" {
 		merged.Message = next.Message
 	}
-	if !next.LastChecked.IsZero() {
-		merged.LastChecked = next.LastChecked
-	} else if merged.LastChecked.IsZero() {
-		merged.LastChecked = time.Now()
-	}
+	merged.LastChecked = next.LastChecked
 
 	if next.Version != "" {
 		merged.Version = next.Version
 	}
-	if shouldMergeHealthState {
+	if shouldMergeState {
 		merged.ResponseTime = next.ResponseTime
 		merged.UpdateAvailable = next.UpdateAvailable
 	}
@@ -109,16 +103,6 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	merged.Details = mergeHealthPayload(prev.Details, next.Details)
 
 	return merged
-}
-
-func isInternalServiceEvent(health models.ServiceHealth) bool {
-	switch health.EventType {
-	case models.ServiceEventInternal:
-		return true
-	case models.ServiceEventHealth:
-		return false
-	}
-	return health.Message != "" && internalEventMessagePattern.MatchString(health.Message)
 }
 
 func mergeHealthPayload(current, incoming map[string]interface{}) map[string]interface{} {

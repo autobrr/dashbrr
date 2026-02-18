@@ -254,12 +254,10 @@ func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, c
 
 // broadcastMaintainerrCollections broadcasts collections updates to all connected SSE clients
 func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []maintainerr.Collection) {
-	h.bc.Publish(models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "maintainerr_collections",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "online",
+		Message:   "maintainerr_collections",
 		Stats: map[string]interface{}{
 			"maintainerr": map[string]interface{}{
 				"collections": collections,

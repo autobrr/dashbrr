@@ -307,7 +307,7 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration, serviceType string) {
 	checker := p.registry.CreateService(serviceType)
 	if checker == nil {
-		p.bc.Publish(models.ServiceHealth{
+		publishHealthServiceUpdate(p.bc, models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      "error",
 			Message:     "Unsupported service type: " + serviceType,
@@ -321,11 +321,11 @@ func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration,
 	if health.LastChecked.IsZero() {
 		health.LastChecked = time.Now()
 	}
-	p.bc.Publish(health)
+	publishHealthServiceUpdate(p.bc, health)
 }
 
 func (p *Poller) runPending(_ context.Context, svc models.ServiceConfiguration, _ string) {
-	p.bc.Publish(models.ServiceHealth{
+	publishHealthServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "pending",
 		Message:     "Service not configured",
@@ -412,7 +412,7 @@ func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfigur
 
 	transcoding := countTranscodingSessions(metadata)
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "plex_sessions",
@@ -450,7 +450,7 @@ func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceCon
 		status = "warning"
 	}
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      status,
 		Message:     "overseerr_requests",
@@ -488,7 +488,7 @@ func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfigura
 
 	downloading, totalSize := summarizeRadarrQueue(records)
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "radarr_queue",
@@ -527,7 +527,7 @@ func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfigura
 
 	downloading, episodeCount, totalSize := summarizeSonarrQueue(records)
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "sonarr_queue",
@@ -565,7 +565,7 @@ func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfigu
 		totalFails += stat.NumberOfFailedGrabs
 	}
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "prowlarr_stats",
@@ -591,7 +591,7 @@ func (p *Poller) runProwlarrIndexers(ctx context.Context, svc models.ServiceConf
 		return
 	}
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "prowlarr_indexers",
@@ -609,7 +609,7 @@ func (p *Poller) runAutobrrStats(ctx context.Context, svc models.ServiceConfigur
 	service := &autobrr.AutobrrService{}
 
 	if stats, err := service.GetReleaseStats(ctx, svc.URL, svc.APIKey); err == nil {
-		p.bc.Publish(models.ServiceHealth{
+		publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      "online",
 			Message:     "autobrr_stats",
@@ -635,7 +635,7 @@ func (p *Poller) runAutobrrIRC(ctx context.Context, svc models.ServiceConfigurat
 				break
 			}
 		}
-		p.bc.Publish(models.ServiceHealth{
+		publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      status,
 			Message:     "autobrr_irc_status",
@@ -652,7 +652,7 @@ func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfi
 	service := &autobrr.AutobrrService{}
 
 	if releases, err := service.GetReleases(ctx, svc.URL, svc.APIKey); err == nil {
-		p.bc.Publish(models.ServiceHealth{
+		publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
 			Status:      "online",
 			Message:     "autobrr_releases",
@@ -677,7 +677,7 @@ func (p *Poller) runMaintainerrCollections(ctx context.Context, svc models.Servi
 		collections = []maintainerr.Collection{}
 	}
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "maintainerr_collections",
@@ -708,7 +708,7 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 
 	online := countOnlineDevices(devices)
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "tailscale_devices",
@@ -741,7 +741,7 @@ func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfigura
 
 	summary, transfers := service.GetAggregatedTransferInfo(ctx, svc.URL, svc.APIKey, instances)
 
-	p.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      summarizeQuiCardStatus(summary),
 		Message:     "qui_overview",

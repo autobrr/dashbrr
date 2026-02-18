@@ -162,14 +162,12 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 	}
 
 	// Use the existing BroadcastHealth function with a special message type
-	h.bc.Publish(models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "radarr_queue",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats:       stats,
-		Details:     details,
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "online",
+		Message:   "radarr_queue",
+		Stats:     stats,
+		Details:   details,
 	})
 }
 

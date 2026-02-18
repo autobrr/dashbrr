@@ -144,12 +144,10 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (typ
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
 func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.PlexSessionsResponse) {
 	// Use the existing BroadcastHealth function with a special message type
-	h.bc.Publish(models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "plex_sessions",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "online",
+		Message:   "plex_sessions",
 		Stats: map[string]interface{}{
 			"plex": map[string]interface{}{
 				"sessions": sessions.MediaContainer.Metadata,

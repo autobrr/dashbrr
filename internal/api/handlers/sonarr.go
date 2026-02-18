@@ -337,12 +337,10 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 		episodeCount += len(record.Episodes)
 	}
 
-	h.bc.Publish(models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "sonarr_queue",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "online",
+		Message:   "sonarr_queue",
 		Stats: map[string]interface{}{
 			"sonarr": map[string]interface{}{
 				"queue": queueResp,
@@ -361,12 +359,10 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 }
 
 func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types.SonarrStatsResponse, version string) {
-	h.bc.Publish(models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "sonarr_stats",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
+		ServiceID: instanceId,
+		Status:    "online",
+		Message:   "sonarr_stats",
 		Stats: map[string]interface{}{
 			"sonarr": map[string]interface{}{
 				"stats":   statsResp,

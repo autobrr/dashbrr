@@ -376,11 +376,10 @@ func (h *ProwlarrHandler) compareAndLogIndexerStatsChanges(instanceId string, st
 }
 
 func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.ProwlarrStatsResponse) {
-	h.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
 		ServiceID: instanceId,
 		Status:    "online",
 		Message:   "prowlarr_stats",
-		EventType: models.ServiceEventInternal,
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
 				"stats": stats,
@@ -390,11 +389,10 @@ func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.Prowlarr
 }
 
 func (h *ProwlarrHandler) broadcastIndexers(instanceId string, indexers []types.ProwlarrIndexer) {
-	h.bc.Publish(models.ServiceHealth{
+	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
 		ServiceID: instanceId,
 		Status:    "online",
 		Message:   "prowlarr_indexers",
-		EventType: models.ServiceEventInternal,
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
 				"indexers": indexers,
