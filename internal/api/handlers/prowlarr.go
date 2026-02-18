@@ -15,7 +15,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -38,7 +37,6 @@ type ProwlarrHandler struct {
 	db             *database.DB
 	cache          cache.Store
 	bc             *Broadcaster
-	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
 
 	// Single hash map and mutex for all state tracking
@@ -51,7 +49,6 @@ func NewProwlarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *Pr
 		db:             db,
 		cache:          cache,
 		bc:             bc,
-		sf:             &singleflight.Group{},
 		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
 		lastHash:       make(map[string]string),
 	}
@@ -201,19 +198,7 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch stats")
-		status := http.StatusInternalServerError
-		var arrErr *arr.ErrArr
-		if errors.As(err, &arrErr) && arrErr.HttpCode > 0 {
-			status = normalizeUpstreamStatus(arrErr.HttpCode)
-		}
-		var prowErr *prowlarr.ErrProwlarr
-		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
-			status = normalizeUpstreamStatus(prowErr.HttpCode)
-		}
-		if errors.Is(err, ErrServiceNotConfigured) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(statusFromProwlarrError(err), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -260,19 +245,7 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch indexers")
-		status := http.StatusInternalServerError
-		var arrErr *arr.ErrArr
-		if errors.As(err, &arrErr) && arrErr.HttpCode > 0 {
-			status = normalizeUpstreamStatus(arrErr.HttpCode)
-		}
-		var prowErr *prowlarr.ErrProwlarr
-		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
-			status = normalizeUpstreamStatus(prowErr.HttpCode)
-		}
-		if errors.Is(err, ErrServiceNotConfigured) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(statusFromProwlarrError(err), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -313,19 +286,7 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("[Prowlarr] Failed to fetch indexer stats")
-		status := http.StatusInternalServerError
-		var arrErr *arr.ErrArr
-		if errors.As(err, &arrErr) && arrErr.HttpCode > 0 {
-			status = normalizeUpstreamStatus(arrErr.HttpCode)
-		}
-		var prowErr *prowlarr.ErrProwlarr
-		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
-			status = normalizeUpstreamStatus(prowErr.HttpCode)
-		}
-		if errors.Is(err, ErrServiceNotConfigured) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(statusFromProwlarrError(err), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -482,4 +443,22 @@ func (h *ProwlarrHandler) broadcastIndexers(instanceId string, indexers []types.
 			},
 		},
 	})
+}
+
+func statusFromProwlarrError(err error) int {
+	if errors.Is(err, ErrServiceNotConfigured) {
+		return http.StatusNotFound
+	}
+
+	var arrErr *arr.ErrArr
+	if errors.As(err, &arrErr) && arrErr.HttpCode > 0 {
+		return normalizeUpstreamStatus(arrErr.HttpCode)
+	}
+
+	var prowErr *prowlarr.ErrProwlarr
+	if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
+		return normalizeUpstreamStatus(prowErr.HttpCode)
+	}
+
+	return http.StatusInternalServerError
 }
