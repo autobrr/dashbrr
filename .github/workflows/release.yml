@@ -18,6 +18,7 @@ env:
 permissions:
   contents: write
   packages: write
+  pull-requests: read
 
 jobs:
   web:
