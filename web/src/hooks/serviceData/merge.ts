@@ -75,31 +75,28 @@ const buildServicePatchFromHealth = (
   health: ServiceHealth,
   presence: HealthPatchPresence
 ): Partial<Service> => {
+  const shouldApplyHealthState =
+    health.message !== "" && !isInternalEventMessage(health.message);
+
   const patch: Partial<Service> = {
     lastChecked: health.lastChecked,
     stats: health.stats,
     details: health.details,
   };
 
-  const shouldApplyHealthState =
-    health.message !== "" && !isInternalEventMessage(health.message);
-
   if (shouldApplyHealthState) {
     patch.status = health.status;
     patch.message = health.message;
     patch.health = health;
+    patch.updateAvailable = Boolean(health.updateAvailable);
   }
 
-  if (presence.hasResponseTime) {
+  if (shouldApplyHealthState && presence.hasResponseTime) {
     patch.responseTime = health.responseTime;
   }
 
   if (presence.hasVersion) {
     patch.version = health.version;
-  }
-
-  if (presence.hasUpdateAvailable) {
-    patch.updateAvailable = health.updateAvailable;
   }
 
   return patch;

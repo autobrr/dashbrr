@@ -100,11 +100,9 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	if next.Version != "" {
 		merged.Version = next.Version
 	}
-	if next.ResponseTime > 0 {
+	if shouldMergeHealthState {
 		merged.ResponseTime = next.ResponseTime
-	}
-	if next.UpdateAvailable {
-		merged.UpdateAvailable = true
+		merged.UpdateAvailable = next.UpdateAvailable
 	}
 
 	merged.Stats = mergeHealthPayload(prev.Stats, next.Stats)

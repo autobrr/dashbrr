@@ -879,6 +879,28 @@ Owner: soup (s0up4200@pm.me)
 - File:
   - `internal/api/handlers/poller.go`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Poller/snapshot stability hardening:
+  - dedupe duplicated `*arr` warning lines at source (same warning was rendered twice in cards).
+  - snapshot merge now treats health-only fields as health-only:
+    - `responseTime` updates only from non-internal health events.
+    - `updateAvailable` updates only from non-internal health events and can now clear back to `false`.
+- Frontend merge hardening:
+  - internal stats events no longer clobber card `responseTime`.
+  - health events now explicitly clear `updateAvailable` to `false` when absent/false in payload.
+- Regression coverage:
+  - `internal/services/arr/health_test.go`: duplicate warning payload collapses to one rendered warning line.
+  - `internal/api/handlers/broadcast_test.go`:
+    - internal events do not overwrite health response time/update flags.
+    - later health update can clear `updateAvailable` from true -> false.
+- Files:
+  - `internal/services/arr/health.go`
+  - `internal/services/arr/health_test.go`
+  - `internal/api/handlers/broadcast.go`
+  - `internal/api/handlers/broadcast_test.go`
+  - `web/src/hooks/serviceData/merge.ts`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

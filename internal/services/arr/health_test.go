@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -146,5 +147,39 @@ func TestPerformHealthCheck_CachesFallbackOnUpdateError(t *testing.T) {
 
 	if calls := atomic.LoadInt32(&checker.updateCalls); calls != 1 {
 		t.Fatalf("expected cached fallback to prevent repeat update checks, got %d calls", calls)
+	}
+}
+
+func TestPerformHealthCheck_DeduplicatesWarningMessages(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"source":"IndexerLongTermStatusCheck","type":"warning","message":"Indexers unavailable due to failures for more than 6 hours: MyAnonamouse"},
+			{"source":"IndexerLongTermStatusCheck","type":"warning","message":"Indexers unavailable due to failures for more than 6 hours: MyAnonamouse"}
+		]`))
+	}))
+	defer server.Close()
+
+	serviceCore := newServiceCore(t)
+	checker := &testArrHealthChecker{}
+
+	health, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker)
+	if err != nil {
+		t.Fatalf("performHealthCheck failed: %v", err)
+	}
+
+	if health.Status != "warning" {
+		t.Fatalf("health status = %q, want %q", health.Status, "warning")
+	}
+
+	warningLine := "[IndexerLongTermStatusCheck] Indexers unavailable due to failures for more than 6 hours: MyAnonamouse"
+	if count := strings.Count(health.Message, warningLine); count != 1 {
+		t.Fatalf("warning count = %d, want 1; message=%q", count, health.Message)
 	}
 }

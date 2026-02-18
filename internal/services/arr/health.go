@@ -165,9 +165,15 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	// Determine status and message
 	status := "online"
 	var warnings []string
+	seenWarnings := make(map[string]struct{}, len(healthIssues))
 	for _, issue := range healthIssues {
 		if issue.Type == "warning" || issue.Type == "error" {
-			warnings = append(warnings, fmt.Sprintf("[%s] %s", issue.Source, issue.Message))
+			warning := fmt.Sprintf("[%s] %s", issue.Source, issue.Message)
+			if _, seen := seenWarnings[warning]; seen {
+				continue
+			}
+			seenWarnings[warning] = struct{}{}
+			warnings = append(warnings, warning)
 			status = "warning"
 		}
 	}

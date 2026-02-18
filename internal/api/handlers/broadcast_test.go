@@ -134,6 +134,90 @@ func TestBroadcasterSnapshotKeepsWarningStateAcrossInternalEvents(t *testing.T) 
 	}
 }
 
+func TestBroadcasterSnapshotKeepsHealthResponseTimeAcrossInternalEvents(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:       "radarr-1",
+		Status:          "online",
+		Message:         "Healthy",
+		LastChecked:     now,
+		ResponseTime:    42,
+		UpdateAvailable: true,
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:       "radarr-1",
+		Status:          "online",
+		Message:         "radarr_queue",
+		LastChecked:     now.Add(time.Second),
+		ResponseTime:    0,
+		UpdateAvailable: false,
+		Stats: map[string]interface{}{
+			"radarr": map[string]interface{}{
+				"queue": map[string]interface{}{"totalRecords": float64(2)},
+			},
+		},
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	if decoded.ResponseTime != 42 {
+		t.Fatalf("snapshot responseTime = %d, want %d", decoded.ResponseTime, 42)
+	}
+	if !decoded.UpdateAvailable {
+		t.Fatalf("snapshot updateAvailable = %v, want true", decoded.UpdateAvailable)
+	}
+}
+
+func TestBroadcasterSnapshotClearsUpdateAvailableOnHealthUpdate(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:       "sonarr-1",
+		Status:          "online",
+		Message:         "Healthy",
+		LastChecked:     now,
+		UpdateAvailable: true,
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:       "sonarr-1",
+		Status:          "online",
+		Message:         "Healthy",
+		LastChecked:     now.Add(time.Second),
+		UpdateAvailable: false,
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	if decoded.UpdateAvailable {
+		t.Fatalf("snapshot updateAvailable = %v, want false", decoded.UpdateAvailable)
+	}
+}
+
 func TestBroadcasterSnapshotMergesNestedStatsPayloads(t *testing.T) {
 	bc := NewBroadcaster(sse.NewHub())
 	now := time.Unix(1700000000, 0)
