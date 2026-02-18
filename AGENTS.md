@@ -568,6 +568,11 @@ Owner: soup (s0up4200@pm.me)
   - now uses Overseerr `/api/v1/request?take=10` payload directly
 - Added regression test (`internal/services/overseerr/overseerr_test.go`) asserting single upstream call (no per-item fanout)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Web/Prowlarr: stop gating indexer rendering on both `indexers` and `stats` payloads in `ProwlarrStats`
+- Initial UI now unblocks as soon as indexers payload lands (stats can arrive later without keeping skeleton state)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path

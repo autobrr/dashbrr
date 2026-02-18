@@ -41,15 +41,15 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
       .slice(0, 10);
   }, [stableIndexers]);
 
-  // Update stable indexers only when we have complete data
+  // Keep indexers visible even if stats payload arrives later.
   useEffect(() => {
-    if (prowlarrData?.indexers?.length && prowlarrData.stats) {
+    if (prowlarrData?.indexers?.length) {
       setStableIndexers(prowlarrData.indexers);
       if (!hasInitiallyLoaded) {
         setHasInitiallyLoaded(true);
       }
     }
-  }, [prowlarrData?.indexers, prowlarrData?.stats, hasInitiallyLoaded]);
+  }, [prowlarrData?.indexers, hasInitiallyLoaded]);
 
   if (isInitialLoading) {
     return <StatsSkeleton rows={3} />;
