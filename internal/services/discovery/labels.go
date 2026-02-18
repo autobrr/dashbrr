@@ -11,12 +11,11 @@ import (
 )
 
 type parsedDiscoveryLabels struct {
-	serviceType  string
-	url          string
-	apiKey       string
-	displayName  string
-	enabled      bool
-	isExplicitly bool
+	serviceType string
+	url         string
+	apiKey      string
+	displayName string
+	enabled     bool
 }
 
 func parseDiscoveryLabels(labels map[string]string) (*parsedDiscoveryLabels, error) {
