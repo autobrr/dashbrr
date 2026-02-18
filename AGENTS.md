@@ -346,6 +346,16 @@ Owner: soup (s0up4200@pm.me)
   - Adopted native CSS multi-column now; keep active-library migration as fallback if drag/animation constraints appear.
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
+### 2026-02-18 (backend refresh-surface cleanup)
+- Removed dead manual-refresh endpoint `POST /api/services/:instanceId/refresh` from API router.
+- Simplified poller refresh API:
+  - removed `RefreshKind` (`health|stats|all`) and related branching
+  - `Poller.Refresh(instanceID)` now schedules a full pass for the target instance
+  - poller tick path now always runs health pass + stats pass (existing force/interval semantics preserved)
+- Updated settings save path to new poller API (`poller.Refresh(instanceID)`).
+- Goal: remove obsolete push/pull hybrid surface and keep architecture cleanly backend-push-first.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.

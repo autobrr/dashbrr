@@ -166,7 +166,7 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	}
 
 	if h.poller != nil {
-		h.poller.Refresh(instanceID, RefreshAll)
+		h.poller.Refresh(instanceID)
 	}
 
 	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")

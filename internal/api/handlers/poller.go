@@ -24,14 +24,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-type RefreshKind string
-
-const (
-	RefreshHealth RefreshKind = "health"
-	RefreshStats  RefreshKind = "stats"
-	RefreshAll    RefreshKind = "all"
-)
-
 const (
 	pollerTickInterval      = 1 * time.Second
 	pollerServiceReloadTTL  = 15 * time.Second
@@ -65,7 +57,6 @@ type Poller struct {
 
 type refreshReq struct {
 	instanceID string
-	kind       RefreshKind
 }
 
 func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
@@ -118,9 +109,9 @@ func (p *Poller) Start(ctx context.Context) {
 	go p.run(ctx)
 }
 
-func (p *Poller) Refresh(instanceID string, kind RefreshKind) {
+func (p *Poller) Refresh(instanceID string) {
 	select {
-	case p.refreshCh <- refreshReq{instanceID: instanceID, kind: kind}:
+	case p.refreshCh <- refreshReq{instanceID: instanceID}:
 	default:
 	}
 }
@@ -136,21 +127,21 @@ func (p *Poller) run(ctx context.Context) {
 	defer t.Stop()
 
 	// initial blast
-	p.tick(ctx, sem, true, "", RefreshAll)
+	p.tick(ctx, sem, true, "")
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case req := <-p.refreshCh:
-			p.tick(ctx, sem, true, req.instanceID, req.kind)
+			p.tick(ctx, sem, true, req.instanceID)
 		case <-t.C:
-			p.tick(ctx, sem, false, "", RefreshAll)
+			p.tick(ctx, sem, false, "")
 		}
 	}
 }
 
-func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyInstance string, kind RefreshKind) {
+func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyInstance string) {
 	services := p.getServices(ctx, force || onlyInstance != "")
 	if services == nil {
 		return
@@ -182,18 +173,12 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 
 	// Pass 1: enqueue health for every service first so version-bearing health checks
 	// are not delayed behind stats jobs on startup and forced refreshes.
-	if kind == RefreshAll || kind == RefreshHealth {
-		for _, ps := range pollServices {
-			if ps.configured {
-				p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 30*time.Second, force, (*Poller).runHealth)
-				continue
-			}
-			p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 60*time.Second, force, (*Poller).runPending)
+	for _, ps := range pollServices {
+		if ps.configured {
+			p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 30*time.Second, force, (*Poller).runHealth)
+			continue
 		}
-	}
-
-	if !(kind == RefreshAll || kind == RefreshStats) {
-		return
+		p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 60*time.Second, force, (*Poller).runPending)
 	}
 
 	// Pass 2: enqueue stats only for configured services.

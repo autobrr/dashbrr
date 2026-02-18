@@ -229,28 +229,6 @@ func (s *Server) Handler() http.Handler {
 		// SSE events (preferred)
 		api.GET("/events", eventsHandler.Stream)
 
-		// Manual refresh trigger (useful after actions)
-		api.POST("/services/:instanceId/refresh", func(c *gin.Context) {
-			instanceID := c.Param("instanceId")
-			if instanceID == "" {
-				c.JSON(400, gin.H{"error": "instanceId is required"})
-				return
-			}
-			kind := handlers.RefreshAll
-			if q := c.Query("kind"); q != "" {
-				switch q {
-				case "health":
-					kind = handlers.RefreshHealth
-				case "stats":
-					kind = handlers.RefreshStats
-				case "all":
-					kind = handlers.RefreshAll
-				}
-			}
-			s.poller.Refresh(instanceID, kind)
-			c.JSON(200, gin.H{"ok": true})
-		})
-
 		//serviceRoutes := api.Group("/services")
 		//serviceRoutes.Use(cacheMiddleware.Cache())
 		//{
