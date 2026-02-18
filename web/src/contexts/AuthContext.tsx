@@ -146,6 +146,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [checkAuthStatus]);
 
+  const submitAuthForm = async (
+    url: string,
+    payload: unknown,
+    fallbackMessage: string
+  ): Promise<Response> => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      throw new Error(message || fallbackMessage);
+    }
+
+    return response;
+  };
+
   const loginWithOIDC = () => {
     debug("[AuthProvider] Initiating OIDC login");
     if (!authConfig?.methods.oidc) {
@@ -165,21 +187,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch(AUTH_URLS.builtin.login, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const message = await readErrorMessage(response);
-        console.error("[AuthProvider] Login failed:", message);
-        throw new Error(message || "Login failed");
-      }
-
+      const response = await submitAuthForm(
+        AUTH_URLS.builtin.login,
+        credentials,
+        "Login failed"
+      );
       await response.json();
       debug("[AuthProvider] Login successful");
       localStorage.setItem("auth_type", "builtin");
@@ -193,20 +205,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (credentials: RegisterCredentials) => {
     debug("[AuthProvider] Registration attempt");
     try {
-      const response = await fetch(AUTH_URLS.builtin.register, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const message = await readErrorMessage(response);
-        console.error("[AuthProvider] Registration failed:", message);
-        throw new Error(message || "Registration failed");
-      }
+      await submitAuthForm(
+        AUTH_URLS.builtin.register,
+        credentials,
+        "Registration failed"
+      );
 
       debug(
         "[AuthProvider] Registration successful, proceeding to login"

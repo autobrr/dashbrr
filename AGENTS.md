@@ -230,6 +230,7 @@ Owner: soup (s0up4200@pm.me)
 - API/auth: removed dead OIDC discovery struct; parse discovery JSON via decoder stream (drop read-all alloc)
 - Web/service-grid: replaced prev-ref diffing with deterministic merge (preserve dragged order, append new services by saved order); extracted localStorage order helpers
 - Web/auth-context: deduped 429 retry loops into shared `fetchWith429Retry` helper (verify + userinfo paths)
+- Web/auth-context: deduped builtin login/register POST boilerplate with `submitAuthForm` helper
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
