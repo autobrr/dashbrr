@@ -121,7 +121,15 @@ dev: redis-dev
 	@echo "Starting development servers with Redis cache..."
 	@echo "Redis is running on localhost:6379"
 	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) serve --db-file ./data/dashbrr.db & \
+	@{ \
+		if command -v air > /dev/null 2>&1; then \
+			echo "Using air for backend hot reload..."; \
+			env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml; \
+		else \
+			echo "air not found; using go run (no backend hot reload)."; \
+			env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) serve --db-file ./data/dashbrr.db; \
+		fi; \
+	} & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -135,7 +143,15 @@ dev: redis-dev
 dev-memory:
 	@echo "Starting development servers with memory cache..."
 	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) serve --db-file ./data/dashbrr.db & \
+	@{ \
+		if command -v air > /dev/null 2>&1; then \
+			echo "Using air for backend hot reload..."; \
+			env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml; \
+		else \
+			echo "air not found; using go run (no backend hot reload)."; \
+			env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) serve --db-file ./data/dashbrr.db; \
+		fi; \
+	} & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -225,8 +241,8 @@ help:
 	@echo "  lint                     - Run ESLint on frontend code"
 	@echo "  type-check              - Run TypeScript type checking"
 	@echo "  preview                  - Start frontend preview server"
-	@echo "  dev                      - Start development environment with SQLite and Redis"
-	@echo "  dev-memory               - Start development environment with SQLite and memory cache"
+	@echo "  dev                      - Start development environment with SQLite and Redis (backend hot reload via air if installed)"
+	@echo "  dev-memory               - Start development environment with SQLite and memory cache (backend hot reload via air if installed)"
 	@echo "  docker-dev               - Start Docker development environment with memory cache"
 	@echo "  docker-dev-redis         - Start Docker development environment with Redis cache"
 	@echo "  docker-dev-quick         - Start Docker development environment without rebuilding"

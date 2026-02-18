@@ -30,6 +30,7 @@ web/dist/*
 !web/dist/.gitkeep
 web/tsconfig.app.tsbuildinfo
 web/tsconfig.node.tsbuildinfo
+.air-tmp/
 
 # Database Files
 ######################
