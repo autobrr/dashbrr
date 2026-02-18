@@ -777,6 +777,16 @@ Owner: soup (s0up4200@pm.me)
   - `web/src/components/services/autobrr/AutobrrStats.tsx`
   - `web/src/components/services/overseerr/OverseerrStats.tsx`
 - Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`)
+
+### 2026-02-18 (fix)
+- Autobrr releases still empty after refresh: secondary root cause in SSE snapshot parsing
+  - snapshot `message` is intentionally preserved as health text (e.g. `Healthy`)
+  - releases extractor was gated on `message === autobrr_releases`, so snapshot payload with releases shape was ignored
+- Fix in `web/src/hooks/serviceData/merge.ts`:
+  - add `extractAutobrrReleases(health)` shape-based detection (`stats.autobrr.data[]`)
+  - use that detection for both live events and snapshot hydration path
+  - suppress `patch.stats` whenever releases payload shape is detected (prevents releases payload from clobbering autobrr stats card)
+- Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

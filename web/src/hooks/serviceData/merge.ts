@@ -46,6 +46,21 @@ const parseDate = (value: unknown): Date | undefined => {
 const isInternalEventMessage = (message: string): boolean =>
   INTERNAL_EVENT_PATTERN.test(message.trim());
 
+const extractAutobrrReleases = (
+  health: ServiceHealth
+): AutobrrReleases | undefined => {
+  if (!health.stats || !isRecord(health.stats)) {
+    return undefined;
+  }
+
+  const candidate = health.stats.autobrr;
+  if (!isRecord(candidate) || !Array.isArray(candidate.data)) {
+    return undefined;
+  }
+
+  return candidate as unknown as AutobrrReleases;
+};
+
 export const mergeServicePayload = <T extends object>(
   current: T | undefined,
   incoming: T | undefined
@@ -74,7 +89,8 @@ export const mergeServicePayload = <T extends object>(
 
 const buildServicePatchFromHealth = (
   health: ServiceHealth,
-  presence: HealthPatchPresence
+  presence: HealthPatchPresence,
+  hasAutobrrReleases: boolean
 ): Partial<Service> => {
   const patch: Partial<Service> = {
     lastChecked: health.lastChecked,
@@ -103,7 +119,7 @@ const buildServicePatchFromHealth = (
     patch.updateAvailable = health.updateAvailable;
   }
 
-  if (health.message === "autobrr_releases") {
+  if (hasAutobrrReleases) {
     patch.stats = undefined;
   }
 
@@ -185,19 +201,13 @@ export const deriveHealthUpdate = (
     lastChecked: lastChecked || new Date(),
   };
 
+  const releases = extractAutobrrReleases(health);
+
   const patch = buildServicePatchFromHealth(health, {
     hasVersion: hasOwnProperty(payload, "version"),
     hasUpdateAvailable: hasOwnProperty(payload, "updateAvailable"),
     hasResponseTime: hasOwnProperty(payload, "responseTime"),
-  });
-
-  let releases: AutobrrReleases | undefined;
-  if (health.message === "autobrr_releases" && health.stats?.autobrr) {
-    const candidate = health.stats.autobrr as unknown as AutobrrReleases;
-    if (candidate && Array.isArray(candidate.data)) {
-      releases = candidate;
-    }
-  }
+  }, releases !== undefined);
 
   return {
     instanceId,
