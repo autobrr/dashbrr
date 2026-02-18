@@ -809,6 +809,17 @@ Owner: soup (s0up4200@pm.me)
   - `web/src/hooks/serviceData/merge.ts`
   - `web/src/components/services/autobrr/AutobrrStats.tsx`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Autobrr releases still intermittently blank on refresh (frontend resilience hardening):
+  - card previously depended primarily on `service.releases` side-channel state
+  - if that field missed a timing path, UI could show empty even when releases existed in `service.stats.autobrr`
+- Fix in `web/src/components/services/autobrr/AutobrrStats.tsx`:
+  - releases now resolved with fallback chain:
+    - `service.releases.data`
+    - `service.stats.autobrr.releases.data` (nested/new shape)
+    - `service.stats.autobrr.data` (legacy shape)
+- Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

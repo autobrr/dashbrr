@@ -18,6 +18,7 @@ import {
   ClockIcon,
 } from "@heroicons/react/24/outline";
 import {
+  AutobrrReleases,
   AutobrrRelease,
   AutobrrStats as AutobrrStatsPayload,
 } from "../../../types/service";
@@ -67,7 +68,23 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
     push_error_count: 0,
   };
   const ircStatus = service.details?.autobrr?.irc;
-  const releases = service.releases?.data || [];
+  const nestedReleases =
+    autobrrPayload &&
+    typeof autobrrPayload === "object" &&
+    "releases" in autobrrPayload
+      ? (autobrrPayload as { releases?: AutobrrReleases }).releases
+      : undefined;
+  const directReleases =
+    autobrrPayload &&
+    typeof autobrrPayload === "object" &&
+    "data" in autobrrPayload
+      ? (autobrrPayload as AutobrrReleases)
+      : undefined;
+  const releases =
+    service.releases?.data ??
+    nestedReleases?.data ??
+    directReleases?.data ??
+    [];
 
   const showMessage = service.message || service.status !== "online";
 
