@@ -22,6 +22,12 @@ interface StatusIndicatorProps {
   isConnected?: boolean;
 }
 
+type StatusDisplay = {
+  text: string;
+  color: string;
+  icon: string;
+};
+
 // List of headers that should receive warning styling
 const WARNING_HEADERS = [
   "Queue warnings",
@@ -33,92 +39,92 @@ const WARNING_HEADERS = [
 // List of headers that should receive error styling
 const ERROR_HEADERS = ["Service Error", "Error", "Connection issues detected"];
 
+const VIDEO_EXTENSIONS = [
+  ".mkv",
+  ".mp4",
+  ".avi",
+  ".mov",
+  ".wmv",
+  ".flv",
+  ".iso",
+  ".m4v",
+];
+const QUALITY_TAGS = ["720p", "1080p", "1440p", "2160p", "4k", "hd", "sd"];
+const RELEASE_TYPES = ["webrip", "web-dl", "bluray", "dvd", "hdrip"];
+
+const STATUS_DISPLAY_MAP: Partial<Record<StatusType, StatusDisplay>> = {
+  online: { text: "Healthy", color: "text-green-500 dark:text-green-400", icon: "✓" },
+  loading: { text: "Checking", color: "text-blue-500 dark:text-blue-400", icon: "⟳" },
+  pending: { text: "Pending", color: "text-blue-500 dark:text-blue-400", icon: "○" },
+  warning: { text: "Warning", color: "text-amber-500 dark:text-amber-300", icon: "⚠" },
+  offline: { text: "Error", color: "text-red-500 dark:text-red-400", icon: "⚠" },
+  error: { text: "Error", color: "text-red-500 dark:text-red-400", icon: "⚠" },
+};
+
+const UNKNOWN_STATUS_DISPLAY: StatusDisplay = {
+  text: "Unknown",
+  color: "text-zinc-500 dark:text-zinc-400",
+  icon: "?",
+};
+
+const getMessageStyle = (status: StatusType, isErrorHeader = false) => {
+  const baseStyles = "transition-all duration-200 backdrop-blur-sm";
+  if (isErrorHeader || status === "error" || status === "offline") {
+    return `${baseStyles} text-red-600 dark:text-red-400 bg-red-50/90 dark:bg-red-900/30 border border-red-100 dark:border-red-900/50 shadow-sm shadow-red-100/50 dark:shadow-red-900/30`;
+  }
+
+  switch (status) {
+    case "online":
+      return `${baseStyles} text-green-600 dark:text-green-400 bg-green-50/90 dark:bg-green-900/30 border border-green-100 dark:border-green-900/50 shadow-sm shadow-green-100/50 dark:shadow-green-900/30`;
+    case "warning":
+      return `${baseStyles} text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40 shadow-sm shadow-amber-100/50 dark:shadow-amber-900/20`;
+    case "loading":
+    case "pending":
+      return `${baseStyles} text-blue-600 dark:text-blue-400 bg-blue-50/90 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-900/50 shadow-sm shadow-blue-100/50 dark:shadow-blue-900/30`;
+    default:
+      return `${baseStyles} text-zinc-600 dark:text-zinc-400 bg-zinc-50/90 dark:bg-zinc-900/30 border border-zinc-100 dark:border-zinc-800 shadow-sm`;
+  }
+};
+
+const isWarningHeader = (title: string): boolean => {
+  return WARNING_HEADERS.some((header) => title.startsWith(header));
+};
+
+const isErrorHeader = (title: string, status: StatusType): boolean => {
+  return (
+    ERROR_HEADERS.some((header) => title.startsWith(header)) ||
+    (status === "error" && title.startsWith("Error:"))
+  );
+};
+
+const isReleaseName = (line: string): boolean => {
+  const lowered = line.toLowerCase();
+  const hasVideoExtension = VIDEO_EXTENSIONS.some((extension) =>
+    lowered.includes(extension)
+  );
+  const hasQualityTag = QUALITY_TAGS.some((quality) => lowered.includes(quality));
+  const hasReleaseType = RELEASE_TYPES.some((releaseType) =>
+    lowered.includes(releaseType)
+  );
+
+  return hasVideoExtension || (hasReleaseType && hasQualityTag);
+};
+
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   status,
   message,
   isInitialLoad = false,
   isConnected = true,
 }) => {
-  const getMessageStyle = (status: StatusType, isErrorHeader = false) => {
-    const baseStyles = "transition-all duration-200 backdrop-blur-sm";
-
-    // Force error styling if it's an error header or status is error/offline
-    if (isErrorHeader || status === "error" || status === "offline") {
-      return `${baseStyles} text-red-600 dark:text-red-400 bg-red-50/90 dark:bg-red-900/30 border border-red-100 dark:border-red-900/50 shadow-sm shadow-red-100/50 dark:shadow-red-900/30`;
-    }
-
-    switch (status) {
-      case "online":
-        return `${baseStyles} text-green-600 dark:text-green-400 bg-green-50/90 dark:bg-green-900/30 border border-green-100 dark:border-green-900/50 shadow-sm shadow-green-100/50 dark:shadow-green-900/30`;
-      case "warning":
-        return `${baseStyles} text-amber-500 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40 shadow-sm shadow-amber-100/50 dark:shadow-amber-900/20`;
-      case "loading":
-      case "pending":
-        return `${baseStyles} text-blue-600 dark:text-blue-400 bg-blue-50/90 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-900/50 shadow-sm shadow-blue-100/50 dark:shadow-blue-900/30`;
-      default:
-        return `${baseStyles} text-gray-600 dark:text-gray-400 bg-gray-50/90 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 shadow-sm`;
-    }
-  };
-
-  const getStatusDisplay = () => {
-    if (isInitialLoad) {
-      return {
-        text: "Loading",
-        color: "text-blue-500 dark:text-blue-400",
-        icon: "⟳",
-      };
-    }
-
-    if (!isConnected) {
-      return {
+  const statusDisplay: StatusDisplay = isInitialLoad
+    ? { text: "Loading", color: "text-blue-500 dark:text-blue-400", icon: "⟳" }
+    : !isConnected
+    ? {
         text: "Disconnected",
         color: "text-amber-500 dark:text-amber-300",
         icon: "⚠",
-      };
-    }
-
-    switch (status) {
-      case "online":
-        return {
-          text: "Healthy",
-          color: "text-green-500 dark:text-green-400",
-          icon: "✓",
-        };
-      case "loading":
-        return {
-          text: "Checking",
-          color: "text-blue-500 dark:text-blue-400",
-          icon: "⟳",
-        };
-      case "pending":
-        return {
-          text: "Pending",
-          color: "text-blue-500 dark:text-blue-400",
-          icon: "○",
-        };
-      case "warning":
-        return {
-          text: "Warning",
-          color: "text-amber-500 dark:text-amber-300",
-          icon: "⚠",
-        };
-      case "offline":
-      case "error":
-        return {
-          text: "Error",
-          color: "text-red-500 dark:text-red-400",
-          icon: "⚠",
-        };
-      default:
-        return {
-          text: "Unknown",
-          color: "text-gray-500 dark:text-gray-400",
-          icon: "?",
-        };
-    }
-  };
-
-  const statusDisplay = getStatusDisplay();
+      }
+    : STATUS_DISPLAY_MAP[status] || UNKNOWN_STATUS_DISPLAY;
   const shouldShowMessage = message && (status !== "online" || !isConnected);
   const displayMessage = isInitialLoad
     ? "Initializing service..."
@@ -126,49 +132,8 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     ? "Connection to server lost"
     : message || "";
 
-  const isWarningHeader = (title: string): boolean => {
-    return WARNING_HEADERS.some((header) => title.startsWith(header));
-  };
-
-  const isErrorHeader = (title: string): boolean => {
-    return (
-      ERROR_HEADERS.some((header) => title.startsWith(header)) ||
-      (status === "error" && title.startsWith("Error:"))
-    );
-  };
-
-  const isReleaseName = (line: string): boolean => {
-    // Define common video file extensions
-    const videoExtensions = [
-      ".mkv",
-      ".mp4",
-      ".avi",
-      ".mov",
-      ".wmv",
-      ".flv",
-      ".iso",
-      ".m4v",
-    ];
-
-    const qualityTags = ["720p", "1080p", "1440p", "2160p", "4k", "HD", "SD"];
-
-    const hasVideoExtension = videoExtensions.some((extension) =>
-      line.includes(extension)
-    );
-
-    const hasQualityTag = qualityTags.some((quality) => line.includes(quality));
-    const hasReleaseType =
-      line.includes("WEBRip") ||
-      line.includes("WEB-DL") ||
-      line.includes("BluRay") ||
-      line.includes("DVD") ||
-      line.includes("HDRip");
-
-    return hasVideoExtension || (hasReleaseType && hasQualityTag);
-  };
-
   const formatMessage = (msg: string) => {
-    const sections: { [key: string]: React.ReactNode[] } = {};
+    const sections: Record<string, React.ReactNode[]> = {};
     let currentSection = "";
     let currentRelease = "";
     let currentContent: React.ReactNode[] = [];
@@ -201,7 +166,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
           sections[currentSection] = [];
         }
         if (currentContent.length > 0) {
-          const isError = isErrorHeader(currentSection);
+          const isError = isErrorHeader(currentSection, status);
           if (currentRelease) {
             // For release-based content
             sections[currentSection].push(
@@ -243,7 +208,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
       !lines.some(
         (line) =>
           isWarningHeader(line.split(":")[0]) ||
-          isErrorHeader(line.split(":")[0])
+          isErrorHeader(line.split(":")[0], status)
       )
     ) {
       currentSection = "Error";
@@ -256,7 +221,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     } else {
       lines.forEach((line, index) => {
         const headerPart = line.split(":")[0].trim();
-        if (isWarningHeader(headerPart) || isErrorHeader(headerPart)) {
+        if (isWarningHeader(headerPart) || isErrorHeader(headerPart, status)) {
           addToSection();
           currentSection = headerPart;
           currentRelease = "";
@@ -292,7 +257,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     return Object.entries(sections).map(([sectionTitle, content], idx) => (
       <div key={idx} className="mb-4">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs mb-1 font-semibold text-gray-700 dark:text-gray-300">
+          <span className="text-xs mb-1 font-semibold text-zinc-700 dark:text-zinc-300">
             {sectionTitle}:
           </span>
         </div>
@@ -304,7 +269,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   return (
     <div className="space-y-2 transition-all duration-200 mb-1">
       <div className="flex items-center gap-1.5 select-none pb-2">
-        <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
+        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-100">
           Status
         </span>
         <div className={`flex items-center gap-1 ${statusDisplay.color}`}>
