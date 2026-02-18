@@ -26,12 +26,20 @@ type ServiceHealth struct {
 	ResponseTime    int64                  `json:"responseTime"`
 	LastChecked     time.Time              `json:"lastChecked"`
 	Message         string                 `json:"message,omitempty"`
+	EventType       ServiceEventType       `json:"eventType,omitempty"`
 	Version         string                 `json:"version,omitempty"`
 	UpdateAvailable bool                   `json:"updateAvailable,omitempty"`
 	ServiceID       string                 `json:"serviceId"`
 	Stats           map[string]interface{} `json:"stats,omitempty"`
 	Details         map[string]interface{} `json:"details,omitempty"`
 }
+
+type ServiceEventType string
+
+const (
+	ServiceEventHealth   ServiceEventType = "health"
+	ServiceEventInternal ServiceEventType = "internal"
+)
 
 // ServiceHealthChecker defines the interface for service health checking
 type ServiceHealthChecker interface {

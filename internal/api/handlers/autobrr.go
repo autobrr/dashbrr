@@ -323,6 +323,7 @@ func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.Rel
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_releases",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"autobrr": map[string]interface{}{
@@ -340,6 +341,7 @@ func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrSt
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "autobrr_stats",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"autobrr": map[string]interface{}{
@@ -375,6 +377,9 @@ func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IR
 				IRC: status,
 			},
 		},
+	}
+	if message == "autobrr_irc_status" {
+		health.EventType = models.ServiceEventInternal
 	}
 
 	h.bc.Publish(health)

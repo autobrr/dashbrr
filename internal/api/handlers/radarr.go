@@ -166,6 +166,7 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "radarr_queue",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats:       stats,
 		Details:     details,

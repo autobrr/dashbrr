@@ -421,6 +421,7 @@ func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfigur
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "plex_sessions",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"plex": map[string]interface{}{
@@ -458,6 +459,7 @@ func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceCon
 		ServiceID:   svc.InstanceID,
 		Status:      status,
 		Message:     "overseerr_requests",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"overseerr": types.OverseerrStats{
@@ -495,6 +497,7 @@ func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfigura
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "radarr_queue",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"radarr": map[string]interface{}{
@@ -533,6 +536,7 @@ func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfigura
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "sonarr_queue",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"sonarr": map[string]interface{}{
@@ -570,6 +574,7 @@ func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfigu
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "prowlarr_stats",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
@@ -595,6 +600,7 @@ func (p *Poller) runProwlarrIndexers(ctx context.Context, svc models.ServiceConf
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "prowlarr_indexers",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
@@ -612,6 +618,7 @@ func (p *Poller) runAutobrrStats(ctx context.Context, svc models.ServiceConfigur
 			ServiceID:   svc.InstanceID,
 			Status:      "online",
 			Message:     "autobrr_stats",
+			EventType:   models.ServiceEventInternal,
 			LastChecked: time.Now(),
 			Stats: map[string]interface{}{
 				"autobrr": map[string]interface{}{
@@ -637,6 +644,7 @@ func (p *Poller) runAutobrrIRC(ctx context.Context, svc models.ServiceConfigurat
 			ServiceID:   svc.InstanceID,
 			Status:      status,
 			Message:     "autobrr_irc_status",
+			EventType:   models.ServiceEventInternal,
 			LastChecked: time.Now(),
 			Details: map[string]interface{}{
 				"autobrr": types.AutobrrDetails{IRC: irc},
@@ -653,6 +661,7 @@ func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfi
 			ServiceID:   svc.InstanceID,
 			Status:      "online",
 			Message:     "autobrr_releases",
+			EventType:   models.ServiceEventInternal,
 			LastChecked: time.Now(),
 			Stats: map[string]interface{}{
 				"autobrr": map[string]interface{}{
@@ -677,6 +686,7 @@ func (p *Poller) runMaintainerrCollections(ctx context.Context, svc models.Servi
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "maintainerr_collections",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"maintainerr": map[string]interface{}{
@@ -707,6 +717,7 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 		ServiceID:   svc.InstanceID,
 		Status:      "online",
 		Message:     "tailscale_devices",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"tailscale": map[string]interface{}{
@@ -739,6 +750,7 @@ func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfigura
 		ServiceID:   svc.InstanceID,
 		Status:      summarizeQuiCardStatus(summary),
 		Message:     "qui_overview",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"qui": map[string]interface{}{

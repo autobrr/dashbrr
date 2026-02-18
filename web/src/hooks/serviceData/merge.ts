@@ -45,6 +45,10 @@ const parseDate = (value: unknown): Date | undefined => {
 const isInternalEventMessage = (message: string): boolean =>
   INTERNAL_EVENT_PATTERN.test(message.trim());
 
+const isInternalServiceEvent = (health: ServiceHealth): boolean =>
+  health.eventType === "internal" ||
+  isInternalEventMessage(health.message || "");
+
 export const mergeServicePayload = <T extends object>(
   current: T | undefined,
   incoming: T | undefined
@@ -76,7 +80,7 @@ const buildServicePatchFromHealth = (
   presence: HealthPatchPresence
 ): Partial<Service> => {
   const shouldApplyHealthState =
-    health.message !== "" && !isInternalEventMessage(health.message);
+    health.message !== "" && !isInternalServiceEvent(health);
 
   const patch: Partial<Service> = {
     lastChecked: health.lastChecked,

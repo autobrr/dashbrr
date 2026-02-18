@@ -341,6 +341,7 @@ func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "sonarr_queue",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"sonarr": map[string]interface{}{
@@ -364,6 +365,7 @@ func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "sonarr_stats",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"sonarr": map[string]interface{}{

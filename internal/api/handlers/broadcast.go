@@ -83,7 +83,7 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	merged := prev
 	merged.ServiceID = next.ServiceID
 
-	shouldMergeHealthState := next.Message != "" && !internalEventMessagePattern.MatchString(next.Message)
+	shouldMergeHealthState := next.Message != "" && !isInternalServiceEvent(next)
 
 	if shouldMergeHealthState && next.Status != "" {
 		merged.Status = next.Status
@@ -109,6 +109,13 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	merged.Details = mergeHealthPayload(prev.Details, next.Details)
 
 	return merged
+}
+
+func isInternalServiceEvent(health models.ServiceHealth) bool {
+	if health.EventType == models.ServiceEventInternal {
+		return true
+	}
+	return health.Message != "" && internalEventMessagePattern.MatchString(health.Message)
 }
 
 func mergeHealthPayload(current, incoming map[string]interface{}) map[string]interface{} {

@@ -1065,6 +1065,25 @@ Owner: soup (s0up4200@pm.me)
   - added whitespace-variant duplicate test (`TestPerformHealthCheck_DeduplicatesWarningMessagesAfterWhitespaceNormalization`)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (typed internal events; regex fallback retained)
+- Data-shape cleanup for SSE payload semantics:
+  - added explicit `eventType` to `models.ServiceHealth` (`internal|health`) in `internal/models/service.go`
+  - frontend `ServiceHealth` type updated with `eventType` (`web/src/types/service.ts`)
+- Merge behavior cleanup:
+  - backend snapshot merge now prefers explicit `eventType` when deciding whether to merge user-visible health state (`internal/api/handlers/broadcast.go`)
+  - frontend patch derivation now prefers `eventType` with legacy regex fallback (`web/src/hooks/serviceData/merge.ts`)
+- Poller/handler emission cleanup:
+  - internal/stat broadcast payloads now set `EventType: ServiceEventInternal` across:
+    - `internal/api/handlers/poller.go`
+    - `internal/api/handlers/autobrr.go`
+    - `internal/api/handlers/plex.go`
+    - `internal/api/handlers/radarr.go`
+    - `internal/api/handlers/sonarr.go`
+    - `internal/api/handlers/prowlarr.go`
+    - `internal/api/handlers/maintainerr.go`
+- Compatibility: kept regex fallback path so legacy payloads still merge correctly.
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

@@ -258,6 +258,7 @@ func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, 
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "maintainerr_collections",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"maintainerr": map[string]interface{}{

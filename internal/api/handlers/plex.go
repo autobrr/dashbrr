@@ -148,6 +148,7 @@ func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.P
 		ServiceID:   instanceId,
 		Status:      "online",
 		Message:     "plex_sessions",
+		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
 			"plex": map[string]interface{}{

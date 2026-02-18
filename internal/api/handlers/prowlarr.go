@@ -380,6 +380,7 @@ func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.Prowlarr
 		ServiceID: instanceId,
 		Status:    "online",
 		Message:   "prowlarr_stats",
+		EventType: models.ServiceEventInternal,
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
 				"stats": stats,
@@ -393,6 +394,7 @@ func (h *ProwlarrHandler) broadcastIndexers(instanceId string, indexers []types.
 		ServiceID: instanceId,
 		Status:    "online",
 		Message:   "prowlarr_indexers",
+		EventType: models.ServiceEventInternal,
 		Stats: map[string]interface{}{
 			"prowlarr": map[string]interface{}{
 				"indexers": indexers,

@@ -11,6 +11,7 @@ export interface ServiceHealth {
   status: ServiceStatus;
   message: string;
   serviceId: string;
+  eventType?: "health" | "internal";
   lastChecked?: Date;
   responseTime?: number;
   version?: string;
