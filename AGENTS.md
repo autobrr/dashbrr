@@ -214,6 +214,8 @@ Owner: soup (s0up4200@pm.me)
 - Web/http: centralize error-body parsing into `web/src/utils/http.ts` and reuse in `AuthContext` + api client
 - Web/overseerr: optimistic request status updates now use status overrides map (avoid stale localRequests array)
 - Web/plex: stable playback key for timers + React keys (avoid collisions; less rerender churn)
+- Web/api client: removed request queue; simpler fetch wrapper; 401 redirect guard no longer resets (prevents cascades)
+- Omegabrr: confirmed fully removed (no code references remain; only this doc notes history)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
