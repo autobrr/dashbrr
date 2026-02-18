@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/rs/zerolog/log"
 
@@ -84,45 +83,22 @@ func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.Se
 
 // parseServiceLabels extracts service configuration from Kubernetes labels
 func (k *KubernetesDiscovery) parseServiceLabels(labels map[string]string, namespace string) (*models.ServiceConfiguration, error) {
-	serviceType := labels[GetLabelKey(labelTypeKey)]
-	if serviceType == "" {
-		return nil, fmt.Errorf("service type label not found")
+	parsed, err := parseDiscoveryLabels(labels)
+	if err != nil {
+		return nil, err
 	}
-
-	url := labels[GetLabelKey(labelURLKey)]
-	if url == "" {
-		return nil, fmt.Errorf("service URL label not found")
-	}
-
-	// Handle environment variable substitution in API key
-	apiKey := labels[GetLabelKey(labelAPIKeyKey)]
-	if strings.HasPrefix(apiKey, "${") && strings.HasSuffix(apiKey, "}") {
-		envVar := strings.TrimSuffix(strings.TrimPrefix(apiKey, "${"), "}")
-		apiKey = os.Getenv(envVar)
-		if apiKey == "" {
-			return nil, fmt.Errorf("environment variable %s not set for API key", envVar)
-		}
-	}
-
-	// Get optional display name or use service type
-	displayName := labels[GetLabelKey(labelNameKey)]
-	if displayName == "" {
-		displayName = strings.Title(serviceType)
-	}
-
-	// Check if service is explicitly disabled
-	if enabled := labels[GetLabelKey(labelEnabledKey)]; enabled == "false" {
+	if !parsed.enabled {
 		return nil, nil
 	}
 
 	// Generate instance ID based on service type and namespace
-	instanceID := fmt.Sprintf("%s-k8s-%s", serviceType, namespace)
+	instanceID := fmt.Sprintf("%s-k8s-%s", parsed.serviceType, namespace)
 
 	return &models.ServiceConfiguration{
 		InstanceID:  instanceID,
-		DisplayName: displayName,
-		URL:         url,
-		APIKey:      apiKey,
+		DisplayName: parsed.displayName,
+		URL:         parsed.url,
+		APIKey:      parsed.apiKey,
 	}, nil
 }
 

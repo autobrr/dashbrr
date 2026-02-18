@@ -377,6 +377,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (fix)
 - Arr client: `MakeArrRequest` now consistently uses the timeout-wrapped context when building the request
+
+### 2026-02-17 (refactor)
+- Discovery: centralize label/env parsing for Docker/K8s/config-file imports; remove `strings.Title`; add unit tests
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening

@@ -55,13 +55,9 @@ func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
 	for serviceType, configs := range config.Services {
 		for i, cfg := range configs {
 			// Handle environment variable substitution in API key
-			apiKey := cfg.APIKey
-			if strings.HasPrefix(apiKey, "${") && strings.HasSuffix(apiKey, "}") {
-				envVar := strings.TrimSuffix(strings.TrimPrefix(apiKey, "${"), "}")
-				apiKey = os.Getenv(envVar)
-				if apiKey == "" {
-					return nil, fmt.Errorf("environment variable %s not set for API key", envVar)
-				}
+			apiKey, err := resolveEnvVar(cfg.APIKey)
+			if err != nil {
+				return nil, err
 			}
 
 			// Generate instance ID
@@ -70,7 +66,7 @@ func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
 			// Use provided display name or generate from service type
 			displayName := cfg.DisplayName
 			if displayName == "" {
-				displayName = strings.Title(serviceType)
+				displayName = titleServiceType(serviceType)
 			}
 
 			services = append(services, models.ServiceConfiguration{
