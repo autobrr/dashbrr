@@ -122,30 +122,25 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	cacheKey := maintainerrCachePrefix + instanceId
 	ctx := c.Request.Context()
 
-	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("collections:%s", instanceId)
-	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		collections, err := FetchWithSWRCache(ctx, SWRCacheOptions[[]maintainerr.Collection]{
-			Store:          h.cache,
-			Key:            cacheKey,
-			FreshTTL:       middleware.CacheDurations.MaintainerrStatus,
-			StaleTTL:       maintainerrStaleDataDuration,
-			CircuitBreaker: h.circuitBreaker,
-			Fetch: func() ([]maintainerr.Collection, error) {
-				c, err := h.fetchCollections(ctx, instanceId)
-				if err != nil {
-					return nil, err
-				}
-				if c == nil {
-					c = make([]maintainerr.Collection, 0)
-				}
-				return c, nil
-			},
-		})
-		if err != nil {
-			return nil, err
-		}
-		return collections, nil
+	collections, err := FetchWithSWRCache(ctx, SWRCacheOptions[[]maintainerr.Collection]{
+		Store:           h.cache,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.MaintainerrStatus,
+		StaleTTL:        maintainerrStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    h.sf,
+		SingleflightKey: sfKey,
+		Fetch: func() ([]maintainerr.Collection, error) {
+			c, err := h.fetchCollections(ctx, instanceId)
+			if err != nil {
+				return nil, err
+			}
+			if c == nil {
+				c = make([]maintainerr.Collection, 0)
+			}
+			return c, nil
+		},
 	})
 
 	if err != nil {
@@ -169,8 +164,6 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 		})
 		return
 	}
-
-	collections := result.([]maintainerr.Collection)
 
 	// Add change detection logging
 	h.compareAndLogCollectionChanges(instanceId, collections)

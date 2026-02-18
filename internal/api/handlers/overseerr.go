@@ -179,36 +179,31 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	cacheKey := overseerrCachePrefix + instanceId
 	ctx := c.Request.Context()
 
-	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("requests:%s", instanceId)
-	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		data, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RequestsStats]{
-			Store:          h.cache,
-			Key:            cacheKey,
-			FreshTTL:       middleware.CacheDurations.OverseerrRequests,
-			StaleTTL:       overseerrStaleDataDuration,
-			CircuitBreaker: h.circuitBreaker,
-			Fetch: func() (types.RequestsStats, error) {
-				fresh, err := h.fetchRequests(ctx, instanceId)
-				if err != nil {
-					return types.RequestsStats{}, err
-				}
-				if fresh == nil {
-					return types.RequestsStats{
-						PendingCount: 0,
-						Requests:     []types.MediaRequest{},
-					}, nil
-				}
-				if fresh.Requests == nil {
-					fresh.Requests = []types.MediaRequest{}
-				}
-				return *fresh, nil
-			},
-		})
-		if err != nil {
-			return nil, err
-		}
-		return &data, nil
+	statsVal, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RequestsStats]{
+		Store:           h.cache,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.OverseerrRequests,
+		StaleTTL:        overseerrStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    h.sf,
+		SingleflightKey: sfKey,
+		Fetch: func() (types.RequestsStats, error) {
+			fresh, err := h.fetchRequests(ctx, instanceId)
+			if err != nil {
+				return types.RequestsStats{}, err
+			}
+			if fresh == nil {
+				return types.RequestsStats{
+					PendingCount: 0,
+					Requests:     []types.MediaRequest{},
+				}, nil
+			}
+			if fresh.Requests == nil {
+				fresh.Requests = []types.MediaRequest{}
+			}
+			return *fresh, nil
+		},
 	})
 
 	if err != nil {
@@ -232,7 +227,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
-	stats := result.(*types.RequestsStats)
+	stats := &statsVal
 
 	h.hashMu.Lock()
 	currentHash, changes := createOverseerrRequestsHash(stats)

@@ -6,10 +6,13 @@ package handlers
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
@@ -133,4 +136,54 @@ func TestFetchWithSWRCache_FetchSuccessCachesFreshAndStale(t *testing.T) {
 	var stale swrTestValue
 	require.NoError(t, store.Get(ctx, key+":stale", &stale))
 	require.Equal(t, swrTestValue{Name: "fresh", N: 7}, stale)
+}
+
+func TestFetchWithSWRCache_SingleflightDedupesFetch(t *testing.T) {
+	store := cache.NewMemoryStore(context.Background(), t.TempDir())
+	ctx := context.Background()
+
+	var sf singleflight.Group
+	var called atomic.Int32
+
+	fetch := func() (swrTestValue, error) {
+		called.Add(1)
+		time.Sleep(25 * time.Millisecond)
+		return swrTestValue{Name: "ok", N: 1}, nil
+	}
+
+	const n = 10
+	var wg sync.WaitGroup
+	wg.Add(n)
+
+	errCh := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			got, err := FetchWithSWRCache(ctx, SWRCacheOptions[swrTestValue]{
+				Store:           store,
+				Key:             "test:key:sf",
+				FreshTTL:        time.Minute,
+				StaleTTL:        time.Minute,
+				Singleflight:    &sf,
+				SingleflightKey: "test:key:sf",
+				Fetch:           fetch,
+			})
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if got.Name != "ok" || got.N != 1 {
+				errCh <- errors.New("unexpected result")
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, int32(1), called.Load())
 }

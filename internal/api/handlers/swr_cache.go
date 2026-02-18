@@ -10,6 +10,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
+	"golang.org/x/sync/singleflight"
 )
 
 type SWRCacheOptions[T any] struct {
@@ -19,6 +20,10 @@ type SWRCacheOptions[T any] struct {
 	StaleTTL       time.Duration
 	CircuitBreaker *resilience.CircuitBreaker
 	Fetch          func() (T, error)
+
+	// Optional stampede protection. Only applies on cache miss.
+	Singleflight    *singleflight.Group
+	SingleflightKey string
 }
 
 // FetchWithSWRCache implements a stale-while-revalidate pattern:
@@ -43,46 +48,75 @@ func FetchWithSWRCache[T any](ctx context.Context, opts SWRCacheOptions[T]) (T, 
 		return cached, nil
 	}
 
-	staleKey := opts.Key + ":stale"
+	fetchAndCache := func() (T, error) {
+		staleKey := opts.Key + ":stale"
 
-	if opts.CircuitBreaker != nil && opts.CircuitBreaker.IsOpen() {
-		if opts.StaleTTL > 0 {
-			var stale T
-			if err := opts.Store.Get(ctx, staleKey, &stale); err == nil {
-				return stale, nil
+		if opts.CircuitBreaker != nil && opts.CircuitBreaker.IsOpen() {
+			if opts.StaleTTL > 0 {
+				var stale T
+				if err := opts.Store.Get(ctx, staleKey, &stale); err == nil {
+					return stale, nil
+				}
 			}
+			return zero, fmt.Errorf("circuit breaker is open")
 		}
-		return zero, fmt.Errorf("circuit breaker is open")
-	}
 
-	var fresh T
-	fetchErr := resilience.RetryWithBackoff(ctx, func() error {
-		var err error
-		fresh, err = opts.Fetch()
-		return err
-	})
+		var fresh T
+		fetchErr := resilience.RetryWithBackoff(ctx, func() error {
+			var err error
+			fresh, err = opts.Fetch()
+			return err
+		})
 
-	if fetchErr != nil {
+		if fetchErr != nil {
+			if opts.CircuitBreaker != nil {
+				opts.CircuitBreaker.RecordFailure()
+			}
+			if opts.StaleTTL > 0 {
+				var stale T
+				if err := opts.Store.Get(ctx, staleKey, &stale); err == nil {
+					return stale, nil
+				}
+			}
+			return zero, fetchErr
+		}
+
 		if opts.CircuitBreaker != nil {
-			opts.CircuitBreaker.RecordFailure()
+			opts.CircuitBreaker.RecordSuccess()
 		}
-		if opts.StaleTTL > 0 {
-			var stale T
-			if err := opts.Store.Get(ctx, staleKey, &stale); err == nil {
-				return stale, nil
+
+		// Cache fresh; also store a longer-lived stale copy to serve on transient failures.
+		if err := opts.Store.Set(ctx, opts.Key, fresh, opts.FreshTTL); err == nil && opts.StaleTTL > 0 {
+			_ = opts.Store.Set(ctx, staleKey, fresh, opts.StaleTTL)
+		}
+
+		return fresh, nil
+	}
+
+	if opts.Singleflight != nil {
+		key := opts.SingleflightKey
+		if key == "" {
+			key = opts.Key
+		}
+
+		v, err, _ := opts.Singleflight.Do(key, func() (interface{}, error) {
+			// Another request may have filled the cache while we were waiting.
+			var rechecked T
+			if err := opts.Store.Get(ctx, opts.Key, &rechecked); err == nil {
+				return rechecked, nil
 			}
+
+			val, err := fetchAndCache()
+			if err != nil {
+				return nil, err
+			}
+			return val, nil
+		})
+		if err != nil {
+			return zero, err
 		}
-		return zero, fetchErr
+		return v.(T), nil
 	}
 
-	if opts.CircuitBreaker != nil {
-		opts.CircuitBreaker.RecordSuccess()
-	}
-
-	// Cache fresh; also store a longer-lived stale copy to serve on transient failures.
-	if err := opts.Store.Set(ctx, opts.Key, fresh, opts.FreshTTL); err == nil && opts.StaleTTL > 0 {
-		_ = opts.Store.Set(ctx, staleKey, fresh, opts.StaleTTL)
-	}
-
-	return fresh, nil
+	return fetchAndCache()
 }

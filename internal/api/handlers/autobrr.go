@@ -80,18 +80,17 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	cacheKey := releasesPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-	// Use singleflight to prevent duplicate requests
-	result, err, _ := h.sf.Do(fmt.Sprintf("releases:%s", instanceId), func() (interface{}, error) {
-		return FetchWithSWRCache(ctx, SWRCacheOptions[types.ReleasesResponse]{
-			Store:          h.store,
-			Key:            cacheKey,
-			FreshTTL:       middleware.CacheDurations.AutobrrStatus,
-			StaleTTL:       autobrrStaleDataDuration,
-			CircuitBreaker: h.circuitBreaker,
-			Fetch: func() (types.ReleasesResponse, error) {
-				return h.fetchReleases(ctx, instanceId)
-			},
-		})
+	releases, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.ReleasesResponse]{
+		Store:           h.store,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.AutobrrStatus,
+		StaleTTL:        autobrrStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    h.sf,
+		SingleflightKey: fmt.Sprintf("releases:%s", instanceId),
+		Fetch: func() (types.ReleasesResponse, error) {
+			return h.fetchReleases(ctx, instanceId)
+		},
 	})
 
 	if err != nil {
@@ -110,8 +109,6 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
-
-	releases := result.(types.ReleasesResponse)
 
 	h.hashMu.Lock()
 	currentHash := createAutobrrReleaseHash(releases)
@@ -148,18 +145,17 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	cacheKey := statsPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-	// Use singleflight to prevent duplicate requests
-	result, err, _ := h.sf.Do(fmt.Sprintf("stats:%s", instanceId), func() (interface{}, error) {
-		return FetchWithSWRCache(ctx, SWRCacheOptions[types.AutobrrStats]{
-			Store:          h.store,
-			Key:            cacheKey,
-			FreshTTL:       middleware.CacheDurations.AutobrrStatus,
-			StaleTTL:       autobrrStaleDataDuration,
-			CircuitBreaker: h.circuitBreaker,
-			Fetch: func() (types.AutobrrStats, error) {
-				return h.fetchStats(ctx, instanceId)
-			},
-		})
+	stats, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.AutobrrStats]{
+		Store:           h.store,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.AutobrrStatus,
+		StaleTTL:        autobrrStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    h.sf,
+		SingleflightKey: fmt.Sprintf("stats:%s", instanceId),
+		Fetch: func() (types.AutobrrStats, error) {
+			return h.fetchStats(ctx, instanceId)
+		},
 	})
 
 	if err != nil {
@@ -178,8 +174,6 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
-
-	stats := result.(types.AutobrrStats)
 
 	h.hashMu.Lock()
 	currentHash := createAutobrrStatsHash(stats)
@@ -216,25 +210,24 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	cacheKey := ircPrefix + instanceId
 	ctx := c.Request.Context() // Use request context instead of background
 
-	// Use singleflight to prevent duplicate requests
-	result, err, _ := h.sf.Do(fmt.Sprintf("irc:%s", instanceId), func() (interface{}, error) {
-		return FetchWithSWRCache(ctx, SWRCacheOptions[[]types.IRCStatus]{
-			Store:          h.store,
-			Key:            cacheKey,
-			FreshTTL:       middleware.CacheDurations.AutobrrStatus,
-			StaleTTL:       autobrrStaleDataDuration,
-			CircuitBreaker: h.circuitBreaker,
-			Fetch: func() ([]types.IRCStatus, error) {
-				status, err := h.fetchIRC(ctx, instanceId)
-				if err != nil {
-					return nil, err
-				}
-				if status == nil {
-					status = make([]types.IRCStatus, 0)
-				}
-				return status, nil
-			},
-		})
+	status, err := FetchWithSWRCache(ctx, SWRCacheOptions[[]types.IRCStatus]{
+		Store:           h.store,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.AutobrrStatus,
+		StaleTTL:        autobrrStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    h.sf,
+		SingleflightKey: fmt.Sprintf("irc:%s", instanceId),
+		Fetch: func() ([]types.IRCStatus, error) {
+			status, err := h.fetchIRC(ctx, instanceId)
+			if err != nil {
+				return nil, err
+			}
+			if status == nil {
+				status = make([]types.IRCStatus, 0)
+			}
+			return status, nil
+		},
 	})
 
 	if err != nil {
@@ -253,8 +246,6 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 		c.JSON(httpStatus, gin.H{"error": err.Error()})
 		return
 	}
-
-	status := result.([]types.IRCStatus)
 
 	h.hashMu.Lock()
 	currentHash := createIRCStatusHash(status)

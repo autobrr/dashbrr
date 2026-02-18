@@ -198,6 +198,10 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-16 (ui)
 - Web/auth: switch login/register UI neutrals from `gray-*` to explicit `zinc-*` classes (avoid relying on Tailwind config override)
 
+### 2026-02-18
+- API cache: SWR helper supports optional `singleflight` stampede protection (cache-miss only) + unit test
+- Handlers: removed redundant `.sf.Do` wrappers around SWR cache fetches (Autobrr/Plex/Overseerr/Maintainerr)
+
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
 

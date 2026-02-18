@@ -67,23 +67,18 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	cacheKey := plexCachePrefix + instanceId
 	ctx := c.Request.Context()
 
-	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("sessions:%s", instanceId)
-	sessionsI, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.PlexSessionsResponse]{
-			Store:          h.cache,
-			Key:            cacheKey,
-			FreshTTL:       middleware.CacheDurations.PlexSessions,
-			StaleTTL:       plexStaleDataDuration,
-			CircuitBreaker: h.circuitBreaker,
-			Fetch: func() (types.PlexSessionsResponse, error) {
-				return h.fetchSessions(ctx, instanceId)
-			},
-		})
-		if err != nil {
-			return nil, err
-		}
-		return &result, nil
+	sessions, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.PlexSessionsResponse]{
+		Store:           h.cache,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.PlexSessions,
+		StaleTTL:        plexStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    &h.sf,
+		SingleflightKey: sfKey,
+		Fetch: func() (types.PlexSessionsResponse, error) {
+			return h.fetchSessions(ctx, instanceId)
+		},
 	})
 
 	if err != nil {
@@ -107,18 +102,10 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 		return
 	}
 
-	sessions := sessionsI.(*types.PlexSessionsResponse)
-
-	if sessions != nil {
-		h.compareAndLogSessionChanges(instanceId, sessions)
-		h.broadcastPlexSessions(instanceId, sessions)
-	} else {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("Retrieved empty Plex sessions")
-	}
-
-	c.JSON(http.StatusOK, sessions)
+	sessionsPtr := &sessions
+	h.compareAndLogSessionChanges(instanceId, sessionsPtr)
+	h.broadcastPlexSessions(instanceId, sessionsPtr)
+	c.JSON(http.StatusOK, sessionsPtr)
 }
 
 func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (types.PlexSessionsResponse, error) {
