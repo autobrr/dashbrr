@@ -84,7 +84,9 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 
 			hasUpdate, err := checker.CheckForUpdates(updateCtx, url, apiKey)
 			if err != nil {
-				if errors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) ||
+					errors.Is(err, context.DeadlineExceeded) ||
+					errors.Is(err, core.ErrContextCanceled) {
 					return
 				}
 				log.Debug().Err(err).Str("url", url).Msg("Update check failed")

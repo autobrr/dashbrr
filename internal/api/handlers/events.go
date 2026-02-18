@@ -18,10 +18,11 @@ import (
 
 type EventsHandler struct {
 	hub *sse.Hub
+	bc  *Broadcaster
 }
 
-func NewEventsHandler(hub *sse.Hub) *EventsHandler {
-	return &EventsHandler{hub: hub}
+func NewEventsHandler(hub *sse.Hub, bc *Broadcaster) *EventsHandler {
+	return &EventsHandler{hub: hub, bc: bc}
 }
 
 // Stream streams all published service updates.
@@ -46,6 +47,17 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 		if f, ok := c.Writer.(interface{ Flush() }); ok {
 			f.Flush()
 		}
+	}
+
+	for _, payload := range h.bc.Snapshot() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		_, _ = c.Writer.Write(payload)
+		flush()
 	}
 
 	for {
