@@ -114,7 +114,7 @@ func (h *RadarrHandler) fetchQueue(ctx context.Context, instanceId string) (type
 	}
 
 	if radarrConfig == nil {
-		return types.RadarrQueueResponse{}, fmt.Errorf("radarr is not configured")
+		return types.RadarrQueueResponse{}, NewServiceNotConfigured("radarr")
 	}
 
 	// Create Radarr service instance
@@ -270,7 +270,7 @@ func (h *RadarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId
 	}
 
 	if radarrConfig == nil {
-		return fmt.Errorf("radarr is not configured")
+		return NewServiceNotConfigured("radarr")
 	}
 
 	// Create Radarr service instance

@@ -127,7 +127,7 @@ func (h *SonarrHandler) fetchQueue(ctx context.Context, instanceId string) (type
 	}
 
 	if sonarrConfig == nil {
-		return types.SonarrQueueResponse{}, fmt.Errorf("sonarr is not configured")
+		return types.SonarrQueueResponse{}, NewServiceNotConfigured("sonarr")
 	}
 
 	// Create Sonarr service instance
@@ -220,7 +220,7 @@ func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (sona
 	}
 
 	if sonarrConfig == nil {
-		return sonarrStatsResult{}, fmt.Errorf("sonarr is not configured")
+		return sonarrStatsResult{}, NewServiceNotConfigured("sonarr")
 	}
 
 	// Create Sonarr service instance
@@ -339,7 +339,7 @@ func (h *SonarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId
 	}
 
 	if sonarrConfig == nil {
-		return fmt.Errorf("sonarr is not configured")
+		return NewServiceNotConfigured("sonarr")
 	}
 
 	// Create Sonarr service instance

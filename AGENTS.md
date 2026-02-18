@@ -203,6 +203,7 @@ Owner: soup (s0up4200@pm.me)
 - Handlers: removed redundant `.sf.Do` wrappers around SWR cache fetches (Autobrr/Plex/Overseerr/Maintainerr)
 - Handlers: replaced brittle `"service not configured"` string matching with sentinel `ErrServiceNotConfigured` + `errors.Is`
 - Handlers: add `ServiceNotConfiguredError` wrapper (keeps old messages) + migrate Prowlarr off `err.Error()==...`
+- Handlers: migrate Sonarr/Radarr "not configured" errors to `NewServiceNotConfigured(...)`
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
