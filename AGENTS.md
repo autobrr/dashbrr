@@ -1024,6 +1024,19 @@ Owner: soup (s0up4200@pm.me)
     - fallback text if browser blocks close
 - Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (sse stability pass)
+- Frontend SSE reconnect hardening (`web/src/hooks/useServiceData.ts`):
+  - stop manual close/reopen on every `EventSource.onerror` (avoid fighting browser-native SSE reconnect loop)
+  - reconnect only when stream state is explicitly `CLOSED`
+  - jittered exponential reconnect delay helper (`nextReconnectDelay`) with bounded max
+  - guard duplicate connections (`OPEN`/`CONNECTING` short-circuit) so one tab keeps one stream
+  - reset retry state on clean teardown
+- Backend SSE write-path hardening (`internal/api/handlers/events.go`):
+  - centralized `write`/`writeString` helpers
+  - fail fast on broken pipe/write errors instead of continuing stream loop
+  - keeps logs scoped with `client_id` for easier churn debugging
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

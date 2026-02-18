@@ -33,6 +33,19 @@ const ServiceDataContext = createContext<ServiceDataContextValue | undefined>(
   undefined
 );
 
+const sseReconnectBaseMs = 1000;
+const sseReconnectMaxMs = 30000;
+const sseReconnectJitterMs = 250;
+
+const nextReconnectDelay = (attempt: number): number => {
+  const clampedAttempt = Math.max(0, attempt);
+  const base = Math.min(
+    sseReconnectBaseMs * Math.pow(2, clampedAttempt),
+    sseReconnectMaxMs
+  );
+  return base + Math.floor(Math.random() * sseReconnectJitterMs);
+};
+
 const useProvideServiceData = (): ServiceDataContextValue => {
   const { configurations } = useConfiguration();
   const { isAuthenticated } = useAuth();
@@ -74,6 +87,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+    retryCountRef.current = 0;
   }, []);
 
   const createEventSource = useCallback((url: string) => {
@@ -85,6 +99,15 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   }, []);
 
   const connectSSE = useCallback(() => {
+    const existing = eventSourceRef.current;
+    if (
+      existing &&
+      (existing.readyState === EventSource.OPEN ||
+        existing.readyState === EventSource.CONNECTING)
+    ) {
+      return;
+    }
+
     cleanupSSE();
 
     const es = createEventSource("/api/events");
@@ -109,12 +132,14 @@ const useProvideServiceData = (): ServiceDataContextValue => {
 
     es.onerror = () => {
       if (!mountedRef.current || eventSourceRef.current !== es) return;
+      if (!isAuthenticated) return;
+      if (es.readyState !== EventSource.CLOSED) {
+        return;
+      }
       if (reconnectTimeoutRef.current) return;
-      es.close();
 
-      const retry = retryCountRef.current++;
-      const delay = Math.min(1000 * Math.pow(2, retry), 30000);
-
+      const delay = nextReconnectDelay(retryCountRef.current);
+      retryCountRef.current += 1;
       reconnectTimeoutRef.current = window.setTimeout(() => {
         reconnectTimeoutRef.current = null;
         if (

@@ -57,9 +57,32 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 			f.Flush()
 		}
 	}
+	write := func(payload []byte) bool {
+		if _, err := c.Writer.Write(payload); err != nil {
+			log.Debug().
+				Uint64("client_id", clientID).
+				Err(err).
+				Msg("SSE write failed")
+			return false
+		}
+		flush()
+		return true
+	}
+	writeString := func(payload string) bool {
+		if _, err := c.Writer.WriteString(payload); err != nil {
+			log.Debug().
+				Uint64("client_id", clientID).
+				Err(err).
+				Msg("SSE write failed")
+			return false
+		}
+		flush()
+		return true
+	}
 
-	_, _ = c.Writer.WriteString("retry: 5000\n\n")
-	flush()
+	if !writeString("retry: 5000\n\n") {
+		return
+	}
 
 	for _, payload := range h.bc.Snapshot() {
 		select {
@@ -68,8 +91,9 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 		default:
 		}
 
-		_, _ = c.Writer.Write(payload)
-		flush()
+		if !write(payload) {
+			return
+		}
 	}
 
 	for {
@@ -78,14 +102,16 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 			return
 		case <-keepAlive.C:
 			// comment line, ignored by EventSource but keeps proxies from buffering.
-			_, _ = c.Writer.WriteString(": keepalive\n\n")
-			flush()
+			if !writeString(": keepalive\n\n") {
+				return
+			}
 		case payload, ok := <-sub:
 			if !ok {
 				return
 			}
-			_, _ = c.Writer.Write(payload)
-			flush()
+			if !write(payload) {
+				return
+			}
 		}
 	}
 }
