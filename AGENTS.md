@@ -496,6 +496,14 @@ Owner: soup (s0up4200@pm.me)
 - Added helper unit tests (`internal/api/handlers/instance_id_test.go`)
 - Commit: `5de2fbc`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (refactor)
+- ARR queue delete follow-up dedupe:
+  - added shared `refreshQueueAfterDelete(...)` helper (`internal/api/handlers/queue_delete.go`)
+  - Sonarr/Radarr delete handlers now share cache-clear + SWR refetch + SSE broadcast flow
+- Added helper coverage in `internal/api/handlers/queue_delete_test.go`
+- Commit: `bcc7091`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
