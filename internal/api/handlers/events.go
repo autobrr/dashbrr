@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
@@ -17,8 +18,9 @@ import (
 )
 
 type EventsHandler struct {
-	hub *sse.Hub
-	bc  *Broadcaster
+	hub          *sse.Hub
+	bc           *Broadcaster
+	nextClientID atomic.Uint64
 }
 
 func NewEventsHandler(hub *sse.Hub, bc *Broadcaster) *EventsHandler {
@@ -36,18 +38,28 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	sub, _ := h.hub.Subscribe(ctx, 128)
+	clientID := h.nextClientID.Add(1)
 
 	keepAlive := time.NewTicker(15 * time.Second)
 	defer keepAlive.Stop()
 
-	log.Info().Msg("SSE client connected")
-	defer log.Info().Msg("SSE client disconnected")
+	log.Debug().
+		Uint64("client_id", clientID).
+		Int("subscribers", h.hub.SubscriberCount()).
+		Msg("SSE client connected")
+	defer log.Debug().
+		Uint64("client_id", clientID).
+		Int("subscribers", h.hub.SubscriberCount()).
+		Msg("SSE client disconnected")
 
 	flush := func() {
 		if f, ok := c.Writer.(interface{ Flush() }); ok {
 			f.Flush()
 		}
 	}
+
+	_, _ = c.Writer.WriteString("retry: 5000\n\n")
+	flush()
 
 	for _, payload := range h.bc.Snapshot() {
 		select {

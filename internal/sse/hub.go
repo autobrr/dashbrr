@@ -89,3 +89,9 @@ func (h *Hub) Close() {
 	}
 	h.mu.Unlock()
 }
+
+func (h *Hub) SubscriberCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.subs)
+}

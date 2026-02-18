@@ -274,6 +274,9 @@ Owner: soup (s0up4200@pm.me)
 - Arr API versioning: added `GetArrSystemStatusWithVersion` + `CheckArrForUpdatesWithVersion` helpers (default wrappers still v3)
 - Prowlarr service: switched system-status/update-check calls to API `v1` endpoints (fixes mismatch with shared v3 defaults)
 - Arr common tests: added coverage for versioned endpoint pathing (`/api/v1/system/status`, `/api/v1/update`) and default-v3 fallback
+- SSE/events: added hub `SubscriberCount()` and switched connect/disconnect logs to debug with `client_id` + subscriber count (reduces noisy INFO churn)
+- SSE/events: stream now emits `retry: 5000` directive so browser reconnects back off to 5s on disconnects
+- SSE tests: added `internal/sse/hub_test.go` for subscribe/unsubscribe lifecycle and close cleanup subscriber-count behavior
 
 ### 2026-02-18 (sse async hardening)
 - SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.
