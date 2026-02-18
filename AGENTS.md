@@ -265,6 +265,10 @@ Owner: soup (s0up4200@pm.me)
 - Poller: removed qui cross-seed polling job (`qui_cross_seed`) to cut noisy/unused upstream calls.
 - Tests: added `TestNewPoller_QuiJobsAreOverviewOnly` to lock job list to `qui_overview`.
 - Gates: pass (`go test ./internal/api/handlers`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+- UI responsiveness: replaced masonry-style service layout with true CSS grid breakpoints in `ServiceGrid` and switched dnd-kit to `rectSortingStrategy` (grid-aware drag ordering).
+- UI interaction: removed UA sniffing for drag sensors; now pointer+touch+keyboard sensors with activation constraints (less accidental drags on touch, better cross-device behavior).
+- UI card polish: service actions visible on small screens (no hover dependency), motion-safe hover scaling, tighter small-screen spacing, and top-level app content width cap (`max-w-[1800px]`) with wrap-safe header controls.
+- Card internals: autobrr + qui stats grids now collapse to 1 column on small screens (`grid-cols-1 sm:grid-cols-2`) to prevent cramped 2-col rendering.
 - Web/messages: `ArrMessage` now renders message boxes only for actionable states (`warning|error|offline`), not healthy/online noise
 - Web/messages: filtered machine event keys (`*_queue`, `plex_sessions`, etc.) from rendered message content to avoid useless green/yellow boxes
 - Web/SSE: deduped reconnect scheduling in `useServiceData` (single pending reconnect timer + stale-connection guard) to avoid parallel EventSource reconnect storms
@@ -300,6 +304,14 @@ Owner: soup (s0up4200@pm.me)
 - Tests: added `internal/api/handlers/broadcast_test.go` to lock snapshot replay behavior (latest-per-service + deterministic ordering).
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`).
 - Commits: `5747629`, `225063a`.
+
+### 2026-02-18 (ui responsive pass 2)
+- Service board layout: switched from fixed breakpoint columns to fluid CSS grid `auto-fit/minmax` in `ServiceGrid` (adapts by available width, avoids forced 2-col feel on mid widths).
+- Drag layout: kept dnd-kit `rectSortingStrategy` (grid-aware ordering) with same sensor setup; no UA sniffing.
+- Card responsiveness: `ServiceCard` spacing now keyed to container queries (`@container`, `@md:*`) so header/body padding adapts to card width.
+- Header responsiveness: `ServiceHeader` title sizing/alignment now container-query aware; service action controls stay visible on small cards while still hover-revealing on larger cards.
+- Top-row UX polish: `AddServicesMenu` wrapper now `w-full` on mobile and `auto` on larger screens; logout/status colors aligned to zinc palette.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.

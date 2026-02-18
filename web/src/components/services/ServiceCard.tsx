@@ -138,17 +138,17 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   return (
     <>
       <div
-        className={`group relative bg-white dark:bg-zinc-800 rounded-lg shadow-lg transition-all duration-200 ease-in-out ${
-          !isDragging && "hover:scale-[1.01]"
+        className={`@container group relative bg-white dark:bg-zinc-800 rounded-lg shadow-lg transition-all duration-200 ease-in-out motion-reduce:transition-none ${
+          !isDragging && "motion-safe:hover:scale-[1.01]"
         } ${
           needsConfiguration
             ? "border-2 border-dashed dark:border-zinc-600"
             : "border border-zinc-200 dark:border-zinc-700"
         } ${!isConnected && "opacity-75"}`}
       >
-        <div className="p-4">
+        <div className="p-3 @md:p-4">
           <div
-            className="relative cursor-pointer select-none transition-colors -mx-4 px-4 py-0 rounded-t-lg text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
+            className="relative cursor-pointer select-none transition-colors -mx-3 px-3 @md:-mx-4 @md:px-4 py-0 rounded-t-lg text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
             onClick={() => setIsCollapsed(!isCollapsed)}
           >
             <div className="absolute right-4 top-1/2 -translate-y-1/2 transition-transform duration-200">
@@ -159,7 +159,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                 <Bars3Icon className="h-5 w-5 rotate-90" />
               </div>
             </div>
-            <div className="pr-8">
+            <div className="pr-8 @md:pr-10">
               <ServiceHeader
                 displayName={currentConfig?.displayName || service.displayName}
                 url={currentConfig?.url || service.url}

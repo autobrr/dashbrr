@@ -21,7 +21,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 
@@ -105,7 +105,7 @@ const DraggableServiceCard = ({
     : undefined;
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-4 break-inside-avoid">
+    <div ref={setNodeRef} style={style}>
       <ServiceCard
         service={service}
         onRemove={onRemove}
@@ -125,6 +125,8 @@ export const ServiceGrid = ({
   isLoading = false,
 }: ServiceGridProps) => {
   const [items, setItems] = useState<Service[]>([]);
+  const gridClasses =
+    "grid [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-4 sm:gap-6";
 
   // Initialize and update items
   useEffect(() => {
@@ -180,28 +182,27 @@ export const ServiceGrid = ({
     await onRemoveService(instanceId);
   };
 
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
-      delay: 200,
-      tolerance: 8,
+      delay: 180,
+      tolerance: 6,
     },
   });
-  const pointerSensor = useSensor(PointerSensor);
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  });
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
   });
 
-  const sensors = useSensors(
-    ...(isMobile ? [touchSensor] : [pointerSensor]),
-    keyboardSensor
-  );
+  const sensors = useSensors(pointerSensor, touchSensor, keyboardSensor);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] hover:cursor-pointer gap-6 px-0 py-6 animate-fadeIn">
-        {[...Array(4)].map((_, i) => (
+      <div className={`${gridClasses} animate-fadeIn px-0 py-4 sm:py-6`}>
+        {[...Array(6)].map((_, i) => (
           <LoadingSkeleton key={i} />
         ))}
       </div>
@@ -232,12 +233,9 @@ export const ServiceGrid = ({
       >
         <SortableContext
           items={items.map((item) => item.instanceId)}
-          strategy={horizontalListSortingStrategy}
+          strategy={rectSortingStrategy}
         >
-          <div
-            className="columns-1 sm:columns-1 md:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 3xl:columns-6 gap-6"
-            style={{ columnFill: "balance", width: "100%" }}
-          >
+          <div className={gridClasses}>
             {items.map((service) => (
               <DraggableServiceCard
                 key={service.instanceId}

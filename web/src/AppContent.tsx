@@ -47,7 +47,7 @@ export default function AppContent() {
         paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)",
       }}
     >
-      <div className="p-2 flex-1">
+      <div className="mx-auto w-full max-w-[1800px] p-2 sm:p-3 flex-1">
         <header className="mb-4 pt-2">
           <div className="relative">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
@@ -82,7 +82,7 @@ export default function AppContent() {
                 <TailscaleStatusBar onConfigOpen={handleTailscaleConfig} />
                 <button
                   onClick={logout}
-                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                  className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
                   title="Logout"
                 >
                   <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
@@ -92,7 +92,7 @@ export default function AppContent() {
             <div className="sm:hidden absolute top-0 right-0">
               <button
                 onClick={logout}
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
                 title="Logout"
               >
                 <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
@@ -105,15 +105,15 @@ export default function AppContent() {
         </header>
 
         <main>
-          <div className="flex justify-between items-center w-full">
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
             <div className="flex-grow">
               {services && (
-                <span className="p-2 bg-gray-800 rounded-md inline-block select-none pointer-events-none">
+                <span className="inline-block select-none rounded-md bg-zinc-800 p-2 pointer-events-none">
                   <StatusCounters services={services} />
                 </span>
               )}
             </div>
-            <div className="ml-4">
+            <div className="w-full sm:ml-4 sm:w-auto">
               <AddServicesMenu
                 serviceTemplates={serviceTemplates}
                 onAddService={(type: ServiceType, name: string) =>
@@ -148,4 +148,3 @@ export default function AppContent() {
     </div>
   );
 }
-

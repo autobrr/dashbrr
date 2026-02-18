@@ -64,7 +64,7 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
       <ArrMessage status={service.status} message={message} />
 
       {summary && (
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
             <div className="text-zinc-400">Instances</div>
             <div className="mt-0.5 text-zinc-100">

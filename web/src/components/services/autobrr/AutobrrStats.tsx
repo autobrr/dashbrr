@@ -101,7 +101,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
             Stats:
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
             <a
               href={getReleasesUrl()}
               target="_blank"
