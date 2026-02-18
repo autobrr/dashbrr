@@ -18,9 +18,9 @@ Owner: soup (s0up4200@pm.me)
   - Many `context.Background()` usage where request ctx should flow
 
 ## Next
-- Keep PR `#82` green; iterate CI till all checks complete.
-- Continue dead-code/legacy cleanup (esp. web auth + unused utilities) with small commits.
-- Follow up: reconcile docs with cookie-first auth + dev proxy mode; audit GitHub security alerts.
+- Keep PR `#82` green; monitor/retry CI until latest run green.
+- Continue small, low-risk refactors on large web files (`ServiceCard`, auth/form flows, status/render helpers).
+- Triage default-branch Dependabot/security backlog (separate from PR code health work).
 
 ### 2026-02-16 (cont)
 - Confirmed: backend has no `/api/events` route. Only SSE route is `GET /api/health/events`.
@@ -409,9 +409,8 @@ Owner: soup (s0up4200@pm.me)
 - Discovery: centralize label/env parsing for Docker/K8s/config-file imports; remove `strings.Title`; add unit tests
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
-- Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
-- Frontend: continue de-bloat `useServiceData`; tighten types; reduce re-render paths
-- Backend: service-type parsing helper; handle unsupported legacy `instance_id` types cleanly (esp. removed services)
-- Backend: dedupe SWR caching across handlers (Radarr/Prowlarr/Plex/Maintainerr/Overseerr/Autobrr)
+- Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
+- Frontend: continue zinc palette consistency pass in frequently used components
+- Backend: remove leftover dead fields/imports after SWR/singleflight migration
 - Backend: remove remaining `context.Background()` in request paths; keep ctx flow explicit
 - Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)
