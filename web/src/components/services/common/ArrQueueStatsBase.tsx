@@ -58,16 +58,16 @@ const QueueOptionSelect = <T extends string>({
 }: QueueOptionSelectProps<T>) => {
   return (
     <div className="flex flex-col space-y-1">
-      <label className="text-xs text-gray-700 dark:text-gray-300">{label}</label>
+      <label className="text-xs text-zinc-700 dark:text-zinc-300">{label}</label>
 
       <Listbox value={value} onChange={(nextValue) => onChange(nextValue as T)}>
         {({ open }) => (
           <div className="relative">
-            <Listbox.Button className="relative w-full rounded-md bg-gray-700 py-2 pl-3 pr-10 text-left text-gray-300 shadow-sm sm:text-xs">
+            <Listbox.Button className="relative w-full rounded-md bg-zinc-700 py-2 pl-3 pr-10 text-left text-zinc-300 shadow-sm sm:text-xs">
               <span className="block truncate">{displayText}</span>
               <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
                 <ChevronDownIcon
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                  className={`h-4 w-4 text-zinc-400 transition-transform duration-200 ${
                     open ? "transform rotate-180" : ""
                   }`}
                   aria-hidden="true"
@@ -81,14 +81,14 @@ const QueueOptionSelect = <T extends string>({
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-xs">
+              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-zinc-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-xs">
                 {options.map((option) => (
                   <Listbox.Option
                     key={option.value}
                     value={option.value}
                     className={({ active }) =>
                       `relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors ${
-                        active ? "bg-gray-600 text-gray-200" : "text-gray-300"
+                        active ? "bg-zinc-600 text-zinc-200" : "text-zinc-300"
                       }`
                     }
                   >
@@ -197,7 +197,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
       {queue && queue.totalRecords > 0 && (
         <div>
-          <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
+          <div className="text-xs mb-2 font-semibold text-zinc-700 dark:text-zinc-300 cursor-default">
             Queue ({queue.totalRecords}):
           </div>
 
@@ -205,12 +205,12 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
             {queue.records.slice(0, 3).map((record) => (
               <div
                 key={record.id}
-                className="flex flex-col p-3 text-sm rounded-lg bg-gray-850/95 dark:bg-gray-850/95"
+                className="flex flex-col p-3 text-sm rounded-lg bg-zinc-900/90 dark:bg-zinc-900/90"
               >
                 <div className="flex items-center justify-between w-full">
                   <div className="min-w-0 flex-1 mr-2">
                     <span
-                      className="block truncate text-xs font-medium text-gray-300 cursor-default"
+                      className="block truncate text-xs font-medium text-zinc-300 cursor-default"
                       title={record.title}
                     >
                       {record.title}
@@ -223,10 +223,10 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                         href={`${openUrl}/activity/queue`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-md hover:bg-gray-700 dark:hover:bg-gray-700 transition-colors"
+                        className="p-1.5 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-700 transition-colors"
                         title={`View in ${serviceName}`}
                       >
-                        <ArrowTopRightOnSquareIcon className="h-4 w-4 text-gray-400" />
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4 text-zinc-400" />
                       </a>
                     )}
 
@@ -238,7 +238,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                       disabled={!canManageRecord(record)}
                       className={`p-1.5 rounded-md transition-colors ${
                         canManageRecord(record)
-                          ? "hover:bg-gray-700 dark:hover:bg-gray-700"
+                          ? "hover:bg-zinc-700 dark:hover:bg-zinc-700"
                           : "opacity-50 cursor-not-allowed"
                       }`}
                       title={
@@ -247,38 +247,38 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                           : getManageDisabledReason(record)
                       }
                     >
-                      <Cog6ToothIcon className="h-4 w-4 text-gray-400" />
+                      <Cog6ToothIcon className="h-4 w-4 text-zinc-400" />
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-gray-400 pointer-events-none">
+                <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-zinc-400 pointer-events-none">
                   <div className="flex items-center gap-1">
-                    <span className="font-medium text-gray-500">State:</span>
+                    <span className="font-medium text-zinc-500">State:</span>
                     <span>{record.trackedDownloadState}</span>
                   </div>
 
                   {record.indexer && (
                     <div className="flex items-center gap-1">
-                      <span className="font-medium text-gray-500">Indexer:</span>
+                      <span className="font-medium text-zinc-500">Indexer:</span>
                       <span>{record.indexer}</span>
                     </div>
                   )}
 
                   {record.customFormatScore != null && (
                     <div className="flex items-center gap-1">
-                      <span className="font-medium text-gray-500">CF Score:</span>
+                      <span className="font-medium text-zinc-500">CF Score:</span>
                       <span>{record.customFormatScore}</span>
                     </div>
                   )}
 
                   <div className="flex items-center gap-1">
-                    <span className="font-medium text-gray-500">Client:</span>
+                    <span className="font-medium text-zinc-500">Client:</span>
                     <span>{record.downloadClient}</span>
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <span className="font-medium text-gray-500">Protocol:</span>
+                    <span className="font-medium text-zinc-500">Protocol:</span>
                     <span className="capitalize">{record.protocol}</span>
                   </div>
                 </div>
@@ -312,7 +312,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
         className="min-h-[400px] max-h-[90vh]"
       >
         <div className="space-y-4">
-          <p className="text-md font-medium text-gray-600 dark:text-gray-400">
+          <p className="text-md font-medium text-zinc-600 dark:text-zinc-400">
             Are you sure you want to remove this release from the queue?
           </p>
 
@@ -322,12 +322,12 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                 href={`${openUrl}/activity/queue`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-bold px-2 py-1 rounded-md bg-gray-750 text-gray-700 dark:text-gray-300 break-all inline-block hover:bg-gray-700 transition-colors"
+                className="font-bold px-2 py-1 rounded-md bg-zinc-800 text-zinc-100 dark:text-zinc-200 break-all inline-block hover:bg-zinc-700 transition-colors"
               >
                 {selectedItem?.title}
               </a>
             ) : (
-              <span className="font-bold px-2 py-1 rounded-md bg-gray-750 text-gray-700 dark:text-gray-300 break-all inline-block">
+              <span className="font-bold px-2 py-1 rounded-md bg-zinc-800 text-zinc-100 dark:text-zinc-200 break-all inline-block">
                 {selectedItem?.title}
               </span>
             )}
@@ -373,7 +373,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                   displayText={getBlocklistText(deleteOptions.blocklist)}
                   options={blocklistOptions}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-zinc-500 mt-1">
                   {getBlocklistText(deleteOptions.blocklist)}
                 </p>
               </div>
@@ -383,7 +383,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
           <div className="flex justify-end space-x-3 pt-4">
             <button
               onClick={closeDeleteModal}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-200 dark:bg-zinc-700 rounded-md hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
               Cancel
             </button>
