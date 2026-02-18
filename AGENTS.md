@@ -201,6 +201,7 @@ Owner: soup (s0up4200@pm.me)
 ### 2026-02-18
 - API cache: SWR helper supports optional `singleflight` stampede protection (cache-miss only) + unit test
 - Handlers: removed redundant `.sf.Do` wrappers around SWR cache fetches (Autobrr/Plex/Overseerr/Maintainerr)
+- Handlers: replaced brittle `"service not configured"` string matching with sentinel `ErrServiceNotConfigured` + `errors.Is`
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

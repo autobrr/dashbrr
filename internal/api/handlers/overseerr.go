@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -207,7 +208,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			// Return empty response for unconfigured service
 			c.JSON(http.StatusOK, &types.RequestsStats{
 				PendingCount: 0,
@@ -266,7 +267,7 @@ func (h *OverseerrHandler) fetchRequests(ctx context.Context, instanceId string)
 	}
 
 	if overseerrConfig == nil || overseerrConfig.URL == "" {
-		return nil, fmt.Errorf("service not configured")
+		return nil, ErrServiceNotConfigured
 	}
 
 	service := &overseerr.OverseerrService{}

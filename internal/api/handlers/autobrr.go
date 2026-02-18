@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -94,7 +95,7 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			c.JSON(http.StatusOK, types.ReleasesResponse{})
 			return
 		}
@@ -159,7 +160,7 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			c.JSON(http.StatusOK, types.AutobrrStats{})
 			return
 		}
@@ -231,7 +232,7 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			c.JSON(http.StatusOK, []types.IRCStatus{})
 			return
 		}
@@ -272,7 +273,7 @@ func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (typ
 	}
 
 	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return types.AutobrrStats{}, fmt.Errorf("service not configured")
+		return types.AutobrrStats{}, ErrServiceNotConfigured
 	}
 
 	service := &autobrr.AutobrrService{
@@ -289,7 +290,7 @@ func (h *AutobrrHandler) fetchReleases(ctx context.Context, instanceId string) (
 	}
 
 	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return types.ReleasesResponse{}, fmt.Errorf("service not configured")
+		return types.ReleasesResponse{}, ErrServiceNotConfigured
 	}
 
 	service := &autobrr.AutobrrService{
@@ -306,7 +307,7 @@ func (h *AutobrrHandler) fetchIRC(ctx context.Context, instanceId string) ([]typ
 	}
 
 	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return nil, fmt.Errorf("service not configured")
+		return nil, ErrServiceNotConfigured
 	}
 
 	service := &autobrr.AutobrrService{

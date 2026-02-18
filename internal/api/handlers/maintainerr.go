@@ -144,7 +144,7 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			// Return empty response for unconfigured service
 			c.JSON(http.StatusOK, []maintainerr.Collection{})
 			return
@@ -185,7 +185,7 @@ func (h *MaintainerrHandler) fetchCollections(ctx context.Context, instanceId st
 	}
 
 	if maintainerrConfig == nil || maintainerrConfig.URL == "" {
-		return nil, fmt.Errorf("service not configured")
+		return nil, ErrServiceNotConfigured
 	}
 
 	service := &maintainerr.MaintainerrService{}

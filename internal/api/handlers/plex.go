@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -82,7 +83,7 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			// Return empty response for unconfigured service
 			emptyResponse := &types.PlexSessionsResponse{}
 			emptyResponse.MediaContainer.Size = 0
@@ -117,7 +118,7 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (typ
 	}
 
 	if plexConfig == nil || plexConfig.URL == "" {
-		return empty, fmt.Errorf("service not configured")
+		return empty, ErrServiceNotConfigured
 	}
 
 	service := &plex.PlexService{}
