@@ -272,30 +272,23 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	// Clear cache after successful deletion
 	cacheKey := sonarrQueuePrefix + instanceId
-	if err := DeleteSWRCacheKeys(ctx, h.cache, cacheKey); err != nil {
-		log.Warn().
-			Err(err).
-			Str("instanceId", instanceId).
-			Msg("[Sonarr] Failed to clear queue cache")
-	}
-
-	// Fetch fresh queue data
-	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.SonarrQueueResponse]{
-		Store:          h.cache,
-		Key:            cacheKey,
-		FreshTTL:       middleware.CacheDurations.SonarrStatus,
-		StaleTTL:       sonarrStaleDataDuration,
-		CircuitBreaker: h.circuitBreaker,
-		Fetch: func() (types.SonarrQueueResponse, error) {
+	refreshQueueAfterDelete(
+		ctx,
+		h.cache,
+		h.circuitBreaker,
+		cacheKey,
+		middleware.CacheDurations.SonarrStatus,
+		sonarrStaleDataDuration,
+		func() (types.SonarrQueueResponse, error) {
 			return h.fetchQueue(ctx, instanceId)
 		},
-	})
-
-	if err == nil {
-		h.broadcastSonarrQueue(instanceId, &result)
-	}
+		func(result *types.SonarrQueueResponse) {
+			h.broadcastSonarrQueue(instanceId, result)
+		},
+		"Sonarr",
+		instanceId,
+	)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }

@@ -219,27 +219,23 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	// Clear cache after successful deletion
 	cacheKey := radarrQueuePrefix + instanceId
-	if err := DeleteSWRCacheKeys(ctx, h.cache, cacheKey); err != nil {
-		log.Warn().Err(err).Str("instanceId", instanceId).Msg("[Radarr] Failed to clear cache after queue item deletion")
-	}
-
-	// Fetch fresh queue data
-	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RadarrQueueResponse]{
-		Store:          h.cache,
-		CircuitBreaker: h.circuitBreaker,
-		Key:            cacheKey,
-		FreshTTL:       middleware.CacheDurations.RadarrStatus,
-		StaleTTL:       radarrStaleDataDuration,
-		Fetch: func() (types.RadarrQueueResponse, error) {
+	refreshQueueAfterDelete(
+		ctx,
+		h.cache,
+		h.circuitBreaker,
+		cacheKey,
+		middleware.CacheDurations.RadarrStatus,
+		radarrStaleDataDuration,
+		func() (types.RadarrQueueResponse, error) {
 			return h.fetchQueue(ctx, instanceId)
 		},
-	})
-
-	if err == nil {
-		h.broadcastRadarrQueue(instanceId, &result)
-	}
+		func(result *types.RadarrQueueResponse) {
+			h.broadcastRadarrQueue(instanceId, result)
+		},
+		"Radarr",
+		instanceId,
+	)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }

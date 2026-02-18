@@ -4,15 +4,19 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/autobrr/dashbrr/internal/services/arr"
+	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/resilience"
 )
 
 func TestQueueDeleteOptionsFromQuery(t *testing.T) {
@@ -83,5 +87,73 @@ func TestHandleQueueDeleteError_Generic(t *testing.T) {
 	}
 	if body["error"] != "Failed to delete queue item: boom" {
 		t.Fatalf("error = %q, want %q", body["error"], "Failed to delete queue item: boom")
+	}
+}
+
+func TestRefreshQueueAfterDelete_BroadcastsFreshData(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := cache.NewMemoryStore(ctx, t.TempDir())
+
+	type payload struct {
+		Value int `json:"value"`
+	}
+
+	var got payload
+	called := false
+
+	refreshQueueAfterDelete(
+		ctx,
+		store,
+		resilience.NewCircuitBreaker(5, time.Minute),
+		"sonarr:queue:sonarr-1",
+		time.Minute,
+		2*time.Minute,
+		func() (payload, error) {
+			return payload{Value: 42}, nil
+		},
+		func(p *payload) {
+			called = true
+			got = *p
+		},
+		"Sonarr",
+		"sonarr-1",
+	)
+
+	if !called {
+		t.Fatal("expected broadcast callback to be called")
+	}
+	if got.Value != 42 {
+		t.Fatalf("broadcast payload value = %d, want 42", got.Value)
+	}
+}
+
+func TestRefreshQueueAfterDelete_SkipsBroadcastOnFetchError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := cache.NewMemoryStore(ctx, t.TempDir())
+
+	called := false
+	refreshQueueAfterDelete(
+		ctx,
+		store,
+		resilience.NewCircuitBreaker(5, time.Minute),
+		"radarr:queue:radarr-1",
+		time.Minute,
+		2*time.Minute,
+		func() (map[string]int, error) {
+			return nil, errors.New("fetch failed")
+		},
+		func(_ *map[string]int) {
+			called = true
+		},
+		"Radarr",
+		"radarr-1",
+	)
+
+	if called {
+		t.Fatal("expected broadcast callback to be skipped")
 	}
 }
