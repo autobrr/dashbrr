@@ -65,7 +65,7 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 	}
 
 	if prowlarrConfig == nil {
-		return types.ProwlarrStatsResponse{}, nil, types.ProwlarrIndexerStatsResponse{}, fmt.Errorf("prowlarr is not configured")
+		return types.ProwlarrStatsResponse{}, nil, types.ProwlarrIndexerStatsResponse{}, NewServiceNotConfigured("prowlarr")
 	}
 
 	var (
@@ -210,7 +210,7 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
 			status = normalizeUpstreamStatus(prowErr.HttpCode)
 		}
-		if err.Error() == "prowlarr is not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
@@ -269,7 +269,7 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
 			status = normalizeUpstreamStatus(prowErr.HttpCode)
 		}
-		if err.Error() == "prowlarr is not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
@@ -322,7 +322,7 @@ func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
 		if errors.As(err, &prowErr) && prowErr.HttpCode > 0 {
 			status = normalizeUpstreamStatus(prowErr.HttpCode)
 		}
-		if err.Error() == "prowlarr is not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
