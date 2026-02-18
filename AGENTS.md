@@ -551,9 +551,19 @@ Owner: soup (s0up4200@pm.me)
   - added typed nested merge helper for `stats`/`details` service payload maps
   - keep Autobrr releases in `service.releases`; ignore `stats` write on `autobrr_releases` patch
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (refactor)
+- Poller: split Autobrr monolithic stats job into independent jobs:
+  - `autobrr_stats`
+  - `autobrr_irc_status`
+  - `autobrr_releases`
+- Removes intra-job head-of-line blocking (one slow Autobrr endpoint no longer stalls other Autobrr SSE payloads)
+- Added regression coverage for job registration (`internal/api/handlers/poller_jobs_test.go`)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
+- Backend: split Prowlarr poller into independent jobs (stats/indexers) to remove remaining intra-service coupling
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
 - Frontend: continue zinc palette consistency pass in frequently used components
 - Backend: remove leftover dead fields/imports after SWR/singleflight migration

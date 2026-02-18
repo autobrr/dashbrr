@@ -94,7 +94,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 			{name: "prowlarr", interval: 120 * time.Second, run: (*Poller).runProwlarr},
 		},
 		"autobrr": {
-			{name: "autobrr", interval: 120 * time.Second, run: (*Poller).runAutobrr},
+			{name: "autobrr_stats", interval: 120 * time.Second, run: (*Poller).runAutobrrStats},
+			{name: "autobrr_irc_status", interval: 120 * time.Second, run: (*Poller).runAutobrrIRC},
+			{name: "autobrr_releases", interval: 120 * time.Second, run: (*Poller).runAutobrrReleases},
 		},
 		"maintainerr": {
 			{name: "maintainerr_collections", interval: 10 * time.Minute, run: (*Poller).runMaintainerrCollections},
@@ -540,10 +542,9 @@ func (p *Poller) runProwlarr(ctx context.Context, svc models.ServiceConfiguratio
 	})
 }
 
-func (p *Poller) runAutobrr(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runAutobrrStats(ctx context.Context, svc models.ServiceConfiguration, _ string) {
 	service := &autobrr.AutobrrService{}
 
-	// Stats
 	if stats, err := service.GetReleaseStats(ctx, svc.URL, svc.APIKey); err == nil {
 		p.bc.Publish(models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
@@ -555,8 +556,11 @@ func (p *Poller) runAutobrr(ctx context.Context, svc models.ServiceConfiguration
 			},
 		})
 	}
+}
 
-	// IRC
+func (p *Poller) runAutobrrIRC(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+	service := &autobrr.AutobrrService{}
+
 	if irc, err := service.GetIRCStatus(ctx, svc.URL, svc.APIKey); err == nil {
 		status := "online"
 		for _, s := range irc {
@@ -575,8 +579,11 @@ func (p *Poller) runAutobrr(ctx context.Context, svc models.ServiceConfiguration
 			},
 		})
 	}
+}
 
-	// Releases
+func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+	service := &autobrr.AutobrrService{}
+
 	if releases, err := service.GetReleases(ctx, svc.URL, svc.APIKey); err == nil {
 		p.bc.Publish(models.ServiceHealth{
 			ServiceID:   svc.InstanceID,
