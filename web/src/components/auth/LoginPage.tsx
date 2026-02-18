@@ -14,6 +14,7 @@ import { faCheck, faTimes } from "@fortawesome/free-solid-svg-icons";
 import Toast from "../Toast";
 import logo from "../../assets/logo.svg";
 import { Footer } from "../shared/Footer";
+import { api } from "../../utils/api";
 
 type PasswordValidation = {
   minLength: boolean;
@@ -88,8 +89,10 @@ export function LoginPage() {
       }
 
       try {
-        const response = await fetch("/api/auth/registration-status");
-        const data = await response.json();
+        const data = await api.get<{
+          registrationEnabled: boolean;
+          hasUsers: boolean;
+        }>("/auth/registration-status");
         setRegistrationEnabled(data.registrationEnabled);
         if (data.registrationEnabled && !data.hasUsers) {
           // Automatically switch to registration if no users exist
