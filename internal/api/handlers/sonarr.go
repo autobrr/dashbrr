@@ -279,11 +279,12 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
+	queryOptions := queueDeleteOptionsFromQuery(c)
 	options := types.SonarrQueueDeleteOptions{
-		RemoveFromClient: c.Query("removeFromClient") == "true",
-		Blocklist:        c.Query("blocklist") == "true",
-		SkipRedownload:   c.Query("skipRedownload") == "true",
-		ChangeCategory:   c.Query("changeCategory") == "true",
+		RemoveFromClient: queryOptions.RemoveFromClient,
+		Blocklist:        queryOptions.Blocklist,
+		SkipRedownload:   queryOptions.SkipRedownload,
+		ChangeCategory:   queryOptions.ChangeCategory,
 	}
 
 	ctx := c.Request.Context()
@@ -292,24 +293,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		return h.deleteQueueItem(ctx, instanceId, queueId, options)
 	})
 
-	if err != nil {
-		if errors.Is(err, ErrServiceNotConfigured) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
-		if arrErr, ok := err.(*arr.ErrArr); ok {
-			log.Error().
-				Err(arrErr).
-				Str("instanceId", instanceId).
-				Str("queueId", queueId).
-				Msg("[Sonarr] Failed to delete queue item")
-
-			if arrErr.HttpCode > 0 {
-				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
-				return
-			}
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete queue item: %v", err)})
+	if handleQueueDeleteError(c, err, "Sonarr", instanceId, queueId) {
 		return
 	}
 

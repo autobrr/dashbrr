@@ -248,6 +248,9 @@ Owner: soup (s0up4200@pm.me)
 - Maintainerr: introduced sentinel errors (`ErrURLRequired`, `ErrAPIKeyRequired`) for `get_collections` validation
 - Maintainerr handler: replaced brittle string equality with `errors.Is(...)` for sentinel validation errors
 - Tests: added `internal/api/handlers/maintainerr_error_test.go` covering status/message mapping for validation, upstream auth, timeout paths
+- Arr handlers: extracted shared queue-delete query parsing + error response helper into `internal/api/handlers/queue_delete.go` (used by Sonarr + Radarr)
+- Arr handlers: Sonarr/Radarr `DeleteQueueItem` now call shared `handleQueueDeleteError` (dedupe retry failure handling path)
+- Tests: added `internal/api/handlers/queue_delete_test.go` for query-flag parsing + error mapping statuses (404/502/500)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
