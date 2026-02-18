@@ -1037,6 +1037,22 @@ Owner: soup (s0up4200@pm.me)
   - keeps logs scoped with `client_id` for easier churn debugging
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (poller isolation pass)
+- Poller timeout model refactor (`internal/api/handlers/poller.go`):
+  - replaced single global `pollerJobTimeout` with explicit timeout classes:
+    - `pollerHealthTimeout`
+    - `pollerPendingTimeout`
+    - `pollerDefaultJobTimeout`
+    - `pollerLongJobTimeout`
+  - `jobSpec` now supports per-job timeout override (`timeout`)
+  - long-running jobs (`autobrr_releases`, `maintainerr_collections`) explicitly opt into long timeout bucket
+  - `maybeRun(...)` now receives timeout explicitly; health/pending/jobs pass timeout intentionally
+  - added `effectiveJobTimeout(...)` fallback helper (KISS defaulting)
+- Tests:
+  - updated `internal/api/handlers/poller_test.go` for new `maybeRun` signature
+  - added timeout fallback/override coverage in `internal/api/handlers/poller_jobs_test.go` (`TestEffectiveJobTimeout`)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

@@ -29,7 +29,7 @@ func TestPollerMaybeRun_CanceledContextBeforeSemaphoreAcquireClearsInFlight(t *t
 	job := "plex_sessions"
 	key := svc.InstanceID + ":" + job
 
-	p.maybeRun(ctx, sem, svc, "plex", job, time.Hour, true, func(*Poller, context.Context, models.ServiceConfiguration, string) {})
+	p.maybeRun(ctx, sem, svc, "plex", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) {})
 
 	deadline := time.Now().Add(250 * time.Millisecond)
 	for time.Now().Before(deadline) {
@@ -60,7 +60,7 @@ func TestPollerMaybeRun_SemaphoreFullSkipsWithoutMarkingLastRun(t *testing.T) {
 	job := "plex_sessions"
 	key := svc.InstanceID + ":" + job
 
-	p.maybeRun(context.Background(), sem, svc, "plex", job, time.Hour, true, func(*Poller, context.Context, models.ServiceConfiguration, string) {
+	p.maybeRun(context.Background(), sem, svc, "plex", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) {
 		t.Fatalf("job should not run when semaphore is full")
 	})
 

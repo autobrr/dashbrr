@@ -3,7 +3,10 @@
 
 package handlers
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNewPoller_AutobrrJobsAreSplit(t *testing.T) {
 	t.Parallel()
@@ -53,5 +56,18 @@ func TestNewPoller_QuiJobsAreOverviewOnly(t *testing.T) {
 
 	if jobs[0].name != "qui_overview" {
 		t.Fatalf("qui job[0] = %q, want %q", jobs[0].name, "qui_overview")
+	}
+}
+
+func TestEffectiveJobTimeout(t *testing.T) {
+	t.Parallel()
+
+	if got := effectiveJobTimeout(0); got != pollerDefaultJobTimeout {
+		t.Fatalf("effectiveJobTimeout(0) = %v, want %v", got, pollerDefaultJobTimeout)
+	}
+
+	override := 7 * time.Second
+	if got := effectiveJobTimeout(override); got != override {
+		t.Fatalf("effectiveJobTimeout(override) = %v, want %v", got, override)
 	}
 }

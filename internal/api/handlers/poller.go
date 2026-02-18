@@ -27,7 +27,10 @@ import (
 const (
 	pollerTickInterval      = 1 * time.Second
 	pollerServiceReloadTTL  = 15 * time.Second
-	pollerJobTimeout        = 25 * time.Second
+	pollerHealthTimeout     = 15 * time.Second
+	pollerPendingTimeout    = 5 * time.Second
+	pollerDefaultJobTimeout = 12 * time.Second
+	pollerLongJobTimeout    = 20 * time.Second
 	pollerMaxConcurrentUpst = 8
 	pollerSlowJobThreshold  = 5 * time.Second
 )
@@ -37,6 +40,7 @@ type jobRunner func(*Poller, context.Context, models.ServiceConfiguration, strin
 type jobSpec struct {
 	name     string
 	interval time.Duration
+	timeout  time.Duration
 	run      jobRunner
 }
 
@@ -90,10 +94,10 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		"autobrr": {
 			{name: "autobrr_stats", interval: 120 * time.Second, run: (*Poller).runAutobrrStats},
 			{name: "autobrr_irc_status", interval: 120 * time.Second, run: (*Poller).runAutobrrIRC},
-			{name: "autobrr_releases", interval: 120 * time.Second, run: (*Poller).runAutobrrReleases},
+			{name: "autobrr_releases", interval: 120 * time.Second, timeout: pollerLongJobTimeout, run: (*Poller).runAutobrrReleases},
 		},
 		"maintainerr": {
-			{name: "maintainerr_collections", interval: 10 * time.Minute, run: (*Poller).runMaintainerrCollections},
+			{name: "maintainerr_collections", interval: 10 * time.Minute, timeout: pollerLongJobTimeout, run: (*Poller).runMaintainerrCollections},
 		},
 		"tailscale": {
 			{name: "tailscale_devices", interval: 60 * time.Second, run: (*Poller).runTailscaleDevices},
@@ -176,10 +180,10 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 	// are not delayed behind stats jobs on startup and forced refreshes.
 	for _, ps := range pollServices {
 		if ps.configured {
-			p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 30*time.Second, force, (*Poller).runHealth)
+			p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 30*time.Second, pollerHealthTimeout, force, (*Poller).runHealth)
 			continue
 		}
-		p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 60*time.Second, force, (*Poller).runPending)
+		p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 60*time.Second, pollerPendingTimeout, force, (*Poller).runPending)
 	}
 
 	// Pass 2: enqueue stats only for configured services.
@@ -188,9 +192,16 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 			continue
 		}
 		for _, job := range p.jobs[ps.kind] {
-			p.maybeRun(ctx, sem, ps.cfg, ps.kind, job.name, job.interval, force, job.run)
+			p.maybeRun(ctx, sem, ps.cfg, ps.kind, job.name, job.interval, effectiveJobTimeout(job.timeout), force, job.run)
 		}
 	}
+}
+
+func effectiveJobTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return pollerDefaultJobTimeout
+	}
+	return timeout
 }
 
 func isServiceConfigured(serviceType string, svc models.ServiceConfiguration) bool {
@@ -223,7 +234,7 @@ func (p *Poller) getServices(ctx context.Context, force bool) []models.ServiceCo
 	return services
 }
 
-func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.ServiceConfiguration, serviceType string, job string, interval time.Duration, force bool, run jobRunner) {
+func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.ServiceConfiguration, serviceType string, job string, interval time.Duration, timeout time.Duration, force bool, run jobRunner) {
 	key := svc.InstanceID + ":" + job
 
 	p.mu.Lock()
@@ -264,7 +275,7 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 			p.mu.Unlock()
 		}()
 
-		jobCtx, cancel := context.WithTimeout(ctx, pollerJobTimeout)
+		jobCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
 		started := time.Now()
