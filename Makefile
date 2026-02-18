@@ -32,7 +32,7 @@ LDFLAGS=-s -w \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview
+.PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview check-air
 
 # Default target
 all: clean deps-frontend deps-go frontend backend
@@ -102,6 +102,18 @@ redis-stop:
 		echo "Redis server is not running"; \
 	fi
 
+# Ensure air is installed for backend hot reload in dev commands
+check-air:
+	@if ! command -v air > /dev/null 2>&1; then \
+		echo ""; \
+		echo "============================================================"; \
+		echo " ERROR: 'air' is required for make dev / make dev-memory"; \
+		echo "============================================================"; \
+		echo "Install: go install github.com/air-verse/air@latest"; \
+		echo ""; \
+		exit 1; \
+	fi
+
 # Wait for backend to be ready
 wait-backend:
 	@echo "Waiting for backend to be ready..."
@@ -117,19 +129,12 @@ wait-backend:
 	exit 1
 
 # Development mode - run frontend and backend with SQLite and Redis
-dev: redis-dev
+dev: check-air redis-dev
 	@echo "Starting development servers with Redis cache..."
 	@echo "Redis is running on localhost:6379"
 	@echo "Starting backend server with SQLite in debug mode..."
-	@{ \
-		if command -v air > /dev/null 2>&1; then \
-			echo "Using air for backend hot reload..."; \
-			env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml; \
-		else \
-			echo "air not found; using go run (no backend hot reload)."; \
-			env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) serve --db-file ./data/dashbrr.db; \
-		fi; \
-	} & \
+	@echo "Using air for backend hot reload..."
+	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -140,18 +145,11 @@ dev: redis-dev
 	wait
 
 # Development mode - run frontend and backend with SQLite and memory cache
-dev-memory:
+dev-memory: check-air
 	@echo "Starting development servers with memory cache..."
 	@echo "Starting backend server with SQLite in debug mode..."
-	@{ \
-		if command -v air > /dev/null 2>&1; then \
-			echo "Using air for backend hot reload..."; \
-			env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml; \
-		else \
-			echo "air not found; using go run (no backend hot reload)."; \
-			env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) serve --db-file ./data/dashbrr.db; \
-		fi; \
-	} & \
+	@echo "Using air for backend hot reload..."
+	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 air -c .air.toml & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -241,8 +239,8 @@ help:
 	@echo "  lint                     - Run ESLint on frontend code"
 	@echo "  type-check              - Run TypeScript type checking"
 	@echo "  preview                  - Start frontend preview server"
-	@echo "  dev                      - Start development environment with SQLite and Redis (backend hot reload via air if installed)"
-	@echo "  dev-memory               - Start development environment with SQLite and memory cache (backend hot reload via air if installed)"
+	@echo "  dev                      - Start development environment with SQLite and Redis (requires air)"
+	@echo "  dev-memory               - Start development environment with SQLite and memory cache (requires air)"
 	@echo "  docker-dev               - Start Docker development environment with memory cache"
 	@echo "  docker-dev-redis         - Start Docker development environment with Redis cache"
 	@echo "  docker-dev-quick         - Start Docker development environment without rebuilding"
