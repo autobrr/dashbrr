@@ -598,6 +598,15 @@ Owner: soup (s0up4200@pm.me)
   - health/version events get queued first for all services
   - avoids stats jobs starving version-bearing health updates on cold start
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (audit)
+- Audited branch `refactor/services-health-checks` against `refactor/modernize`:
+  - branch head is older (`204fa4e`, 2025-02-16) and behind modernize
+  - architecture there (global client maps, legacy monitor loops, removed SSE handler path) is mostly superseded by current poller+hub design
+- Idea retained/applied from audit direction:
+  - keep version-first experience by prioritizing health before stats per tick (`fix(api): prioritize health checks ahead of stats jobs`)
+- Decision:
+  - no direct code cherry-pick from `refactor/services-health-checks`; continue incremental modernization on current branch
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
