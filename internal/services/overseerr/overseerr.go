@@ -16,8 +16,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
-	"github.com/autobrr/dashbrr/internal/services/radarr"
-	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -107,57 +105,6 @@ func (s *OverseerrService) UpdateRequestStatus(ctx context.Context, url, apiKey 
 	return nil
 }
 
-// fetchMediaTitle fetches the title from either Radarr or Sonarr based on mediaType
-func (s *OverseerrService) fetchMediaTitle(ctx context.Context, request types.MediaRequest) (string, error) {
-	if s.db == nil {
-		return "", fmt.Errorf("database not initialized")
-	}
-
-	var service *models.ServiceConfiguration
-	var err error
-
-	switch request.Media.MediaType {
-	case "movie":
-		// Find Radarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix(ctx, "radarr")
-		if err != nil {
-			return "", fmt.Errorf("failed to get Radarr service: %w", err)
-		}
-		if service == nil {
-			return "", fmt.Errorf("no Radarr service found")
-		}
-
-		radarrService := &radarr.RadarrService{}
-		// Use TmdbID for movie lookups
-		movie, err := radarrService.LookupByTmdbId(ctx, service.URL, service.APIKey, request.Media.TmdbID)
-		if err != nil {
-			return "", fmt.Errorf("failed to fetch movie from Radarr: %w", err)
-		}
-		return movie.Title, nil
-
-	case "tv":
-		// Find Sonarr service by URL
-		service, err = s.db.GetServiceByInstancePrefix(ctx, "sonarr")
-		if err != nil {
-			return "", fmt.Errorf("failed to get Sonarr service: %w", err)
-		}
-		if service == nil {
-			return "", fmt.Errorf("no Sonarr service found")
-		}
-
-		sonarrService := &sonarr.SonarrService{}
-		// Use TvdbID for TV show lookups
-		series, err := sonarrService.LookupByTvdbId(ctx, service.URL, service.APIKey, request.Media.TvdbID)
-		if err != nil {
-			return "", fmt.Errorf("failed to fetch series from Sonarr: %w", err)
-		}
-		return series.Title, nil
-
-	default:
-		return "", fmt.Errorf("unknown media type: %s", request.Media.MediaType)
-	}
-}
-
 func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) (*types.RequestsStats, error) {
 	if url == "" {
 		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
@@ -185,31 +132,13 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 		return nil, &ErrOverseerr{Message: "Response error", Errors: []string{"Failed to parse requests response"}}
 	}
 
-	// Convert the generic results to MediaRequest structs and count pending
-	mediaRequests := make([]types.MediaRequest, 0)
+	mediaRequests := make([]types.MediaRequest, 0, len(requestsResponse.Results))
 	pendingCount := 0
 
-	for _, result := range requestsResponse.Results {
-		resultBytes, err := json.Marshal(result)
-		if err != nil {
-			continue
-		}
-
-		var mediaRequest types.MediaRequest
-		if err := json.Unmarshal(resultBytes, &mediaRequest); err != nil {
-			continue
-		}
-
+	for _, mediaRequest := range requestsResponse.Results {
 		if mediaRequest.Status == 1 { // Pending status
 			pendingCount++
 		}
-
-		// Try to fetch the title using the appropriate lookup method
-		title, err := s.fetchMediaTitle(ctx, mediaRequest)
-		if err == nil {
-			mediaRequest.Media.Title = title
-		}
-
 		mediaRequests = append(mediaRequests, mediaRequest)
 	}
 

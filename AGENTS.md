@@ -560,6 +560,14 @@ Owner: soup (s0up4200@pm.me)
 - Removes intra-job head-of-line blocking (one slow Autobrr endpoint no longer stalls other Autobrr SSE payloads)
 - Added regression coverage for job registration (`internal/api/handlers/poller_jobs_test.go`)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (perf)
+- Overseerr request path latency cleanup (`internal/services/overseerr/overseerr.go`):
+  - removed N+1 title lookup calls to Sonarr/Radarr for each request item
+  - removed redundant marshal/unmarshal roundtrip for each result row
+  - now uses Overseerr `/api/v1/request?take=10` payload directly
+- Added regression test (`internal/services/overseerr/overseerr_test.go`) asserting single upstream call (no per-item fanout)
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
