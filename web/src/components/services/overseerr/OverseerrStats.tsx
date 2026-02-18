@@ -69,7 +69,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   const [modalAction, setModalAction] = useState<"approve" | "reject" | null>(
     null
   );
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleAction = async (
     request: OverseerrMediaRequest,
@@ -299,13 +299,14 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
             Pending Requests:
           </div>
-          <div className="space-y-2">
+          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {pendingRequests
               .sort(
                 (a, b) =>
                   new Date(b.createdAt).getTime() -
                   new Date(a.createdAt).getTime()
               )
+              .slice(0, 3)
               .map((request) => (
                 <RequestItem
                   key={request.id}
@@ -314,6 +315,11 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
                 />
               ))}
           </div>
+          {pendingCount > 3 && (
+            <div className="mt-1 text-[11px] text-zinc-400">
+              Showing 3 of {pendingCount} pending requests
+            </div>
+          )}
         </div>
       )}
 
@@ -338,7 +344,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
               isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
             }`}
           >
-            <div className="space-y-2">
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {requests
                 .filter((request) => request.status !== 1)
                 .sort(

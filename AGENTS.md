@@ -328,6 +328,14 @@ Owner: soup (s0up4200@pm.me)
 - Kept combined transfer speed/data tiles for high-signal aggregate metrics.
 - Gates: pass (`pnpm -C web typecheck`, `pnpm -C web lint`).
 
+### 2026-02-18 (layout readability pass)
+- Dashboard card board tuned for readability at desktop widths: increased service-card min width `22rem -> 23rem` to reduce cramped 4-col packing on 1440/1536 widths.
+- Heavy-content cards now follow overview-first disclosure:
+  - `AutobrrStats` recent releases collapsed by default; expanded pane capped (`max-h-80`, scroll).
+  - `OverseerrStats` recent requests collapsed by default; pending list capped to 3 visible + explicit “showing 3 of N”; lists use bounded scroll areas.
+- Goal: reduce row-height blowouts in grid rows and keep top-level card scanline stable while preserving drilldown on demand.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.

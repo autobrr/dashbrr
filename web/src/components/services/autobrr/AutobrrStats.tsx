@@ -30,7 +30,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (isLoading) {
     return <StatsSkeleton rows={3} />;
@@ -187,7 +187,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
             }`}
           >
             {releases.length > 0 ? (
-              <div className="space-y-2">
+              <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
                 {releases.slice(0, 5).map((release: AutobrrRelease) => (
                   <div
                     key={release.id}

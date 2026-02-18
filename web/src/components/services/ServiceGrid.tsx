@@ -126,7 +126,7 @@ export const ServiceGrid = ({
 }: ServiceGridProps) => {
   const [items, setItems] = useState<Service[]>([]);
   const gridClasses =
-    "grid [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-4 sm:gap-6";
+    "grid [grid-template-columns:repeat(auto-fit,minmax(min(100%,23rem),1fr))] gap-4 sm:gap-6";
 
   // Initialize and update items
   useEffect(() => {
