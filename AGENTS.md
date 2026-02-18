@@ -245,6 +245,9 @@ Owner: soup (s0up4200@pm.me)
 - Auth tests: added `TestBuildLogoutURL` regression coverage for encoded logout redirect query
 - Handlers/dedupe: unified online-device counters across poller + tailscale handler (`countOnlineDevices`) and removed duplicate local helper
 - Plex handler: removed transcode session slice allocation in broadcast path; now uses shared `countTranscodingSessions` counter helper
+- Maintainerr: introduced sentinel errors (`ErrURLRequired`, `ErrAPIKeyRequired`) for `get_collections` validation
+- Maintainerr handler: replaced brittle string equality with `errors.Is(...)` for sentinel validation errors
+- Tests: added `internal/api/handlers/maintainerr_error_test.go` covering status/message mapping for validation, upstream auth, timeout paths
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

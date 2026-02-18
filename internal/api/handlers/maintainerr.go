@@ -81,9 +81,8 @@ func determineErrorResponse(err error) (int, string) {
 			return handleHTTPStatusCode(maintErr.HttpCode)
 		}
 
-		// Handle specific error messages
-		if maintErr.Op == "get_collections" && (maintErr.Error() == "maintainerr get_collections: URL is required" ||
-			maintErr.Error() == "maintainerr get_collections: API key is required") {
+		if maintErr.Op == "get_collections" && (errors.Is(maintErr, maintainerr.ErrURLRequired) ||
+			errors.Is(maintErr, maintainerr.ErrAPIKeyRequired)) {
 			return http.StatusBadRequest, maintErr.Error()
 		}
 

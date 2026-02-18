@@ -6,6 +6,7 @@ package maintainerr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,6 +24,11 @@ type ErrMaintainerr struct {
 	Err      error  // Underlying error
 	HttpCode int    // HTTP status code if applicable
 }
+
+var (
+	ErrURLRequired    = errors.New("URL is required")
+	ErrAPIKeyRequired = errors.New("API key is required")
+)
 
 func (e *ErrMaintainerr) Error() string {
 	if e.HttpCode > 0 {
@@ -225,11 +231,11 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 
 func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey string) ([]Collection, error) {
 	if url == "" {
-		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("URL is required")}
+		return nil, &ErrMaintainerr{Op: "get_collections", Err: ErrURLRequired}
 	}
 
 	if apiKey == "" {
-		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("API key is required")}
+		return nil, &ErrMaintainerr{Op: "get_collections", Err: ErrAPIKeyRequired}
 	}
 
 	baseURL := strings.TrimRight(url, "/")
