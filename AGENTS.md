@@ -356,6 +356,18 @@ Owner: soup (s0up4200@pm.me)
 - Goal: remove obsolete push/pull hybrid surface and keep architecture cleanly backend-push-first.
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
+### 2026-02-18 (service-data reducer split)
+- Refactored `web/src/hooks/useServiceData.ts` to reducer-driven state transitions (`useReducer`) instead of ad-hoc map mutation callbacks.
+- Extracted merge/patch strategy into `web/src/hooks/serviceData/merge.ts`:
+  - typed health payload derivation (`deriveHealthUpdate`)
+  - deep merge behavior for nested `stats`/`details`
+  - deterministic config hydration merge with latest SSE patches
+- Added dedicated reducer module `web/src/hooks/serviceData/reducer.ts`:
+  - explicit actions for loading/reset/hydrate/apply-patch/apply-releases
+  - single state transition surface for service map + loading flag
+- Goal: make SSE merge semantics testable and reduce accidental behavior drift in hook-level effects.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.
