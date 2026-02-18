@@ -81,10 +81,14 @@ export function LoginPage() {
   }, [formData.password, formData.confirmPassword]);
 
   useEffect(() => {
+    let cancelled = false;
+
     // Only check registration status if built-in auth is enabled
     const checkRegistrationStatus = async () => {
       if (!authConfig?.methods.builtin) {
-        setCheckingRegistration(false);
+        if (!cancelled) {
+          setCheckingRegistration(false);
+        }
         return;
       }
 
@@ -93,22 +97,32 @@ export function LoginPage() {
           registrationEnabled: boolean;
           hasUsers: boolean;
         }>("/auth/registration-status");
-        setRegistrationEnabled(data.registrationEnabled);
-        if (data.registrationEnabled && !data.hasUsers) {
+        if (!cancelled) {
+          setRegistrationEnabled(data.registrationEnabled);
+        }
+        if (!cancelled && data.registrationEnabled && !data.hasUsers) {
           // Automatically switch to registration if no users exist
           setIsRegistering(true);
         }
       } catch (err) {
         console.error("Failed to check registration status:", err);
-        setRegistrationEnabled(false);
+        if (!cancelled) {
+          setRegistrationEnabled(false);
+        }
       } finally {
-        setCheckingRegistration(false);
+        if (!cancelled) {
+          setCheckingRegistration(false);
+        }
       }
     };
 
     if (authConfig) {
       checkRegistrationStatus();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [authConfig]);
 
   useEffect(() => {
