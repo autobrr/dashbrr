@@ -61,7 +61,7 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 		defer cancel()
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(reqCtx, method, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	// Track request start time
 	startTime := time.Now()
 
-	resp, err := arrHTTPClient.Do(req.WithContext(reqCtx))
+	resp, err := arrHTTPClient.Do(req)
 	if err != nil {
 		if err == context.Canceled {
 			return nil, fmt.Errorf("request canceled: %w", err)

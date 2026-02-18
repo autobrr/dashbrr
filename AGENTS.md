@@ -374,6 +374,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (refactor)
 - Tailscale handler: background refresh now uses `context.WithoutCancel(requestCtx)` (no `context.Background()`); keeps refresh independent but preserves request-scoped values
+
+### 2026-02-17 (fix)
+- Arr client: `MakeArrRequest` now consistently uses the timeout-wrapped context when building the request
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening
