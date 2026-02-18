@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,101 @@ func TestBroadcasterSnapshotKeepsLatestPerService(t *testing.T) {
 	got := string(snapshot[0])
 	if got != want {
 		t.Fatalf("unexpected payload\nwant: %q\ngot:  %q", want, got)
+	}
+}
+
+func TestBroadcasterSnapshotPreservesVersionAcrossPartialUpdates(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "radarr-1",
+		Status:      "online",
+		Message:     "Healthy",
+		LastChecked: now,
+		Version:     "6.1.1",
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "radarr-1",
+		Status:      "online",
+		Message:     "radarr_queue",
+		LastChecked: now.Add(time.Second),
+		Stats: map[string]interface{}{
+			"radarr": map[string]interface{}{
+				"queue": map[string]interface{}{"totalRecords": float64(2)},
+			},
+		},
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var event struct {
+		Data models.ServiceHealth `json:"-"`
+	}
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &event.Data); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	if event.Data.Version != "6.1.1" {
+		t.Fatalf("snapshot version = %q, want %q", event.Data.Version, "6.1.1")
+	}
+}
+
+func TestBroadcasterSnapshotMergesNestedStatsPayloads(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "prowlarr-1",
+		Status:      "online",
+		Message:     "prowlarr_stats",
+		LastChecked: now,
+		Stats: map[string]interface{}{
+			"prowlarr": map[string]interface{}{
+				"stats": map[string]interface{}{"grabCount": float64(12)},
+			},
+		},
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "prowlarr-1",
+		Status:      "online",
+		Message:     "prowlarr_indexers",
+		LastChecked: now.Add(time.Second),
+		Stats: map[string]interface{}{
+			"prowlarr": map[string]interface{}{
+				"indexers": []interface{}{"a", "b"},
+			},
+		},
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	prowlarrStats, ok := decoded.Stats["prowlarr"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected prowlarr stats map, got %T", decoded.Stats["prowlarr"])
+	}
+	if _, ok := prowlarrStats["stats"]; !ok {
+		t.Fatalf("expected merged stats payload to include stats field")
+	}
+	if _, ok := prowlarrStats["indexers"]; !ok {
+		t.Fatalf("expected merged stats payload to include indexers field")
 	}
 }
 
@@ -89,4 +185,3 @@ func TestBroadcasterSnapshotSkipsEmptyServiceID(t *testing.T) {
 		t.Fatalf("expected empty snapshot, got %d", len(snapshot))
 	}
 }
-

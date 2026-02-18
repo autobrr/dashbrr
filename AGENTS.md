@@ -581,6 +581,17 @@ Owner: soup (s0up4200@pm.me)
 - Removes intra-job coupling so one Prowlarr endpoint no longer blocks the other SSE payload
 - Added regression coverage in `internal/api/handlers/poller_jobs_test.go`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Version flicker on hard refresh: root cause in SSE snapshot replay (`Broadcaster`) storing only the last event per service
+  - when last event was stats/details payload (no `version`), refresh bootstrap lost version until next health event
+- Fix:
+  - `internal/api/handlers/broadcast.go` now stores merged per-service health snapshot state (status/message/timestamps + deep-merged stats/details)
+  - preserves known `version` across partial payload updates used for snapshot replay
+- Added regression coverage:
+  - `internal/api/handlers/broadcast_test.go` for version preservation across partial updates
+  - `internal/api/handlers/broadcast_test.go` for nested stats merge in snapshot replay
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: normalize multi-payload service events (Autobrr/Prowlarr/Overseerr) so each UI field has one canonical SSE key/path
