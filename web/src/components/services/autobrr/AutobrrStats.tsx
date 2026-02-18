@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState } from "react";
+import React from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { StatusIcon } from "../../ui/StatusIcon";
 import { ArrMessage } from "../common/ArrMessage";
@@ -24,6 +24,8 @@ import {
 import { getMediaType, getMediaTypeIcon } from "../../../utils/mediaTypes";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 
 interface AutobrrStatsProps {
   instanceId: string;
@@ -33,7 +35,10 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "autobrr:recent_releases"),
+    true
+  );
 
   if (isLoading) {
     return <StatsSkeleton rows={3} />;
@@ -173,7 +178,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
         <CollapsibleSection
           title="Recent Releases:"
           isExpanded={isExpanded}
-          onToggle={() => setIsExpanded(!isExpanded)}
+          onToggle={toggle}
         >
             {releases.length > 0 ? (
               <div className="max-h-80 space-y-2 overflow-y-auto pr-1">

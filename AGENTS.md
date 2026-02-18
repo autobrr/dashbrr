@@ -915,6 +915,51 @@ Owner: soup (s0up4200@pm.me)
 - File:
   - `web/src/components/services/overseerr/OverseerrStats.tsx`
 - Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (feat)
+- Persisted collapsible UI state in database (dry, shared path):
+  - new DB table `ui_collapse_preferences` (+ sqlite/postgres schema + migration `002_add_ui_collapse_preferences`).
+  - new DB methods:
+    - `GetUICollapsePreferences(userID)`
+    - `UpsertUICollapsePreference(userID, key, collapsed)`
+  - new protected API endpoints:
+    - `GET /api/ui/preferences/collapse`
+    - `PUT /api/ui/preferences/collapse` (`{ key, collapsed }`)
+  - new web shared preference layer:
+    - `UIPreferencesProvider` (fetch once, optimistic updates, rollback on failure)
+    - `useUIPreferences`
+    - `useCollapsiblePreference`
+    - shared key helpers in `web/src/utils/collapsePreferences.ts`
+  - migrated collapsible sections/cards to shared persisted keys:
+    - service card collapse
+    - Autobrr `Recent Releases`
+    - Overseerr `Recent Requests`
+    - Prowlarr `Active Indexers`
+    - Plex `Active Streams`
+- Regression coverage:
+  - `internal/api/handlers/ui_preferences_test.go` (round-trip + validation)
+  - `internal/database/database_test.go` (`TestUICollapsePreferences`)
+- Files:
+  - `internal/database/migrations/sqlite_schema.sql`
+  - `internal/database/migrations/postgres_schema.sql`
+  - `internal/database/migrations/sqlite.go`
+  - `internal/database/migrations/postgres.go`
+  - `internal/database/database.go`
+  - `internal/database/database_test.go`
+  - `internal/api/handlers/ui_preferences.go`
+  - `internal/api/handlers/ui_preferences_test.go`
+  - `internal/api/server.go`
+  - `web/src/contexts/UIPreferencesContext.tsx`
+  - `web/src/hooks/useUIPreferences.ts`
+  - `web/src/hooks/useCollapsiblePreference.ts`
+  - `web/src/utils/collapsePreferences.ts`
+  - `web/src/App.tsx`
+  - `web/src/components/services/ServiceCard.tsx`
+  - `web/src/components/services/autobrr/AutobrrStats.tsx`
+  - `web/src/components/services/overseerr/OverseerrStats.tsx`
+  - `web/src/components/services/prowlarr/ProwlarrStats.tsx`
+  - `web/src/components/services/plex/PlexStats.tsx`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

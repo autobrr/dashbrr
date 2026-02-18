@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Service, ServiceType } from "../../types/service";
 import { ConfigurationForm } from "../configuration/ConfigurationForm";
 import { ServiceHeader } from "../ui/ServiceHeader";
@@ -20,6 +20,8 @@ import AnimatedModal from "../ui/AnimatedModal";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useConfiguration } from "../../contexts/useConfiguration";
+import { useCollapsiblePreference } from "../../hooks/useCollapsiblePreference";
+import { serviceCardCollapseKey } from "../../utils/collapsePreferences";
 
 interface DragHandleProps {
   role?: string;
@@ -40,9 +42,6 @@ interface ServiceCardProps {
   isConnected?: boolean;
   isInitialLoad?: boolean;
 }
-
-const getStorageKey = (instanceId: string) =>
-  `dashbrr-service-${instanceId}-collapsed`;
 
 const formatLastChecked = (lastChecked: Date) => {
   const date = new Date(lastChecked);
@@ -89,31 +88,14 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   isInitialLoad,
 }) => {
   const [showConfig, setShowConfig] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(
-        getStorageKey(service.instanceId)
-      );
-      return stored ? JSON.parse(stored) : false;
-    } catch (error) {
-      console.error("Error reading collapse state:", error);
-      return false;
-    }
-  });
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceCardCollapseKey(service.instanceId),
+    true
+  );
+  const isCollapsed = !isExpanded;
 
   const { configurations } = useConfiguration();
   const currentConfig = configurations[service.instanceId];
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        getStorageKey(service.instanceId),
-        JSON.stringify(isCollapsed)
-      );
-    } catch (error) {
-      console.error("Error saving collapse state:", error);
-    }
-  }, [isCollapsed, service.instanceId]);
 
   const needsConfiguration = !service.url;
 
@@ -149,7 +131,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
         <div className="p-3 @md:p-4">
           <div
             className="relative cursor-pointer select-none transition-colors -mx-3 px-3 @md:-mx-4 @md:px-4 py-0 rounded-t-lg text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={toggle}
           >
             <div className="absolute right-4 top-1/2 -translate-y-1/2 transition-transform duration-200">
               <div
@@ -217,7 +199,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
           <div
             onClick={(e) => {
               e.stopPropagation();
-              setIsCollapsed(!isCollapsed);
+              toggle();
             }}
             className="absolute bottom-4 right-4 opacity-30 text-zinc-300 group-hover:opacity-60 transition-opacity duration-200 cursor-pointer"
           >

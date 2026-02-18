@@ -23,6 +23,8 @@ import {
 } from "react-icons/fa";
 import { ChevronUpIcon } from "@heroicons/react/24/outline";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 
 interface PlexStatsProps {
   instanceId: string;
@@ -124,7 +126,10 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   const [playbackStates, setPlaybackStates] = useState<{
     [key: string]: TimerState;
   }>({});
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "plex:active_streams"),
+    true
+  );
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
   const sessions = useMemo(
@@ -229,7 +234,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
       {activeStreams > 0 && (
         <div className="space-y-3">
           <div
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={toggle}
             className="relative cursor-pointer select-none w-full flex items-center justify-between"
           >
             <div className="flex items-center justify-between flex-1">

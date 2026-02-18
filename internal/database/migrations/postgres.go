@@ -35,6 +35,23 @@ func PostgresMigrator(db *sql.DB) error {
 				return nil
 			},
 		},
+		&migrator.Migration{
+			Name: "002_add_ui_collapse_preferences",
+			RunTx: func(db *sql.Tx) error {
+				_, err := db.Exec(`
+					CREATE TABLE IF NOT EXISTS ui_collapse_preferences
+					(
+						id             SERIAL PRIMARY KEY,
+						user_id        BIGINT  NOT NULL,
+						preference_key TEXT    NOT NULL,
+						is_collapsed   BOOLEAN NOT NULL DEFAULT FALSE,
+						updated_at     TIMESTAMP NOT NULL,
+						UNIQUE(user_id, preference_key)
+					)
+				`)
+				return err
+			},
+		},
 	)
 
 	err := migrate.Migrate()

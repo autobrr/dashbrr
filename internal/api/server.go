@@ -135,6 +135,7 @@ func (s *Server) Handler() http.Handler {
 	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache, bc)
 	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache, bc)
 	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
+	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
@@ -216,6 +217,12 @@ func (s *Server) Handler() http.Handler {
 			settings.GET("", settingsHandler.GetSettings)
 			settings.POST("/:instance", settingsHandler.SaveSettings)
 			settings.DELETE("/:instance", settingsHandler.DeleteSettings)
+		}
+
+		uiPreferences := api.Group("/ui/preferences")
+		{
+			uiPreferences.GET("/collapse", uiPreferencesHandler.GetCollapsePreferences)
+			uiPreferences.PUT("/collapse", uiPreferencesHandler.UpsertCollapsePreference)
 		}
 
 		// Health check endpoints (no cache for SSE)

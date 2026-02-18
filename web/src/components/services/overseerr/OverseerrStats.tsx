@@ -20,6 +20,8 @@ import { FaFilm, FaTv, FaUser } from "react-icons/fa";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 
 interface OverseerrStatsProps {
   instanceId: string;
@@ -85,7 +87,10 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   const [modalAction, setModalAction] = useState<"approve" | "reject" | null>(
     null
   );
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "overseerr:recent_requests"),
+    true
+  );
 
   const handleAction = async (
     request: OverseerrMediaRequest,
@@ -368,7 +373,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
             requests.filter((request) => request.status !== 1).length
           })`}
           isExpanded={isExpanded}
-          onToggle={() => setIsExpanded(!isExpanded)}
+          onToggle={toggle}
         >
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {requests

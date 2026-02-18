@@ -306,3 +306,68 @@ func TestErrorHandling(t *testing.T) {
 		t.Error("Expected error when using cancelled context, got nil")
 	}
 }
+
+func TestUICollapsePreferences(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	const (
+		userA = int64(1001)
+		userB = int64(1002)
+		key   = "service:autobrr-1:section:recent_releases"
+	)
+
+	prefs, err := db.GetUICollapsePreferences(ctx, userA)
+	if err != nil {
+		t.Fatalf("GetUICollapsePreferences failed for empty user: %v", err)
+	}
+	if len(prefs) != 0 {
+		t.Fatalf("expected empty preferences map, got %d entries", len(prefs))
+	}
+
+	if err := db.UpsertUICollapsePreference(ctx, userA, key, true); err != nil {
+		t.Fatalf("UpsertUICollapsePreference create failed: %v", err)
+	}
+
+	prefs, err = db.GetUICollapsePreferences(ctx, userA)
+	if err != nil {
+		t.Fatalf("GetUICollapsePreferences failed: %v", err)
+	}
+	if collapsed, ok := prefs[key]; !ok || !collapsed {
+		t.Fatalf("expected %q to be true for userA, got present=%v value=%v", key, ok, collapsed)
+	}
+
+	if err := db.UpsertUICollapsePreference(ctx, userA, key, false); err != nil {
+		t.Fatalf("UpsertUICollapsePreference update failed: %v", err)
+	}
+
+	prefs, err = db.GetUICollapsePreferences(ctx, userA)
+	if err != nil {
+		t.Fatalf("GetUICollapsePreferences failed after update: %v", err)
+	}
+	if collapsed, ok := prefs[key]; !ok || collapsed {
+		t.Fatalf("expected %q to be false for userA, got present=%v value=%v", key, ok, collapsed)
+	}
+
+	if err := db.UpsertUICollapsePreference(ctx, userB, key, true); err != nil {
+		t.Fatalf("UpsertUICollapsePreference for userB failed: %v", err)
+	}
+
+	prefsA, err := db.GetUICollapsePreferences(ctx, userA)
+	if err != nil {
+		t.Fatalf("GetUICollapsePreferences userA failed: %v", err)
+	}
+	prefsB, err := db.GetUICollapsePreferences(ctx, userB)
+	if err != nil {
+		t.Fatalf("GetUICollapsePreferences userB failed: %v", err)
+	}
+
+	if prefsA[key] {
+		t.Fatalf("expected userA preference to remain false")
+	}
+	if !prefsB[key] {
+		t.Fatalf("expected userB preference to be true")
+	}
+}

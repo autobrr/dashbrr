@@ -17,3 +17,13 @@ CREATE TABLE IF NOT EXISTS service_configurations
     api_key      TEXT,
     access_url   TEXT
 );
+
+CREATE TABLE IF NOT EXISTS ui_collapse_preferences
+(
+    id             SERIAL PRIMARY KEY,
+    user_id        BIGINT  NOT NULL,
+    preference_key TEXT    NOT NULL,
+    is_collapsed   BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at     TIMESTAMP NOT NULL,
+    UNIQUE(user_id, preference_key)
+);

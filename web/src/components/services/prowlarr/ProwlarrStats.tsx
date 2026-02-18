@@ -9,6 +9,8 @@ import { ProwlarrIndexer } from "../../../types/service";
 import { ProwlarrMessage } from "./ProwlarrMessage";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import {
   ClockIcon,
   ArrowDownTrayIcon,
@@ -24,7 +26,10 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
   const [stableIndexers, setStableIndexers] = useState<ProwlarrIndexer[]>([]);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "prowlarr:active_indexers"),
+    true
+  );
 
   const service = getService(instanceId);
   const prowlarrData = service?.stats?.prowlarr;
@@ -70,7 +75,7 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
       {/* Active Indexers */}
       <div>
         <div
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={toggle}
           className="relative cursor-pointer select-none w-full flex items-center justify-between text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 group"
         >
           <span>Active Indexers <span className="text-xs font-bold lowercase">(Last 30 Days)</span></span>
