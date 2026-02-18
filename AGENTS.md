@@ -487,6 +487,15 @@ Owner: soup (s0up4200@pm.me)
   - Removes panic-prone cast path and keeps compatibility on exported `GetQueue`
 - Commit: `6772df6`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (refactor)
+- Handler input validation dedupe:
+  - added shared `requireInstanceID(...)` helper for `instanceId` query validation (`internal/api/handlers/instance_id.go`)
+  - migrated Sonarr/Radarr/Prowlarr handlers to helper (consistent error/status/log behavior)
+  - Radarr queue-delete now validates service prefix consistently via shared helper
+- Added helper unit tests (`internal/api/handlers/instance_id_test.go`)
+- Commit: `5de2fbc`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
