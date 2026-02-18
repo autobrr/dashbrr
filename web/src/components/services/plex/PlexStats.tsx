@@ -110,6 +110,15 @@ interface TimerState {
   state: string;
 }
 
+const getPlaybackKey = (session: PlexSession): string => {
+  return (
+    session.sessionKey ||
+    session.Session?.id ||
+    session.key ||
+    `${session.User?.title || "unknown"}:${session.guid}`
+  );
+};
+
 export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const [playbackStates, setPlaybackStates] = useState<{
@@ -136,7 +145,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
       const next: { [key: string]: TimerState } = {};
 
       for (const session of sessions) {
-        const sessionKey = `${session.User?.title}-${session.title}`;
+        const sessionKey = getPlaybackKey(session);
         const existing = prev[sessionKey];
         const state = session.Player?.state || "stopped";
 
@@ -188,7 +197,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   }, [sessions]);
 
   const getCurrentOffset = (session: PlexSession): number => {
-    const sessionKey = `${session.User?.title}-${session.title}`;
+    const sessionKey = getPlaybackKey(session);
     const state = playbackStates[sessionKey];
 
     if (!state) return session.viewOffset || 0;
@@ -253,9 +262,9 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
             }`}
           >
             <div className="space-y-2">
-              {sessions.map((session: PlexSession, index: number) => (
+              {sessions.map((session: PlexSession) => (
                 <div
-                  key={index}
+                  key={getPlaybackKey(session)}
                   className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors"
                 >
                   <div className="flex flex-col gap-2">

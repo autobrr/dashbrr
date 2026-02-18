@@ -213,6 +213,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/messages: delete duplicated `{Autobrr,General,Overseerr,Plex}Message` components; use shared `ArrMessage` + new `combineServiceMessage` helper; remove dead Overseerr localStorage write
 - Web/http: centralize error-body parsing into `web/src/utils/http.ts` and reuse in `AuthContext` + api client
 - Web/overseerr: optimistic request status updates now use status overrides map (avoid stale localRequests array)
+- Web/plex: stable playback key for timers + React keys (avoid collisions; less rerender churn)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
