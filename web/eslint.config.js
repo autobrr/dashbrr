@@ -27,7 +27,11 @@ export default tseslint.config(
       },
       parser: tseslint.parser,
       parserOptions: {
-        project: ["./tsconfig.app.json", "./tsconfig.node.json"],
+        project: [
+          "./tsconfig.app.json",
+          "./tsconfig.node.json",
+          "./tsconfig.tests.json",
+        ],
       },
     },
     plugins: {

@@ -12,6 +12,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "test": "node --import tsx --test tests/**/*.test.ts",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "postbuild": "node --input-type=module -e \"import { mkdirSync, writeFileSync } from 'node:fs'; mkdirSync('dist',{ recursive:true }); writeFileSync('dist/.gitkeep','');\"",
@@ -60,6 +61,7 @@
     "postcss": "^8.5.6",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.0",
     "vite": "^7.3.1",

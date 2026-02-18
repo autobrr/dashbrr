@@ -1122,6 +1122,21 @@ Owner: soup (s0up4200@pm.me)
   - local curl confusion reproduced: `127.0.0.1:8080` was Java process (404), dashbrr bound on `localhost/[::1]:8080`.
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (regression test: refresh/startup hydrate race)
+- Added frontend regression test harness:
+  - `web/package.json`: new `test` script (`node --import tsx --test tests/**/*.test.ts`)
+  - `web/tsconfig.tests.json`: node-targeted TS config for test files
+  - `web/eslint.config.js`: include `tsconfig.tests.json` in type-aware lint project list
+  - `web/package.json` + lockfile: dev dependency `tsx@^4.21.0`
+- Added regression tests:
+  - `web/tests/serviceData.merge.test.ts`
+  - `hydrate_configurations keeps runtime status on refresh` (prevents status reset back to `loading`)
+  - `hydrate_configurations applies cached internal status snapshot` (prevents startup skeleton wait until next health tick)
+- New-dependency health check (quick):
+  - `tsx` latest: `4.21.0`
+  - recent publish activity: `2025-11-30` (`npm view tsx time.modified`)
+- Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
