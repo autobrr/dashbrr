@@ -25,22 +25,22 @@ const fetchWith429Retry = async (
   init: RequestInit,
   maxRetries = MAX_RETRIES
 ): Promise<Response> => {
-  let attempt = 0;
-  while (attempt < maxRetries) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     const response = await fetch(url, init);
     if (response.status !== 429 || attempt === maxRetries - 1) {
       return response;
     }
 
     const retryAfter = response.headers.get("Retry-After");
-    const waitTime = retryAfter
-      ? Number.parseInt(retryAfter, 10) * 1000
-      : Math.min(1000 * Math.pow(2, attempt), 30000);
+    const parsedRetryAfter = retryAfter ? Number.parseInt(retryAfter, 10) : NaN;
+    const waitTime =
+      Number.isFinite(parsedRetryAfter) && parsedRetryAfter >= 0
+        ? parsedRetryAfter * 1000
+        : Math.min(1000 * Math.pow(2, attempt), 30000);
     await wait(waitTime);
-    attempt++;
   }
 
-  return fetch(url, init);
+  throw new Error("request retry loop exhausted");
 };
 
 const debug = (...args: unknown[]) => {
