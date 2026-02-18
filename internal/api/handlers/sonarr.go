@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -59,16 +58,8 @@ func NewSonarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *Sona
 }
 
 func (h *SonarrHandler) GetQueue(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Sonarr] No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "sonarr") {
-		log.Error().Str("instanceId", instanceId).Msg("[Sonarr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
+	instanceId, ok := requireInstanceID(c, "sonarr", "Sonarr")
+	if !ok {
 		return
 	}
 
@@ -160,16 +151,8 @@ func (h *SonarrHandler) fetchQueue(ctx context.Context, instanceId string) (type
 }
 
 func (h *SonarrHandler) GetStats(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Sonarr] No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "sonarr") {
-		log.Error().Str("instanceId", instanceId).Msg("[Sonarr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
+	instanceId, ok := requireInstanceID(c, "sonarr", "Sonarr")
+	if !ok {
 		return
 	}
 
@@ -259,16 +242,8 @@ func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (sona
 }
 
 func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "sonarr") {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Sonarr instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Sonarr instance ID"})
+	instanceId, ok := requireInstanceID(c, "sonarr", "Sonarr")
+	if !ok {
 		return
 	}
 

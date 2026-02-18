@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -50,16 +49,8 @@ func NewRadarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *Rada
 }
 
 func (h *RadarrHandler) GetQueue(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Radarr] No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "radarr") {
-		log.Error().Str("instanceId", instanceId).Msg("[Radarr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Radarr instance ID"})
+	instanceId, ok := requireInstanceID(c, "radarr", "Radarr")
+	if !ok {
 		return
 	}
 
@@ -199,9 +190,8 @@ func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types
 
 // DeleteQueueItem handles the deletion of a queue item with specified options
 func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
+	instanceId, ok := requireInstanceID(c, "radarr", "Radarr")
+	if !ok {
 		return
 	}
 

@@ -148,16 +148,8 @@ func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId stri
 }
 
 func (h *ProwlarrHandler) GetStats(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Prowlarr] No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "prowlarr") {
-		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
+	instanceId, ok := requireInstanceID(c, "prowlarr", "Prowlarr")
+	if !ok {
 		return
 	}
 
@@ -189,16 +181,8 @@ func (h *ProwlarrHandler) GetStats(c *gin.Context) {
 }
 
 func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Prowlarr] No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "prowlarr") {
-		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
+	instanceId, ok := requireInstanceID(c, "prowlarr", "Prowlarr")
+	if !ok {
 		return
 	}
 
@@ -236,16 +220,8 @@ func (h *ProwlarrHandler) GetIndexers(c *gin.Context) {
 }
 
 func (h *ProwlarrHandler) GetIndexerStats(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Prowlarr] No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "prowlarr") {
-		log.Error().Str("instanceId", instanceId).Msg("[Prowlarr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Prowlarr instance ID"})
+	instanceId, ok := requireInstanceID(c, "prowlarr", "Prowlarr")
+	if !ok {
 		return
 	}
 
