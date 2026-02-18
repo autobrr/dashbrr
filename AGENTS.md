@@ -258,6 +258,9 @@ Owner: soup (s0up4200@pm.me)
 - Arr service core: added shared `arr.DeleteQueueItem(...)` helper for queue-delete request/validation/log/error behavior
 - Radarr/Sonarr services: `DeleteQueueItem` now delegate to shared `arr.DeleteQueueItem` (removed duplicated HTTP/delete/error codepaths)
 - Arr tests: expanded `internal/services/arr/queue_test.go` with delete validation + upstream message/status mapping coverage
+- Poller scheduling: non-blocking semaphore acquisition in `maybeRun` (no queued waiters), `lastRun` now stamped at actual job start, and upstream concurrency raised `4 -> 8` to reduce startup starvation from slow services.
+- Autobrr releases: bounded fetch now uses `/api/release?limit=5&offset=0` with dedicated 8s timeout to avoid long-running release pulls delaying other updates.
+- Tests: added `internal/services/autobrr/autobrr_test.go` (release query params/header regression) and `TestPollerMaybeRun_SemaphoreFullSkipsWithoutMarkingLastRun` in `internal/api/handlers/poller_test.go`.
 - Web/messages: `ArrMessage` now renders message boxes only for actionable states (`warning|error|offline`), not healthy/online noise
 - Web/messages: filtered machine event keys (`*_queue`, `plex_sessions`, etc.) from rendered message content to avoid useless green/yellow boxes
 - Web/SSE: deduped reconnect scheduling in `useServiceData` (single pending reconnect timer + stale-connection guard) to avoid parallel EventSource reconnect storms

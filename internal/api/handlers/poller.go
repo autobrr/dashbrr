@@ -36,7 +36,7 @@ const (
 	pollerTickInterval      = 1 * time.Second
 	pollerServiceReloadTTL  = 15 * time.Second
 	pollerJobTimeout        = 25 * time.Second
-	pollerMaxConcurrentUpst = 4
+	pollerMaxConcurrentUpst = 8
 )
 
 type jobRunner func(*Poller, context.Context, models.ServiceConfiguration, string)
@@ -253,12 +253,19 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 		return
 	}
 	p.inFlight[key] = true
-	p.lastRun[key] = time.Now()
 	p.mu.Unlock()
 
 	go func() {
 		select {
 		case sem <- struct{}{}:
+			p.mu.Lock()
+			p.lastRun[key] = time.Now()
+			p.mu.Unlock()
+		default:
+			p.mu.Lock()
+			delete(p.inFlight, key)
+			p.mu.Unlock()
+			return
 		case <-ctx.Done():
 			p.mu.Lock()
 			delete(p.inFlight, key)

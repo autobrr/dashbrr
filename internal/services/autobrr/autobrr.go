@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +24,11 @@ import (
 type AutobrrService struct {
 	core.ServiceCore
 }
+
+const (
+	autobrrRecentReleasesLimit = 5
+	autobrrReleasesTimeout     = 8 * time.Second
+)
 
 func init() {
 	models.NewAutobrrService = NewAutobrrService
@@ -49,11 +56,24 @@ func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (t
 	}
 
 	releasesURL := s.getEndpoint(url, "/api/release")
+	parsedURL, err := neturl.Parse(releasesURL)
+	if err != nil {
+		return types.ReleasesResponse{}, fmt.Errorf("invalid releases URL: %w", err)
+	}
+	query := parsedURL.Query()
+	query.Set("limit", strconv.Itoa(autobrrRecentReleasesLimit))
+	query.Set("offset", "0")
+	parsedURL.RawQuery = query.Encode()
+	releasesURL = parsedURL.String()
+
 	headers := map[string]string{
 		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.DoRequest(ctx, http.MethodGet, releasesURL, headers, nil)
+	releasesCtx, cancel := context.WithTimeout(ctx, autobrrReleasesTimeout)
+	defer cancel()
+
+	resp, err := s.DoRequest(releasesCtx, http.MethodGet, releasesURL, headers, nil)
 	if err != nil {
 		return types.ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
 	}
