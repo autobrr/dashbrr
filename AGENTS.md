@@ -323,6 +323,11 @@ Owner: soup (s0up4200@pm.me)
 - Backend: `SettingsHandler` now receives poller and triggers `poller.Refresh(instanceID, all)` after config save, so newly added/updated services publish state quickly without frontend-triggered refresh endpoints.
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
+### 2026-02-18 (qui card polish)
+- Removed redundant `Instances x/y active` summary tile from `QuiStats`; per-instance list remains source of truth for active instances.
+- Kept combined transfer speed/data tiles for high-signal aggregate metrics.
+- Gates: pass (`pnpm -C web typecheck`, `pnpm -C web lint`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.
