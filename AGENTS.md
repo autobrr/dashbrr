@@ -265,6 +265,12 @@ Owner: soup (s0up4200@pm.me)
 - UI copy: updated card label to `Combined Data (all-time)` to match metric semantics
 - Tests: expanded `internal/services/qui/qui_test.go` with all-time override + fallback regression coverage
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (qui overview reset fix)
+- Root cause: poller health tick (`runHealth` -> `QuiService.CheckHealth`) emitted `details.qui.summary` with only instance counts; frontend shallow-merge replaced full overview summary and zeroed `Combined Speed/Data` until next `qui_overview` tick.
+- Fix: stop emitting `details.qui.summary` from `CheckHealth`; emit count fields on `details.qui` (`totalInstances`, `activeInstances`, `connectedInstances`) so health/status updates do not clobber overview metrics.
+- Regression test: `TestCheckHealth_SummarizesInstanceState` now asserts health details do not include `summary`.
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 - Poller scheduling: non-blocking semaphore acquisition in `maybeRun` (no queued waiters), `lastRun` now stamped at actual job start, and upstream concurrency raised `4 -> 8` to reduce startup starvation from slow services.
 - Autobrr releases: bounded fetch now uses `/api/release?limit=5&offset=0` with dedicated 8s timeout to avoid long-running release pulls delaying other updates.
 - Tests: added `internal/services/autobrr/autobrr_test.go` (release query params/header regression) and `TestPollerMaybeRun_SemaphoreFullSkipsWithoutMarkingLastRun` in `internal/api/handlers/poller_test.go`.

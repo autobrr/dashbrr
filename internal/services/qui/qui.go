@@ -322,11 +322,9 @@ func (s *QuiService) CheckHealth(ctx context.Context, url, apiKey string) (model
 			},
 			"details": map[string]interface{}{
 				"qui": map[string]interface{}{
-					"summary": types.QuiTransferSummary{
-						TotalInstances:     len(instances),
-						ActiveInstances:    active,
-						ConnectedInstances: connected,
-					},
+					"totalInstances":     len(instances),
+					"activeInstances":    active,
+					"connectedInstances": connected,
 				},
 			},
 		},

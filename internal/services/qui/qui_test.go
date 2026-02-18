@@ -210,4 +210,12 @@ func TestCheckHealth_SummarizesInstanceState(t *testing.T) {
 	if health.Details == nil || health.Details["qui"] == nil {
 		t.Fatal("health.Details.qui should be set")
 	}
+
+	quiDetails, ok := health.Details["qui"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("health.Details[\"qui\"] type = %T, want map[string]interface{}", health.Details["qui"])
+	}
+	if _, hasSummary := quiDetails["summary"]; hasSummary {
+		t.Fatal("health details should not include qui.summary to avoid overwriting overview metrics")
+	}
 }
