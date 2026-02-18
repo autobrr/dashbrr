@@ -25,6 +25,15 @@ type QuiService struct {
 	core.ServiceCore
 }
 
+type quiTorrentsResponse struct {
+	ServerState *quiServerState `json:"serverState"`
+}
+
+type quiServerState struct {
+	AllTimeDownloaded int64 `json:"alltime_dl"`
+	AllTimeUploaded   int64 `json:"alltime_ul"`
+}
+
 func init() {
 	models.NewQuiService = NewQuiService
 }
@@ -111,6 +120,28 @@ func (s *QuiService) GetTransferInfo(ctx context.Context, url, apiKey string, in
 	return &info, nil
 }
 
+func (s *QuiService) GetAllTimeTotals(ctx context.Context, url, apiKey string, instanceID int) (*quiServerState, error) {
+	var response quiTorrentsResponse
+	_, err := s.requestJSON(
+		ctx,
+		fmt.Sprintf(
+			"%s/api/instances/%d/torrents?page=0&limit=1&sort=added_on&order=desc",
+			strings.TrimRight(url, "/"),
+			instanceID,
+		),
+		apiKey,
+		true,
+		&response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if response.ServerState == nil {
+		return nil, fmt.Errorf("missing server state")
+	}
+	return response.ServerState, nil
+}
+
 func (s *QuiService) GetCrossSeedStatus(ctx context.Context, url, apiKey string) (*types.QuiCrossSeedStatus, error) {
 	var status types.QuiCrossSeedStatus
 	_, err := s.requestJSON(
@@ -180,23 +211,46 @@ func (s *QuiService) GetAggregatedTransferInfo(ctx context.Context, url, apiKey 
 		idx := idx
 		instanceID := transfers[idx].InstanceID
 		group.Go(func() error {
-			info, err := s.GetTransferInfo(groupCtx, url, apiKey, instanceID)
-			if err != nil || info == nil {
+			info, _ := s.GetTransferInfo(groupCtx, url, apiKey, instanceID)
+			allTimeTotals, _ := s.GetAllTimeTotals(groupCtx, url, apiKey, instanceID)
+
+			if info == nil && allTimeTotals == nil {
 				return nil
 			}
 
-			mu.Lock()
-			transfers[idx].Downloaded = info.Downloaded
-			transfers[idx].Uploaded = info.Uploaded
-			transfers[idx].DownloadSpeed = info.DownloadSpeed
-			transfers[idx].UploadSpeed = info.UploadSpeed
-			transfers[idx].DHTNodes = info.DHTNodes
+			var (
+				downloaded    int64
+				uploaded      int64
+				downloadSpeed int64
+				uploadSpeed   int64
+				dhtNodes      int
+			)
 
-			summary.Downloaded += info.Downloaded
-			summary.Uploaded += info.Uploaded
-			summary.DownloadSpeed += info.DownloadSpeed
-			summary.UploadSpeed += info.UploadSpeed
-			summary.DHTNodes += info.DHTNodes
+			if info != nil {
+				downloaded = info.Downloaded
+				uploaded = info.Uploaded
+				downloadSpeed = info.DownloadSpeed
+				uploadSpeed = info.UploadSpeed
+				dhtNodes = info.DHTNodes
+			}
+
+			if allTimeTotals != nil {
+				downloaded = allTimeTotals.AllTimeDownloaded
+				uploaded = allTimeTotals.AllTimeUploaded
+			}
+
+			mu.Lock()
+			transfers[idx].Downloaded = downloaded
+			transfers[idx].Uploaded = uploaded
+			transfers[idx].DownloadSpeed = downloadSpeed
+			transfers[idx].UploadSpeed = uploadSpeed
+			transfers[idx].DHTNodes = dhtNodes
+
+			summary.Downloaded += downloaded
+			summary.Uploaded += uploaded
+			summary.DownloadSpeed += downloadSpeed
+			summary.UploadSpeed += uploadSpeed
+			summary.DHTNodes += dhtNodes
 			mu.Unlock()
 
 			return nil

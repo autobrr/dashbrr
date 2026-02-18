@@ -75,7 +75,7 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
             </div>
           </div>
           <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-            <div className="text-zinc-400">Combined Data</div>
+            <div className="text-zinc-400">Combined Data (all-time)</div>
             <div className="mt-0.5 text-zinc-100">
               {formatBytes(summary.downloaded + summary.uploaded)}
             </div>

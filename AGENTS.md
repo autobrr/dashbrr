@@ -258,6 +258,13 @@ Owner: soup (s0up4200@pm.me)
 - Arr service core: added shared `arr.DeleteQueueItem(...)` helper for queue-delete request/validation/log/error behavior
 - Radarr/Sonarr services: `DeleteQueueItem` now delegate to shared `arr.DeleteQueueItem` (removed duplicated HTTP/delete/error codepaths)
 - Arr tests: expanded `internal/services/arr/queue_test.go` with delete validation + upstream message/status mapping coverage
+
+### 2026-02-18 (qui data semantics)
+- Qui card data alignment: `Combined Data` now sourced from qui all-time counters (`alltime_dl`/`alltime_ul`) via `/api/instances/:id/torrents?page=0&limit=1` server state; speed still from `/transfer-info` (`dl_info_speed`/`up_info_speed`)
+- Fallback behavior: if all-time counters unavailable, use transfer-info session counters (prevents empty/zero regression)
+- UI copy: updated card label to `Combined Data (all-time)` to match metric semantics
+- Tests: expanded `internal/services/qui/qui_test.go` with all-time override + fallback regression coverage
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 - Poller scheduling: non-blocking semaphore acquisition in `maybeRun` (no queued waiters), `lastRun` now stamped at actual job start, and upstream concurrency raised `4 -> 8` to reduce startup starvation from slow services.
 - Autobrr releases: bounded fetch now uses `/api/release?limit=5&offset=0` with dedicated 8s timeout to avoid long-running release pulls delaying other updates.
 - Tests: added `internal/services/autobrr/autobrr_test.go` (release query params/header regression) and `TestPollerMaybeRun_SemaphoreFullSkipsWithoutMarkingLastRun` in `internal/api/handlers/poller_test.go`.

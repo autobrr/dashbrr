@@ -65,6 +65,14 @@ func TestGetAggregatedTransferInfo(t *testing.T) {
 				"up_info_speed":300,
 				"up_rate_limit":0
 			}`))
+		case "/api/instances/1/torrents":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"serverState": {
+					"alltime_dl": 5000,
+					"alltime_ul": 3000
+				}
+			}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -98,11 +106,68 @@ func TestGetAggregatedTransferInfo(t *testing.T) {
 	if summary.DownloadSpeed != 1200 || summary.UploadSpeed != 300 {
 		t.Fatalf("unexpected speed totals: dl=%d up=%d", summary.DownloadSpeed, summary.UploadSpeed)
 	}
+	if summary.Downloaded != 5000 || summary.Uploaded != 3000 {
+		t.Fatalf("unexpected data totals: dl=%d up=%d", summary.Downloaded, summary.Uploaded)
+	}
 	if len(transfers) != 2 {
 		t.Fatalf("len(transfers) = %d, want 2", len(transfers))
 	}
 	if transfers[0].InstanceID != 1 || transfers[1].InstanceID != 2 {
 		t.Fatalf("unexpected transfer ordering: %#v", transfers)
+	}
+	if transfers[0].Downloaded != 5000 || transfers[0].Uploaded != 3000 {
+		t.Fatalf("unexpected transfer data totals: dl=%d up=%d", transfers[0].Downloaded, transfers[0].Uploaded)
+	}
+}
+
+func TestGetAggregatedTransferInfo_FallsBackToSessionData(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-API-Key") != "test-key" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/instances/1/transfer-info":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"connection_status":"connected",
+				"dht_nodes":12,
+				"dl_info_data":222,
+				"dl_info_speed":40,
+				"dl_rate_limit":0,
+				"up_info_data":333,
+				"up_info_speed":50,
+				"up_rate_limit":0
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	service := newQuiTestService()
+
+	instances := []types.QuiInstance{
+		{ID: 1, Name: "Main", IsActive: true, Connected: true},
+	}
+
+	summary, transfers := service.GetAggregatedTransferInfo(
+		context.Background(),
+		server.URL,
+		"test-key",
+		instances,
+	)
+
+	if summary.Downloaded != 222 || summary.Uploaded != 333 {
+		t.Fatalf("fallback totals mismatch: dl=%d up=%d", summary.Downloaded, summary.Uploaded)
+	}
+	if len(transfers) != 1 {
+		t.Fatalf("len(transfers) = %d, want 1", len(transfers))
+	}
+	if transfers[0].Downloaded != 222 || transfers[0].Uploaded != 333 {
+		t.Fatalf("fallback transfer totals mismatch: dl=%d up=%d", transfers[0].Downloaded, transfers[0].Uploaded)
 	}
 }
 
