@@ -376,6 +376,16 @@ Owner: soup (s0up4200@pm.me)
 - Goal: reduce repeated collapse markup and keep interaction semantics consistent across service cards.
 - Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
 
+### 2026-02-18 (message dedupe fix)
+- Fixed duplicated warning lines in service cards by centralizing message dedupe in `web/src/utils/serviceMessage.ts`:
+  - split+trim lines from both `service.message` and `service.health.message`
+  - remove duplicates while preserving order
+  - return normalized newline-joined message
+- Prowlarr now uses shared combiner instead of local string concatenation:
+  - updated `web/src/components/services/prowlarr/ProwlarrStats.tsx`
+- Scope is intentionally KISS/DRY: one shared formatter path for all cards using combined service messages.
+- Gates: pass (`go test ./...`, `pnpm -C web typecheck`, `pnpm -C web lint`, `pnpm -C web build`).
+
 ## Next
 - Run full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`.
 - Live verify: `/api/events` stays connected (no periodic disconnect churn), service cards leave loading quickly after connect/reconnect.

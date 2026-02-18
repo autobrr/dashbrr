@@ -5,13 +5,36 @@
 
 import type { Service } from "../types/service";
 
-export function combineServiceMessage(service: Service): string | undefined {
-  const base = service.message;
-  const health = service.health?.message;
+const splitLines = (message: string): string[] =>
+  message
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-  if (health) {
-    return base ? `${base}\n${health}` : health;
+const dedupeLines = (lines: string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const line of lines) {
+    if (seen.has(line)) {
+      continue;
+    }
+    seen.add(line);
+    result.push(line);
   }
 
-  return base;
+  return result;
+};
+
+export function combineServiceMessage(service: Service): string | undefined {
+  const combined = dedupeLines([
+    ...splitLines(service.message ?? ""),
+    ...splitLines(service.health?.message ?? ""),
+  ]);
+
+  if (combined.length > 0) {
+    return combined.join("\n");
+  }
+
+  return undefined;
 }

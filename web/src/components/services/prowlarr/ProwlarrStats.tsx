@@ -8,6 +8,7 @@ import { useServiceData } from "../../../hooks/useServiceData";
 import { ProwlarrIndexer } from "../../../types/service";
 import { ProwlarrMessage } from "./ProwlarrMessage";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { combineServiceMessage } from "../../../utils/serviceMessage";
 import {
   ClockIcon,
   ArrowDownTrayIcon,
@@ -59,12 +60,7 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
     return null;
   }
 
-  // Combine service message with health message if available
-  const message = service.health?.message
-    ? service.message
-      ? `${service.message}\n${service.health.message}`
-      : service.health.message
-    : service.message;
+  const message = combineServiceMessage(service);
 
   return (
     <div className="space-y-4">
