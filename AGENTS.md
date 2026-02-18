@@ -479,6 +479,14 @@ Owner: soup (s0up4200@pm.me)
 - Prowlarr handler status mapping simplified to shared `arr.ErrArr` path
 - Added handler regression tests for prowlarr error->status mapping (`internal/api/handlers/prowlarr_error_test.go`)
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (refactor)
+- ARR queue fetch typing cleanup:
+  - Sonarr/Radarr now use typed internal queue fetch helpers
+  - `GetQueueForHealth` no longer round-trips through `interface{}` + type assertion
+  - Removes panic-prone cast path and keeps compatibility on exported `GetQueue`
+- Commit: `6772df6`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: keep reducing effect-driven derived state; move to memo/render-time derivation where possible
