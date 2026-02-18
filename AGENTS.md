@@ -1082,6 +1082,11 @@ Owner: soup (s0up4200@pm.me)
     - `internal/api/handlers/prowlarr.go`
     - `internal/api/handlers/maintainerr.go`
 - Compatibility: kept regex fallback path so legacy payloads still merge correctly.
+- Follow-up hardening:
+  - explicit `eventType: health` now overrides regex fallback (treat as health state event even if message looks internal)
+  - added broadcaster regression tests for explicit internal/health event semantics:
+    - `TestBroadcasterSnapshotTreatsExplicitInternalEventTypeAsInternal`
+    - `TestBroadcasterSnapshotTreatsExplicitHealthEventTypeAsHealth`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
 ## Rolling Plan

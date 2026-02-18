@@ -112,8 +112,11 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 }
 
 func isInternalServiceEvent(health models.ServiceHealth) bool {
-	if health.EventType == models.ServiceEventInternal {
+	switch health.EventType {
+	case models.ServiceEventInternal:
 		return true
+	case models.ServiceEventHealth:
+		return false
 	}
 	return health.Message != "" && internalEventMessagePattern.MatchString(health.Message)
 }
