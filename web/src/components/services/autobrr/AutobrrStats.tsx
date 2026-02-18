@@ -18,7 +18,6 @@ import {
   ClockIcon,
 } from "@heroicons/react/24/outline";
 import {
-  AutobrrReleases,
   AutobrrRelease,
   AutobrrStats as AutobrrStatsPayload,
 } from "../../../types/service";
@@ -46,49 +45,16 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
 
   // Always show stats section if service is online, even if stats are empty
   const showStats = true;
-  const autobrrPayload = service.stats?.autobrr as unknown;
-  const nestedStats =
-    autobrrPayload &&
-    typeof autobrrPayload === "object" &&
-    "stats" in autobrrPayload
-      ? (autobrrPayload as { stats?: AutobrrStatsPayload }).stats
-      : undefined;
-  const directStats =
-    autobrrPayload &&
-    typeof autobrrPayload === "object" &&
-    "total_count" in autobrrPayload
-      ? (autobrrPayload as AutobrrStatsPayload)
-      : undefined;
-  const stats = nestedStats ?? directStats ?? {
+  const stats = service.stats?.autobrr?.stats ?? {
     total_count: 0,
     filtered_count: 0,
     filter_rejected_count: 0,
     push_approved_count: 0,
     push_rejected_count: 0,
     push_error_count: 0,
-  };
+  } satisfies AutobrrStatsPayload;
   const ircStatus = service.details?.autobrr?.irc;
-  const nestedReleases =
-    autobrrPayload &&
-    typeof autobrrPayload === "object" &&
-    "releases" in autobrrPayload
-      ? (autobrrPayload as { releases?: AutobrrReleases }).releases
-      : undefined;
-  const directReleases =
-    autobrrPayload &&
-    typeof autobrrPayload === "object" &&
-    "data" in autobrrPayload
-      ? (autobrrPayload as AutobrrReleases)
-      : undefined;
-  const releaseSources = [
-    service.releases?.data,
-    nestedReleases?.data,
-    directReleases?.data,
-  ];
-  const releases =
-    releaseSources.find((items) => Array.isArray(items) && items.length > 0) ??
-    releaseSources.find((items) => Array.isArray(items)) ??
-    [];
+  const releases = service.stats?.autobrr?.releases?.data ?? [];
 
   const showMessage = service.message || service.status !== "online";
 

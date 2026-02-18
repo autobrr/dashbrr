@@ -4,7 +4,6 @@
  */
 
 import {
-  AutobrrReleases,
   Service,
   ServiceConfig,
   ServiceHealth,
@@ -46,36 +45,6 @@ const parseDate = (value: unknown): Date | undefined => {
 const isInternalEventMessage = (message: string): boolean =>
   INTERNAL_EVENT_PATTERN.test(message.trim());
 
-const extractAutobrrReleases = (
-  health: ServiceHealth
-): { releases?: AutobrrReleases; suppressStatsPatch: boolean } => {
-  if (!health.stats || !isRecord(health.stats)) {
-    return { suppressStatsPatch: false };
-  }
-
-  const candidate = health.stats.autobrr;
-  if (!isRecord(candidate)) {
-    return { suppressStatsPatch: false };
-  }
-
-  const nested = candidate.releases;
-  if (isRecord(nested) && Array.isArray(nested.data)) {
-    return {
-      releases: nested as unknown as AutobrrReleases,
-      suppressStatsPatch: false,
-    };
-  }
-
-  if (Array.isArray(candidate.data)) {
-    return {
-      releases: candidate as unknown as AutobrrReleases,
-      suppressStatsPatch: true,
-    };
-  }
-
-  return { suppressStatsPatch: false };
-};
-
 export const mergeServicePayload = <T extends object>(
   current: T | undefined,
   incoming: T | undefined
@@ -104,8 +73,7 @@ export const mergeServicePayload = <T extends object>(
 
 const buildServicePatchFromHealth = (
   health: ServiceHealth,
-  presence: HealthPatchPresence,
-  hasAutobrrReleases: boolean
+  presence: HealthPatchPresence
 ): Partial<Service> => {
   const patch: Partial<Service> = {
     lastChecked: health.lastChecked,
@@ -132,10 +100,6 @@ const buildServicePatchFromHealth = (
 
   if (presence.hasUpdateAvailable) {
     patch.updateAvailable = health.updateAvailable;
-  }
-
-  if (hasAutobrrReleases) {
-    patch.stats = undefined;
   }
 
   return patch;
@@ -195,7 +159,6 @@ export const deriveHealthUpdate = (
   | {
       instanceId: string;
       patch: Partial<Service>;
-      releases?: AutobrrReleases;
     }
   | undefined => {
   if (typeof payload !== "object" || payload === null) {
@@ -216,26 +179,22 @@ export const deriveHealthUpdate = (
     lastChecked: lastChecked || new Date(),
   };
 
-  const { releases, suppressStatsPatch } = extractAutobrrReleases(health);
-
   const patch = buildServicePatchFromHealth(health, {
     hasVersion: hasOwnProperty(payload, "version"),
     hasUpdateAvailable: hasOwnProperty(payload, "updateAvailable"),
     hasResponseTime: hasOwnProperty(payload, "responseTime"),
-  }, suppressStatsPatch);
+  });
 
   return {
     instanceId,
     patch,
-    releases,
   };
 };
 
 export const hydrateServicesFromConfigurations = (
   previous: Map<string, Service>,
   configurations: Record<string, ServiceConfig>,
-  latestPatchByInstance: Map<string, Partial<Service>>,
-  latestReleasesByInstance: Map<string, AutobrrReleases>
+  latestPatchByInstance: Map<string, Partial<Service>>
 ): Map<string, Service> => {
   const next = new Map(previous);
   const configuredIds = new Set(Object.keys(configurations));
@@ -248,11 +207,6 @@ export const hydrateServicesFromConfigurations = (
     const patch = latestPatchByInstance.get(instanceId);
     if (patch) {
       merged = mergeServiceWithPatch(merged, patch);
-    }
-
-    const releases = latestReleasesByInstance.get(instanceId);
-    if (releases && Array.isArray(releases.data)) {
-      merged = { ...merged, releases };
     }
 
     next.set(instanceId, merged);

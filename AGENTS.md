@@ -847,6 +847,29 @@ Owner: soup (s0up4200@pm.me)
   - `internal/services/autobrr/autobrr.go`
   - `internal/api/handlers/broadcast_test.go`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (refactor)
+- Step 1 started: canonical SSE schema cleanup for Autobrr (remove fallback paths)
+- Web data layer simplification:
+  - removed releases side-channel state (`service.releases`, `apply_releases`, `latestReleasesRef`)
+  - hydration now replays only canonical merged service patch map
+  - removed legacy merge suppression logic tied to old `stats.autobrr.data` shape
+- Type cleanup:
+  - `ServiceStats.autobrr` now typed as canonical object:
+    - `stats?: AutobrrStats`
+    - `releases?: AutobrrReleases`
+- UI cleanup:
+  - Autobrr card now reads only canonical fields:
+    - stats from `service.stats.autobrr.stats`
+    - releases from `service.stats.autobrr.releases.data`
+  - removed compatibility branches for legacy payload shapes
+- Files:
+  - `web/src/types/service.ts`
+  - `web/src/hooks/serviceData/merge.ts`
+  - `web/src/hooks/serviceData/reducer.ts`
+  - `web/src/hooks/useServiceData.ts`
+  - `web/src/components/services/autobrr/AutobrrStats.tsx`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

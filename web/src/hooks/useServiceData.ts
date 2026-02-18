@@ -14,7 +14,7 @@ import {
   useRef,
   useReducer,
 } from "react";
-import { AutobrrReleases, Service } from "../types/service";
+import { Service } from "../types/service";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { useAuth } from "./useAuth";
 import { deriveHealthUpdate } from "./serviceData/merge";
@@ -46,7 +46,6 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   const retryCountRef = useRef(0);
   const mountedRef = useRef(true);
   const latestPatchRef = useRef<Map<string, Partial<Service>>>(new Map());
-  const latestReleasesRef = useRef<Map<string, AutobrrReleases>>(new Map());
 
   const applyHealthUpdate = useCallback(
     (payload: unknown) => {
@@ -62,15 +61,6 @@ const useProvideServiceData = (): ServiceDataContextValue => {
         instanceId: update.instanceId,
         patch: update.patch,
       });
-
-      if (update.releases) {
-        latestReleasesRef.current.set(update.instanceId, update.releases);
-        dispatch({
-          type: "apply_releases",
-          instanceId: update.instanceId,
-          releases: update.releases,
-        });
-      }
     },
     []
   );
@@ -159,7 +149,6 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   useEffect(() => {
     if (!isAuthenticated) {
       latestPatchRef.current.clear();
-      latestReleasesRef.current.clear();
       dispatch({ type: "reset" });
       return;
     }
@@ -173,7 +162,6 @@ const useProvideServiceData = (): ServiceDataContextValue => {
       type: "hydrate_configurations",
       configurations,
       latestPatchByInstance: new Map(latestPatchRef.current),
-      latestReleasesByInstance: new Map(latestReleasesRef.current),
     });
   }, [configurations, isAuthenticated]);
 

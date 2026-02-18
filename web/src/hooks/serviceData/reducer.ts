@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { AutobrrReleases, Service, ServiceConfig } from "../../types/service";
+import { Service, ServiceConfig } from "../../types/service";
 import {
   applyServicePatch,
   hydrateServicesFromConfigurations,
@@ -21,14 +21,8 @@ export type ServiceDataAction =
       type: "hydrate_configurations";
       configurations: Record<string, ServiceConfig>;
       latestPatchByInstance: Map<string, Partial<Service>>;
-      latestReleasesByInstance: Map<string, AutobrrReleases>;
     }
-  | { type: "apply_patch"; instanceId: string; patch: Partial<Service> }
-  | {
-      type: "apply_releases";
-      instanceId: string;
-      releases: AutobrrReleases;
-    };
+  | { type: "apply_patch"; instanceId: string; patch: Partial<Service> };
 
 export const initialServiceDataState: ServiceDataState = {
   services: new Map(),
@@ -60,8 +54,7 @@ export const serviceDataReducer = (
         services: hydrateServicesFromConfigurations(
           state.services,
           action.configurations,
-          action.latestPatchByInstance,
-          action.latestReleasesByInstance
+          action.latestPatchByInstance
         ),
         isLoading: false,
       };
@@ -74,14 +67,6 @@ export const serviceDataReducer = (
           action.instanceId,
           action.patch
         ),
-      };
-
-    case "apply_releases":
-      return {
-        ...state,
-        services: applyServicePatch(state.services, action.instanceId, {
-          releases: action.releases,
-        }),
       };
 
     default:

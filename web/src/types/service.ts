@@ -41,7 +41,6 @@ export interface Service {
   stats?: ServiceStats;
   details?: ServiceDetails;
   health?: ServiceHealth;
-  releases?: AutobrrReleases;
 }
 
 export interface ServiceConfig {
@@ -514,7 +513,10 @@ export interface QuiCrossSeedStatus {
 
 // Service Stats Union Type
 export interface ServiceStats {
-  autobrr?: AutobrrStats;
+  autobrr?: {
+    stats?: AutobrrStats;
+    releases?: AutobrrReleases;
+  };
   maintainerr?: {
     collections: MaintainerrCollection[];
   };
