@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+import { readErrorMessage } from "./http";
+
 interface RequestOptions {
   method: string;
   headers?: Record<string, string>;
@@ -179,8 +181,7 @@ const handleRequest = async <T>(
       }
 
       if (isNoRedirectOn401Endpoint(apiPath)) {
-        const errorData = await response.json().catch(() => ({ error: 'Unauthorized' }));
-        throw new Error(errorData.error || 'Unauthorized');
+        throw new Error((await readErrorMessage(response)) || "Unauthorized");
       }
 
       isHandlingAuth = true;
@@ -204,8 +205,10 @@ const handleRequest = async <T>(
         await new Promise(resolve => setTimeout(resolve, waitTime));
         return handleRequest<T>(path, options, retryCount + 1, customTimeout);
       }
-      const errorData = await response.json().catch(() => ({ error: `HTTP error! status: ${response.status}` }));
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      throw new Error(
+        (await readErrorMessage(response)) ||
+          `HTTP error! status: ${response.status}`
+      );
     }
 
     if (response.status === 204) {
