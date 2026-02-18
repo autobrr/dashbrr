@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/autobrr/dashbrr/internal/models"
@@ -20,6 +22,13 @@ import (
 )
 
 const quiTransferParallelLimit = 4
+
+var quiAllTimeTotalsCache = struct {
+	mu     sync.RWMutex
+	totals map[string]quiServerState
+}{
+	totals: make(map[string]quiServerState),
+}
 
 type QuiService struct {
 	core.ServiceCore
@@ -174,6 +183,25 @@ func summarizeQuiInstances(instances []types.QuiInstance) (active int, connected
 	return active, connected, withCredentialErrors
 }
 
+func quiAllTimeCacheKey(url string, instanceID int) string {
+	return strings.TrimRight(strings.ToLower(url), "/") + "#" + strconv.Itoa(instanceID)
+}
+
+func getCachedAllTimeTotals(url string, instanceID int) (quiServerState, bool) {
+	key := quiAllTimeCacheKey(url, instanceID)
+	quiAllTimeTotalsCache.mu.RLock()
+	defer quiAllTimeTotalsCache.mu.RUnlock()
+	total, ok := quiAllTimeTotalsCache.totals[key]
+	return total, ok
+}
+
+func setCachedAllTimeTotals(url string, instanceID int, totals quiServerState) {
+	key := quiAllTimeCacheKey(url, instanceID)
+	quiAllTimeTotalsCache.mu.Lock()
+	quiAllTimeTotalsCache.totals[key] = totals
+	quiAllTimeTotalsCache.mu.Unlock()
+}
+
 func (s *QuiService) GetAggregatedTransferInfo(ctx context.Context, url, apiKey string, instances []types.QuiInstance) (types.QuiTransferSummary, []types.QuiInstanceTransfer) {
 	summary := types.QuiTransferSummary{
 		TotalInstances: len(instances),
@@ -211,10 +239,31 @@ func (s *QuiService) GetAggregatedTransferInfo(ctx context.Context, url, apiKey 
 		idx := idx
 		instanceID := transfers[idx].InstanceID
 		group.Go(func() error {
-			info, _ := s.GetTransferInfo(groupCtx, url, apiKey, instanceID)
-			allTimeTotals, _ := s.GetAllTimeTotals(groupCtx, url, apiKey, instanceID)
+			info, infoErr := s.GetTransferInfo(groupCtx, url, apiKey, instanceID)
+			allTimeTotals, allTimeErr := s.GetAllTimeTotals(groupCtx, url, apiKey, instanceID)
+
+			if infoErr != nil {
+				log.Debug().
+					Err(infoErr).
+					Str("instance", strconv.Itoa(instanceID)).
+					Msg("qui transfer-info fetch failed")
+			}
+			if allTimeErr != nil {
+				log.Debug().
+					Err(allTimeErr).
+					Str("instance", strconv.Itoa(instanceID)).
+					Msg("qui all-time totals fetch failed")
+			}
 
 			if info == nil && allTimeTotals == nil {
+				if cachedTotals, ok := getCachedAllTimeTotals(url, instanceID); ok {
+					mu.Lock()
+					transfers[idx].Downloaded = cachedTotals.AllTimeDownloaded
+					transfers[idx].Uploaded = cachedTotals.AllTimeUploaded
+					summary.Downloaded += cachedTotals.AllTimeDownloaded
+					summary.Uploaded += cachedTotals.AllTimeUploaded
+					mu.Unlock()
+				}
 				return nil
 			}
 
@@ -227,8 +276,6 @@ func (s *QuiService) GetAggregatedTransferInfo(ctx context.Context, url, apiKey 
 			)
 
 			if info != nil {
-				downloaded = info.Downloaded
-				uploaded = info.Uploaded
 				downloadSpeed = info.DownloadSpeed
 				uploadSpeed = info.UploadSpeed
 				dhtNodes = info.DHTNodes
@@ -237,6 +284,13 @@ func (s *QuiService) GetAggregatedTransferInfo(ctx context.Context, url, apiKey 
 			if allTimeTotals != nil {
 				downloaded = allTimeTotals.AllTimeDownloaded
 				uploaded = allTimeTotals.AllTimeUploaded
+				setCachedAllTimeTotals(url, instanceID, *allTimeTotals)
+			} else if cachedTotals, ok := getCachedAllTimeTotals(url, instanceID); ok {
+				downloaded = cachedTotals.AllTimeDownloaded
+				uploaded = cachedTotals.AllTimeUploaded
+			} else if info != nil {
+				downloaded = info.Downloaded
+				uploaded = info.Uploaded
 			}
 
 			mu.Lock()

@@ -1170,6 +1170,21 @@ Owner: soup (s0up4200@pm.me)
   - one classification/merge rule path, less per-handler drift/edge cases
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (qui step: all-time totals resilience)
+- Root cause for flaky `Qui` combined data:
+  - `GetAggregatedTransferInfo` swallowed errors from all-time totals endpoint
+  - transient `/torrents` misses fell back to session counters (`dl_info_data`/`up_info_data`), causing value drift/resets vs qui dashboard
+- Fix (`internal/services/qui/qui.go`):
+  - keep speed fields from `transfer-info` as before
+  - prefer all-time counters from `serverState.alltime_dl/alltime_ul`
+  - add in-process last-known all-time cache keyed by `url+instanceId`
+  - on transient all-time fetch failure: reuse cached all-time totals; only use session counters when no cached baseline exists
+  - add debug logs for transfer-info/all-time fetch failures (no behavior abort)
+- Regression coverage (`internal/services/qui/qui_test.go`):
+  - added `TestGetAggregatedTransferInfo_UsesCachedAllTimeTotalsOnTransientFailure`
+  - verifies second run keeps first all-time totals when `/torrents` temporarily fails, while speeds still update
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

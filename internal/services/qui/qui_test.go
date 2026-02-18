@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/autobrr/dashbrr/internal/types"
@@ -168,6 +169,82 @@ func TestGetAggregatedTransferInfo_FallsBackToSessionData(t *testing.T) {
 	}
 	if transfers[0].Downloaded != 222 || transfers[0].Uploaded != 333 {
 		t.Fatalf("fallback transfer totals mismatch: dl=%d up=%d", transfers[0].Downloaded, transfers[0].Uploaded)
+	}
+}
+
+func TestGetAggregatedTransferInfo_UsesCachedAllTimeTotalsOnTransientFailure(t *testing.T) {
+	t.Parallel()
+
+	var torrentsRequests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-API-Key") != "test-key" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/instances/1/transfer-info":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"connection_status":"connected",
+				"dht_nodes":9,
+				"dl_info_data":100,
+				"dl_info_speed":20,
+				"dl_rate_limit":0,
+				"up_info_data":200,
+				"up_info_speed":30,
+				"up_rate_limit":0
+			}`))
+		case "/api/instances/1/torrents":
+			current := atomic.AddInt32(&torrentsRequests, 1)
+			if current == 1 {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"serverState": {
+						"alltime_dl": 9999,
+						"alltime_ul": 8888
+					}
+				}`))
+				return
+			}
+			http.Error(w, "upstream timeout", http.StatusGatewayTimeout)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	service := newQuiTestService()
+	instances := []types.QuiInstance{
+		{ID: 1, Name: "Main", IsActive: true, Connected: true},
+	}
+
+	firstSummary, _ := service.GetAggregatedTransferInfo(
+		context.Background(),
+		server.URL,
+		"test-key",
+		instances,
+	)
+	if firstSummary.Downloaded != 9999 || firstSummary.Uploaded != 8888 {
+		t.Fatalf("first totals mismatch: dl=%d up=%d", firstSummary.Downloaded, firstSummary.Uploaded)
+	}
+
+	secondSummary, secondTransfers := service.GetAggregatedTransferInfo(
+		context.Background(),
+		server.URL,
+		"test-key",
+		instances,
+	)
+	if secondSummary.Downloaded != 9999 || secondSummary.Uploaded != 8888 {
+		t.Fatalf("cached totals mismatch: dl=%d up=%d", secondSummary.Downloaded, secondSummary.Uploaded)
+	}
+	if len(secondTransfers) != 1 {
+		t.Fatalf("len(secondTransfers) = %d, want 1", len(secondTransfers))
+	}
+	if secondTransfers[0].Downloaded != 9999 || secondTransfers[0].Uploaded != 8888 {
+		t.Fatalf("cached transfer totals mismatch: dl=%d up=%d", secondTransfers[0].Downloaded, secondTransfers[0].Uploaded)
+	}
+	if secondSummary.DownloadSpeed != 20 || secondSummary.UploadSpeed != 30 {
+		t.Fatalf("speed totals mismatch: dl=%d up=%d", secondSummary.DownloadSpeed, secondSummary.UploadSpeed)
 	}
 }
 
