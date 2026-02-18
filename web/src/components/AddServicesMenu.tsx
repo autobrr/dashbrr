@@ -6,7 +6,7 @@
 import { Menu, Transition } from "@headlessui/react";
 import { Fragment, useState, useEffect, useMemo } from "react";
 import { ServiceType } from "../types/service";
-import AnimatedModal from "../../src/components/ui/AnimatedModal";
+import AnimatedModal from "./ui/AnimatedModal";
 import { FormInput } from "./ui/FormInput";
 import { api } from "../utils/api";
 import { toast } from "react-hot-toast";
@@ -44,12 +44,10 @@ const SERVICE_CATEGORIES = {
   MONITORING: "Monitoring",
   NETWORK: "Network",
 } as const;
+type ServiceCategoryKey = keyof typeof SERVICE_CATEGORIES;
 
 // Add category mapping
-const SERVICE_CATEGORY_MAP: Record<
-  ServiceType,
-  keyof typeof SERVICE_CATEGORIES
-> = {
+const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   autobrr: "AUTOMATION",
   radarr: "MEDIA_MANAGEMENT",
   sonarr: "MEDIA_MANAGEMENT",
@@ -61,6 +59,87 @@ const SERVICE_CATEGORY_MAP: Record<
   tailscale: "NETWORK",
   other: "MONITORING",
 };
+
+const CATEGORY_ORDER: ServiceCategoryKey[] = [
+  "AUTOMATION",
+  "MEDIA_SERVER",
+  "MEDIA_MANAGEMENT",
+  "REQUESTS",
+  "MONITORING",
+  "NETWORK",
+];
+
+type FormHelp = { prefix: string; text: string; link: string | null };
+type ApiHelpContext = {
+  getSettingsUrl: (path: string) => string | null;
+  url: string;
+};
+
+const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
+  plex: "X-Plex-Token",
+  tailscale: "API Token",
+};
+
+const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
+  plex: "http://localhost:32400",
+  general: "Enter full URL including health endpoint",
+  tailscale: "https://api.tailscale.com",
+};
+
+const API_KEY_HELP_BY_SERVICE: Partial<
+  Record<ServiceType, (ctx: ApiHelpContext) => FormHelp>
+> = {
+  autobrr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > API",
+    link: getSettingsUrl("/settings/api"),
+  }),
+  plex: () => ({
+    prefix: "Get your ",
+    text: "X-Plex-Token",
+    link: "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
+  }),
+  radarr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > General",
+    link: getSettingsUrl("/settings/general"),
+  }),
+  sonarr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > General",
+    link: getSettingsUrl("/settings/general"),
+  }),
+  prowlarr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > General",
+    link: getSettingsUrl("/settings/general"),
+  }),
+  overseerr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings",
+    link: getSettingsUrl("/settings/main"),
+  }),
+  maintainerr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings",
+    link: getSettingsUrl("/settings/main"),
+  }),
+  general: () => ({
+    prefix: "Optional - ",
+    text: "api token for authentication if required",
+    link: null,
+  }),
+  tailscale: ({ url }) => ({
+    prefix: "Found in ",
+    text: "Admin Console > Settings > Keys",
+    link:
+      url === "https://api.tailscale.com"
+        ? "https://login.tailscale.com/admin/settings/keys"
+        : null,
+  }),
+};
+
+const EMPTY_HELP: FormHelp = { prefix: "", text: "", link: null };
 
 export function AddServicesMenu({
   serviceTemplates,
@@ -163,119 +242,43 @@ export function AddServicesMenu({
     }
   };
 
-  const getApiKeyLabel = () => {
-    if (!pendingService) return "API Key";
+  const serviceType = pendingService?.type;
+  const apiKeyLabel = serviceType ? API_KEY_LABELS[serviceType] || "API Key" : "API Key";
+  const urlPlaceholder = serviceType
+    ? URL_PLACEHOLDERS[serviceType] || "Enter service URL"
+    : "Enter service URL";
+  const apiKeyHelp =
+    (serviceType &&
+      API_KEY_HELP_BY_SERVICE[serviceType]?.({
+        getSettingsUrl,
+        url,
+      })) ||
+    EMPTY_HELP;
 
-    switch (pendingService.type) {
-      case "plex":
-        return "X-Plex-Token";
-      case "radarr":
-      case "sonarr":
-      case "prowlarr":
-        return "API Key";
-      case "overseerr":
-        return "API Key";
-      case "general":
-        return "API Key";
-      case "tailscale":
-        return "API Token";
-      default:
-        return "API Key";
+  const groupedServices = useMemo(() => {
+    const grouped: Record<ServiceCategoryKey, typeof serviceTemplates> = {
+      AUTOMATION: [],
+      MEDIA_SERVER: [],
+      MEDIA_MANAGEMENT: [],
+      REQUESTS: [],
+      MONITORING: [],
+      NETWORK: [],
+    };
+
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    for (const service of availableTemplates) {
+      if (
+        normalizedSearch &&
+        !service.name.toLowerCase().includes(normalizedSearch)
+      ) {
+        continue;
+      }
+      grouped[SERVICE_CATEGORY_MAP[service.type]].push(service);
     }
-  };
 
-  const getApiKeyHelp = () => {
-    if (!pendingService) return { prefix: "", text: "", link: null };
+    return grouped;
+  }, [availableTemplates, searchQuery]);
 
-    switch (pendingService.type) {
-      case "autobrr":
-        return {
-          prefix: "Found in ",
-          text: "Settings > API",
-          link: getSettingsUrl("/settings/api"),
-        };
-      case "plex":
-        return {
-          prefix: "Get your ",
-          text: "X-Plex-Token",
-          link: "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
-        };
-      case "radarr":
-      case "sonarr":
-      case "prowlarr":
-        return {
-          prefix: "Found in ",
-          text: "Settings > General",
-          link: getSettingsUrl("/settings/general"),
-        };
-      case "overseerr":
-        return {
-          prefix: "Found in ",
-          text: "Settings",
-          link: getSettingsUrl("/settings/main"),
-        };
-      case "maintainerr":
-        return {
-          prefix: "Found in ",
-          text: "Settings",
-          link: getSettingsUrl("/settings/main"),
-        };
-      case "general":
-        return {
-          prefix: "Optional - ",
-          text: "api token for authentication if required",
-          link: null,
-        };
-      case "tailscale":
-        return {
-          prefix: "Found in ",
-          text: "Admin Console > Settings > Keys",
-          link:
-            url === "https://api.tailscale.com"
-              ? "https://login.tailscale.com/admin/settings/keys"
-              : null,
-        };
-      default:
-        return {
-          prefix: "",
-          text: "",
-          link: null,
-        };
-    }
-  };
-
-  const getUrlPlaceholder = () => {
-    if (!pendingService) return "Enter service URL";
-
-    switch (pendingService.type) {
-      case "plex":
-        return "http://localhost:32400";
-      case "general":
-        return "Enter full URL including health endpoint";
-      case "tailscale":
-        return "https://api.tailscale.com";
-      default:
-        return "Enter service URL";
-    }
-  };
-
-  // Group services by category
-  const groupedServices = availableTemplates.reduce((acc, service) => {
-    const category = SERVICE_CATEGORY_MAP[service.type] || "OTHER";
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(service);
-    return acc;
-  }, {} as Record<string, typeof serviceTemplates>);
-
-  // Filter services based on search
-  const filterServices = (services: typeof serviceTemplates) => {
-    if (!searchQuery) return services;
-    return services.filter((s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  };
-
-  const apiKeyHelp = getApiKeyHelp();
   const isApiKeyRequired = pendingService?.type !== "general";
 
   // Clear search when menu closes
@@ -329,42 +332,36 @@ export function AddServicesMenu({
                     />
                   </div>
 
-                  {Object.entries(groupedServices).map(
-                    ([category, services]) => {
-                      const filteredServices = filterServices(services);
-                      if (filteredServices.length === 0) return null;
+                  {CATEGORY_ORDER.map((category) => {
+                    const services = groupedServices[category];
+                    if (services.length === 0) return null;
 
-                      return (
-                        <div key={category} className="mb-2">
-                          <div className="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                            {
-                              SERVICE_CATEGORIES[
-                                category as keyof typeof SERVICE_CATEGORIES
-                              ]
-                            }
-                          </div>
-                          {filteredServices.map((template) => (
-                            <Menu.Item key={template.type}>
-                              {({ active }) => (
-                                <button
-                                  onClick={() =>
-                                    onAddService(template.type, template.name)
-                                  }
-                                  className={`block w-full px-4 py-2 text-left text-sm ${
-                                    active
-                                      ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-300"
-                                      : "text-gray-700 dark:text-gray-300"
-                                  }`}
-                                >
-                                  Add {template.name}
-                                </button>
-                              )}
-                            </Menu.Item>
-                          ))}
+                    return (
+                      <div key={category} className="mb-2">
+                        <div className="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                          {SERVICE_CATEGORIES[category]}
                         </div>
-                      );
-                    }
-                  )}
+                        {services.map((template) => (
+                          <Menu.Item key={template.type}>
+                            {({ active }) => (
+                              <button
+                                onClick={() =>
+                                  onAddService(template.type, template.name)
+                                }
+                                className={`block w-full px-4 py-2 text-left text-sm ${
+                                  active
+                                    ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-300"
+                                    : "text-gray-700 dark:text-gray-300"
+                                }`}
+                              >
+                                Add {template.name}
+                              </button>
+                            )}
+                          </Menu.Item>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </Menu.Items>
             </Transition>
@@ -403,7 +400,7 @@ export function AddServicesMenu({
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder={getUrlPlaceholder()}
+                placeholder={urlPlaceholder}
                 required
                 data-1p-ignore
               />
@@ -426,11 +423,11 @@ export function AddServicesMenu({
 
             <FormInput
               id="apiKey"
-              label={getApiKeyLabel()}
+              label={apiKeyLabel}
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={`Enter ${getApiKeyLabel()}`}
+              placeholder={`Enter ${apiKeyLabel}`}
               helpText={apiKeyHelp}
               required={isApiKeyRequired}
               data-1p-ignore
