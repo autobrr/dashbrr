@@ -80,10 +80,14 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
     "data" in autobrrPayload
       ? (autobrrPayload as AutobrrReleases)
       : undefined;
+  const releaseSources = [
+    service.releases?.data,
+    nestedReleases?.data,
+    directReleases?.data,
+  ];
   const releases =
-    service.releases?.data ??
-    nestedReleases?.data ??
-    directReleases?.data ??
+    releaseSources.find((items) => Array.isArray(items) && items.length > 0) ??
+    releaseSources.find((items) => Array.isArray(items)) ??
     [];
 
   const showMessage = service.message || service.status !== "online";

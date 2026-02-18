@@ -820,6 +820,20 @@ Owner: soup (s0up4200@pm.me)
     - `service.stats.autobrr.releases.data` (nested/new shape)
     - `service.stats.autobrr.data` (legacy shape)
 - Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Autobrr refresh edge case follow-up:
+  - fallback precedence bug: `service.releases.data` empty array took priority over non-empty fallback sources.
+  - resulted in "No recent releases" even when releases existed in `stats.autobrr`.
+- Fix:
+  - choose first non-empty releases source across:
+    - `service.releases.data`
+    - `service.stats.autobrr.releases.data`
+    - `service.stats.autobrr.data`
+  - if all empty, fall back to first available empty array.
+- File:
+  - `web/src/components/services/autobrr/AutobrrStats.tsx`
+- Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
