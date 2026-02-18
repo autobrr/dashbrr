@@ -48,17 +48,32 @@ const isInternalEventMessage = (message: string): boolean =>
 
 const extractAutobrrReleases = (
   health: ServiceHealth
-): AutobrrReleases | undefined => {
+): { releases?: AutobrrReleases; suppressStatsPatch: boolean } => {
   if (!health.stats || !isRecord(health.stats)) {
-    return undefined;
+    return { suppressStatsPatch: false };
   }
 
   const candidate = health.stats.autobrr;
-  if (!isRecord(candidate) || !Array.isArray(candidate.data)) {
-    return undefined;
+  if (!isRecord(candidate)) {
+    return { suppressStatsPatch: false };
   }
 
-  return candidate as unknown as AutobrrReleases;
+  const nested = candidate.releases;
+  if (isRecord(nested) && Array.isArray(nested.data)) {
+    return {
+      releases: nested as unknown as AutobrrReleases,
+      suppressStatsPatch: false,
+    };
+  }
+
+  if (Array.isArray(candidate.data)) {
+    return {
+      releases: candidate as unknown as AutobrrReleases,
+      suppressStatsPatch: true,
+    };
+  }
+
+  return { suppressStatsPatch: false };
 };
 
 export const mergeServicePayload = <T extends object>(
@@ -201,13 +216,13 @@ export const deriveHealthUpdate = (
     lastChecked: lastChecked || new Date(),
   };
 
-  const releases = extractAutobrrReleases(health);
+  const { releases, suppressStatsPatch } = extractAutobrrReleases(health);
 
   const patch = buildServicePatchFromHealth(health, {
     hasVersion: hasOwnProperty(payload, "version"),
     hasUpdateAvailable: hasOwnProperty(payload, "updateAvailable"),
     hasResponseTime: hasOwnProperty(payload, "responseTime"),
-  }, releases !== undefined);
+  }, suppressStatsPatch);
 
   return {
     instanceId,

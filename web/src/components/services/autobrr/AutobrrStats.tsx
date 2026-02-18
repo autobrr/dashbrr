@@ -17,7 +17,10 @@ import {
   NoSymbolIcon,
   ClockIcon,
 } from "@heroicons/react/24/outline";
-import { AutobrrRelease } from "../../../types/service";
+import {
+  AutobrrRelease,
+  AutobrrStats as AutobrrStatsPayload,
+} from "../../../types/service";
 import { getMediaType, getMediaTypeIcon } from "../../../utils/mediaTypes";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
@@ -42,7 +45,20 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
 
   // Always show stats section if service is online, even if stats are empty
   const showStats = true;
-  const stats = service.stats?.autobrr || {
+  const autobrrPayload = service.stats?.autobrr as unknown;
+  const nestedStats =
+    autobrrPayload &&
+    typeof autobrrPayload === "object" &&
+    "stats" in autobrrPayload
+      ? (autobrrPayload as { stats?: AutobrrStatsPayload }).stats
+      : undefined;
+  const directStats =
+    autobrrPayload &&
+    typeof autobrrPayload === "object" &&
+    "total_count" in autobrrPayload
+      ? (autobrrPayload as AutobrrStatsPayload)
+      : undefined;
+  const stats = nestedStats ?? directStats ?? {
     total_count: 0,
     filtered_count: 0,
     filter_rejected_count: 0,

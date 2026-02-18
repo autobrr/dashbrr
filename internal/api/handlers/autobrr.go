@@ -325,7 +325,9 @@ func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.Rel
 		Message:     "autobrr_releases",
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
-			"autobrr": releases,
+			"autobrr": map[string]interface{}{
+				"releases": releases,
+			},
 		},
 	}
 
@@ -340,7 +342,9 @@ func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrSt
 		Message:     "autobrr_stats",
 		LastChecked: time.Now(),
 		Stats: map[string]interface{}{
-			"autobrr": stats,
+			"autobrr": map[string]interface{}{
+				"stats": stats,
+			},
 		},
 	}
 

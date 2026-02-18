@@ -186,6 +186,64 @@ func TestBroadcasterSnapshotMergesNestedStatsPayloads(t *testing.T) {
 	}
 }
 
+func TestBroadcasterSnapshotKeepsAutobrrStatsAndReleases(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "autobrr-1",
+		Status:      "online",
+		Message:     "autobrr_releases",
+		LastChecked: now,
+		Stats: map[string]interface{}{
+			"autobrr": map[string]interface{}{
+				"releases": map[string]interface{}{
+					"data":        []interface{}{"r1"},
+					"count":       float64(1),
+					"next_cursor": float64(2),
+				},
+			},
+		},
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "autobrr-1",
+		Status:      "online",
+		Message:     "autobrr_stats",
+		LastChecked: now.Add(time.Second),
+		Stats: map[string]interface{}{
+			"autobrr": map[string]interface{}{
+				"stats": map[string]interface{}{
+					"total_count": float64(42),
+				},
+			},
+		},
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	autobrrStats, ok := decoded.Stats["autobrr"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected autobrr stats map, got %T", decoded.Stats["autobrr"])
+	}
+	if _, ok := autobrrStats["stats"]; !ok {
+		t.Fatalf("expected merged autobrr payload to include stats field")
+	}
+	if _, ok := autobrrStats["releases"]; !ok {
+		t.Fatalf("expected merged autobrr payload to include releases field")
+	}
+}
+
 func TestBroadcasterSnapshotSortedByServiceID(t *testing.T) {
 	bc := NewBroadcaster(sse.NewHub())
 	now := time.Unix(1700000000, 0)

@@ -787,6 +787,28 @@ Owner: soup (s0up4200@pm.me)
   - use that detection for both live events and snapshot hydration path
   - suppress `patch.stats` whenever releases payload shape is detected (prevents releases payload from clobbering autobrr stats card)
 - Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (fix)
+- Autobrr releases disappearing on page refresh (even after prior fix): root cause in backend snapshot merge payload shape.
+  - `autobrr_stats` and `autobrr_releases` both used the same key (`stats.autobrr`) with different object shapes.
+  - snapshot merge kept only last shape for that key, so one side got clobbered before frontend ever saw it.
+- Backend fix:
+  - namespaced Autobrr payloads under stable nested keys:
+    - stats event => `stats.autobrr.stats`
+    - releases event => `stats.autobrr.releases`
+  - updated both poller emitters and handler broadcast helpers.
+- Frontend compatibility fix:
+  - Autobrr stats card now reads nested `stats.autobrr.stats` (with fallback for legacy shape).
+  - release extractor handles nested releases (`stats.autobrr.releases`) and legacy top-level `stats.autobrr.data`.
+- Regression coverage:
+  - `internal/api/handlers/broadcast_test.go`: new test asserts snapshot keeps both `autobrr.stats` and `autobrr.releases` fields after consecutive events.
+- Files:
+  - `internal/api/handlers/poller.go`
+  - `internal/api/handlers/autobrr.go`
+  - `internal/api/handlers/broadcast_test.go`
+  - `web/src/hooks/serviceData/merge.ts`
+  - `web/src/components/services/autobrr/AutobrrStats.tsx`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

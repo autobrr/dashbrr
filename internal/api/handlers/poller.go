@@ -575,7 +575,9 @@ func (p *Poller) runAutobrrStats(ctx context.Context, svc models.ServiceConfigur
 			Message:     "autobrr_stats",
 			LastChecked: time.Now(),
 			Stats: map[string]interface{}{
-				"autobrr": stats,
+				"autobrr": map[string]interface{}{
+					"stats": stats,
+				},
 			},
 		})
 	}
@@ -614,7 +616,9 @@ func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfi
 			Message:     "autobrr_releases",
 			LastChecked: time.Now(),
 			Stats: map[string]interface{}{
-				"autobrr": releases,
+				"autobrr": map[string]interface{}{
+					"releases": releases,
+				},
 			},
 		})
 	}
