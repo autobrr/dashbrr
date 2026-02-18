@@ -5,8 +5,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -17,7 +15,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
@@ -69,22 +66,9 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 	})
 
 	if err != nil {
-		if errors.Is(err, ErrServiceNotConfigured) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if handleArrFetchError(c, err, "Radarr", instanceId, "queue") {
 			return
 		}
-		if arrErr, ok := err.(*arr.ErrArr); ok {
-			log.Error().
-				Err(arrErr).
-				Str("instanceId", instanceId).
-				Msg("[Radarr] Failed to fetch queue")
-
-			if arrErr.HttpCode > 0 {
-				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
-				return
-			}
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch queue: %v", err)})
 		return
 	}
 

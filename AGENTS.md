@@ -277,6 +277,9 @@ Owner: soup (s0up4200@pm.me)
 - SSE/events: added hub `SubscriberCount()` and switched connect/disconnect logs to debug with `client_id` + subscriber count (reduces noisy INFO churn)
 - SSE/events: stream now emits `retry: 5000` directive so browser reconnects back off to 5s on disconnects
 - SSE tests: added `internal/sse/hub_test.go` for subscribe/unsubscribe lifecycle and close cleanup subscriber-count behavior
+- API/arr handlers: added shared `handleArrFetchError(...)` for not-configured/upstream-status/internal error mapping
+- Sonarr/Radarr handlers: queue/stats fetch endpoints now use shared ARR fetch-error responder (removed duplicated error branches)
+- API tests: added `internal/api/handlers/arr_handler_test.go` coverage for 404 not-configured, upstream-status normalization, and 500 fallback
 
 ### 2026-02-18 (sse async hardening)
 - SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.

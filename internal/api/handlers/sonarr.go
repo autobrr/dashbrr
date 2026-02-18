@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -17,7 +16,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
@@ -78,22 +76,9 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 	})
 
 	if err != nil {
-		if errors.Is(err, ErrServiceNotConfigured) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if handleArrFetchError(c, err, "Sonarr", instanceId, "queue") {
 			return
 		}
-		if arrErr, ok := err.(*arr.ErrArr); ok {
-			log.Error().
-				Err(arrErr).
-				Str("instanceId", instanceId).
-				Msg("[Sonarr] Failed to fetch queue")
-
-			if arrErr.HttpCode > 0 {
-				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
-				return
-			}
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch queue: %v", err)})
 		return
 	}
 
@@ -171,22 +156,9 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 	})
 
 	if err != nil {
-		if errors.Is(err, ErrServiceNotConfigured) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if handleArrFetchError(c, err, "Sonarr", instanceId, "stats") {
 			return
 		}
-		if arrErr, ok := err.(*arr.ErrArr); ok {
-			log.Error().
-				Err(arrErr).
-				Str("instanceId", instanceId).
-				Msg("[Sonarr] Failed to fetch stats")
-
-			if arrErr.HttpCode > 0 {
-				c.JSON(normalizeUpstreamStatus(arrErr.HttpCode), gin.H{"error": arrErr.Error()})
-				return
-			}
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch stats: %v", err)})
 		return
 	}
 
