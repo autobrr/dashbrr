@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -170,6 +171,21 @@ func extractJWTNonce(rawIDToken string) (string, error) {
 		return "", fmt.Errorf("id_token missing nonce")
 	}
 	return claims.Nonce, nil
+}
+
+func buildLogoutURL(issuer string, clientID string, frontendURL string) string {
+	logoutBase := strings.TrimRight(issuer, "/") + "/v2/logout"
+	logoutURL, err := url.Parse(logoutBase)
+	if err != nil {
+		return fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s", strings.TrimRight(issuer, "/"), clientID, frontendURL)
+	}
+
+	query := logoutURL.Query()
+	query.Set("client_id", clientID)
+	query.Set("returnTo", frontendURL)
+	logoutURL.RawQuery = query.Encode()
+
+	return logoutURL.String()
 }
 
 type oidcStateData struct {
@@ -400,11 +416,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		true,
 	)
 
-	logoutURL := fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s",
-		strings.TrimRight(h.config.Issuer, "/"),
-		h.config.ClientID,
-		frontendUrl,
-	)
+	logoutURL := buildLogoutURL(h.config.Issuer, h.config.ClientID, frontendUrl)
 	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
 }
 

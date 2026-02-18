@@ -292,3 +292,19 @@ func TestGetProviderEndpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildLogoutURL(t *testing.T) {
+	issuer := "https://test.auth0.com/"
+	clientID := "test-client-id"
+	frontendURL := "http://localhost:3000/login?next=/settings&msg=a b"
+
+	logoutURL := buildLogoutURL(issuer, clientID, frontendURL)
+
+	parsed, err := url.Parse(logoutURL)
+	assert.NoError(t, err)
+	assert.Equal(t, "https", parsed.Scheme)
+	assert.Equal(t, "test.auth0.com", parsed.Host)
+	assert.Equal(t, "/v2/logout", parsed.Path)
+	assert.Equal(t, clientID, parsed.Query().Get("client_id"))
+	assert.Equal(t, frontendURL, parsed.Query().Get("returnTo"))
+}
