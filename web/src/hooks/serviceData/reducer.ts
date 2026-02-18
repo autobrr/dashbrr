@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { Service, ServiceConfig } from "../../types/service";
+import { Service, ServiceConfig, ServiceStatus } from "../../types/service";
 import {
   applyServicePatch,
   hydrateServicesFromConfigurations,
 } from "./merge";
+import type { ServicePatchSnapshot } from "./merge";
 
 export type ServiceDataState = {
   services: Map<string, Service>;
@@ -20,9 +21,14 @@ export type ServiceDataAction =
   | {
       type: "hydrate_configurations";
       configurations: Record<string, ServiceConfig>;
-      latestPatchByInstance: Map<string, Partial<Service>>;
+      latestPatchByInstance: Map<string, ServicePatchSnapshot>;
     }
-  | { type: "apply_patch"; instanceId: string; patch: Partial<Service> };
+  | {
+      type: "apply_patch";
+      instanceId: string;
+      patch: Partial<Service>;
+      internalStatus?: ServiceStatus;
+    };
 
 export const initialServiceDataState: ServiceDataState = {
   services: new Map(),
@@ -65,7 +71,8 @@ export const serviceDataReducer = (
         services: applyServicePatch(
           state.services,
           action.instanceId,
-          action.patch
+          action.patch,
+          action.internalStatus
         ),
       };
 

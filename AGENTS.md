@@ -1092,6 +1092,36 @@ Owner: soup (s0up4200@pm.me)
   - avoids clearing existing update state on SSE events that omit `updateAvailable`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-18 (regression fix: slow services skeleton/hang)
+- Regression source: timeout bucket pass used too aggressive default (`12s`) causing slower stats jobs to timeout repeatedly; cards stayed in skeleton/no-data state.
+- Fix (`internal/api/handlers/poller.go`):
+  - `pollerDefaultJobTimeout`: `12s` -> `25s` (restored safe baseline)
+  - `pollerHealthTimeout`: `15s` -> `25s`
+  - `pollerLongJobTimeout`: `20s` -> `35s` (keep isolation for known heavier jobs)
+  - pending timeout remains short (`5s`)
+- Follow-up root cause fix (scheduler jitter):
+  - removed non-blocking semaphore `default` skip in `maybeRun(...)`
+  - due jobs now wait for a worker slot instead of being dropped/retried each tick
+  - eliminates random startup/load jitter (3s..30s) from opportunistic slot misses
+  - updated test: `TestPollerMaybeRun_SemaphoreFullWaitsThenRuns` in `internal/api/handlers/poller_test.go`
+- Result: keep timeout-bucket architecture, remove aggressive timeout regression.
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-19 (regression fix: refresh hydrate status race)
+- Root cause:
+  - `hydrate_configurations` reapplied base service model (`status: loading`) over existing runtime service state.
+  - cached SSE patch map kept only latest `patch`; when latest event was `internal`, status hint was dropped.
+  - result: random cards stuck skeleton until next health tick (3s..30s) after refresh/startup.
+- Fixes (`web/src/hooks/serviceData/*`, `web/src/hooks/useServiceData.ts`):
+  - introduced `ServicePatchSnapshot { patch, internalStatus }` for cached SSE hydration input
+  - merge snapshots instead of overwrite (`mergeServicePatchSnapshot`) to keep nested stats/details + hints
+  - reducer/apply path accepts optional `internalStatus`
+  - hydrate now preserves runtime fields from existing service and refreshes config fields only (no status reset)
+  - hydrate applies cached snapshot with internal-status bootstrap for loading/pending/unknown states
+- Env/debug note:
+  - local curl confusion reproduced: `127.0.0.1:8080` was Java process (404), dashbrr bound on `localhost/[::1]:8080`.
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

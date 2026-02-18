@@ -22,6 +22,11 @@ type HealthPatchPresence = {
   hasResponseTime: boolean;
 };
 
+export type ServicePatchSnapshot = {
+  patch: Partial<Service>;
+  internalStatus?: ServiceStatus;
+};
+
 const INTERNAL_EVENT_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)+$/;
 
 const hasOwnProperty = (value: unknown, key: string): boolean =>
@@ -147,16 +152,64 @@ export const mergeServiceWithPatch = (
   details: mergeServicePayload(current.details, patch.details),
 });
 
+export const mergePartialServicePatch = (
+  current: Partial<Service> | undefined,
+  patch: Partial<Service>
+): Partial<Service> => ({
+  ...(current ?? {}),
+  ...patch,
+  stats: mergeServicePayload(current?.stats, patch.stats),
+  details: mergeServicePayload(current?.details, patch.details),
+});
+
+export const mergeServicePatchSnapshot = (
+  current: ServicePatchSnapshot | undefined,
+  patch: Partial<Service>,
+  internalStatus?: ServiceStatus
+): ServicePatchSnapshot => ({
+  patch: mergePartialServicePatch(current?.patch, patch),
+  internalStatus: internalStatus ?? current?.internalStatus,
+});
+
+const applyInternalStatus = (
+  current: Service,
+  internalStatus?: ServiceStatus
+): Service => {
+  if (!internalStatus) {
+    return current;
+  }
+
+  if (
+    current.status === "loading" ||
+    current.status === "pending" ||
+    current.status === "unknown"
+  ) {
+    return {
+      ...current,
+      status: internalStatus,
+    };
+  }
+
+  return current;
+};
+
+const applyPatchToService = (
+  current: Service,
+  patch: Partial<Service>,
+  internalStatus?: ServiceStatus
+): Service => applyInternalStatus(mergeServiceWithPatch(current, patch), internalStatus);
+
 export const applyServicePatch = (
   services: Map<string, Service>,
   instanceId: string,
-  patch: Partial<Service>
+  patch: Partial<Service>,
+  internalStatus?: ServiceStatus
 ): Map<string, Service> => {
   const current = services.get(instanceId);
   if (!current) return services;
 
   const next = new Map(services);
-  next.set(instanceId, mergeServiceWithPatch(current, patch));
+  next.set(instanceId, applyPatchToService(current, patch, internalStatus));
   return next;
 };
 
@@ -166,6 +219,7 @@ export const deriveHealthUpdate = (
   | {
       instanceId: string;
       patch: Partial<Service>;
+      internalStatus?: ServiceStatus;
     }
   | undefined => {
   if (typeof payload !== "object" || payload === null) {
@@ -191,17 +245,19 @@ export const deriveHealthUpdate = (
     hasUpdateAvailable: hasOwnProperty(payload, "updateAvailable"),
     hasResponseTime: hasOwnProperty(payload, "responseTime"),
   });
+  const internalEvent = isInternalServiceEvent(health);
 
   return {
     instanceId,
     patch,
+    internalStatus: internalEvent ? health.status : undefined,
   };
 };
 
 export const hydrateServicesFromConfigurations = (
   previous: Map<string, Service>,
   configurations: Record<string, ServiceConfig>,
-  latestPatchByInstance: Map<string, Partial<Service>>
+  latestPatchByInstance: Map<string, ServicePatchSnapshot>
 ): Map<string, Service> => {
   const next = new Map(previous);
   const configuredIds = new Set(Object.keys(configurations));
@@ -209,11 +265,28 @@ export const hydrateServicesFromConfigurations = (
   for (const [instanceId, config] of Object.entries(configurations)) {
     const base = buildServiceFromConfig(instanceId, config);
     const existing = next.get(instanceId);
-    let merged = existing ? { ...existing, ...base } : base;
+    let merged = existing
+      ? {
+          ...existing,
+          id: base.id,
+          instanceId: base.instanceId,
+          name: base.name,
+          type: base.type,
+          url: base.url,
+          accessUrl: base.accessUrl,
+          apiKey: base.apiKey,
+          displayName: base.displayName,
+          healthEndpoint: base.healthEndpoint,
+        }
+      : base;
 
-    const patch = latestPatchByInstance.get(instanceId);
-    if (patch) {
-      merged = mergeServiceWithPatch(merged, patch);
+    const snapshot = latestPatchByInstance.get(instanceId);
+    if (snapshot) {
+      merged = applyPatchToService(
+        merged,
+        snapshot.patch,
+        snapshot.internalStatus
+      );
     }
 
     next.set(instanceId, merged);

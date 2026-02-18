@@ -17,7 +17,11 @@ import {
 import { Service } from "../types/service";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { useAuth } from "./useAuth";
-import { deriveHealthUpdate } from "./serviceData/merge";
+import {
+  deriveHealthUpdate,
+  mergeServicePatchSnapshot,
+} from "./serviceData/merge";
+import type { ServicePatchSnapshot } from "./serviceData/merge";
 import {
   initialServiceDataState,
   serviceDataReducer,
@@ -58,7 +62,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   const reconnectTimeoutRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const mountedRef = useRef(true);
-  const latestPatchRef = useRef<Map<string, Partial<Service>>>(new Map());
+  const latestPatchRef = useRef<Map<string, ServicePatchSnapshot>>(new Map());
 
   const applyHealthUpdate = useCallback(
     (payload: unknown) => {
@@ -67,12 +71,21 @@ const useProvideServiceData = (): ServiceDataContextValue => {
         return;
       }
 
-      latestPatchRef.current.set(update.instanceId, update.patch);
+      const existing = latestPatchRef.current.get(update.instanceId);
+      latestPatchRef.current.set(
+        update.instanceId,
+        mergeServicePatchSnapshot(
+          existing,
+          update.patch,
+          update.internalStatus
+        )
+      );
 
       dispatch({
         type: "apply_patch",
         instanceId: update.instanceId,
         patch: update.patch,
+        internalStatus: update.internalStatus,
       });
     },
     []

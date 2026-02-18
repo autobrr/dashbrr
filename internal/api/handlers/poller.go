@@ -27,10 +27,10 @@ import (
 const (
 	pollerTickInterval      = 1 * time.Second
 	pollerServiceReloadTTL  = 15 * time.Second
-	pollerHealthTimeout     = 15 * time.Second
+	pollerHealthTimeout     = 25 * time.Second
 	pollerPendingTimeout    = 5 * time.Second
-	pollerDefaultJobTimeout = 12 * time.Second
-	pollerLongJobTimeout    = 20 * time.Second
+	pollerDefaultJobTimeout = 25 * time.Second
+	pollerLongJobTimeout    = 35 * time.Second
 	pollerMaxConcurrentUpst = 8
 	pollerSlowJobThreshold  = 5 * time.Second
 )
@@ -257,11 +257,6 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 			p.mu.Lock()
 			p.lastRun[key] = time.Now()
 			p.mu.Unlock()
-		default:
-			p.mu.Lock()
-			delete(p.inFlight, key)
-			p.mu.Unlock()
-			return
 		case <-ctx.Done():
 			p.mu.Lock()
 			delete(p.inFlight, key)
