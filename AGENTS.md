@@ -221,6 +221,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/add-services: fixed odd import path for modal; replaced large service switch logic with typed config maps; grouped+filtered categories via memo
 - Web/status-indicator: moved static parsing constants out of render; unified status display map; switched gray fallbacks to zinc for consistency
 - API/sonarr: removed dead `singleflight` field/import left after SWR migration
+- Web/login: registration-status check now uses shared `api` client (consistent timeout/error handling)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
