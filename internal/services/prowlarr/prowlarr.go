@@ -20,6 +20,12 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
+const (
+	// Prowlarr indexer stats endpoint accepts a relative day range.
+	prowlarrIndexerStatsStartDaysAgo = 1
+	prowlarrIndexerStatsEndDaysAgo   = 30
+)
+
 // Custom error types for better error handling
 type ErrProwlarr struct {
 	Op       string // Operation that failed
@@ -159,11 +165,10 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 
 	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
 
-	// Add query parameters for date range
-	// TODO MAKE THIS CONFIGURABLE IN THE UI
+	// Dashboard default window: last 30 days.
 	query := url.Values{}
-	query.Add("startDate", "1") // Last 1 day ago
-	query.Add("endDate", "30")  // Up to 30 days ago
+	query.Add("startDate", fmt.Sprintf("%d", prowlarrIndexerStatsStartDaysAgo))
+	query.Add("endDate", fmt.Sprintf("%d", prowlarrIndexerStatsEndDaysAgo))
 	statsURL = statsURL + "?" + query.Encode()
 
 	resp, err := s.makeRequest(ctx, http.MethodGet, statsURL, apiKey)
