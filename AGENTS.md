@@ -251,6 +251,8 @@ Owner: soup (s0up4200@pm.me)
 - Arr handlers: extracted shared queue-delete query parsing + error response helper into `internal/api/handlers/queue_delete.go` (used by Sonarr + Radarr)
 - Arr handlers: Sonarr/Radarr `DeleteQueueItem` now call shared `handleQueueDeleteError` (dedupe retry failure handling path)
 - Tests: added `internal/api/handlers/queue_delete_test.go` for query-flag parsing + error mapping statuses (404/502/500)
+- Sonarr service: `DeleteQueueItem` now returns `*arr.ErrArr` (not `ErrSonarr`) so handler upstream-status normalization path actually triggers
+- Sonarr tests: added `internal/services/sonarr/sonarr_test.go` regression coverage for delete validation errors returning `arr.ErrArr`
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)

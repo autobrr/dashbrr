@@ -77,11 +77,11 @@ func (s *SonarrService) makeRequest(ctx context.Context, method, url, apiKey str
 // DeleteQueueItem deletes a queue item with the specified options
 func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.SonarrQueueDeleteOptions) error {
 	if baseURL == "" {
-		return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("URL is required")}
+		return &arr.ErrArr{Service: "sonarr", Op: "delete_queue", Err: fmt.Errorf("URL is required")}
 	}
 
 	if apiKey == "" {
-		return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("API key is required")}
+		return &arr.ErrArr{Service: "sonarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
 
 	deleteURL := arr.BuildQueueDeleteURL(baseURL, queueId, arr.QueueDeleteOptions{
@@ -109,7 +109,7 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 			Str("url", deleteURL).
 			Str("queueId", queueId).
 			Msg("Failed to execute delete request")
-		return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
+		return &arr.ErrArr{Service: "sonarr", Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
 	}
 	defer resp.Body.Close()
 
@@ -123,9 +123,9 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 			Msg("Delete request failed")
 
 		if msg := arr.ExtractMessageField(body); msg != "" {
-			return &ErrSonarr{Op: "delete_queue", Err: fmt.Errorf("%s", msg), HttpCode: resp.StatusCode}
+			return &arr.ErrArr{Service: "sonarr", Op: "delete_queue", Err: fmt.Errorf("%s", msg), HttpCode: resp.StatusCode}
 		}
-		return &ErrSonarr{Op: "delete_queue", HttpCode: resp.StatusCode}
+		return &arr.ErrArr{Service: "sonarr", Op: "delete_queue", HttpCode: resp.StatusCode}
 	}
 
 	log.Info().
