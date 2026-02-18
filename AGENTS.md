@@ -870,6 +870,15 @@ Owner: soup (s0up4200@pm.me)
   - `web/src/hooks/useServiceData.ts`
   - `web/src/components/services/autobrr/AutobrrStats.tsx`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (perf)
+- Poller observability pass:
+  - added per-job completion telemetry in `maybeRun` with instance/service/job/duration fields.
+  - warn on slow jobs (`>=5s`) and warn on timeout (`context deadline exceeded`).
+  - keep normal completions at debug level to avoid noisy prod logs while enabling traceability.
+- File:
+  - `internal/api/handlers/poller.go`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

@@ -29,6 +29,7 @@ const (
 	pollerServiceReloadTTL  = 15 * time.Second
 	pollerJobTimeout        = 25 * time.Second
 	pollerMaxConcurrentUpst = 8
+	pollerSlowJobThreshold  = 5 * time.Second
 )
 
 type jobRunner func(*Poller, context.Context, models.ServiceConfiguration, string)
@@ -266,7 +267,34 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 		jobCtx, cancel := context.WithTimeout(ctx, pollerJobTimeout)
 		defer cancel()
 
+		started := time.Now()
 		run(p, jobCtx, svc, serviceType)
+		duration := time.Since(started)
+
+		baseLog := log.Debug().
+			Str("instance", svc.InstanceID).
+			Str("service", serviceType).
+			Str("job", job).
+			Dur("duration", duration)
+
+		switch {
+		case jobCtx.Err() == context.DeadlineExceeded:
+			log.Warn().
+				Str("instance", svc.InstanceID).
+				Str("service", serviceType).
+				Str("job", job).
+				Dur("duration", duration).
+				Msg("poller job exceeded timeout")
+		case duration >= pollerSlowJobThreshold:
+			log.Warn().
+				Str("instance", svc.InstanceID).
+				Str("service", serviceType).
+				Str("job", job).
+				Dur("duration", duration).
+				Msg("poller job completed slowly")
+		default:
+			baseLog.Msg("poller job completed")
+		}
 	}()
 }
 
