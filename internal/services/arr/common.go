@@ -174,3 +174,13 @@ func CheckArrForUpdates(ctx context.Context, service, url, apiKey string) (bool,
 
 	return false, nil
 }
+
+func ExtractMessageField(body []byte) string {
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return ""
+	}
+	return payload.Message
+}

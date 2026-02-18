@@ -368,6 +368,9 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-17 (cleanup)
 - Go: remove unused `internal/utils/type_conversion.go` (no remaining callers); `go test ./...` pass
+
+### 2026-02-17 (refactor)
+- Arr services: dedupe Sonarr/Radarr queue delete URL construction + error message parsing into `internal/services/arr`; add unit test
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Frontend: auth/session simplification (cookie-first; shrink localStorage token coupling); SSE auth hardening

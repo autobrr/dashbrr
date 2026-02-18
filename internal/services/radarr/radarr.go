@@ -52,18 +52,12 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
 
-	// Build delete URL with query parameters
-	deleteURL := fmt.Sprintf("%s/api/v3/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
-		strings.TrimRight(baseURL, "/"),
-		queueId,
-		options.RemoveFromClient,
-		options.Blocklist,
-		options.SkipRedownload)
-
-	// Add changeCategory parameter if needed
-	if options.ChangeCategory {
-		deleteURL += "&changeCategory=true"
-	}
+	deleteURL := arr.BuildQueueDeleteURL(baseURL, queueId, arr.QueueDeleteOptions{
+		RemoveFromClient: options.RemoveFromClient,
+		Blocklist:        options.Blocklist,
+		SkipRedownload:   options.SkipRedownload,
+		ChangeCategory:   options.ChangeCategory,
+	})
 
 	// Log delete attempt with all parameters
 	log.Info().
@@ -96,11 +90,8 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 			Str("response", string(body)).
 			Msg("Delete request failed")
 
-		var errorResponse struct {
-			Message string `json:"message"`
-		}
-		if err := json.Unmarshal(body, &errorResponse); err == nil && errorResponse.Message != "" {
-			return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("%s", errorResponse.Message), HttpCode: resp.StatusCode}
+		if msg := arr.ExtractMessageField(body); msg != "" {
+			return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("%s", msg), HttpCode: resp.StatusCode}
 		}
 		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", HttpCode: resp.StatusCode}
 	}
