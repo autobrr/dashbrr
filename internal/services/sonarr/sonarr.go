@@ -51,7 +51,7 @@ func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 }
 
 func (s *SonarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
-	body, err := arr.FetchQueueBody(
+	records, err := arr.FetchQueueRecords[types.QueueRecord](
 		ctx,
 		"sonarr",
 		url,
@@ -62,13 +62,7 @@ func (s *SonarrService) getQueueRecords(ctx context.Context, url, apiKey string)
 	if err != nil {
 		return nil, err
 	}
-
-	var queue types.SonarrQueueResponse
-	if err := json.Unmarshal(body, &queue); err != nil {
-		return nil, &arr.ErrArr{Service: "sonarr", Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
-	}
-
-	return queue.Records, nil
+	return records, nil
 }
 
 // GetQueue fetches the current queue from Sonarr.

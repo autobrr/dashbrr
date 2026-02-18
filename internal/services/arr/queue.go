@@ -5,6 +5,7 @@ package arr
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -79,4 +80,28 @@ func FetchQueueBody(
 	}
 
 	return body, nil
+}
+
+func FetchQueueRecords[T any](
+	ctx context.Context,
+	service, baseURL, apiKey, rawQuery string,
+	readBody func(*http.Response) ([]byte, error),
+) ([]T, error) {
+	body, err := FetchQueueBody(ctx, service, baseURL, apiKey, rawQuery, readBody)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload struct {
+		Records []T `json:"records"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
+	}
+
+	if payload.Records == nil {
+		return []T{}, nil
+	}
+
+	return payload.Records, nil
 }

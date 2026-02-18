@@ -3,6 +3,7 @@ package arr
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -116,6 +117,60 @@ func TestFetchQueueBody_Success(t *testing.T) {
 	}
 	if string(body) != `{"ok":true}` {
 		t.Fatalf("body = %q, want %q", string(body), `{"ok":true}`)
+	}
+}
+
+type testQueueRecord struct {
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+}
+
+func TestFetchQueueRecords_ParseError(t *testing.T) {
+	t.Parallel()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"records":[`))
+	}))
+	defer ts.Close()
+
+	readBody := func(resp *http.Response) ([]byte, error) {
+		return io.ReadAll(resp.Body)
+	}
+
+	_, err := FetchQueueRecords[testQueueRecord](context.Background(), "radarr", ts.URL, "key", "page=1", readBody)
+	var arrErr *ErrArr
+	if !errors.As(err, &arrErr) {
+		t.Fatalf("expected *ErrArr, got %T (%v)", err, err)
+	}
+	if arrErr.Op != "get_queue" {
+		t.Fatalf("op = %q, want %q", arrErr.Op, "get_queue")
+	}
+	if arrErr.Err == nil {
+		t.Fatalf("expected parse error")
+	}
+}
+
+func TestFetchQueueRecords_Success(t *testing.T) {
+	t.Parallel()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"records":[{"id":1,"title":"one"},{"id":2,"title":"two"}]}`))
+	}))
+	defer ts.Close()
+
+	readBody := func(resp *http.Response) ([]byte, error) {
+		return io.ReadAll(resp.Body)
+	}
+
+	records, err := FetchQueueRecords[testQueueRecord](context.Background(), "radarr", ts.URL, "key", "page=1", readBody)
+	if err != nil {
+		t.Fatalf("FetchQueueRecords failed: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("len(records) = %d, want 2", len(records))
+	}
+	if records[0].Title != "one" || records[1].Title != "two" {
+		t.Fatalf("unexpected records: %+v", records)
 	}
 }
 

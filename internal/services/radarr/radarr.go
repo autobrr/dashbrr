@@ -51,7 +51,7 @@ func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey str
 }
 
 func (s *RadarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
-	body, err := arr.FetchQueueBody(
+	records, err := arr.FetchQueueRecords[types.RadarrQueueRecord](
 		ctx,
 		"radarr",
 		url,
@@ -62,13 +62,7 @@ func (s *RadarrService) getQueueRecords(ctx context.Context, url, apiKey string)
 	if err != nil {
 		return nil, err
 	}
-
-	var queue types.RadarrQueueResponse
-	if err := json.Unmarshal(body, &queue); err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
-	}
-
-	return queue.Records, nil
+	return records, nil
 }
 
 // GetQueue fetches the current queue from Radarr.

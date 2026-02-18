@@ -268,6 +268,9 @@ Owner: soup (s0up4200@pm.me)
 - Arr queue plumbing: added shared `arr.BuildQueueURL` + `arr.FetchQueueBody` helper (URL/build/request/status/read validation)
 - Radarr/Sonarr: `getQueueRecords` now delegate queue HTTP path to shared ARR helper (less duplicated API-v3 queue fetch logic)
 - Arr queue tests: expanded `internal/services/arr/queue_test.go` with shared queue URL builder + queue fetch validation/status/success cases
+- Arr queue plumbing (pass 2): added generic `arr.FetchQueueRecords[T]` helper (typed records decode + shared parse error mapping)
+- Radarr/Sonarr: removed remaining per-service queue JSON decode blocks; both now use `FetchQueueRecords[T]`
+- Arr queue tests: added typed decode coverage for `FetchQueueRecords` parse error + success cases
 
 ### 2026-02-18 (sse async hardening)
 - SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.
