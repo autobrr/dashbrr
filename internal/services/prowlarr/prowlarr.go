@@ -44,12 +44,12 @@ func NewProwlarrService() models.ServiceHealthChecker {
 
 // GetSystemStatus fetches the system status from Prowlarr
 func (s *ProwlarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
-	return arr.GetArrSystemStatus(ctx, "prowlarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
+	return arr.GetArrSystemStatusWithVersion(ctx, "prowlarr", "v1", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
 }
 
 // CheckForUpdates checks if there are any updates available for Prowlarr.
 func (s *ProwlarrService) CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates(ctx, "prowlarr", url, apiKey)
+	return arr.CheckArrForUpdatesWithVersion(ctx, "prowlarr", "v1", url, apiKey)
 }
 
 // GetIndexers fetches indexer configuration and stats baseline from Prowlarr.

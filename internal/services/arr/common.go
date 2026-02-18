@@ -94,9 +94,9 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 }
 
 // GetArrSystemStatus provides a common implementation for getting system status.
-func GetArrSystemStatus(
+func GetArrSystemStatusWithVersion(
 	ctx context.Context,
-	service, url, apiKey string,
+	service, apiVersion, url, apiKey string,
 	getVersionFromCache func(context.Context, string) string,
 	cacheVersion func(context.Context, string, string, time.Duration) error,
 ) (string, error) {
@@ -109,7 +109,11 @@ func GetArrSystemStatus(
 		return version, nil
 	}
 
-	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
+	if apiVersion == "" {
+		apiVersion = "v3"
+	}
+
+	statusURL := fmt.Sprintf("%s/api/%s/system/status", strings.TrimRight(url, "/"), apiVersion)
 	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
@@ -136,13 +140,27 @@ func GetArrSystemStatus(
 	return status.Version, nil
 }
 
+// GetArrSystemStatus provides a common implementation for getting system status using v3 API.
+func GetArrSystemStatus(
+	ctx context.Context,
+	service, url, apiKey string,
+	getVersionFromCache func(context.Context, string) string,
+	cacheVersion func(context.Context, string, string, time.Duration) error,
+) (string, error) {
+	return GetArrSystemStatusWithVersion(ctx, service, "v3", url, apiKey, getVersionFromCache, cacheVersion)
+}
+
 // CheckArrForUpdates provides a common implementation for checking updates
-func CheckArrForUpdates(ctx context.Context, service, url, apiKey string) (bool, error) {
+func CheckArrForUpdatesWithVersion(ctx context.Context, service, apiVersion, url, apiKey string) (bool, error) {
 	if url == "" {
 		return false, &ErrArr{Service: service, Op: "check_for_updates", Err: fmt.Errorf("URL is required")}
 	}
 
-	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
+	if apiVersion == "" {
+		apiVersion = "v3"
+	}
+
+	updateURL := fmt.Sprintf("%s/api/%s/update", strings.TrimRight(url, "/"), apiVersion)
 	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
@@ -174,6 +192,11 @@ func CheckArrForUpdates(ctx context.Context, service, url, apiKey string) (bool,
 	}
 
 	return false, nil
+}
+
+// CheckArrForUpdates provides a common implementation for checking updates using v3 API.
+func CheckArrForUpdates(ctx context.Context, service, url, apiKey string) (bool, error) {
+	return CheckArrForUpdatesWithVersion(ctx, service, "v3", url, apiKey)
 }
 
 func ExtractMessageField(body []byte) string {

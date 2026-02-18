@@ -271,6 +271,9 @@ Owner: soup (s0up4200@pm.me)
 - Arr queue plumbing (pass 2): added generic `arr.FetchQueueRecords[T]` helper (typed records decode + shared parse error mapping)
 - Radarr/Sonarr: removed remaining per-service queue JSON decode blocks; both now use `FetchQueueRecords[T]`
 - Arr queue tests: added typed decode coverage for `FetchQueueRecords` parse error + success cases
+- Arr API versioning: added `GetArrSystemStatusWithVersion` + `CheckArrForUpdatesWithVersion` helpers (default wrappers still v3)
+- Prowlarr service: switched system-status/update-check calls to API `v1` endpoints (fixes mismatch with shared v3 defaults)
+- Arr common tests: added coverage for versioned endpoint pathing (`/api/v1/system/status`, `/api/v1/update`) and default-v3 fallback
 
 ### 2026-02-18 (sse async hardening)
 - SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.
