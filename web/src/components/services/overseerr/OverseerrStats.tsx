@@ -69,7 +69,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   const [modalAction, setModalAction] = useState<"approve" | "reject" | null>(
     null
   );
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const handleAction = async (
     request: OverseerrMediaRequest,

@@ -768,6 +768,15 @@ Owner: soup (s0up4200@pm.me)
   - `web/src/hooks/serviceData/reducer.ts`
   - `web/src/hooks/serviceData/merge.ts`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
+### 2026-02-18 (ui)
+- Collapsible section default behavior cleanup:
+  - root cause for "Recent Releases/Requests collapsed by default" was hardcoded `useState(false)` in component local state
+  - updated defaults to expanded/open for consistency with other service cards
+- Files:
+  - `web/src/components/services/autobrr/AutobrrStats.tsx`
+  - `web/src/components/services/overseerr/OverseerrStats.tsx`
+- Gates: pass (`pnpm -C web lint`, `pnpm -C web typecheck`)
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

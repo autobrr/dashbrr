@@ -30,7 +30,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   if (isLoading) {
     return <StatsSkeleton rows={3} />;
