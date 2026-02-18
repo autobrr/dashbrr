@@ -280,6 +280,9 @@ Owner: soup (s0up4200@pm.me)
 - API/arr handlers: added shared `handleArrFetchError(...)` for not-configured/upstream-status/internal error mapping
 - Sonarr/Radarr handlers: queue/stats fetch endpoints now use shared ARR fetch-error responder (removed duplicated error branches)
 - API tests: added `internal/api/handlers/arr_handler_test.go` coverage for 404 not-configured, upstream-status normalization, and 500 fallback
+- Web/SSE service merge: `useServiceData` now tracks optional-field presence from SSE payloads and only overwrites `version|updateAvailable|responseTime` when keys are present
+- Web/SSE hydration: added `latestPatchRef` replay map so config-hydration merge uses last precise patch (fixes version flicker/disappear between health vs stats events)
+- Auth middleware: extracted shared auth internals (`bypassSessionData`, bearer-token parser, dual-key session loader) to reduce RequireAuth/OptionalAuth duplication
 
 ### 2026-02-18 (sse async hardening)
 - SSE stability: disabled global HTTP server `WriteTimeout` for streaming responses (`internal/api/server.go`); avoids forced stream teardown every ~15s.

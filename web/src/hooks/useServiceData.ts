@@ -54,6 +54,17 @@ const parseDate = (v: unknown): Date | undefined => {
   return undefined;
 };
 
+const hasOwn = (value: unknown, key: string): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  Object.prototype.hasOwnProperty.call(value, key);
+
+type HealthPatchPresence = {
+  hasVersion: boolean;
+  hasUpdateAvailable: boolean;
+  hasResponseTime: boolean;
+};
+
 const useProvideServiceData = (): ServiceDataContextValue => {
   const { configurations } = useConfiguration();
   const { isAuthenticated } = useAuth();
@@ -66,6 +77,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
   const retryCountRef = useRef(0);
   const mountedRef = useRef(true);
   const latestHealthRef = useRef<Map<string, ServiceHealth>>(new Map());
+  const latestPatchRef = useRef<Map<string, Partial<Service>>>(new Map());
 
   const setServicesState = useCallback(
     (updater: (prev: Map<string, Service>) => Map<string, Service>) => {
@@ -117,22 +129,39 @@ const useProvideServiceData = (): ServiceDataContextValue => {
     };
   }, []);
 
-  const servicePatchFromHealth = useCallback((health: ServiceHealth): Partial<Service> => {
-    return {
+  const servicePatchFromHealth = useCallback(
+    (health: ServiceHealth, presence: HealthPatchPresence): Partial<Service> => {
+      const patch: Partial<Service> = {
       status: health.status,
       message: health.message,
-      responseTime: health.responseTime,
-      version: health.version,
-      updateAvailable: health.updateAvailable,
       lastChecked: health.lastChecked,
       stats: health.stats,
       details: health.details,
       health,
-    };
-  }, []);
+      };
+
+      if (presence.hasResponseTime) {
+        patch.responseTime = health.responseTime;
+      }
+      if (presence.hasVersion) {
+        patch.version = health.version;
+      }
+      if (presence.hasUpdateAvailable) {
+        patch.updateAvailable = health.updateAvailable;
+      }
+
+      return patch;
+    },
+    []
+  );
 
   const applyHealthUpdate = useCallback(
-    (raw: ServiceHealth) => {
+    (payload: unknown) => {
+      if (typeof payload !== "object" || payload === null) {
+        return;
+      }
+
+      const raw = payload as ServiceHealth;
       const instanceId = raw.serviceId;
       if (!instanceId) return;
 
@@ -142,8 +171,15 @@ const useProvideServiceData = (): ServiceDataContextValue => {
         lastChecked: lastChecked || new Date(),
       };
 
+      const patch = servicePatchFromHealth(health, {
+        hasVersion: hasOwn(payload, "version"),
+        hasUpdateAvailable: hasOwn(payload, "updateAvailable"),
+        hasResponseTime: hasOwn(payload, "responseTime"),
+      });
+
       latestHealthRef.current.set(instanceId, health);
-      updateService(instanceId, servicePatchFromHealth(health));
+      latestPatchRef.current.set(instanceId, patch);
+      updateService(instanceId, patch);
 
       if (health.message === "autobrr_releases" && health.stats?.autobrr) {
         const releases = health.stats.autobrr as unknown as AutobrrReleases;
@@ -190,7 +226,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
 
     es.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data) as ServiceHealth;
+        const data = JSON.parse(event.data) as unknown;
         applyHealthUpdate(data);
       } catch (err) {
         console.error("SSE parse error:", err);
@@ -240,6 +276,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
     if (!isAuthenticated) {
       setServicesState(() => new Map());
       latestHealthRef.current.clear();
+      latestPatchRef.current.clear();
       return;
     }
 
@@ -261,7 +298,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
 
         const latestHealth = latestHealthRef.current.get(instanceId);
         if (latestHealth) {
-          const patch = servicePatchFromHealth(latestHealth);
+          const patch = latestPatchRef.current.get(instanceId) ?? {};
           merged = {
             ...merged,
             ...patch,
