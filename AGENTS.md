@@ -216,6 +216,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/plex: stable playback key for timers + React keys (avoid collisions; less rerender churn)
 - Web/api client: removed request queue; simpler fetch wrapper; 401 redirect guard no longer resets (prevents cascades)
 - Omegabrr: confirmed fully removed (no code references remain; only this doc notes history)
+- CI: docker metadata action now passed explicit `github-token` (fix intermittent "Bad credentials" on PR docker jobs)
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
