@@ -225,6 +225,7 @@ Owner: soup (s0up4200@pm.me)
 - Web/add-services: swapped remaining gray utility classes to zinc equivalents (theme consistency with login/dashboard)
 - Web/login: guarded async registration-status effect with cancel flag to prevent setState after unmount
 - CI: added `pull-requests: read` workflow permission after docker metadata step still reported `Bad credentials` on PR runs
+- Web/service-card: replaced service-type switch with renderer map + extracted last-checked formatter + zinc class consistency pass
 
 ### 2026-02-16 (refactor)
 - API handlers: use request ctx for DB/service/cache calls (no `context.Background()` in request path); safer `strings.HasPrefix` instanceId checks (avoid slice panics)
