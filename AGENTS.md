@@ -1705,3 +1705,9 @@ Owner: soup (s0up4200@pm.me)
 ## Next
 - If desired, migrate Autobrr/Overseerr section titles to shared right-side metadata slot pattern for perfectly consistent header layout.
 - Optionally add one browser regression assertion for ArrQueue/Qui section expand-collapse persistence via localStorage.
+
+### 2026-02-20 (poller logs: explicit ms units)
+- Poller timing logs now emit explicit millisecond fields to remove ambiguity:
+  - `duration_ms`
+  - `queue_delay_ms`
+- Updated in `internal/api/handlers/poller.go` for trace/warn paths (`completed`, `failed`, `slow`, `timeout`).

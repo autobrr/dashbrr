@@ -45,6 +45,10 @@ const (
 	pollerMediumJobTimeout  = 20 * time.Second
 )
 
+func durationMs(d time.Duration) float64 {
+	return float64(d) / float64(time.Millisecond)
+}
+
 type jobRunner func(*Poller, context.Context, models.ServiceConfiguration, string) error
 
 type jobSpec struct {
@@ -403,8 +407,8 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 			Str("instance", svc.InstanceID).
 			Str("service", serviceType).
 			Str("job", job).
-			Dur("queue_delay", queueDelay).
-			Dur("duration", duration)
+			Float64("queue_delay_ms", durationMs(queueDelay)).
+			Float64("duration_ms", durationMs(duration))
 
 		switch {
 		case err != nil:
@@ -413,8 +417,8 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 				Str("instance", svc.InstanceID).
 				Str("service", serviceType).
 				Str("job", job).
-				Dur("queue_delay", queueDelay).
-				Dur("duration", duration)
+				Float64("queue_delay_ms", durationMs(queueDelay)).
+				Float64("duration_ms", durationMs(duration))
 			if !lastOKRun.IsZero() {
 				failedLog = failedLog.Dur("stale_for", staleFor)
 			}
@@ -442,16 +446,16 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 				Str("instance", svc.InstanceID).
 				Str("service", serviceType).
 				Str("job", job).
-				Dur("queue_delay", queueDelay).
-				Dur("duration", duration).
+				Float64("queue_delay_ms", durationMs(queueDelay)).
+				Float64("duration_ms", durationMs(duration)).
 				Msg("poller job exceeded timeout")
 		case duration >= pollerSlowJobThreshold:
 			log.Warn().
 				Str("instance", svc.InstanceID).
 				Str("service", serviceType).
 				Str("job", job).
-				Dur("queue_delay", queueDelay).
-				Dur("duration", duration).
+				Float64("queue_delay_ms", durationMs(queueDelay)).
+				Float64("duration_ms", durationMs(duration)).
 				Msg("poller job completed slowly")
 		default:
 			baseLog.Msg("poller job completed")
