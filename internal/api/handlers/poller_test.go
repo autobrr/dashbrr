@@ -5,10 +5,12 @@ package handlers
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/sse"
 )
 
 func TestPollerMaybeRun_CanceledContextBeforeSemaphoreAcquireClearsInFlight(t *testing.T) {
@@ -324,5 +326,58 @@ func TestPollerMarkFirstHealthSeen_RequiresStartupTimestamp(t *testing.T) {
 	}
 	if elapsed != 0 {
 		t.Fatalf("expected elapsed=0 when startedAt is zero, got %v", elapsed)
+	}
+}
+
+func TestPollerMaybeRun_FailureRepublishesLastKnownDetails(t *testing.T) {
+	hub := sse.NewHub()
+	bc := NewBroadcaster(hub)
+	p := NewPoller(nil, bc)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sub, _ := hub.Subscribe(ctx, 8)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "radarr-1",
+		Status:      "online",
+		Message:     "radarr_queue",
+		EventType:   models.ServiceEventInternal,
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"radarr": map[string]interface{}{"queue": map[string]interface{}{"totalRecords": float64(2)}},
+		},
+	})
+
+	// Drain seed publish from channel; fallback publish should emit another payload.
+	select {
+	case <-sub:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("expected seed publish payload")
+	}
+
+	svc := models.ServiceConfiguration{
+		InstanceID: "radarr-1",
+		URL:        "http://example",
+		APIKey:     "key",
+	}
+	job := "radarr_queue"
+	key := svc.InstanceID + ":" + job
+	p.mu.Lock()
+	p.lastOKRun[key] = time.Now().Add(-time.Minute)
+	p.mu.Unlock()
+
+	sem := make(chan struct{}, 1)
+	p.maybeRun(context.Background(), sem, svc, "radarr", job, time.Minute, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+		return context.DeadlineExceeded
+	})
+
+	select {
+	case payload := <-sub:
+		if !strings.Contains(string(payload), `"serviceId":"radarr-1"`) {
+			t.Fatalf("unexpected fallback payload: %q", string(payload))
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("expected fallback republish payload after failed detail job")
 	}
 }

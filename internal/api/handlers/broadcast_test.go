@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -591,5 +592,50 @@ func TestBroadcasterSnapshotSkipsEmptyServiceID(t *testing.T) {
 	snapshot := bc.Snapshot()
 	if len(snapshot) != 0 {
 		t.Fatalf("expected empty snapshot, got %d", len(snapshot))
+	}
+}
+
+func TestBroadcasterPublishLatestRepublishesCachedPayload(t *testing.T) {
+	hub := sse.NewHub()
+	bc := NewBroadcaster(hub)
+	now := time.Unix(1700000000, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sub, _ := hub.Subscribe(ctx, 4)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "radarr-1",
+		Status:      "online",
+		Message:     "Healthy",
+		LastChecked: now,
+	})
+
+	// Drain initial publish.
+	select {
+	case <-sub:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("expected initial publish payload")
+	}
+
+	if !bc.PublishLatest("radarr-1") {
+		t.Fatalf("expected PublishLatest to succeed for known service")
+	}
+
+	select {
+	case payload := <-sub:
+		if !strings.Contains(string(payload), `"serviceId":"radarr-1"`) {
+			t.Fatalf("unexpected republished payload: %q", string(payload))
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("expected republished cached payload")
+	}
+}
+
+func TestBroadcasterPublishLatestUnknownService(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	if bc.PublishLatest("missing-service") {
+		t.Fatalf("expected PublishLatest to return false for unknown service")
 	}
 }

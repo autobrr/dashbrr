@@ -77,6 +77,24 @@ func (b *Broadcaster) Snapshot() [][]byte {
 	return out
 }
 
+// PublishLatest re-publishes the latest known service payload to active subscribers.
+// Returns false when no cached payload exists for the service.
+func (b *Broadcaster) PublishLatest(serviceID string) bool {
+	if b == nil || b.hub == nil || serviceID == "" {
+		return false
+	}
+
+	b.mu.RLock()
+	health, ok := b.latest[serviceID]
+	b.mu.RUnlock()
+	if !ok {
+		return false
+	}
+
+	b.hub.Publish(EncodeHealthAsSSE(health))
+	return true
+}
+
 func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	merged := prev
 	merged.ServiceID = next.ServiceID

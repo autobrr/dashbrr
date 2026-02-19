@@ -8,6 +8,23 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-19
+- Poller architecture hardening (next-item #4)
+  - scheduler now deterministic by instance order (`InstanceID` sort) before dispatch
+  - forced-tick detail policy tightened:
+    - startup/global forced tick bootstraps detail jobs only when no successful prior run exists
+    - targeted forced tick (`Refresh(instanceID)`) runs full detail pass for that instance immediately
+  - poller `lastRun` now stamps at actual job start (queue-delay no longer shifts interval windows)
+  - failure fallback: detail-job timeout/error with prior success now re-publishes last-known service payload (`Broadcaster.PublishLatest`) so connected clients keep populated cards during upstream failures
+  - tests added/updated:
+    - `internal/api/handlers/poller_tick_test.go`: forced bootstrap-once + targeted forced detail refresh isolation
+    - `internal/api/handlers/poller_test.go`: failed detail job republishes cached payload
+    - `internal/api/handlers/broadcast_test.go`: `PublishLatest` known/unknown service behavior
+  - verification:
+    - `go test ./...`
+    - `pnpm -C web test`
+    - `pnpm -C web lint`
+    - `pnpm -C web typecheck`
+    - `pnpm -C web build`
 - Poller/SSE regression guardrails (next-item #3)
   - added `internal/api/handlers/events_test.go`:
     - locks SSE stream contract for reconnects: writes `retry: 5000`, replays snapshot immediately, then streams live events in-order

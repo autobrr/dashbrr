@@ -52,6 +52,24 @@ func waitForLastRun(t *testing.T, p *Poller, key string, timeout time.Duration) 
 	return time.Time{}
 }
 
+func waitForLastOKRun(t *testing.T, p *Poller, key string, timeout time.Duration) time.Time {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		last := p.lastOKRun[key]
+		p.mu.Unlock()
+		if !last.IsZero() {
+			return last
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	t.Fatalf("expected lastOKRun[%q] within %v", key, timeout)
+	return time.Time{}
+}
+
 func setupPollerTickTestDB(t *testing.T) (*database.DB, func()) {
 	t.Helper()
 
@@ -75,7 +93,7 @@ func setupPollerTickTestDB(t *testing.T) (*database.DB, func()) {
 	return db, cleanup
 }
 
-func TestPollerTick_ForcedRunSkipsStatsJobs(t *testing.T) {
+func TestPollerTick_ForcedRunBootstrapsStatsOnce(t *testing.T) {
 	db, cleanup := setupPollerTickTestDB(t)
 	defer cleanup()
 
@@ -114,20 +132,23 @@ func TestPollerTick_ForcedRunSkipsStatsJobs(t *testing.T) {
 	p.tick(context.Background(), healthSem, statsSem, true, "")
 
 	waitForLastRun(t, p, "plex-1:health", 300*time.Millisecond)
+	waitForLastRun(t, p, "plex-1:test_stats", 300*time.Millisecond)
+	waitForLastOKRun(t, p, "plex-1:test_stats", 300*time.Millisecond)
 
-	time.Sleep(100 * time.Millisecond)
 	select {
 	case <-statsRan:
-		t.Fatalf("expected forced tick to skip stats jobs")
-	default:
+	case <-time.After(300 * time.Millisecond):
+		t.Fatalf("expected forced startup tick to bootstrap stats jobs")
 	}
 
-	p.mu.Lock()
-	if !p.lastRun["plex-1:test_stats"].IsZero() {
-		p.mu.Unlock()
-		t.Fatalf("expected forced tick to leave stats lastRun empty")
+	p.tick(context.Background(), healthSem, statsSem, true, "")
+
+	time.Sleep(120 * time.Millisecond)
+	select {
+	case <-statsRan:
+		t.Fatalf("expected forced startup tick to skip already-bootstrapped stats jobs")
+	default:
 	}
-	p.mu.Unlock()
 }
 
 func TestPollerTick_HealthStillRunsWithSlowStatsJob(t *testing.T) {
@@ -276,18 +297,58 @@ func TestPollerTick_ForcedRefreshOnlyTargetsRequestedInstance(t *testing.T) {
 			health: models.ServiceHealth{Status: "online", Message: "Healthy"},
 		},
 	}
+	radarrStatsRan := make(chan struct{}, 2)
+	plexStatsRan := make(chan struct{}, 2)
+	p.jobs["radarr"] = []jobSpec{
+		{
+			name:     "test_radarr_stats",
+			interval: time.Minute,
+			timeout:  time.Second,
+			run: func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+				radarrStatsRan <- struct{}{}
+				return nil
+			},
+		},
+	}
+	p.jobs["plex"] = []jobSpec{
+		{
+			name:     "test_plex_stats",
+			interval: time.Minute,
+			timeout:  time.Second,
+			run: func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+				plexStatsRan <- struct{}{}
+				return nil
+			},
+		},
+	}
 
 	healthSem := make(chan struct{}, 1)
 	statsSem := make(chan struct{}, 1)
 	p.tick(context.Background(), healthSem, statsSem, true, "radarr-1")
 
 	waitForLastRun(t, p, "radarr-1:health", 300*time.Millisecond)
+	waitForLastRun(t, p, "radarr-1:test_radarr_stats", 300*time.Millisecond)
+
+	select {
+	case <-radarrStatsRan:
+	case <-time.After(300 * time.Millisecond):
+		t.Fatalf("expected forced refresh for radarr-1 to run radarr stats")
+	}
 
 	time.Sleep(60 * time.Millisecond)
 	p.mu.Lock()
 	plexHealthRun := p.lastRun["plex-1:health"]
+	plexStatsRun := p.lastRun["plex-1:test_plex_stats"]
 	p.mu.Unlock()
 	if !plexHealthRun.IsZero() {
 		t.Fatalf("expected forced refresh for radarr-1 to skip unrelated plex-1 health run")
+	}
+	if !plexStatsRun.IsZero() {
+		t.Fatalf("expected forced refresh for radarr-1 to skip unrelated plex-1 stats run")
+	}
+	select {
+	case <-plexStatsRan:
+		t.Fatalf("expected no plex stats run for radarr-targeted forced refresh")
+	default:
 	}
 }

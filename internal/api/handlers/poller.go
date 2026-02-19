@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"sort"
 	"sync"
 	"time"
 
@@ -200,6 +201,9 @@ func (p *Poller) tick(ctx context.Context, healthSem, statsSem chan struct{}, fo
 			configured: isServiceConfigured(serviceType, svc),
 		})
 	}
+	sort.Slice(pollServices, func(i, j int) bool {
+		return pollServices[i].cfg.InstanceID < pollServices[j].cfg.InstanceID
+	})
 
 	// Pass 1: enqueue health for every service first so version-bearing health checks
 	// are not delayed behind stats jobs on startup and forced refreshes.
@@ -211,21 +215,31 @@ func (p *Poller) tick(ctx context.Context, healthSem, statsSem chan struct{}, fo
 		p.maybeRun(ctx, healthSem, ps.cfg, ps.kind, "health", 60*time.Second, pollerPendingTimeout, force, (*Poller).runPending)
 	}
 
-	// Pass 2: enqueue stats only for configured services.
-	// On forced ticks (startup/manual refresh), prioritize status correctness first.
-	// Stats follow on the next normal tick.
-	if force {
-		return
-	}
-
+	// Pass 2: enqueue detail jobs for configured services.
+	// Forced tick behavior:
+	// - startup/global forced run: only bootstrap jobs without a successful prior run
+	// - targeted forced run: run all detail jobs for the target instance immediately
 	for _, ps := range pollServices {
 		if !ps.configured {
 			continue
 		}
 		for _, job := range p.jobs[ps.kind] {
+			if force {
+				if onlyInstance == "" && !p.shouldRunBootstrapDetail(ps.cfg.InstanceID, job.name) {
+					continue
+				}
+			}
 			p.maybeRun(ctx, statsSem, ps.cfg, ps.kind, job.name, job.interval, effectiveJobTimeout(job.timeout), force, job.run)
 		}
 	}
+}
+
+func (p *Poller) shouldRunBootstrapDetail(instanceID, job string) bool {
+	key := instanceID + ":" + job
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.lastOKRun[key].IsZero()
 }
 
 func effectiveJobTimeout(timeout time.Duration) time.Duration {
@@ -342,6 +356,11 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 
 		started := time.Now()
 		queueDelay := started.Sub(queuedAt)
+
+		p.mu.Lock()
+		p.lastRun[key] = started
+		p.mu.Unlock()
+
 		var err error
 		func() {
 			defer func() {
@@ -362,7 +381,6 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 		)
 
 		p.mu.Lock()
-		p.lastRun[key] = now
 		if err != nil {
 			p.failed[key] = true
 			lastOKRun = p.lastOKRun[key]
@@ -401,6 +419,15 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 				failedLog = failedLog.Dur("stale_for", staleFor)
 			}
 			failedLog.Msg("poller job failed")
+			if job != "health" && !lastOKRun.IsZero() {
+				if p.bc.PublishLatest(svc.InstanceID) {
+					log.Debug().
+						Str("instance", svc.InstanceID).
+						Str("service", serviceType).
+						Str("job", job).
+						Msg("republished last-known service payload after job failure")
+				}
+			}
 			if shouldWarnStale {
 				log.Warn().
 					Str("instance", svc.InstanceID).
