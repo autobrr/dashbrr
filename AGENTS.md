@@ -46,6 +46,10 @@ Owner: soup (s0up4200@pm.me)
   - removed unused OIDC token fields from cached `SessionData` (access/refresh/id token, token type)
   - auth now stores only session metadata needed at runtime (`expires_at`, `auth_type`, `user_id`)
   - full gate green after middleware + handler updates
+- SSE route cleanup
+  - removed legacy `/api/health/events` SSE alias; canonical stream path is `/api/events`
+  - updated Vite dev proxy SSE header hint to only match `/api/events`
+  - full gate green after route cleanup
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`

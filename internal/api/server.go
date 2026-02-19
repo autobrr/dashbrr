@@ -232,12 +232,11 @@ func (s *Server) Handler() http.Handler {
 			plexAuth.GET("/pin/:pinId", plexAuthHandler.GetPIN)
 		}
 
-		// Health check endpoints (no cache for SSE)
+		// Health check endpoints
 		health := api.Group("/health")
 		health.Use(healthRateLimiter.RateLimit())
 		{
 			health.GET("/:service", healthHandler.CheckHealth)
-			health.GET("/events", eventsHandler.Stream) // backwards-compatible
 		}
 
 		// SSE events (preferred)
