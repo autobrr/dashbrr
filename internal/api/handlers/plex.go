@@ -51,17 +51,8 @@ func NewPlexHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *PlexHa
 }
 
 func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	// Verify this is a Plex instance
-	if !strings.HasPrefix(instanceId, "plex") {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Plex instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Plex instance ID"})
+	instanceId, ok := requireInstanceID(c, "plex", "Plex")
+	if !ok {
 		return
 	}
 

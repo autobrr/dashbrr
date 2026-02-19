@@ -12,10 +12,17 @@ import (
 )
 
 func requireInstanceID(c *gin.Context, prefix, serviceName string) (string, bool) {
+	return requireInstanceIDWithMissingMessage(c, prefix, serviceName, "")
+}
+
+func requireInstanceIDWithMissingMessage(c *gin.Context, prefix, serviceName, missingMessage string) (string, bool) {
 	instanceID := c.Query("instanceId")
 	if instanceID == "" {
+		if missingMessage == "" {
+			missingMessage = "instanceId is required"
+		}
 		log.Error().Str("service", serviceName).Msg("No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": missingMessage})
 		return "", false
 	}
 

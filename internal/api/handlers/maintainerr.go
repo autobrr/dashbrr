@@ -104,17 +104,8 @@ func determineErrorResponse(err error) (int, string) {
 }
 
 func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Maintainerr] No instance ID provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
-		return
-	}
-
-	// Verify this is a Maintainerr instance
-	if !strings.HasPrefix(instanceId, "maintainerr") {
-		log.Error().Str("instanceId", instanceId).Msg("[Maintainerr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Maintainerr instance ID"})
+	instanceId, ok := requireInstanceIDWithMissingMessage(c, "maintainerr", "Maintainerr", "Instance ID is required")
+	if !ok {
 		return
 	}
 

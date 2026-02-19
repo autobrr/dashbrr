@@ -162,17 +162,8 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 }
 
 func (h *OverseerrHandler) GetRequests(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	// Verify this is an Overseerr instance
-	if !strings.HasPrefix(instanceId, "overseerr") {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Overseerr instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Overseerr instance ID"})
+	instanceId, ok := requireInstanceID(c, "overseerr", "Overseerr")
+	if !ok {
 		return
 	}
 

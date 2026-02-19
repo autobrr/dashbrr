@@ -1185,6 +1185,21 @@ Owner: soup (s0up4200@pm.me)
   - verifies second run keeps first all-time totals when `/torrents` temporarily fails, while speeds still update
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (refactor: shared instanceId validation path)
+- Removed repeated instance query/prefix validation boilerplate in handlers:
+  - migrated `Autobrr` (`GetAutobrrReleases`, `GetAutobrrReleaseStats`, `GetAutobrrIRCStatus`)
+  - migrated `Maintainerr` (`GetMaintainerrCollections`)
+  - migrated `Plex` (`GetPlexSessions`)
+  - migrated `Overseerr` (`GetRequests`)
+- Added `requireInstanceIDWithMissingMessage(...)` in `internal/api/handlers/instance_id.go`:
+  - reuses same prefix validation path
+  - supports preserving existing custom missing-id error text where needed
+  - existing `requireInstanceID(...)` now delegates to this helper
+- Added unit coverage:
+  - `TestRequireInstanceIDWithMissingMessage` in `internal/api/handlers/instance_id_test.go`
+- Goal: KISS/DRY on request validation paths; lower drift risk between handlers.
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

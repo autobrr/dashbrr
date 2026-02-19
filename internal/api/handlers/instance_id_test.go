@@ -90,3 +90,38 @@ func TestRequireInstanceID(t *testing.T) {
 		})
 	}
 }
+
+func TestRequireInstanceIDWithMissingMessage(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	c.Request = req
+
+	gotID, gotOK := requireInstanceIDWithMissingMessage(
+		c,
+		"autobrr",
+		"Autobrr",
+		"Instance ID is required",
+	)
+
+	if gotOK {
+		t.Fatal("requireInstanceIDWithMissingMessage() ok = true, want false")
+	}
+	if gotID != "" {
+		t.Fatalf("requireInstanceIDWithMissingMessage() id = %q, want empty", gotID)
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+
+	var payload map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
+	if payload["error"] != "Instance ID is required" {
+		t.Fatalf("error message = %q, want %q", payload["error"], "Instance ID is required")
+	}
+}

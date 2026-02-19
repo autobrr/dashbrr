@@ -65,16 +65,8 @@ func NewAutobrrHandler(db *database.DB, store cache.Store, bc *Broadcaster) *Aut
 }
 
 func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("No instance ID provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "autobrr") {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
+	instanceId, ok := requireInstanceIDWithMissingMessage(c, "autobrr", "Autobrr", "Instance ID is required")
+	if !ok {
 		return
 	}
 
@@ -130,16 +122,8 @@ func (h *AutobrrHandler) GetAutobrrReleases(c *gin.Context) {
 }
 
 func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("No instance ID provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "autobrr") {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
+	instanceId, ok := requireInstanceIDWithMissingMessage(c, "autobrr", "Autobrr", "Instance ID is required")
+	if !ok {
 		return
 	}
 
@@ -195,16 +179,8 @@ func (h *AutobrrHandler) GetAutobrrReleaseStats(c *gin.Context) {
 }
 
 func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("No instance ID provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
-		return
-	}
-
-	if !strings.HasPrefix(instanceId, "autobrr") {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Autobrr instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Autobrr instance ID"})
+	instanceId, ok := requireInstanceIDWithMissingMessage(c, "autobrr", "Autobrr", "Instance ID is required")
+	if !ok {
 		return
 	}
 
