@@ -1305,6 +1305,23 @@ Owner: soup (s0up4200@pm.me)
   - guards future helper refactors from silently changing handler error behavior
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (SSE noise reduction: actionable logs only)
+- Backend SSE stream (`internal/api/handlers/events.go`):
+  - removed connect/disconnect lifecycle chatter from the hot path
+  - added `isExpectedSSEWriteError(...)` classifier:
+    - treats client-disconnect conditions as expected (`ctx done`, `net.ErrClosed`, `EPIPE`, `ECONNRESET`)
+  - write failures now:
+    - expected disconnects: no warning noise
+    - unexpected write errors: `warn` with `client_id`
+- Tests:
+  - extended `internal/api/handlers/events_test.go`:
+    - `TestIsExpectedSSEWriteError_ContextCanceled`
+    - `TestIsExpectedSSEWriteError_ConnectionClosed`
+    - `TestIsExpectedSSEWriteError_Unexpected`
+- Goal:
+  - reduce log spam while preserving real SSE fault visibility
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

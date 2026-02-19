@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -33,4 +37,25 @@ func TestEncodeHealthAsSSE(t *testing.T) {
 	require.Equal(t, h.ServiceID, decoded.ServiceID)
 	require.Equal(t, h.Status, decoded.Status)
 	require.Equal(t, h.Message, decoded.Message)
+}
+
+func TestIsExpectedSSEWriteError_ContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.True(t, isExpectedSSEWriteError(ctx, fmt.Errorf("write failed")))
+}
+
+func TestIsExpectedSSEWriteError_ConnectionClosed(t *testing.T) {
+	ctx := context.Background()
+
+	require.True(t, isExpectedSSEWriteError(ctx, net.ErrClosed))
+	require.True(t, isExpectedSSEWriteError(ctx, syscall.EPIPE))
+	require.True(t, isExpectedSSEWriteError(ctx, syscall.ECONNRESET))
+}
+
+func TestIsExpectedSSEWriteError_Unexpected(t *testing.T) {
+	ctx := context.Background()
+
+	require.False(t, isExpectedSSEWriteError(ctx, fmt.Errorf("unexpected")))
 }

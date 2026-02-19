@@ -4,10 +4,14 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
@@ -43,15 +47,6 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 	keepAlive := time.NewTicker(15 * time.Second)
 	defer keepAlive.Stop()
 
-	log.Debug().
-		Uint64("client_id", clientID).
-		Int("subscribers", h.hub.SubscriberCount()).
-		Msg("SSE client connected")
-	defer log.Debug().
-		Uint64("client_id", clientID).
-		Int("subscribers", h.hub.SubscriberCount()).
-		Msg("SSE client disconnected")
-
 	flush := func() {
 		if f, ok := c.Writer.(interface{ Flush() }); ok {
 			f.Flush()
@@ -59,10 +54,12 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 	}
 	write := func(payload []byte) bool {
 		if _, err := c.Writer.Write(payload); err != nil {
-			log.Debug().
-				Uint64("client_id", clientID).
-				Err(err).
-				Msg("SSE write failed")
+			if !isExpectedSSEWriteError(ctx, err) {
+				log.Warn().
+					Uint64("client_id", clientID).
+					Err(err).
+					Msg("SSE write failed")
+			}
 			return false
 		}
 		flush()
@@ -70,10 +67,12 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 	}
 	writeString := func(payload string) bool {
 		if _, err := c.Writer.WriteString(payload); err != nil {
-			log.Debug().
-				Uint64("client_id", clientID).
-				Err(err).
-				Msg("SSE write failed")
+			if !isExpectedSSEWriteError(ctx, err) {
+				log.Warn().
+					Uint64("client_id", clientID).
+					Err(err).
+					Msg("SSE write failed")
+			}
 			return false
 		}
 		flush()
@@ -114,6 +113,18 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 			}
 		}
 	}
+}
+
+func isExpectedSSEWriteError(ctx context.Context, err error) bool {
+	if err == nil {
+		return false
+	}
+	if ctx.Err() != nil {
+		return true
+	}
+	return errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ECONNRESET)
 }
 
 func EncodeHealthAsSSE(health models.ServiceHealth) []byte {
