@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
@@ -18,9 +19,8 @@ import (
 )
 
 const (
-	// Prowlarr indexer stats endpoint accepts a relative day range.
-	prowlarrIndexerStatsStartDaysAgo = 1
-	prowlarrIndexerStatsEndDaysAgo   = 30
+	// Dashboard default window for indexer stats.
+	prowlarrIndexerStatsWindow = 30 * 24 * time.Hour
 )
 
 type ProwlarrService struct {
@@ -94,13 +94,7 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", Err: fmt.Errorf("URL is required")}
 	}
 
-	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
-
-	// Dashboard default window: last 30 days.
-	query := url.Values{}
-	query.Add("startDate", fmt.Sprintf("%d", prowlarrIndexerStatsStartDaysAgo))
-	query.Add("endDate", fmt.Sprintf("%d", prowlarrIndexerStatsEndDaysAgo))
-	statsURL = statsURL + "?" + query.Encode()
+	statsURL := buildIndexerStatsURL(baseURL, time.Now())
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, statsURL, apiKey, nil)
 	if err != nil {
@@ -123,6 +117,19 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 	}
 
 	return &stats, nil
+}
+
+func buildIndexerStatsURL(baseURL string, now time.Time) string {
+	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
+
+	endDate := now.UTC()
+	startDate := endDate.Add(-prowlarrIndexerStatsWindow)
+
+	query := url.Values{}
+	query.Set("startDate", startDate.Format(time.RFC3339))
+	query.Set("endDate", endDate.Format(time.RFC3339))
+
+	return statsURL + "?" + query.Encode()
 }
 
 // GetQueue gets the current queue status

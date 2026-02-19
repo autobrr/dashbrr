@@ -1322,6 +1322,22 @@ Owner: soup (s0up4200@pm.me)
   - reduce log spam while preserving real SSE fault visibility
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (bugfix: prowlarr indexer stats 400)
+- Root cause:
+  - `internal/services/prowlarr/prowlarr.go` sent `startDate=1&endDate=30` (relative ints)
+  - Prowlarr API contract (`~/github/oss/Prowlarr`) expects `DateTime? startDate/endDate` on `/api/v1/indexerstats`
+  - result: periodic poller failures
+    - `prowlarr get_indexer_stats: server returned Bad Request (400)`
+- Fix:
+  - switched query builder to RFC3339 UTC timestamps
+  - default window preserved: last 30 days
+  - ensured `startDate < endDate`
+- Regression tests:
+  - added `internal/services/prowlarr/prowlarr_test.go`
+    - `TestBuildIndexerStatsURL_UsesRFC3339Window`
+    - `TestGetIndexerStats_SendsProwlarrCompatibleDateParams`
+- Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
