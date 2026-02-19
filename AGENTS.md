@@ -1281,6 +1281,17 @@ Owner: soup (s0up4200@pm.me)
   - behavior unchanged; less drift risk when queue wrapper fields evolve
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (DRY: builtin auth session helpers)
+- Refactor in `internal/api/handlers/builtin_auth.go`:
+  - added shared helpers:
+    - `sessionCacheKey(...)`
+    - `isSecureRequest(...)`
+    - `BuiltinAuthHandler.getSession(...)`
+  - removed repeated session-cache lookup blocks in `Verify` + `GetUserInfo`
+  - removed repeated secure-cookie checks in `Login` + `Logout`
+  - behavior unchanged; lower drift risk between auth endpoints
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

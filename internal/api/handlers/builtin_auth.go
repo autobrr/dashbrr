@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -27,6 +28,22 @@ func NewBuiltinAuthHandler(db *database.DB, cache cache.Store) *BuiltinAuthHandl
 		db:    db,
 		cache: cache,
 	}
+}
+
+func sessionCacheKey(sessionToken string) string {
+	return fmt.Sprintf("session:%s", sessionToken)
+}
+
+func isSecureRequest(c *gin.Context) bool {
+	return c.GetHeader("X-Forwarded-Proto") == "https"
+}
+
+func (h *BuiltinAuthHandler) getSession(ctx context.Context, sessionToken string) (types.SessionData, error) {
+	var sessionData types.SessionData
+	if err := h.cache.Get(ctx, sessionCacheKey(sessionToken), &sessionData); err != nil {
+		return types.SessionData{}, err
+	}
+	return sessionData, nil
 }
 
 // CheckRegistrationStatus checks if registration is allowed (no users exist)
@@ -172,14 +189,11 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	}
 
 	// Store session in cache
-	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(expiresAt)); err != nil {
+	if err := h.cache.Set(ctx, sessionCacheKey(sessionToken), sessionData, time.Until(expiresAt)); err != nil {
 		log.Error().Err(err).Msg("failed to store session in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
-
-	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
 	// Set session cookie
 	c.SetCookie(
@@ -188,8 +202,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 		int(time.Until(expiresAt).Seconds()),
 		"/",
 		"",
-		isSecure, // Secure
-		true,     // HttpOnly
+		isSecureRequest(c), // Secure
+		true,               // HttpOnly
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -214,10 +228,8 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 		return
 	}
 
-	// Get session from cache
-	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	var sessionData types.SessionData
-	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+	sessionData, err := h.getSession(ctx, sessionToken)
+	if err != nil {
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
 		} else {
@@ -229,7 +241,7 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 
 	// Check if session is expired
 	if time.Now().After(sessionData.ExpiresAt) {
-		_ = h.cache.Delete(ctx, sessionKey)
+		_ = h.cache.Delete(ctx, sessionCacheKey(sessionToken))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
 		return
 	}
@@ -251,12 +263,9 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 	}
 
 	// Delete session from cache
-	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	if err := h.cache.Delete(ctx, sessionKey); err != nil && err != cache.ErrKeyNotFound {
+	if err := h.cache.Delete(ctx, sessionCacheKey(sessionToken)); err != nil && err != cache.ErrKeyNotFound {
 		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
-
-	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
 	// Clear session cookie
 	c.SetCookie(
@@ -265,7 +274,7 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 		-1,
 		"/",
 		"",
-		isSecure,
+		isSecureRequest(c),
 		true,
 	)
 
@@ -282,10 +291,8 @@ func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 		return
 	}
 
-	// Get session from cache
-	sessionKey := fmt.Sprintf("session:%s", sessionToken)
-	var sessionData types.SessionData
-	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+	sessionData, err := h.getSession(ctx, sessionToken)
+	if err != nil {
 		if err == cache.ErrKeyNotFound {
 			log.Debug().Msg("session not found or expired")
 		} else {
