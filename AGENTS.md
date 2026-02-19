@@ -1584,3 +1584,28 @@ Owner: soup (s0up4200@pm.me)
 ## Next
 - Manual browser pass on mixed cards (expanded/collapsed/empty sections) across desktop + mobile breakpoints.
 - If any service still looks tall while empty, move remaining section paddings into shared section tokens.
+
+### 2026-02-19 (browser regression guard: card density + collapse shells)
+- Added browser regression suite with Playwright (Chromium desktop + mobile emulation):
+  - `web/tests/browser/playwright.config.ts`
+  - `web/tests/browser/service-layout.spec.ts`
+  - harness: `web/tests/browser/service-layout-harness.html`, `web/tests/browser/service-layout-harness.ts`
+- New script: `pnpm -C web test:browser`
+- Coverage:
+  - compact vs regular card spacing contract (`mt/pt`) via computed browser styles
+  - collapse-shell behavior contract (`mb-0` when collapsed, `mb-2` when expanded, content max-height class transition)
+- Test harness moved out of `public/` (test-only path under `web/tests/browser`), avoids shipping regression fixture in app assets.
+- TS config for tests updated to include DOM lib: `web/tsconfig.tests.json`.
+- New dependency (health check done):
+  - `@playwright/test@1.58.2`, latest published `2026-02-19` (`pnpm view @playwright/test version time.modified`)
+- Validation green:
+  - `pnpm -C web test:browser`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web build`
+  - `go test ./...`
+
+## Next
+- Wire browser regression suite into CI as optional/non-blocking first pass, then promote to required after one stable cycle.
+- Expand harness with one service-card visual snapshot per breakpoint to catch spacing drift beyond class contracts.

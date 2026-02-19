@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "vite",
     "test": "node --import tsx --test tests/**/*.test.ts",
+    "test:browser": "playwright test -c tests/browser/playwright.config.ts",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "postbuild": "node --input-type=module -e \"import { mkdirSync, writeFileSync } from 'node:fs'; mkdirSync('dist',{ recursive:true }); writeFileSync('dist/.gitkeep','');\"",
@@ -48,6 +49,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.14",
