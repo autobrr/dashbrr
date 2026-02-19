@@ -27,9 +27,11 @@ func TestCreateService(t *testing.T) {
 	// Mock a service creator for testing
 	originalAutobrrService := NewAutobrrService
 	originalQuiService := NewQuiService
+	originalLidarrService := NewLidarrService
 	defer func() {
 		NewAutobrrService = originalAutobrrService
 		NewQuiService = originalQuiService
+		NewLidarrService = originalLidarrService
 	}()
 
 	called := false
@@ -58,5 +60,15 @@ func TestCreateService(t *testing.T) {
 	registry.CreateService("qui")
 	if !called {
 		t.Error("Service creator not called for qui service type")
+	}
+
+	called = false
+	NewLidarrService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("lidarr")
+	if !called {
+		t.Error("Service creator not called for lidarr service type")
 	}
 }

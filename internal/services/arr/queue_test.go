@@ -23,6 +23,20 @@ func TestBuildQueueDeleteURL(t *testing.T) {
 	}
 }
 
+func TestBuildQueueDeleteURLWithVersion(t *testing.T) {
+	got := BuildQueueDeleteURLWithVersion("http://localhost:8686/", "v1", "321", QueueDeleteOptions{
+		RemoveFromClient: false,
+		Blocklist:        true,
+		SkipRedownload:   false,
+		ChangeCategory:   false,
+	})
+
+	want := "http://localhost:8686/api/v1/queue/321?removeFromClient=false&blocklist=true&skipRedownload=false"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestBuildQueueURL(t *testing.T) {
 	got := BuildQueueURL("http://localhost:7878/", "page=1&pageSize=10")
 	want := "http://localhost:7878/api/v3/queue?page=1&pageSize=10"
@@ -32,6 +46,20 @@ func TestBuildQueueURL(t *testing.T) {
 
 	got = BuildQueueURL("http://localhost:7878/", "?page=2")
 	want = "http://localhost:7878/api/v3/queue?page=2"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestBuildQueueURLWithVersion(t *testing.T) {
+	got := BuildQueueURLWithVersion("http://localhost:8686/", "v1", "page=1&pageSize=10")
+	want := "http://localhost:8686/api/v1/queue?page=1&pageSize=10"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+
+	got = BuildQueueURLWithVersion("http://localhost:8686/", "", "?page=2")
+	want = "http://localhost:8686/api/v3/queue?page=2"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -240,5 +268,25 @@ func TestDeleteQueueItem_UpstreamMessage(t *testing.T) {
 	}
 	if arrErr.Err == nil || arrErr.Err.Error() != "queue locked" {
 		t.Fatalf("message = %v, want %q", arrErr.Err, "queue locked")
+	}
+}
+
+func TestDeleteQueueItemWithVersion_UsesRequestedAPIVersion(t *testing.T) {
+	t.Parallel()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		if r.URL.Path != "/api/v1/queue/456" {
+			t.Fatalf("path = %s, want /api/v1/queue/456", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	err := DeleteQueueItemWithVersion(context.Background(), "lidarr", "v1", ts.URL, "key", "456", QueueDeleteOptions{}, nil)
+	if err != nil {
+		t.Fatalf("DeleteQueueItemWithVersion failed: %v", err)
 	}
 }

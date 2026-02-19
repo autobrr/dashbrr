@@ -51,6 +51,7 @@ var (
 	NewAutobrrService     func() ServiceHealthChecker
 	NewRadarrService      func() ServiceHealthChecker
 	NewSonarrService      func() ServiceHealthChecker
+	NewLidarrService      func() ServiceHealthChecker
 	NewProwlarrService    func() ServiceHealthChecker
 	NewOverseerrService   func() ServiceHealthChecker
 	NewPlexService        func() ServiceHealthChecker

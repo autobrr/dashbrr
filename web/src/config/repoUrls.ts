@@ -16,4 +16,5 @@ export const repoUrls: RepoUrls = {
   "qui": "https://github.com/autobrr/qui/releases/",
   "sonarr": "https://github.com/Sonarr/Sonarr/releases",
   "radarr": "https://github.com/Radarr/Radarr/releases",
+  "lidarr": "https://github.com/Lidarr/Lidarr/releases",
 };

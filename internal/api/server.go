@@ -135,6 +135,7 @@ func (s *Server) Handler() http.Handler {
 	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache, bc)
 	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache, bc)
 	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache, bc)
+	lidarrHandler := handlers.NewLidarrHandler(s.db, s.cache, bc)
 	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
 	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
@@ -287,6 +288,13 @@ func (s *Server) Handler() http.Handler {
 				{
 					radarr.GET("/queue", radarrHandler.GetQueue)
 					radarr.DELETE("/queue/:id", radarrHandler.DeleteQueueItem)
+				}
+
+				// Lidarr endpoints
+				lidarr := regularServices.Group("/lidarr")
+				{
+					lidarr.GET("/queue", lidarrHandler.GetQueue)
+					lidarr.DELETE("/queue/:id", lidarrHandler.DeleteQueueItem)
 				}
 
 				// Prowlarr endpoints

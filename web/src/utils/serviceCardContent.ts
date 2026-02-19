@@ -52,6 +52,8 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
       return (service.stats?.sonarr?.queue?.totalRecords ?? 0) > 0;
     case "radarr":
       return (service.stats?.radarr?.queue?.totalRecords ?? 0) > 0;
+    case "lidarr":
+      return (service.stats?.lidarr?.queue?.totalRecords ?? 0) > 0;
     case "prowlarr":
       return (service.stats?.prowlarr?.indexers?.length ?? 0) > 0;
     case "overseerr":

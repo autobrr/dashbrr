@@ -209,9 +209,9 @@ func ExtractMessageField(body []byte) string {
 	return payload.Message
 }
 
-func DeleteQueueItem(
+func DeleteQueueItemWithVersion(
 	ctx context.Context,
-	service, baseURL, apiKey, queueID string,
+	service, apiVersion, baseURL, apiKey, queueID string,
 	options QueueDeleteOptions,
 	readBody func(*http.Response) ([]byte, error),
 ) error {
@@ -222,7 +222,7 @@ func DeleteQueueItem(
 		return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("API key is required")}
 	}
 
-	deleteURL := BuildQueueDeleteURL(baseURL, queueID, options)
+	deleteURL := BuildQueueDeleteURLWithVersion(baseURL, apiVersion, queueID, options)
 	log.Info().
 		Str("service", service).
 		Str("url", deleteURL).
@@ -273,4 +273,13 @@ func DeleteQueueItem(
 		Msg("Successfully deleted queue item")
 
 	return nil
+}
+
+func DeleteQueueItem(
+	ctx context.Context,
+	service, baseURL, apiKey, queueID string,
+	options QueueDeleteOptions,
+	readBody func(*http.Response) ([]byte, error),
+) error {
+	return DeleteQueueItemWithVersion(ctx, service, "v3", baseURL, apiKey, queueID, options, readBody)
 }

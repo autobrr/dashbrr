@@ -15,6 +15,7 @@ const SERVICE_TIMEOUTS: Record<string, number> = {
   '/api/overseerr': 30000,          // 30 seconds for overseerr
   '/api/radarr': 60000,             // 1 minute for radarr
   '/api/sonarr': 60000,             // 1 minute for sonarr
+  '/api/lidarr': 60000,             // 1 minute for lidarr
   '/api/prowlarr': 60000,           // 1 minute for prowlarr
   '/api/health': 600000,            // 10 minutes for health checks
 };

@@ -110,8 +110,8 @@ const QueueOptionSelect = <T extends string>({
 type Props = {
   instanceId: string;
   // stable labels for copy/links/api
-  serviceName: "Sonarr" | "Radarr";
-  queuePath: "/api/sonarr/queue" | "/api/radarr/queue";
+  serviceName: "Sonarr" | "Radarr" | "Lidarr";
+  queuePath: "/api/sonarr/queue" | "/api/radarr/queue" | "/api/lidarr/queue";
   // service.stats[serviceKey].queue
   getQueue: (
     stats: ServiceStats

@@ -46,6 +46,22 @@ func wrapRadarrQueue(queue *types.RadarrQueueResponse) []QueueRecordWrapper {
 	})
 }
 
+// wrapLidarrQueue converts LidarrQueueResponse to slice of QueueRecordWrapper.
+func wrapLidarrQueue(queue *types.LidarrQueueResponse) []QueueRecordWrapper {
+	if queue == nil {
+		return nil
+	}
+
+	return wrapQueueRecords(queue.Records, func(record types.LidarrQueueItem) QueueRecordWrapper {
+		return QueueRecordWrapper{
+			ID:     record.ID,
+			Title:  record.Title,
+			Status: record.Status,
+			Size:   record.Size,
+		}
+	})
+}
+
 // wrapSonarrQueue converts SonarrQueueResponse to slice of QueueRecordWrapper
 func wrapSonarrQueue(queue *types.SonarrQueueResponse) []QueueRecordWrapper {
 	if queue == nil {

@@ -30,6 +30,10 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewSonarrService != nil {
 			return NewSonarrService()
 		}
+	case "lidarr":
+		if NewLidarrService != nil {
+			return NewLidarrService()
+		}
 	case "prowlarr":
 		if NewProwlarrService != nil {
 			return NewProwlarrService()

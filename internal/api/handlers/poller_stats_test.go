@@ -42,6 +42,24 @@ func TestSummarizeRadarrQueue(t *testing.T) {
 	}
 }
 
+func TestSummarizeLidarrQueue(t *testing.T) {
+	t.Parallel()
+
+	records := []types.LidarrQueueItem{
+		{Status: "downloading", Size: 256},
+		{Status: "completed", Size: 512},
+		{Status: "downloading", Size: 128},
+	}
+
+	downloading, totalSize := summarizeLidarrQueue(records)
+	if downloading != 2 {
+		t.Fatalf("summarizeLidarrQueue() downloading = %d, want 2", downloading)
+	}
+	if totalSize != 896 {
+		t.Fatalf("summarizeLidarrQueue() totalSize = %d, want 896", totalSize)
+	}
+}
+
 func TestSummarizeSonarrQueue(t *testing.T) {
 	t.Parallel()
 

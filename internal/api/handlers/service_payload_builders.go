@@ -79,6 +79,29 @@ func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQue
 	}
 }
 
+func buildLidarrQueueServiceUpdate(instanceID string, queueResp *types.LidarrQueueResponse) models.ServiceHealth {
+	downloading, totalSize := summarizeLidarrQueue(queueResp.Records)
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    "online",
+		Message:   "lidarr_queue",
+		Stats: map[string]interface{}{
+			"lidarr": map[string]interface{}{
+				"queue": queueResp,
+			},
+		},
+		Details: map[string]interface{}{
+			"lidarr": map[string]interface{}{
+				"queueCount":       queueResp.TotalRecords,
+				"totalRecords":     queueResp.TotalRecords,
+				"downloadingCount": downloading,
+				"totalSize":        totalSize,
+			},
+		},
+	}
+}
+
 func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQueueResponse) models.ServiceHealth {
 	downloading, episodeCount, totalSize := summarizeSonarrQueue(queueResp.Records)
 

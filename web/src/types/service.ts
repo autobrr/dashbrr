@@ -5,7 +5,19 @@
 
 export type ServiceStatus = 'online' | 'offline' | 'warning' | 'error' | 'loading' | 'pending' | 'unknown';
 
-export type ServiceType = 'autobrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'qui' | 'general' | 'other';
+export type ServiceType =
+  | 'autobrr'
+  | 'radarr'
+  | 'sonarr'
+  | 'lidarr'
+  | 'prowlarr'
+  | 'overseerr'
+  | 'plex'
+  | 'tailscale'
+  | 'maintainerr'
+  | 'qui'
+  | 'general'
+  | 'other';
 
 export interface ServiceHealth {
   status: ServiceStatus;
@@ -405,6 +417,33 @@ export interface RadarrQueue {
   records: RadarrQueueItem[];
 }
 
+// Lidarr Types
+export interface LidarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
+export interface LidarrQueueItem {
+  id: number;
+  title: string;
+  status: string;
+  protocol: string; // "usenet" or "torrent"
+  indexer?: string;
+  customFormatScore: number;
+  downloadClient: string;
+  timeLeft?: string;
+  trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  statusMessages?: LidarrStatusMessage[];
+  size: number;
+}
+
+export interface LidarrQueue {
+  totalRecords: number;
+  records: LidarrQueueItem[];
+}
+
 // Prowlarr Types
 export interface ProwlarrIndexer {
   id: number;
@@ -533,6 +572,9 @@ export interface ServiceStats {
   radarr?: {
     queue: RadarrQueue;
   };
+  lidarr?: {
+    queue: LidarrQueue;
+  };
   prowlarr?: {
     stats: ProwlarrStats;
     indexers: ProwlarrIndexer[];
@@ -580,6 +622,12 @@ export interface ServiceDetails {
     version?: string;
   };
   radarr?: {
+    queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    totalSize?: number;
+  };
+  lidarr?: {
     queueCount: number;
     totalRecords?: number;
     downloadingCount?: number;

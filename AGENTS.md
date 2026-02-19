@@ -1754,3 +1754,67 @@ Owner: soup (s0up4200@pm.me)
   - `uptime-kuma` -> `https://github.com/louislam/uptime-kuma.git`
   - `traefik` -> `https://github.com/traefik/traefik.git`
   - `caddy` -> `https://github.com/caddyserver/caddy.git`
+
+### 2026-02-20 (Lidarr integration: backend + frontend + poller + tests)
+- Added full `Lidarr` service support using Lidarr API `v1`:
+  - service implementation: `internal/services/lidarr/lidarr.go`
+  - queue types: `internal/types/lidarr.go`
+  - health/version/update checks via shared ARR helpers (`v1` path support)
+- ARR shared helper refactor (DRY):
+  - version-aware queue helpers added in `internal/services/arr/queue.go`
+    - `BuildQueueURLWithVersion`
+    - `BuildQueueDeleteURLWithVersion`
+    - `FetchQueueBodyWithVersion`
+    - `FetchQueueRecordsWithVersion`
+  - version-aware queue delete in `internal/services/arr/common.go`
+    - `DeleteQueueItemWithVersion`
+  - existing `v3` helpers preserved as wrappers for backward compatibility.
+- API/handler wiring:
+  - new handler: `internal/api/handlers/lidarr.go`
+  - new routes in `internal/api/server.go`:
+    - `GET /api/lidarr/queue`
+    - `DELETE /api/lidarr/queue/:id`
+  - queue hash wrapper support: `internal/api/handlers/queue_hash.go`
+  - payload builder support: `internal/api/handlers/service_payload_builders.go`
+  - poller job support: `internal/api/handlers/poller.go` (`lidarr_queue`)
+- Registry/commands wiring:
+  - service registry updated (`internal/models/service.go`, `internal/models/registry.go`)
+  - side-effect registration updated (`internal/services/services.go`, `internal/commands/health.go`)
+  - CLI command added: `internal/commands/service_lidarr.go`
+  - command root updated: `internal/commands/service.go`
+- Frontend wiring:
+  - service type + payload typing: `web/src/types/service.ts`
+  - add-service modal/category/API-help: `web/src/components/AddServicesMenu.tsx`
+  - service template: `web/src/config/serviceTemplates.ts`
+  - config form API key guidance: `web/src/components/configuration/ConfigurationForm.tsx`
+  - card renderer + component:
+    - `web/src/components/services/lidarr/LidarrStats.tsx`
+    - `web/src/components/services/ServiceCard.tsx`
+  - ARR queue base now accepts Lidarr path/service name:
+    - `web/src/components/services/common/ArrQueueStatsBase.tsx`
+  - card density heuristic includes Lidarr queue presence:
+    - `web/src/utils/serviceCardContent.ts`
+  - API timeout + release URL:
+    - `web/src/utils/api.ts`
+    - `web/src/config/repoUrls.ts`
+- Cache policy:
+  - added `LidarrStatus` TTL + path routing in `internal/api/middleware/cache.go`.
+- Tests updated:
+  - `internal/services/arr/queue_test.go`
+  - `internal/models/registry_test.go`
+  - `internal/api/handlers/poller_jobs_test.go`
+  - `internal/api/handlers/poller_stats_test.go`
+  - `internal/api/handlers/service_payload_contract_test.go`
+  - `internal/api/handlers/service_payload_builders_test.go`
+- Full gate green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+
+## Next
+- Add `Readarr` with same ARR-queue/poller architecture used for Lidarr.
+- Reuse v1 ARR helper pathing for Readarr to avoid service-specific URL builders.
+- Keep shared queue UI path (`ArrQueueStatsBase`) for Readarr/Lidarr/Sonarr/Radarr to stay DRY.

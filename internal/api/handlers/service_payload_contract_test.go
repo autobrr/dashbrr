@@ -13,6 +13,7 @@ var canonicalServiceMessageKeys = []string{
 	"plex_sessions",
 	"overseerr_requests",
 	"radarr_queue",
+	"lidarr_queue",
 	"sonarr_queue",
 	"sonarr_stats",
 	"prowlarr_stats",

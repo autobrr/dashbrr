@@ -18,11 +18,15 @@ type QueueDeleteOptions struct {
 	ChangeCategory   bool
 }
 
-func BuildQueueDeleteURL(baseURL, queueID string, opts QueueDeleteOptions) string {
+func BuildQueueDeleteURLWithVersion(baseURL, apiVersion, queueID string, opts QueueDeleteOptions) string {
 	baseURL = strings.TrimRight(baseURL, "/")
+	if apiVersion == "" {
+		apiVersion = "v3"
+	}
 
-	deleteURL := fmt.Sprintf("%s/api/v3/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
+	deleteURL := fmt.Sprintf("%s/api/%s/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
 		baseURL,
+		apiVersion,
 		queueID,
 		opts.RemoveFromClient,
 		opts.Blocklist,
@@ -36,9 +40,17 @@ func BuildQueueDeleteURL(baseURL, queueID string, opts QueueDeleteOptions) strin
 	return deleteURL
 }
 
-func BuildQueueURL(baseURL, rawQuery string) string {
+func BuildQueueDeleteURL(baseURL, queueID string, opts QueueDeleteOptions) string {
+	return BuildQueueDeleteURLWithVersion(baseURL, "v3", queueID, opts)
+}
+
+func BuildQueueURLWithVersion(baseURL, apiVersion, rawQuery string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
-	queueURL := fmt.Sprintf("%s/api/v3/queue", baseURL)
+	if apiVersion == "" {
+		apiVersion = "v3"
+	}
+
+	queueURL := fmt.Sprintf("%s/api/%s/queue", baseURL, apiVersion)
 	query := strings.TrimLeft(rawQuery, "?")
 	if query != "" {
 		queueURL += "?" + query
@@ -46,9 +58,13 @@ func BuildQueueURL(baseURL, rawQuery string) string {
 	return queueURL
 }
 
-func FetchQueueBody(
+func BuildQueueURL(baseURL, rawQuery string) string {
+	return BuildQueueURLWithVersion(baseURL, "v3", rawQuery)
+}
+
+func FetchQueueBodyWithVersion(
 	ctx context.Context,
-	service, baseURL, apiKey, rawQuery string,
+	service, apiVersion, baseURL, apiKey, rawQuery string,
 	readBody func(*http.Response) ([]byte, error),
 ) ([]byte, error) {
 	if baseURL == "" {
@@ -63,7 +79,7 @@ func FetchQueueBody(
 		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("readBody function is required")}
 	}
 
-	queueURL := BuildQueueURL(baseURL, rawQuery)
+	queueURL := BuildQueueURLWithVersion(baseURL, apiVersion, rawQuery)
 	resp, err := MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
 	if err != nil {
 		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
@@ -82,12 +98,20 @@ func FetchQueueBody(
 	return body, nil
 }
 
-func FetchQueueRecords[T any](
+func FetchQueueBody(
 	ctx context.Context,
 	service, baseURL, apiKey, rawQuery string,
 	readBody func(*http.Response) ([]byte, error),
+) ([]byte, error) {
+	return FetchQueueBodyWithVersion(ctx, service, "v3", baseURL, apiKey, rawQuery, readBody)
+}
+
+func FetchQueueRecordsWithVersion[T any](
+	ctx context.Context,
+	service, apiVersion, baseURL, apiKey, rawQuery string,
+	readBody func(*http.Response) ([]byte, error),
 ) ([]T, error) {
-	body, err := FetchQueueBody(ctx, service, baseURL, apiKey, rawQuery, readBody)
+	body, err := FetchQueueBodyWithVersion(ctx, service, apiVersion, baseURL, apiKey, rawQuery, readBody)
 	if err != nil {
 		return nil, err
 	}
@@ -104,4 +128,12 @@ func FetchQueueRecords[T any](
 	}
 
 	return payload.Records, nil
+}
+
+func FetchQueueRecords[T any](
+	ctx context.Context,
+	service, baseURL, apiKey, rawQuery string,
+	readBody func(*http.Response) ([]byte, error),
+) ([]T, error) {
+	return FetchQueueRecordsWithVersion[T](ctx, service, "v3", baseURL, apiKey, rawQuery, readBody)
 }

@@ -116,6 +116,7 @@ export const ConfigurationForm = ({
         return "X-Plex-Token";
       case "radarr":
       case "sonarr":
+      case "lidarr":
       case "prowlarr":
         return "API Key";
       case "overseerr":
@@ -147,6 +148,7 @@ export const ConfigurationForm = ({
         };
       case "radarr":
       case "sonarr":
+      case "lidarr":
       case "prowlarr":
         return {
           prefix: "Found in ",
