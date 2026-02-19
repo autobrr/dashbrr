@@ -1507,6 +1507,18 @@ Owner: soup (s0up4200@pm.me)
     - `TestBuildRadarrQueueServiceUpdate_DetailsAndStats`
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (contract lock: prevent payload-shape drift)
+- Added `internal/api/handlers/service_payload_contract_test.go`:
+  - `TestCanonicalServicePayloadMessagesOnlyInBuilder`
+    - scans non-test handler Go files
+    - fails if canonical message keys are assigned via `Message: "..."` outside `service_payload_builders.go`
+  - `TestCanonicalServicePayloadMessagesDeclaredOnceInBuilder`
+    - ensures each canonical message key is declared exactly once in `service_payload_builders.go`
+- Purpose:
+  - hard lock on single-source payload message definitions
+  - guards future poller/handler divergence regressions
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
