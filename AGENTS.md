@@ -8,6 +8,10 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-19
+- Poller log-noise reduction
+  - downgraded successful `poller job completed` heartbeat from `debug` to `trace` (`internal/api/handlers/poller.go`)
+  - kept warn/error/slow/stale logs unchanged for observability
+  - verification: `go test ./internal/api/handlers -run Poller -count=1`, `go test ./...`
 - Poller architecture hardening (next-item #4)
   - scheduler now deterministic by instance order (`InstanceID` sort) before dispatch
   - forced-tick detail policy tightened:

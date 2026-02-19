@@ -399,7 +399,7 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 		}
 		p.mu.Unlock()
 
-		baseLog := log.Debug().
+		baseLog := log.Trace().
 			Str("instance", svc.InstanceID).
 			Str("service", serviceType).
 			Str("job", job).
