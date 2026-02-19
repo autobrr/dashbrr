@@ -1621,3 +1621,15 @@ Owner: soup (s0up4200@pm.me)
 
 ## Next
 - Watch 1-2 CI cycles for stability; then remove `continue-on-error` to make browser regressions required.
+
+### 2026-02-19 (CI: browser regression promoted to required)
+- Browser regression CI lane promoted from non-blocking to required.
+- `.github/workflows/release.yml`
+  - removed `continue-on-error: true` from `web-browser-regression`
+  - job name now `Browser regression` (drops rollout suffix)
+- Promotion decision basis:
+  - current run `22201684027` browser lane passed clean
+  - local `pnpm -C web test:browser` remains stable
+
+## Next
+- Monitor next CI cycle; if stable, add this check to branch protection required-status list if not auto-enforced.

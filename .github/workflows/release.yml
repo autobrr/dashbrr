@@ -60,9 +60,8 @@ jobs:
           path: web/dist
 
   web-browser-regression:
-    name: Browser regression (non-blocking)
+    name: Browser regression
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
