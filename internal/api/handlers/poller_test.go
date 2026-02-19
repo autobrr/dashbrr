@@ -292,3 +292,37 @@ func TestPollerMaybeRun_SuccessClearsStaleWarning(t *testing.T) {
 
 	t.Fatalf("expected stale warning and failed state to clear on successful run")
 }
+
+func TestPollerMarkFirstHealthSeen_LogsOncePerInstance(t *testing.T) {
+	p := NewPoller(nil, nil)
+	p.startedAt = time.Now().Add(-2 * time.Second)
+
+	elapsed, first := p.markFirstHealthSeen("sonarr-1")
+	if !first {
+		t.Fatalf("expected first health mark to return true")
+	}
+	if elapsed < time.Second {
+		t.Fatalf("expected elapsed >= 1s, got %v", elapsed)
+	}
+
+	elapsed, first = p.markFirstHealthSeen("sonarr-1")
+	if first {
+		t.Fatalf("expected second health mark to return false")
+	}
+	if elapsed != 0 {
+		t.Fatalf("expected elapsed=0 for duplicate mark, got %v", elapsed)
+	}
+}
+
+func TestPollerMarkFirstHealthSeen_RequiresStartupTimestamp(t *testing.T) {
+	p := NewPoller(nil, nil)
+	p.startedAt = time.Time{}
+
+	elapsed, first := p.markFirstHealthSeen("radarr-1")
+	if first {
+		t.Fatalf("expected mark to fail when startedAt is zero")
+	}
+	if elapsed != 0 {
+		t.Fatalf("expected elapsed=0 when startedAt is zero, got %v", elapsed)
+	}
+}

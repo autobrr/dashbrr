@@ -66,9 +66,12 @@ type Poller struct {
 	inFlight  map[string]bool
 	services  []models.ServiceConfiguration
 	loadedAt  time.Time
+	startedAt time.Time
 
 	// trigger refresh now
 	refreshCh chan refreshReq
+	// first health snapshot observability
+	firstHealthSeen map[string]bool
 }
 
 type refreshReq struct {
@@ -86,6 +89,7 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		staleWarn: make(map[string]bool),
 		inFlight:  make(map[string]bool),
 		refreshCh: make(chan refreshReq, 64),
+		firstHealthSeen: make(map[string]bool),
 	}
 
 	p.jobs = map[string][]jobSpec{
@@ -136,6 +140,11 @@ func (p *Poller) Refresh(instanceID string) {
 }
 
 func (p *Poller) run(ctx context.Context) {
+	p.mu.Lock()
+	p.startedAt = time.Now()
+	p.firstHealthSeen = make(map[string]bool)
+	p.mu.Unlock()
+
 	log.Info().Msg("poller started")
 	defer log.Info().Msg("poller stopped")
 
@@ -439,17 +448,48 @@ func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration,
 		health.LastChecked = time.Now()
 	}
 	publishHealthServiceUpdate(p.bc, health)
+	p.logFirstHealthSeen(svc.InstanceID, serviceType, health.Status)
 	return nil
 }
 
-func (p *Poller) runPending(_ context.Context, svc models.ServiceConfiguration, _ string) error {
+func (p *Poller) runPending(_ context.Context, svc models.ServiceConfiguration, serviceType string) error {
 	publishHealthServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "pending",
 		Message:     "Service not configured",
 		LastChecked: time.Now(),
 	})
+	p.logFirstHealthSeen(svc.InstanceID, serviceType, "pending")
 	return nil
+}
+
+func (p *Poller) markFirstHealthSeen(instanceID string) (time.Duration, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.firstHealthSeen[instanceID] {
+		return 0, false
+	}
+	if p.startedAt.IsZero() {
+		return 0, false
+	}
+
+	p.firstHealthSeen[instanceID] = true
+	return time.Since(p.startedAt), true
+}
+
+func (p *Poller) logFirstHealthSeen(instanceID, serviceType, status string) {
+	elapsed, shouldLog := p.markFirstHealthSeen(instanceID)
+	if !shouldLog {
+		return
+	}
+
+	log.Info().
+		Str("instance", instanceID).
+		Str("service", serviceType).
+		Str("status", status).
+		Dur("startup_elapsed", elapsed).
+		Msg("poller first health seen")
 }
 
 func countTranscodingSessions(sessions []types.PlexSession) int {

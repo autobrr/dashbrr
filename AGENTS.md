@@ -25,6 +25,10 @@ Owner: soup (s0up4200@pm.me)
   - fixed snapshot merge regression: prior internal events no longer poison health event type on replay
   - health-state merge now applies on any non-internal event (not gated by non-empty message)
   - added regression tests around internal->health promotion + response-time/version replay safety
+- Poller observability
+  - added per-service one-shot startup metric log: `poller first health seen`
+  - structured fields: `instance`, `service`, `status`, `startup_elapsed`
+  - added regression tests for once-only tracking + startup timestamp guard
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`
