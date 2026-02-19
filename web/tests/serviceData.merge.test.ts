@@ -53,12 +53,36 @@ test("hydrate_configurations does not seed configured services with placeholder 
   assert.equal(hydrated.message, undefined);
 });
 
-test("hydrate_configurations applies cached internal status snapshot", () => {
+test("hydrate_configurations applies cached internal warning snapshot", () => {
   const snapshot: ServicePatchSnapshot = mergeServicePatchSnapshot(
     undefined,
     {
       stats: { radarr: { queue: { totalRecords: 2 } } },
       details: { radarr: { queueCount: 2 } },
+      message: "radarr_queue",
+    },
+    "warning"
+  );
+
+  const hydrated = hydrateServicesFromConfigurations(
+    new Map(),
+    config,
+    new Map([["radarr-1", snapshot]])
+  ).get("radarr-1");
+
+  assert.ok(hydrated);
+  assert.equal(hydrated.status, "warning");
+  assert.equal(hydrated.message, "radarr_queue");
+  assert.deepEqual(hydrated.stats, { radarr: { queue: { totalRecords: 2 } } });
+  assert.deepEqual(hydrated.details, { radarr: { queueCount: 2 } });
+});
+
+test("hydrate_configurations does not promote loading to online from internal snapshots", () => {
+  const snapshot: ServicePatchSnapshot = mergeServicePatchSnapshot(
+    undefined,
+    {
+      stats: { radarr: { queue: { totalRecords: 3 } } },
+      details: { radarr: { queueCount: 3 } },
       message: "radarr_queue",
     },
     "online"
@@ -71,8 +95,7 @@ test("hydrate_configurations applies cached internal status snapshot", () => {
   ).get("radarr-1");
 
   assert.ok(hydrated);
-  assert.equal(hydrated.status, "online");
+  assert.equal(hydrated.status, "loading");
   assert.equal(hydrated.message, "radarr_queue");
-  assert.deepEqual(hydrated.stats, { radarr: { queue: { totalRecords: 2 } } });
-  assert.deepEqual(hydrated.details, { radarr: { queueCount: 2 } });
+  assert.deepEqual(hydrated.stats, { radarr: { queue: { totalRecords: 3 } } });
 });

@@ -1376,6 +1376,18 @@ Owner: soup (s0up4200@pm.me)
     - `TestPollerMaybeRun_SuccessClearsStaleWarning`
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (health-message consistency: suppress internal-online bootstrap flips)
+- Frontend merge behavior (`web/src/hooks/serviceData/merge.ts`):
+  - internal events now only promote card status from `loading/pending/unknown` when status is actionable:
+    - `warning`, `error`, or `offline`
+  - internal `online` status no longer marks a fresh card healthy before first real health payload
+  - prevents transient “healthy”/message regressions while warning-bearing health state is still pending
+- Regression tests:
+  - `web/tests/serviceData.merge.test.ts`
+    - renamed internal snapshot coverage to explicit warning path
+    - added guard test: loading state is not promoted to online by internal snapshots
+- Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
