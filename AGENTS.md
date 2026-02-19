@@ -1388,6 +1388,17 @@ Owner: soup (s0up4200@pm.me)
     - added guard test: loading state is not promoted to online by internal snapshots
 - Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
 
+### 2026-02-19 (regression fix: restore fast card hydration on reload)
+- Regression observed:
+  - cards stayed in loading state too long on reload after internal-online bootstrap suppression.
+- Fix:
+  - restored internal `online` status promotion for `loading/pending/unknown` cards.
+  - kept prior placeholder cleanup (`"Waiting for updates"` removed), so fast hydration no longer shows fake warning text.
+- Test updates:
+  - `web/tests/serviceData.merge.test.ts`
+    - updated expectation: internal snapshot can promote loading -> online
+- Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

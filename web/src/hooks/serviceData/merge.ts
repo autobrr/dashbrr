@@ -179,14 +179,6 @@ const applyInternalStatus = (
     return current;
   }
 
-  const shouldPromoteFromInternal =
-    internalStatus === "warning" ||
-    internalStatus === "error" ||
-    internalStatus === "offline";
-  if (!shouldPromoteFromInternal) {
-    return current;
-  }
-
   if (
     current.status === "loading" ||
     current.status === "pending" ||
