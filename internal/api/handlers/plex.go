@@ -103,13 +103,9 @@ func (h *PlexHandler) GetPlexSessions(c *gin.Context) {
 func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (types.PlexSessionsResponse, error) {
 	var empty types.PlexSessionsResponse
 
-	plexConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	plexConfig, err := requireServiceConfigLegacy(ctx, h.db, instanceId)
 	if err != nil {
 		return empty, err
-	}
-
-	if plexConfig == nil || plexConfig.URL == "" {
-		return empty, ErrServiceNotConfigured
 	}
 
 	service := &plex.PlexService{}

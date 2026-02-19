@@ -1241,6 +1241,23 @@ Owner: soup (s0up4200@pm.me)
   - added `TestPollerMaybeRun_FailedJobsRetrySoonerThanNominalInterval` regression case
 - Gates: pass (`go test ./...`, `pnpm -C web test`)
 
+### 2026-02-19 (refactor: shared service-config lookup helper in handlers)
+- Added shared helper: `internal/api/handlers/service_config.go`
+  - `findServiceConfig(...)`
+  - `requireServiceConfig(...)` -> returns `NewServiceNotConfigured(serviceType)`
+  - `requireServiceConfigLegacy(...)` -> returns `ErrServiceNotConfigured`
+- Migrated repeated `FindServiceBy + nil/URL check` blocks to helper:
+  - `RadarrHandler`: `fetchQueue`, `deleteQueueItem`
+  - `SonarrHandler`: `fetchQueue`, `fetchStats`, `deleteQueueItem`
+  - `ProwlarrHandler`: `fetchProwlarrData`
+  - `PlexHandler`: `fetchSessions`
+  - `AutobrrHandler`: `fetchStats`, `fetchReleases`, `fetchIRC`
+  - `OverseerrHandler`: `fetchRequests`
+- Goal:
+  - reduce config-loading drift between handlers
+  - keep not-configured semantics explicit (legacy/non-legacy paths preserved)
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

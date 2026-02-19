@@ -251,13 +251,9 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 }
 
 func (h *OverseerrHandler) fetchRequests(ctx context.Context, instanceId string) (*types.RequestsStats, error) {
-	overseerrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	overseerrConfig, err := requireServiceConfigLegacy(ctx, h.db, instanceId)
 	if err != nil {
 		return nil, err
-	}
-
-	if overseerrConfig == nil || overseerrConfig.URL == "" {
-		return nil, ErrServiceNotConfigured
 	}
 
 	service := &overseerr.OverseerrService{}

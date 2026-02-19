@@ -88,13 +88,9 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 }
 
 func (h *RadarrHandler) fetchQueue(ctx context.Context, instanceId string) (types.RadarrQueueResponse, error) {
-	radarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	radarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "radarr")
 	if err != nil {
 		return types.RadarrQueueResponse{}, err
-	}
-
-	if radarrConfig == nil {
-		return types.RadarrQueueResponse{}, NewServiceNotConfigured("radarr")
 	}
 
 	// Create Radarr service instance
@@ -216,13 +212,9 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 }
 
 func (h *RadarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options types.RadarrQueueDeleteOptions) error {
-	radarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	radarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "radarr")
 	if err != nil {
 		return err
-	}
-
-	if radarrConfig == nil {
-		return NewServiceNotConfigured("radarr")
 	}
 
 	// Create Radarr service instance

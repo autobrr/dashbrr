@@ -243,13 +243,9 @@ func (h *AutobrrHandler) GetAutobrrIRCStatus(c *gin.Context) {
 }
 
 func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (types.AutobrrStats, error) {
-	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	autobrrConfig, err := requireServiceConfigLegacy(ctx, h.db, instanceId)
 	if err != nil {
 		return types.AutobrrStats{}, err
-	}
-
-	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return types.AutobrrStats{}, ErrServiceNotConfigured
 	}
 
 	service := &autobrr.AutobrrService{
@@ -260,13 +256,9 @@ func (h *AutobrrHandler) fetchStats(ctx context.Context, instanceId string) (typ
 }
 
 func (h *AutobrrHandler) fetchReleases(ctx context.Context, instanceId string) (types.ReleasesResponse, error) {
-	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	autobrrConfig, err := requireServiceConfigLegacy(ctx, h.db, instanceId)
 	if err != nil {
 		return types.ReleasesResponse{}, err
-	}
-
-	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return types.ReleasesResponse{}, ErrServiceNotConfigured
 	}
 
 	service := &autobrr.AutobrrService{
@@ -277,13 +269,9 @@ func (h *AutobrrHandler) fetchReleases(ctx context.Context, instanceId string) (
 }
 
 func (h *AutobrrHandler) fetchIRC(ctx context.Context, instanceId string) ([]types.IRCStatus, error) {
-	autobrrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	autobrrConfig, err := requireServiceConfigLegacy(ctx, h.db, instanceId)
 	if err != nil {
 		return nil, err
-	}
-
-	if autobrrConfig == nil || autobrrConfig.URL == "" {
-		return nil, ErrServiceNotConfigured
 	}
 
 	service := &autobrr.AutobrrService{

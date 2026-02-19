@@ -55,13 +55,9 @@ func NewProwlarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *Pr
 
 // fetchProwlarrData handles fetching all required data in parallel.
 func (h *ProwlarrHandler) fetchProwlarrData(ctx context.Context, instanceId string) (types.ProwlarrStatsResponse, []types.ProwlarrIndexer, types.ProwlarrIndexerStatsResponse, error) {
-	prowlarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	prowlarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "prowlarr")
 	if err != nil {
-		return types.ProwlarrStatsResponse{}, nil, types.ProwlarrIndexerStatsResponse{}, fmt.Errorf("failed to get configuration: %w", err)
-	}
-
-	if prowlarrConfig == nil {
-		return types.ProwlarrStatsResponse{}, nil, types.ProwlarrIndexerStatsResponse{}, NewServiceNotConfigured("prowlarr")
+		return types.ProwlarrStatsResponse{}, nil, types.ProwlarrIndexerStatsResponse{}, err
 	}
 
 	var (

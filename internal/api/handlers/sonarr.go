@@ -99,13 +99,9 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 }
 
 func (h *SonarrHandler) fetchQueue(ctx context.Context, instanceId string) (types.SonarrQueueResponse, error) {
-	sonarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	sonarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "sonarr")
 	if err != nil {
 		return types.SonarrQueueResponse{}, err
-	}
-
-	if sonarrConfig == nil {
-		return types.SonarrQueueResponse{}, NewServiceNotConfigured("sonarr")
 	}
 
 	// Create Sonarr service instance
@@ -175,13 +171,9 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 }
 
 func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (sonarrStatsResult, error) {
-	sonarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	sonarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "sonarr")
 	if err != nil {
 		return sonarrStatsResult{}, err
-	}
-
-	if sonarrConfig == nil {
-		return sonarrStatsResult{}, NewServiceNotConfigured("sonarr")
 	}
 
 	// Create Sonarr service instance
@@ -263,13 +255,9 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 }
 
 func (h *SonarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options types.SonarrQueueDeleteOptions) error {
-	sonarrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	sonarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "sonarr")
 	if err != nil {
 		return err
-	}
-
-	if sonarrConfig == nil {
-		return NewServiceNotConfigured("sonarr")
 	}
 
 	// Create Sonarr service instance
