@@ -14,7 +14,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
@@ -132,31 +131,7 @@ func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *
 
 // broadcastRadarrQueue broadcasts Radarr queue updates to all connected SSE clients
 func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types.RadarrQueueResponse) {
-	downloading, totalSize := summarizeRadarrQueue(queueResp.Records)
-
-	// Match frontend shape: stats.radarr.queue
-	stats := map[string]interface{}{
-		"radarr": map[string]interface{}{
-			"queue": queueResp,
-		},
-	}
-
-	details := map[string]interface{}{
-		"radarr": types.RadarrQueueStats{
-			TotalRecords:     queueResp.TotalRecords,
-			DownloadingCount: downloading,
-			TotalSize:        totalSize,
-		},
-	}
-
-	// Use the existing BroadcastHealth function with a special message type
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "radarr_queue",
-		Stats:     stats,
-		Details:   details,
-	})
+	publishInternalServiceUpdate(h.bc, buildRadarrQueueServiceUpdate(instanceId, queueResp))
 }
 
 // DeleteQueueItem handles the deletion of a queue item with specified options

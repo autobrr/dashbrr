@@ -283,57 +283,18 @@ func (h *AutobrrHandler) fetchIRC(ctx context.Context, instanceId string) ([]typ
 
 // broadcastReleases broadcasts release updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastReleases(instanceId string, releases types.ReleasesResponse) {
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "autobrr_releases",
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"releases": releases,
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildAutobrrReleasesServiceUpdate(instanceId, releases))
 }
 
 // broadcastStats broadcasts stats updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastStats(instanceId string, stats types.AutobrrStats) {
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "autobrr_stats",
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"stats": stats,
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildAutobrrStatsServiceUpdate(instanceId, stats))
 }
 
 // broadcastIRCStatus broadcasts IRC status updates to all connected SSE clients
 func (h *AutobrrHandler) broadcastIRCStatus(instanceId string, status []types.IRCStatus) {
-	// Check for unhealthy IRC connections
-	serviceStatus := "online"
-	message := "autobrr_irc_status"
-
-	for _, s := range status {
-		if !s.Healthy && s.Enabled {
-			serviceStatus = "warning"
-			message = fmt.Sprintf("IRC network %s is unhealthy", s.Name)
-			break
-		}
-	}
-
-	health := models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    serviceStatus,
-		Message:   message,
-		Details: map[string]interface{}{
-			"autobrr": types.AutobrrDetails{
-				IRC: status,
-			},
-		},
-	}
-	if message == "autobrr_irc_status" {
+	health, eventType := buildAutobrrIRCServiceUpdate(instanceId, status)
+	if eventType == models.ServiceEventInternal {
 		publishInternalServiceUpdate(h.bc, health)
 		return
 	}

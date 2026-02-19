@@ -18,7 +18,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
@@ -130,23 +129,7 @@ func (h *PlexHandler) fetchSessions(ctx context.Context, instanceId string) (typ
 
 // broadcastPlexSessions broadcasts Plex session updates to all connected SSE clients
 func (h *PlexHandler) broadcastPlexSessions(instanceId string, sessions *types.PlexSessionsResponse) {
-	// Use the existing BroadcastHealth function with a special message type
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "plex_sessions",
-		Stats: map[string]interface{}{
-			"plex": map[string]interface{}{
-				"sessions": sessions.MediaContainer.Metadata,
-			},
-		},
-		Details: map[string]interface{}{
-			"plex": map[string]interface{}{
-				"activeStreams": len(sessions.MediaContainer.Metadata),
-				"transcoding":   countTranscodingSessions(sessions.MediaContainer.Metadata),
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildPlexSessionsServiceUpdate(instanceId, sessions.MediaContainer.Metadata))
 }
 
 // createSessionHash generates a unique hash representing the current state of Plex sessions

@@ -17,7 +17,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
@@ -372,29 +371,11 @@ func (h *ProwlarrHandler) compareAndLogIndexerStatsChanges(instanceId string, st
 }
 
 func (h *ProwlarrHandler) broadcastStats(instanceId string, stats types.ProwlarrStatsResponse) {
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "prowlarr_stats",
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"stats": stats,
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildProwlarrStatsServiceUpdate(instanceId, stats))
 }
 
 func (h *ProwlarrHandler) broadcastIndexers(instanceId string, indexers []types.ProwlarrIndexer) {
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "prowlarr_indexers",
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"indexers": indexers,
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildProwlarrIndexersServiceUpdate(instanceId, indexers))
 }
 
 func statusFromProwlarrError(err error) int {

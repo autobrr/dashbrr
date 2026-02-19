@@ -15,7 +15,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
@@ -311,46 +310,9 @@ func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *type
 }
 
 func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types.SonarrQueueResponse) {
-	downloading, episodeCount, totalSize := summarizeSonarrQueue(queueResp.Records)
-
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "sonarr_queue",
-		Stats: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"queue": queueResp,
-			},
-		},
-		Details: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"episodeCount":     episodeCount,
-				"totalSize":        totalSize,
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildSonarrQueueServiceUpdate(instanceId, queueResp))
 }
 
 func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types.SonarrStatsResponse, version string) {
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "sonarr_stats",
-		Stats: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"stats":   statsResp,
-				"version": version,
-			},
-		},
-		Details: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"monitored":  statsResp.Monitored,
-				"version":    version,
-				"queueCount": statsResp.QueuedCount,
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildSonarrStatsServiceUpdate(instanceId, statsResp, version))
 }

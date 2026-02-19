@@ -1486,6 +1486,27 @@ Owner: soup (s0up4200@pm.me)
   - added `mergeServicePatchSnapshot deep-merges nested stats payloads` in `web/tests/serviceData.merge.test.ts`.
 - Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
 
+### 2026-02-19 (backend payload normalization: canonical SSE builders)
+- Added shared payload builders in `internal/api/handlers/service_payload_builders.go`:
+  - `plex_sessions`, `overseerr_requests`, `radarr_queue`, `sonarr_queue`, `sonarr_stats`
+  - `prowlarr_stats`, `prowlarr_indexers`
+  - `autobrr_stats`, `autobrr_releases`, `autobrr_irc_status`
+  - `maintainerr_collections`, `tailscale_devices`, `qui_overview`
+- Refactor:
+  - poller + service handlers now call the same builder functions (single canonical payload shape per message key)
+  - removed duplicated hand-built `models.ServiceHealth` maps across:
+    - `poller.go`, `autobrr.go`, `plex.go`, `overseerr.go`, `radarr.go`, `sonarr.go`, `prowlarr.go`, `maintainerr.go`
+- Behavior tightening:
+  - Autobrr IRC warning path now uses one shared decision function for both handler and poller:
+    - healthy => internal `autobrr_irc_status`
+    - unhealthy enabled network => health warning (`IRC network <name> is unhealthy`)
+- Regression tests:
+  - new `internal/api/handlers/service_payload_builders_test.go`
+    - `TestBuildAutobrrIRCServiceUpdate_Healthy`
+    - `TestBuildAutobrrIRCServiceUpdate_Unhealthy`
+    - `TestBuildRadarrQueueServiceUpdate_DetailsAndStats`
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

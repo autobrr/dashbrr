@@ -20,7 +20,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
@@ -279,33 +278,7 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 		return
 	}
 
-	serviceStatus := "online"
-	message := "overseerr_requests"
-
-	// Set warning status if there are pending requests
-	if stats.PendingCount > 0 {
-		serviceStatus = "warning"
-	}
-
-	health := models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    serviceStatus,
-		Message:   message,
-		Stats: map[string]interface{}{
-			"overseerr": types.OverseerrStats{
-				Requests:     stats.Requests,
-				PendingCount: stats.PendingCount,
-			},
-		},
-		Details: map[string]interface{}{
-			"overseerr": types.OverseerrDetails{
-				PendingCount:  stats.PendingCount,
-				TotalRequests: len(stats.Requests),
-			},
-		},
-	}
-
-	publishInternalServiceUpdate(h.bc, health)
+	publishInternalServiceUpdate(h.bc, buildOverseerrRequestsServiceUpdate(instanceId, stats))
 }
 
 // createOverseerrRequestsHash generates a deterministic hash of the requests state

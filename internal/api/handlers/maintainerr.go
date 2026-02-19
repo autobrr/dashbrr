@@ -18,7 +18,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
@@ -245,19 +244,5 @@ func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, c
 
 // broadcastMaintainerrCollections broadcasts collections updates to all connected SSE clients
 func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []maintainerr.Collection) {
-	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
-		ServiceID: instanceId,
-		Status:    "online",
-		Message:   "maintainerr_collections",
-		Stats: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
-				"collections": collections,
-			},
-		},
-		Details: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
-				"collectionCount": len(collections),
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildMaintainerrCollectionsServiceUpdate(instanceId, collections))
 }

@@ -80,15 +80,15 @@ type refreshReq struct {
 
 func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 	p := &Poller{
-		db:        db,
-		bc:        bc,
-		registry:  models.NewServiceRegistry(),
-		lastRun:   make(map[string]time.Time),
-		lastOKRun: make(map[string]time.Time),
-		failed:    make(map[string]bool),
-		staleWarn: make(map[string]bool),
-		inFlight:  make(map[string]bool),
-		refreshCh: make(chan refreshReq, 64),
+		db:              db,
+		bc:              bc,
+		registry:        models.NewServiceRegistry(),
+		lastRun:         make(map[string]time.Time),
+		lastOKRun:       make(map[string]time.Time),
+		failed:          make(map[string]bool),
+		staleWarn:       make(map[string]bool),
+		inFlight:        make(map[string]bool),
+		refreshCh:       make(chan refreshReq, 64),
 		firstHealthSeen: make(map[string]bool),
 	}
 
@@ -572,26 +572,7 @@ func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfigur
 		metadata = []types.PlexSession{}
 	}
 
-	transcoding := countTranscodingSessions(metadata)
-
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "plex_sessions",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"plex": map[string]interface{}{
-				"sessions": metadata,
-			},
-		},
-		Details: map[string]interface{}{
-			"plex": map[string]interface{}{
-				"activeStreams": len(metadata),
-				"transcoding":   transcoding,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildPlexSessionsServiceUpdate(svc.InstanceID, metadata))
 	return nil
 }
 
@@ -611,30 +592,7 @@ func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceCon
 		stats.Requests = []types.MediaRequest{}
 	}
 
-	status := "online"
-	if stats.PendingCount > 0 {
-		status = "warning"
-	}
-
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      status,
-		Message:     "overseerr_requests",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"overseerr": types.OverseerrStats{
-				Requests:     stats.Requests,
-				PendingCount: stats.PendingCount,
-			},
-		},
-		Details: map[string]interface{}{
-			"overseerr": types.OverseerrDetails{
-				PendingCount:  stats.PendingCount,
-				TotalRequests: len(stats.Requests),
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildOverseerrRequestsServiceUpdate(svc.InstanceID, stats))
 	return nil
 }
 
@@ -653,28 +611,7 @@ func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfigura
 		TotalRecords: len(records),
 	}
 
-	downloading, totalSize := summarizeRadarrQueue(records)
-
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "radarr_queue",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"radarr": map[string]interface{}{
-				"queue": resp,
-			},
-		},
-		Details: map[string]interface{}{
-			"radarr": map[string]interface{}{
-				"queueCount":       resp.TotalRecords,
-				"totalRecords":     resp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildRadarrQueueServiceUpdate(svc.InstanceID, resp))
 	return nil
 }
 
@@ -693,29 +630,7 @@ func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfigura
 		TotalRecords: len(records),
 	}
 
-	downloading, episodeCount, totalSize := summarizeSonarrQueue(records)
-
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "sonarr_queue",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"queue": resp,
-			},
-		},
-		Details: map[string]interface{}{
-			"sonarr": map[string]interface{}{
-				"queueCount":       resp.TotalRecords,
-				"totalRecords":     resp.TotalRecords,
-				"downloadingCount": downloading,
-				"episodeCount":     episodeCount,
-				"totalSize":        totalSize,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildSonarrQueueServiceUpdate(svc.InstanceID, resp))
 	return nil
 }
 
@@ -737,22 +652,11 @@ func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfigu
 		totalFails += stat.NumberOfFailedGrabs
 	}
 
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "prowlarr_stats",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"stats": types.ProwlarrStatsResponse{
-					GrabCount:    totalGrabs,
-					FailCount:    totalFails,
-					IndexerCount: len(idxStats.Indexers),
-				},
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildProwlarrStatsServiceUpdate(svc.InstanceID, types.ProwlarrStatsResponse{
+		GrabCount:    totalGrabs,
+		FailCount:    totalFails,
+		IndexerCount: len(idxStats.Indexers),
+	}))
 	return nil
 }
 
@@ -764,18 +668,7 @@ func (p *Poller) runProwlarrIndexers(ctx context.Context, svc models.ServiceConf
 		return err
 	}
 
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "prowlarr_indexers",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"indexers": indexers,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildProwlarrIndexersServiceUpdate(svc.InstanceID, indexers))
 	return nil
 }
 
@@ -787,18 +680,7 @@ func (p *Poller) runAutobrrStats(ctx context.Context, svc models.ServiceConfigur
 		return err
 	}
 
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "autobrr_stats",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"stats": stats,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildAutobrrStatsServiceUpdate(svc.InstanceID, stats))
 	return nil
 }
 
@@ -810,23 +692,12 @@ func (p *Poller) runAutobrrIRC(ctx context.Context, svc models.ServiceConfigurat
 		return err
 	}
 
-	status := "online"
-	for _, s := range irc {
-		if !s.Healthy && s.Enabled {
-			status = "warning"
-			break
-		}
+	health, eventType := buildAutobrrIRCServiceUpdate(svc.InstanceID, irc)
+	if eventType == models.ServiceEventInternal {
+		publishInternalServiceUpdate(p.bc, health)
+		return nil
 	}
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      status,
-		Message:     "autobrr_irc_status",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Details: map[string]interface{}{
-			"autobrr": types.AutobrrDetails{IRC: irc},
-		},
-	})
+	publishHealthServiceUpdate(p.bc, health)
 	return nil
 }
 
@@ -838,18 +709,7 @@ func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfi
 		return err
 	}
 
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "autobrr_releases",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"releases": releases,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildAutobrrReleasesServiceUpdate(svc.InstanceID, releases))
 	return nil
 }
 
@@ -863,23 +723,7 @@ func (p *Poller) runMaintainerrCollections(ctx context.Context, svc models.Servi
 		collections = []maintainerr.Collection{}
 	}
 
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "maintainerr_collections",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
-				"collections": collections,
-			},
-		},
-		Details: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
-				"collectionCount": len(collections),
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildMaintainerrCollectionsServiceUpdate(svc.InstanceID, collections))
 	return nil
 }
 
@@ -893,26 +737,7 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 		devices = []tailscale.Device{}
 	}
 
-	online := countOnlineDevices(devices)
-
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      "online",
-		Message:     "tailscale_devices",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"tailscale": map[string]interface{}{
-				"devices": devices,
-			},
-		},
-		Details: map[string]interface{}{
-			"tailscale": map[string]interface{}{
-				"total":  len(devices),
-				"online": online,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildTailscaleDevicesServiceUpdate(svc.InstanceID, devices))
 	return nil
 }
 
@@ -929,23 +754,6 @@ func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfigura
 
 	summary, transfers := service.GetAggregatedTransferInfo(ctx, svc.URL, svc.APIKey, instances)
 
-	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-		ServiceID:   svc.InstanceID,
-		Status:      summarizeQuiCardStatus(summary),
-		Message:     "qui_overview",
-		EventType:   models.ServiceEventInternal,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"qui": map[string]interface{}{
-				"instances": instances,
-				"transfers": transfers,
-			},
-		},
-		Details: map[string]interface{}{
-			"qui": map[string]interface{}{
-				"summary": summary,
-			},
-		},
-	})
+	publishInternalServiceUpdate(p.bc, buildQuiOverviewServiceUpdate(svc.InstanceID, instances, summary, transfers))
 	return nil
 }
