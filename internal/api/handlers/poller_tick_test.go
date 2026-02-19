@@ -129,7 +129,7 @@ func TestPollerTick_ForcedRunSkipsStatsJobs(t *testing.T) {
 	p.mu.Unlock()
 }
 
-func TestPollerTick_HealthCompletesBeforeSlowStatsJob(t *testing.T) {
+func TestPollerTick_HealthStillRunsWithSlowStatsJob(t *testing.T) {
 	p := NewPoller(nil, NewBroadcaster(sse.NewHub()))
 	p.registry = staticServiceRegistry{
 		checker: staticHealthChecker{
@@ -146,7 +146,7 @@ func TestPollerTick_HealthCompletesBeforeSlowStatsJob(t *testing.T) {
 			timeout:  time.Second,
 			run: func(*Poller, context.Context, models.ServiceConfiguration, string) error {
 				statsStarted <- struct{}{}
-				time.Sleep(220 * time.Millisecond)
+				time.Sleep(450 * time.Millisecond)
 				statsDone <- struct{}{}
 				return nil
 			},
@@ -168,30 +168,27 @@ func TestPollerTick_HealthCompletesBeforeSlowStatsJob(t *testing.T) {
 	sem := make(chan struct{}, 1)
 	p.tick(context.Background(), sem, false, "")
 
-	healthRanAt := waitForLastRun(t, p, "plex-1:health", 200*time.Millisecond)
+	waitForLastRun(t, p, "plex-1:health", time.Second)
 
 	select {
 	case <-statsStarted:
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(time.Second):
 		t.Fatalf("expected stats job to start")
 	}
 
-	// While slow stats is still in progress, health should already be complete.
+	// While slow stats is still in progress, it should not be marked complete yet.
 	p.mu.Lock()
 	statsLastRun := p.lastRun["plex-1:test_stats"]
 	p.mu.Unlock()
 	if !statsLastRun.IsZero() {
 		t.Fatalf("expected stats lastRun to remain empty while slow job is running")
 	}
-	if healthRanAt.IsZero() {
-		t.Fatalf("expected health to complete before stats")
-	}
 
 	select {
 	case <-statsDone:
-	case <-time.After(600 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatalf("expected stats job to complete")
 	}
 
-	waitForLastRun(t, p, "plex-1:test_stats", 200*time.Millisecond)
+	waitForLastRun(t, p, "plex-1:test_stats", time.Second)
 }

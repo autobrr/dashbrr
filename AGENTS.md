@@ -54,6 +54,13 @@ Owner: soup (s0up4200@pm.me)
   - added tick-level tests for health-first behavior with slow stats jobs
   - added forced-tick regression test ensuring stats jobs are skipped on forced startup/refresh pass
   - uses temp sqlite DB in forced-tick test to cover real service reload path safely
+- Auth mode source-of-truth cleanup
+  - removed `auth_type` localStorage read/write/remove from `AuthContext`
+  - auth mode now derives from active verified session/user info + in-memory state only
+  - logout fallback now uses `authType || user?.auth_type || "builtin"`
+- CI flake fix
+  - stabilized poller slow-stats regression timing to avoid runner scheduling false negatives
+  - renamed test intent to reflect behavior under slow stats contention
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`

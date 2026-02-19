@@ -60,7 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearAuth = useCallback(() => {
     debug("[AuthProvider] Clearing authentication state");
-    localStorage.removeItem("auth_type");
     setUser(null);
     setIsAuthenticated(false);
     setAuthType(null);
@@ -70,16 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     debug("[AuthProvider] Checking auth status");
     setLoading(true);
 
-    const storedAuthType = localStorage.getItem("auth_type") as
-      | "oidc"
-      | "builtin"
-      | null;
-
-    const candidates: Array<"oidc" | "builtin"> = storedAuthType
-      ? storedAuthType === "oidc"
-        ? ["oidc", "builtin"]
-        : ["builtin", "oidc"]
-      : ["oidc", "builtin"];
+    const candidates: Array<"oidc" | "builtin"> = ["oidc", "builtin"];
 
     const baseRequest: RequestInit = {
       credentials: "include",
@@ -106,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setAuthType(detected);
-      localStorage.setItem("auth_type", detected);
 
       const userInfoUrl = detected === "oidc" ? AUTH_URLS.oidc.userInfo : AUTH_URLS.userInfo;
       const userInfoResponse = await fetchWith429Retry(userInfoUrl, baseRequest);
@@ -139,7 +128,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (config.bypass) {
         debug("[AuthProvider] Auth bypass enabled");
-        localStorage.setItem("auth_type", "builtin");
         setAuthType("builtin");
         setUser({
           id: 1,
@@ -211,7 +199,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       await response.json();
       debug("[AuthProvider] Login successful");
-      localStorage.setItem("auth_type", "builtin");
       await checkAuthStatus();
     } catch (error) {
       console.error("[AuthProvider] Login error:", error);
@@ -246,7 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     debug("[AuthProvider] Initiating logout");
     try {
       const currentAuthType =
-        authType || (localStorage.getItem("auth_type") as "oidc" | "builtin" | null) || "builtin";
+        authType || user?.auth_type || "builtin";
       const logoutUrl =
         currentAuthType === "oidc"
           ? AUTH_URLS.oidc.logout
