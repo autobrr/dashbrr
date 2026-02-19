@@ -25,6 +25,7 @@ export const ConfigurationForm = ({
 }: ConfigurationFormProps) => {
   const { configurations, updateConfiguration } = useConfiguration();
   const currentConfig = configurations[instanceId];
+  const hasExistingConfig = Boolean(currentConfig);
   const serviceType = instanceId.split("-")[0];
   const isPlexService = serviceType === "plex";
 
@@ -70,7 +71,7 @@ export const ConfigurationForm = ({
     setError(null);
 
     try {
-      if (isPlexService && apiKey.trim() === "") {
+      if (isPlexService && !hasExistingConfig && apiKey.trim() === "") {
         throw new Error("Authenticate with Plex first");
       }
 
@@ -266,7 +267,7 @@ export const ConfigurationForm = ({
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={`Enter ${getApiKeyLabel()}`}
             helpText={apiKeyHelp}
-            required
+            required={!hasExistingConfig}
             data-1p-ignore
           />
         ))}

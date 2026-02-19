@@ -167,3 +167,102 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 		})
 	}
 }
+
+func TestHealthHandler_CheckHealth_UsesStoredAPIKeyForURLValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockDB := &testing_mocks.MockDB{
+		FindServiceByFunc: func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+			if params.InstanceID != "radarr-1" {
+				t.Fatalf("unexpected instance id: %s", params.InstanceID)
+			}
+			return &models.ServiceConfiguration{
+				InstanceID: "radarr-1",
+				URL:        "http://old-radarr",
+				APIKey:     "stored-key",
+			}, nil
+		},
+	}
+
+	mockChecker := &mockServiceHealthChecker{
+		checkHealthFunc: func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+			if url != "http://new-radarr" {
+				t.Fatalf("url = %q, want %q", url, "http://new-radarr")
+			}
+			if apiKey != "stored-key" {
+				t.Fatalf("apiKey = %q, want %q", apiKey, "stored-key")
+			}
+			return models.ServiceHealth{
+				Status:      "healthy",
+				LastChecked: time.Now(),
+			}, http.StatusOK
+		},
+	}
+
+	mockCreator := &mockServiceCreator{
+		createServiceFunc: func(serviceType string) models.ServiceHealthChecker {
+			if serviceType == "radarr" {
+				return mockChecker
+			}
+			return nil
+		},
+	}
+
+	handler := NewHealthHandler(mockDB, mockCreator)
+	r := gin.New()
+	r.GET("/health/:service", handler.CheckHealth)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/health/radarr-1?url=http://new-radarr", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestHealthHandler_CheckHealth_MissingAPIKeyForURLValidationWithoutStoredKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockDB := &testing_mocks.MockDB{
+		FindServiceByFunc: func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+			return nil, nil
+		},
+	}
+
+	mockChecker := &mockServiceHealthChecker{
+		checkHealthFunc: func(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
+			t.Fatalf("checker should not be called")
+			return models.ServiceHealth{}, http.StatusInternalServerError
+		},
+	}
+
+	mockCreator := &mockServiceCreator{
+		createServiceFunc: func(serviceType string) models.ServiceHealthChecker {
+			if serviceType == "radarr" {
+				return mockChecker
+			}
+			return nil
+		},
+	}
+
+	handler := NewHealthHandler(mockDB, mockCreator)
+	r := gin.New()
+	r.GET("/health/:service", handler.CheckHealth)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/health/radarr-1?url=http://new-radarr", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+
+	var response map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response["message"] != "API key is required for this service type" {
+		t.Fatalf("message = %q, want %q", response["message"], "API key is required for this service type")
+	}
+}

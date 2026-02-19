@@ -1519,6 +1519,25 @@ Owner: soup (s0up4200@pm.me)
   - guards future poller/handler divergence regressions
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (settings UX fix: API key not required for rename-only edits)
+- Bug:
+  - editing service display name in card settings triggered browser required-field error on API key input.
+  - root cause:
+    - frontend always marked API key input as `required`
+    - health validation with `url` query required explicit `apiKey`, even when key already stored server-side
+- Fixes:
+  - frontend (`web/src/components/configuration/ConfigurationForm.tsx`):
+    - API key field now required only when no existing config is present
+    - Plex submit guard now only enforces token on first-time config, not rename-only edits
+  - backend (`internal/api/handlers/health.go`):
+    - when validating via `?url=...` and `apiKey` is omitted, handler now reuses stored API key (if service exists)
+    - preserves existing error behavior when no stored key exists
+- Regression tests:
+  - `internal/api/handlers/health_test.go`
+    - `TestHealthHandler_CheckHealth_UsesStoredAPIKeyForURLValidation`
+    - `TestHealthHandler_CheckHealth_MissingAPIKeyForURLValidationWithoutStoredKey`
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

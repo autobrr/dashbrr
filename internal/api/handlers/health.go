@@ -51,6 +51,14 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		return
 	}
 
+	// Validate service ID format and extract service type
+	parts := strings.Split(serviceID, "-")
+	if len(parts) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID format"})
+		return
+	}
+	serviceType := parts[0]
+
 	// Get URL and API key from query parameters for validation
 	url := c.Query("url")
 	apiKey := c.Query("apiKey")
@@ -63,6 +71,27 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 			InstanceID: serviceID,
 			URL:        url,
 			APIKey:     apiKey,
+		}
+
+		// API keys are write-only in settings payloads.
+		// If URL is provided without API key, reuse stored key for validation.
+		if serviceType != "general" && service.APIKey == "" {
+			existing, findErr := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
+			if findErr != nil {
+				// Check for context cancellation
+				if ctx.Err() != nil {
+					log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled while fetching service configuration")
+					c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+					return
+				}
+				log.Error().Err(findErr).Str("service", serviceID).Msg("Failed to fetch service configuration")
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service configuration"})
+				return
+			}
+
+			if existing != nil && existing.APIKey != "" {
+				service.APIKey = existing.APIKey
+			}
 		}
 	} else {
 		// Use context with timeout for database operation
@@ -95,14 +124,6 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		})
 		return
 	}
-
-	// Validate service ID format and extract service type
-	parts := strings.Split(serviceID, "-")
-	if len(parts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID format"})
-		return
-	}
-	serviceType := parts[0]
 
 	serviceChecker := h.serviceCreator.CreateService(serviceType)
 	if serviceChecker == nil {
