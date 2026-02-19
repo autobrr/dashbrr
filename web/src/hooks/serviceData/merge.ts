@@ -37,6 +37,22 @@ const hasOwnProperty = (value: unknown, key: string): boolean =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const mergeRecordDeep = (
+  current: Record<string, unknown>,
+  incoming: Record<string, unknown>
+): Record<string, unknown> => {
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, nextValue] of Object.entries(incoming)) {
+    const prevValue = current[key];
+    if (isRecord(prevValue) && isRecord(nextValue)) {
+      merged[key] = mergeRecordDeep(prevValue, nextValue);
+      continue;
+    }
+    merged[key] = nextValue;
+  }
+  return merged;
+};
+
 const parseDate = (value: unknown): Date | undefined => {
   if (!value) return undefined;
   if (value instanceof Date) return value;
@@ -63,24 +79,10 @@ export const mergeServicePayload = <T extends object>(
 ): T | undefined => {
   if (!incoming) return current;
   if (!current) return { ...incoming };
-
-  const merged = { ...current } as T;
-  for (const key of Object.keys(incoming) as Array<keyof T>) {
-    const nextValue = incoming[key];
-    const prevValue = current[key];
-
-    if (isRecord(prevValue) && isRecord(nextValue)) {
-      (merged as Record<string, unknown>)[key as string] = {
-        ...prevValue,
-        ...nextValue,
-      };
-      continue;
-    }
-
-    merged[key] = nextValue;
+  if (isRecord(current) && isRecord(incoming)) {
+    return mergeRecordDeep(current, incoming) as T;
   }
-
-  return merged;
+  return { ...current, ...incoming };
 };
 
 const buildServicePatchFromHealth = (

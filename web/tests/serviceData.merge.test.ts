@@ -185,3 +185,50 @@ test("hydrate_configurations keeps warning/version/responseTime after internal u
     },
   });
 });
+
+test("mergeServicePatchSnapshot deep-merges nested stats payloads", () => {
+  let snapshot: ServicePatchSnapshot = mergeServicePatchSnapshot(
+    undefined,
+    {
+      stats: {
+        prowlarr: {
+          stats: { grabCount: 1, failCount: 2, indexerCount: 3 },
+          indexers: [{ id: 10, name: "Alpha" }],
+        },
+      },
+    },
+    "online"
+  );
+
+  snapshot = mergeServicePatchSnapshot(
+    snapshot,
+    {
+      stats: {
+        prowlarr: {
+          stats: { grabCount: 9 },
+        },
+      },
+    },
+    "online"
+  );
+
+  const hydrated = hydrateServicesFromConfigurations(
+    new Map(),
+    {
+      "prowlarr-1": {
+        url: "https://prowlarr.example",
+        displayName: "Prowlarr",
+        apiKey: "key",
+      },
+    },
+    new Map([["prowlarr-1", snapshot]])
+  ).get("prowlarr-1");
+
+  assert.ok(hydrated);
+  assert.deepEqual(hydrated.stats, {
+    prowlarr: {
+      stats: { grabCount: 9, failCount: 2, indexerCount: 3 },
+      indexers: [{ id: 10, name: "Alpha" }],
+    },
+  });
+});

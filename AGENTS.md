@@ -1467,6 +1467,25 @@ Owner: soup (s0up4200@pm.me)
     - updated expectation: internal snapshot can promote loading -> online
 - Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
 
+### 2026-02-19 (CI watch: auth cleanup + poller test deflake validated)
+- CI run: `22191799512` on PR `#82` finished `success` (9m50s).
+- Result:
+  - confirms `fix(auth): remove local auth mode cache fallback` (`c40a797`)
+  - confirms poller test deflake (`29dc8ee`) is stable in GH Actions matrix
+- Follow-up:
+  - continue rolling refactor queue from `Rolling Plan` (no new CI regressions detected)
+
+### 2026-02-19 (frontend payload normalization: deep merge nested service stats)
+- Root cause:
+  - `mergeServicePayload` in `web/src/hooks/serviceData/merge.ts` only shallow-merged nested service payloads.
+  - partial nested updates could drop sibling fields (`stats.prowlarr.stats.*`, etc.).
+- Change:
+  - added recursive object merge helper (`mergeRecordDeep`) and switched `mergeServicePayload` to deep-merge record payloads.
+  - arrays/primitives still replace (no list concat surprises).
+- Regression test:
+  - added `mergeServicePatchSnapshot deep-merges nested stats payloads` in `web/tests/serviceData.merge.test.ts`.
+- Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
