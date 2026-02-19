@@ -36,6 +36,8 @@ type AuthHandler struct {
 	discoverySF  singleflight.Group
 }
 
+const oidcSessionLookupTimeout = 5 * time.Second
+
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	httpClient := &http.Client{Timeout: 1 * time.Second}
 
@@ -48,6 +50,16 @@ func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 		cache:      store,
 		httpClient: httpClient,
 	}
+}
+
+func (h *AuthHandler) loadOIDCSession(ctx context.Context, sessionID string) (types.SessionData, error) {
+	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
+	var sessionData types.SessionData
+	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+		return types.SessionData{}, err
+	}
+
+	return sessionData, nil
 }
 
 func (h *AuthHandler) getOAuthConfig() *oauth2.Config {
@@ -479,12 +491,10 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	}
 
 	// Create context with timeout for token verification
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), oidcSessionLookupTimeout)
 	defer cancel()
 
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
-	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+	if _, err := h.loadOIDCSession(ctx, sessionID); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while verifying token")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
@@ -511,9 +521,21 @@ func (h *AuthHandler) UserInfo(c *gin.Context) {
 		return
 	}
 
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
-	if err := h.cache.Get(c.Request.Context(), sessionKey, &sessionData); err != nil {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), oidcSessionLookupTimeout)
+	defer cancel()
+
+	sessionData, err := h.loadOIDCSession(ctx, sessionID)
+	if err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while loading user info session")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
+		if err == cache.ErrKeyNotFound {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
+			return
+		}
+		log.Error().Err(err).Msg("failed to get session from cache")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
 		return
 	}

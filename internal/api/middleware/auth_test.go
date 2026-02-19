@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,9 +19,14 @@ import (
 
 type fakeAuthStore struct {
 	sessions map[string]types.SessionData
+	getFn    func(ctx context.Context, key string, value interface{}) error
 }
 
-func (s *fakeAuthStore) Get(_ context.Context, key string, value interface{}) error {
+func (s *fakeAuthStore) Get(ctx context.Context, key string, value interface{}) error {
+	if s.getFn != nil {
+		return s.getFn(ctx, key, value)
+	}
+
 	session, ok := s.sessions[key]
 	if !ok {
 		return cache.ErrKeyNotFound
@@ -101,5 +107,67 @@ func TestOptionalAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestOptionalAuth_AcceptsBearerAuthorization(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	store := &fakeAuthStore{
+		sessions: map[string]types.SessionData{
+			"session:test-token": {UserID: 7, AuthType: "builtin"},
+		},
+	}
+
+	auth := NewAuthMiddleware(store)
+	router := gin.New()
+	router.Use(auth.OptionalAuth())
+
+	router.GET("/api/events", func(c *gin.Context) {
+		userID, ok := c.Get("user_id")
+		if !ok || userID.(int64) != 7 {
+			t.Fatalf("expected bearer-authenticated user context")
+		}
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	req.Header.Set("Authorization", "Bearer   test-token")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestRequireAuth_DoesNotMaskSessionLookupErrorsAsUnauthorized(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	store := &fakeAuthStore{
+		getFn: func(ctx context.Context, key string, value interface{}) error {
+			if key == "oidc:session:test-token" {
+				return errors.New("cache unavailable")
+			}
+			return cache.ErrKeyNotFound
+		},
+	}
+
+	auth := NewAuthMiddleware(store)
+	router := gin.New()
+	router.Use(auth.RequireAuth())
+	router.GET("/api/protected", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/protected", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "test-token"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
 	}
 }

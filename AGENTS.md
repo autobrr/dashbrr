@@ -8,6 +8,19 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-19
+- Auth request-path hardening (next-item #2)
+  - middleware: bearer parsing now whitespace-tolerant (`strings.Fields`) and case-insensitive
+  - middleware: `OptionalAuth` now supports bearer-token fallback (same as `RequireAuth`)
+  - middleware: dual-key session lookup no longer masks OIDC cache errors as key misses; non-miss store errors now return `503` (`Authentication service unavailable`) instead of false `401`
+  - oidc handler: centralized OIDC session cache lookup helper + timeout-backed `UserInfo` path (consistent timeout/expired-session handling)
+  - tests added:
+    - `internal/api/middleware/auth_test.go`: bearer optional-auth coverage + cache-error mapping guard
+    - `internal/api/handlers/auth_test.go`: userinfo timeout + expired-session mapping guards
+  - verification:
+    - `go test ./...`
+    - `pnpm -C web lint`
+    - `pnpm -C web typecheck`
+    - `pnpm -C web build`
 - Poller latency hardening (next-item #1)
   - split poller worker lanes: `health` and `stats` now use separate semaphores (`16` and `8`)
   - removes head-of-line blocking where slow stats jobs could delay health/status/response-time updates

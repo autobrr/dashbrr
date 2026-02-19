@@ -65,8 +65,8 @@ func bearerTokenFromHeader(authHeader string) (string, bool) {
 		return "", false
 	}
 
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+	parts := strings.Fields(authHeader)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
 		return "", false
 	}
 
@@ -79,6 +79,9 @@ func (m *AuthMiddleware) loadSession(ctx context.Context, sessionToken string) (
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionToken)
 	if err := m.cache.Get(ctx, sessionKey, &sessionData); err == nil {
 		return sessionData, nil
+	} else if err != cache.ErrKeyNotFound {
+		// Don't mask upstream/cache failures as anonymous misses.
+		return types.SessionData{}, err
 	}
 
 	sessionKey = fmt.Sprintf("session:%s", sessionToken)
@@ -130,6 +133,9 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			}
 			if err != cache.ErrKeyNotFound {
 				log.Error().Err(err).Msg("error checking session in cache")
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service unavailable"})
+				c.Abort()
+				return
 			}
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session"})
 			c.Abort()
@@ -158,6 +164,16 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 
 		sessionToken, err := c.Cookie("session")
 		if err != nil {
+			authHeader := c.GetHeader("Authorization")
+			token, ok := bearerTokenFromHeader(authHeader)
+			if !ok {
+				c.Next()
+				return
+			}
+			sessionToken = token
+		}
+
+		if sessionToken == "" {
 			c.Next()
 			return
 		}

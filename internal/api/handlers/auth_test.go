@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -69,6 +70,20 @@ func (m *MockStore) Expire(ctx context.Context, key string, expiration time.Dura
 	args := m.Called(ctx, key, expiration)
 	return args.Error(0)
 }
+
+type blockingStore struct{}
+
+func (blockingStore) Get(ctx context.Context, _ string, _ interface{}) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+func (blockingStore) Set(context.Context, string, interface{}, time.Duration) error { return nil }
+func (blockingStore) Delete(context.Context, string) error                          { return nil }
+func (blockingStore) Close() error                                                  { return nil }
+func (blockingStore) Increment(context.Context, string, int64) error                { return nil }
+func (blockingStore) CleanAndCount(context.Context, string, int64) error            { return nil }
+func (blockingStore) GetCount(context.Context, string) (int64, error)               { return 0, nil }
+func (blockingStore) Expire(context.Context, string, time.Duration) error           { return nil }
 
 func TestNewAuthHandler(t *testing.T) {
 	config := &types.AuthConfig{
@@ -384,4 +399,52 @@ func TestBuildLogoutURL(t *testing.T) {
 	assert.Equal(t, "/v2/logout", parsed.Path)
 	assert.Equal(t, clientID, parsed.Query().Get("client_id"))
 	assert.Equal(t, frontendURL, parsed.Query().Get("returnTo"))
+}
+
+func TestUserInfo_SessionLookupTimeout(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	baseCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	req := httptest.NewRequest("GET", "/api/auth/oidc/userinfo", nil).WithContext(baseCtx)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "test-session"})
+	c.Request = req
+
+	handler := &AuthHandler{
+		cache: blockingStore{},
+	}
+
+	handler.UserInfo(c)
+
+	assert.Equal(t, http.StatusGatewayTimeout, w.Code)
+	assert.Contains(t, w.Body.String(), "Operation timed out")
+}
+
+func TestUserInfo_SessionExpired(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	req := httptest.NewRequest("GET", "/api/auth/oidc/userinfo", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "test-session"})
+	c.Request = req
+
+	mockStore := new(MockStore)
+	mockStore.
+		On("Get", mock.Anything, "oidc:session:test-session", mock.AnythingOfType("*types.SessionData")).
+		Return(cache.ErrKeyNotFound).
+		Once()
+
+	handler := &AuthHandler{
+		cache: mockStore,
+	}
+
+	handler.UserInfo(c)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "Session expired")
+	mockStore.AssertExpectations(t)
 }
