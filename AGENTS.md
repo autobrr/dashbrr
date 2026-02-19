@@ -38,6 +38,10 @@ Owner: soup (s0up4200@pm.me)
 - Broadcaster test DRY cleanup
   - removed repeated snapshot decode boilerplate via shared helper in `broadcast_test.go`
   - keeps regression additions faster/safer while preserving runtime behavior
+- Auth surface cleanup
+  - removed unused OIDC refresh endpoint wiring (`POST /api/auth/oidc/refresh`)
+  - removed dead frontend auth URL config key for refresh
+  - full gate green after route cleanup
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`

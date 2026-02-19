@@ -200,7 +200,6 @@ func (s *Server) Handler() http.Handler {
 		if oidcAuthHandler != nil {
 			oidc := protectedAuth.Group("/oidc")
 			{
-				oidc.POST("/refresh", oidcAuthHandler.RefreshToken)
 				oidc.GET("/verify", oidcAuthHandler.VerifyToken)
 				oidc.GET("/userinfo", oidcAuthHandler.UserInfo)
 			}

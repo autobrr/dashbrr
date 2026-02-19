@@ -19,8 +19,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -44,9 +44,9 @@ func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 		Msg("initializing auth handler")
 
 	return &AuthHandler{
-		config:       config,
-		cache:        store,
-		httpClient:   httpClient,
+		config:     config,
+		cache:      store,
+		httpClient: httpClient,
 	}
 }
 
@@ -505,80 +505,6 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Token is valid",
-	})
-}
-
-func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	sessionID, err := getSessionToken(c)
-	if err != nil {
-		log.Error().Err(err).Msg("no session cookie found")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
-		return
-	}
-
-	if err := h.ensureProviderConfig(c.Request.Context()); err != nil {
-		if c.Request.Context().Err() != nil {
-			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-			return
-		}
-		log.Error().Err(err).Msg("OIDC discovery failed during token refresh")
-		c.JSON(http.StatusBadGateway, gin.H{"error": "OIDC provider discovery failed"})
-		return
-	}
-
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
-	if err := h.cache.Get(c.Request.Context(), sessionKey, &sessionData); err != nil {
-		if err == cache.ErrKeyNotFound {
-			log.Debug().Msg("session not found or expired")
-		} else {
-			log.Error().Err(err).Msg("failed to get session from cache")
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
-		return
-	}
-
-	token := &oauth2.Token{
-		AccessToken:  sessionData.AccessToken,
-		TokenType:    "Bearer",
-		RefreshToken: sessionData.RefreshToken,
-		Expiry:       sessionData.ExpiresAt,
-	}
-
-	// Create token source with context
-	tokenSource := h.getOAuthConfig().TokenSource(c.Request.Context(), token)
-
-	// Refresh the token
-	newToken, err := tokenSource.Token()
-	if err != nil {
-		log.Error().Err(err).Msg("token refresh failed")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh token"})
-		return
-	}
-
-	// Update session data with new token
-	sessionData.AccessToken = newToken.AccessToken
-	// Some providers omit refresh_token on refresh. Preserve the existing token.
-	if newToken.RefreshToken != "" {
-		sessionData.RefreshToken = newToken.RefreshToken
-	}
-	sessionData.ExpiresAt = newToken.Expiry
-	if rawIDToken, ok := newToken.Extra("id_token").(string); ok {
-		sessionData.IDToken = rawIDToken
-	}
-
-	// Store updated session
-	if err := h.cache.Set(c.Request.Context(), sessionKey, sessionData, time.Until(newToken.Expiry)); err != nil {
-		log.Error().Err(err).Msg("failed to update session in cache")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update session"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  newToken.AccessToken,
-		"token_type":    newToken.TokenType,
-		"expires_in":    int(time.Until(newToken.Expiry).Seconds()),
-		"refresh_token": newToken.RefreshToken,
 	})
 }
 
