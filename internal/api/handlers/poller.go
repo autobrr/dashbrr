@@ -33,9 +33,10 @@ const (
 	pollerLongJobTimeout    = 35 * time.Second
 	pollerMaxConcurrentUpst = 8
 	pollerSlowJobThreshold  = 5 * time.Second
+	pollerFailedRetryDelay  = 10 * time.Second
 )
 
-type jobRunner func(*Poller, context.Context, models.ServiceConfiguration, string)
+type jobRunner func(*Poller, context.Context, models.ServiceConfiguration, string) error
 
 type jobSpec struct {
 	name     string
@@ -50,11 +51,13 @@ type Poller struct {
 	registry models.ServiceCreator
 	jobs     map[string][]jobSpec
 
-	mu       sync.Mutex
-	lastRun  map[string]time.Time // key: instanceId + ":" + job
-	inFlight map[string]bool
-	services []models.ServiceConfiguration
-	loadedAt time.Time
+	mu        sync.Mutex
+	lastRun   map[string]time.Time // key: instanceId + ":" + job (last attempt)
+	lastOKRun map[string]time.Time // key: instanceId + ":" + job (last successful attempt)
+	failed    map[string]bool
+	inFlight  map[string]bool
+	services  []models.ServiceConfiguration
+	loadedAt  time.Time
 
 	// trigger refresh now
 	refreshCh chan refreshReq
@@ -70,6 +73,8 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		bc:        bc,
 		registry:  models.NewServiceRegistry(),
 		lastRun:   make(map[string]time.Time),
+		lastOKRun: make(map[string]time.Time),
+		failed:    make(map[string]bool),
 		inFlight:  make(map[string]bool),
 		refreshCh: make(chan refreshReq, 64),
 	}
@@ -243,7 +248,11 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 		return
 	}
 	last := p.lastRun[key]
-	due := force || last.IsZero() || time.Since(last) >= interval
+	currentInterval := interval
+	if p.failed[key] {
+		currentInterval = pollerFailedRetryDelay
+	}
+	due := force || last.IsZero() || time.Since(last) >= currentInterval
 	if !due {
 		p.mu.Unlock()
 		return
@@ -252,11 +261,10 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 	p.mu.Unlock()
 
 	go func() {
+		queuedAt := time.Now()
+
 		select {
 		case sem <- struct{}{}:
-			p.mu.Lock()
-			p.lastRun[key] = time.Now()
-			p.mu.Unlock()
 		case <-ctx.Done():
 			p.mu.Lock()
 			delete(p.inFlight, key)
@@ -274,21 +282,48 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 		defer cancel()
 
 		started := time.Now()
-		run(p, jobCtx, svc, serviceType)
+		queueDelay := started.Sub(queuedAt)
+		err := run(p, jobCtx, svc, serviceType)
 		duration := time.Since(started)
+		now := time.Now()
+
+		p.mu.Lock()
+		p.lastRun[key] = now
+		if err != nil {
+			p.failed[key] = true
+		} else {
+			p.failed[key] = false
+			p.lastOKRun[key] = now
+		}
+		lastOKRun := p.lastOKRun[key]
+		p.mu.Unlock()
 
 		baseLog := log.Debug().
 			Str("instance", svc.InstanceID).
 			Str("service", serviceType).
 			Str("job", job).
+			Dur("queue_delay", queueDelay).
 			Dur("duration", duration)
 
 		switch {
+		case err != nil:
+			failedLog := log.Warn().
+				Err(err).
+				Str("instance", svc.InstanceID).
+				Str("service", serviceType).
+				Str("job", job).
+				Dur("queue_delay", queueDelay).
+				Dur("duration", duration)
+			if !lastOKRun.IsZero() {
+				failedLog = failedLog.Dur("stale_for", now.Sub(lastOKRun))
+			}
+			failedLog.Msg("poller job failed")
 		case jobCtx.Err() == context.DeadlineExceeded:
 			log.Warn().
 				Str("instance", svc.InstanceID).
 				Str("service", serviceType).
 				Str("job", job).
+				Dur("queue_delay", queueDelay).
 				Dur("duration", duration).
 				Msg("poller job exceeded timeout")
 		case duration >= pollerSlowJobThreshold:
@@ -296,6 +331,7 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 				Str("instance", svc.InstanceID).
 				Str("service", serviceType).
 				Str("job", job).
+				Dur("queue_delay", queueDelay).
 				Dur("duration", duration).
 				Msg("poller job completed slowly")
 		default:
@@ -304,7 +340,7 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 	}()
 }
 
-func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration, serviceType string) {
+func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration, serviceType string) error {
 	checker := p.registry.CreateService(serviceType)
 	if checker == nil {
 		publishHealthServiceUpdate(p.bc, models.ServiceHealth{
@@ -313,7 +349,7 @@ func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration,
 			Message:     "Unsupported service type: " + serviceType,
 			LastChecked: time.Now(),
 		})
-		return
+		return nil
 	}
 
 	health, _ := checker.CheckHealth(ctx, svc.URL, svc.APIKey)
@@ -322,15 +358,17 @@ func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration,
 		health.LastChecked = time.Now()
 	}
 	publishHealthServiceUpdate(p.bc, health)
+	return nil
 }
 
-func (p *Poller) runPending(_ context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runPending(_ context.Context, svc models.ServiceConfiguration, _ string) error {
 	publishHealthServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "pending",
 		Message:     "Service not configured",
 		LastChecked: time.Now(),
 	})
+	return nil
 }
 
 func countTranscodingSessions(sessions []types.PlexSession) int {
@@ -398,11 +436,14 @@ func summarizeQuiCardStatus(summary types.QuiTransferSummary) string {
 	return "online"
 }
 
-func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &plex.PlexService{}
 	sessions, err := service.GetSessions(ctx, svc.URL, svc.APIKey)
 	if err != nil || sessions == nil {
-		return
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	metadata := sessions.MediaContainer.Metadata
@@ -430,15 +471,19 @@ func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfigur
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &overseerr.OverseerrService{}
 	service.SetDB(p.db)
 
 	stats, err := service.GetRequests(ctx, svc.URL, svc.APIKey)
 	if err != nil || stats == nil {
-		return
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	if stats.Requests == nil {
@@ -469,13 +514,14 @@ func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceCon
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &radarr.RadarrService{}
 	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
 	if err != nil {
-		return
+		return err
 	}
 	if records == nil {
 		records = []types.RadarrQueueRecord{}
@@ -508,13 +554,14 @@ func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfigura
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &sonarr.SonarrService{}
 	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
 	if err != nil {
-		return
+		return err
 	}
 	if records == nil {
 		records = []types.QueueRecord{}
@@ -548,14 +595,18 @@ func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfigura
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	ps := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
 
 	idxStats, err := ps.GetIndexerStats(ctx, svc.URL, svc.APIKey)
 	if err != nil || idxStats == nil {
-		return
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	totalGrabs := 0
@@ -581,14 +632,15 @@ func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfigu
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runProwlarrIndexers(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runProwlarrIndexers(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	ps := prowlarr.NewProwlarrService().(*prowlarr.ProwlarrService)
 
 	indexers, err := ps.GetIndexers(ctx, svc.URL, svc.APIKey)
 	if err != nil {
-		return
+		return err
 	}
 
 	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
@@ -603,75 +655,88 @@ func (p *Poller) runProwlarrIndexers(ctx context.Context, svc models.ServiceConf
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runAutobrrStats(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runAutobrrStats(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &autobrr.AutobrrService{}
 
-	if stats, err := service.GetReleaseStats(ctx, svc.URL, svc.APIKey); err == nil {
-		publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-			ServiceID:   svc.InstanceID,
-			Status:      "online",
-			Message:     "autobrr_stats",
-			EventType:   models.ServiceEventInternal,
-			LastChecked: time.Now(),
-			Stats: map[string]interface{}{
-				"autobrr": map[string]interface{}{
-					"stats": stats,
-				},
-			},
-		})
+	stats, err := service.GetReleaseStats(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
 	}
+
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
+		ServiceID:   svc.InstanceID,
+		Status:      "online",
+		Message:     "autobrr_stats",
+		EventType:   models.ServiceEventInternal,
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"autobrr": map[string]interface{}{
+				"stats": stats,
+			},
+		},
+	})
+	return nil
 }
 
-func (p *Poller) runAutobrrIRC(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runAutobrrIRC(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &autobrr.AutobrrService{}
 
-	if irc, err := service.GetIRCStatus(ctx, svc.URL, svc.APIKey); err == nil {
-		status := "online"
-		for _, s := range irc {
-			if !s.Healthy && s.Enabled {
-				status = "warning"
-				break
-			}
+	irc, err := service.GetIRCStatus(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	status := "online"
+	for _, s := range irc {
+		if !s.Healthy && s.Enabled {
+			status = "warning"
+			break
 		}
-		publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-			ServiceID:   svc.InstanceID,
-			Status:      status,
-			Message:     "autobrr_irc_status",
-			EventType:   models.ServiceEventInternal,
-			LastChecked: time.Now(),
-			Details: map[string]interface{}{
-				"autobrr": types.AutobrrDetails{IRC: irc},
-			},
-		})
 	}
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
+		ServiceID:   svc.InstanceID,
+		Status:      status,
+		Message:     "autobrr_irc_status",
+		EventType:   models.ServiceEventInternal,
+		LastChecked: time.Now(),
+		Details: map[string]interface{}{
+			"autobrr": types.AutobrrDetails{IRC: irc},
+		},
+	})
+	return nil
 }
 
-func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &autobrr.AutobrrService{}
 
-	if releases, err := service.GetReleases(ctx, svc.URL, svc.APIKey); err == nil {
-		publishInternalServiceUpdate(p.bc, models.ServiceHealth{
-			ServiceID:   svc.InstanceID,
-			Status:      "online",
-			Message:     "autobrr_releases",
-			EventType:   models.ServiceEventInternal,
-			LastChecked: time.Now(),
-			Stats: map[string]interface{}{
-				"autobrr": map[string]interface{}{
-					"releases": releases,
-				},
-			},
-		})
+	releases, err := service.GetReleases(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
 	}
+
+	publishInternalServiceUpdate(p.bc, models.ServiceHealth{
+		ServiceID:   svc.InstanceID,
+		Status:      "online",
+		Message:     "autobrr_releases",
+		EventType:   models.ServiceEventInternal,
+		LastChecked: time.Now(),
+		Stats: map[string]interface{}{
+			"autobrr": map[string]interface{}{
+				"releases": releases,
+			},
+		},
+	})
+	return nil
 }
 
-func (p *Poller) runMaintainerrCollections(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runMaintainerrCollections(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &maintainerr.MaintainerrService{}
 	collections, err := service.GetCollections(ctx, svc.URL, svc.APIKey)
 	if err != nil {
-		return
+		return err
 	}
 	if collections == nil {
 		collections = []maintainerr.Collection{}
@@ -694,13 +759,14 @@ func (p *Poller) runMaintainerrCollections(ctx context.Context, svc models.Servi
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &tailscale.TailscaleService{}
 	devices, err := service.GetDevices(ctx, svc.URL, svc.APIKey)
 	if err != nil {
-		return
+		return err
 	}
 	if devices == nil {
 		devices = []tailscale.Device{}
@@ -726,14 +792,15 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 			},
 		},
 	})
+	return nil
 }
 
-func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfiguration, _ string) {
+func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := qui.NewQuiService().(*qui.QuiService)
 
 	instances, err := service.GetInstances(ctx, svc.URL, svc.APIKey)
 	if err != nil {
-		return
+		return err
 	}
 	if instances == nil {
 		instances = []types.QuiInstance{}
@@ -759,4 +826,5 @@ func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfigura
 			},
 		},
 	})
+	return nil
 }

@@ -199,10 +199,7 @@ func (h *SonarrHandler) fetchStats(ctx context.Context, instanceId string) (sona
 		return sonarrStatsResult{}, err
 	}
 
-	episodeCount := 0
-	for _, record := range records {
-		episodeCount += len(record.Episodes)
-	}
+	_, episodeCount, _ := summarizeSonarrQueue(records)
 
 	return sonarrStatsResult{
 		Stats: types.SonarrStatsResponse{
@@ -326,16 +323,7 @@ func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *type
 }
 
 func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types.SonarrQueueResponse) {
-	var totalSize int64
-	var downloading int
-	var episodeCount int
-	for _, record := range queueResp.Records {
-		totalSize += record.Size
-		if record.Status == "downloading" {
-			downloading++
-		}
-		episodeCount += len(record.Episodes)
-	}
+	downloading, episodeCount, totalSize := summarizeSonarrQueue(queueResp.Records)
 
 	publishInternalServiceUpdate(h.bc, models.ServiceHealth{
 		ServiceID: instanceId,

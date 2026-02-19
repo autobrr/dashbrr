@@ -1220,6 +1220,27 @@ Owner: soup (s0up4200@pm.me)
   - added `web/tests/overseerr.status.test.ts` with resolver coverage for numeric/string/missing status cases
 - Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
 
+### 2026-02-19 (poller hardening: fast retry on failed jobs + queue timing)
+- CI:
+  - `build` run `22175391455` for commit `bea8e2b` completed `success`
+- Backend poller resilience (`internal/api/handlers/poller.go`):
+  - root cause addressed:
+    - failed poller jobs previously waited full nominal interval before retry (e.g. 60s/120s), causing long card skeleton windows after transient upstream failures
+  - changed runner contract to return `error` (success/failure now explicit)
+  - added failed-job state tracking:
+    - `lastRun` (attempt), `lastOKRun` (success), `failed` map
+  - failed jobs now retry on short cadence (`pollerFailedRetryDelay=10s`) instead of full job interval
+  - added queue-delay timing in logs (`queue_delay`) to expose semaphore wait pressure
+  - added stale visibility on failure logs (`stale_for` since last successful run)
+- DRY cleanup for *arr queue summaries:
+  - `RadarrHandler.broadcastRadarrQueue` now uses shared `summarizeRadarrQueue`
+  - `SonarrHandler.broadcastSonarrQueue` + `fetchStats` now use shared `summarizeSonarrQueue`
+  - keeps poller + handlers aligned on queue-count math
+- Tests:
+  - updated poller tests for runner signature
+  - added `TestPollerMaybeRun_FailedJobsRetrySoonerThanNominalInterval` regression case
+- Gates: pass (`go test ./...`, `pnpm -C web test`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
@@ -1228,5 +1249,6 @@ Owner: soup (s0up4200@pm.me)
 - Backend: remove leftover dead fields/imports after SWR/singleflight migration
 - Backend: remove remaining `context.Background()` in request paths; keep ctx flow explicit
 - Backend: continue poller decomposition (extract payload-build helpers, add unit tests before behavior changes)
+- Backend: consolidate more *arr handler config/service fetch paths into shared helpers
 - Overseerr: keep `status.ts` synced with local `seerr` enums; update resolver tests first when upstream adds states
 - Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)

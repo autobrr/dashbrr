@@ -29,7 +29,9 @@ func TestPollerMaybeRun_CanceledContextBeforeSemaphoreAcquireClearsInFlight(t *t
 	job := "plex_sessions"
 	key := svc.InstanceID + ":" + job
 
-	p.maybeRun(ctx, sem, svc, "plex", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) {})
+	p.maybeRun(ctx, sem, svc, "plex", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+		return nil
+	})
 
 	deadline := time.Now().Add(250 * time.Millisecond)
 	for time.Now().Before(deadline) {
@@ -61,8 +63,9 @@ func TestPollerMaybeRun_SemaphoreFullWaitsThenRuns(t *testing.T) {
 	key := svc.InstanceID + ":" + job
 	ran := make(chan struct{}, 1)
 
-	p.maybeRun(context.Background(), sem, svc, "plex", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) {
+	p.maybeRun(context.Background(), sem, svc, "plex", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
 		ran <- struct{}{}
+		return nil
 	})
 
 	// Confirm job remains in-flight while waiting for worker slot.
@@ -103,4 +106,81 @@ func TestPollerMaybeRun_SemaphoreFullWaitsThenRuns(t *testing.T) {
 	}
 
 	t.Fatalf("expected inFlight %q to be cleared after run", key)
+}
+
+func TestPollerMaybeRun_FailedJobsRetrySoonerThanNominalInterval(t *testing.T) {
+	p := NewPoller(nil, nil)
+	sem := make(chan struct{}, 1)
+
+	svc := models.ServiceConfiguration{
+		InstanceID: "sonarr-1",
+		URL:        "http://example",
+		APIKey:     "key",
+	}
+
+	job := "sonarr_queue"
+	key := svc.InstanceID + ":" + job
+
+	failed := make(chan struct{}, 1)
+	p.maybeRun(context.Background(), sem, svc, "sonarr", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+		failed <- struct{}{}
+		return context.DeadlineExceeded
+	})
+
+	select {
+	case <-failed:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("expected first run to fail")
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		isFailed := p.failed[key]
+		p.mu.Unlock()
+		if isFailed {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	p.mu.Lock()
+	if !p.failed[key] {
+		p.mu.Unlock()
+		t.Fatalf("expected failed[%q] = true after failing run", key)
+	}
+	p.lastRun[key] = time.Now().Add(-pollerFailedRetryDelay - time.Millisecond)
+	p.mu.Unlock()
+
+	deadline = time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		inFlight := p.inFlight[key]
+		p.mu.Unlock()
+		if !inFlight {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	retried := make(chan struct{}, 1)
+	p.maybeRun(context.Background(), sem, svc, "sonarr", job, time.Hour, pollerDefaultJobTimeout, false, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+		retried <- struct{}{}
+		return nil
+	})
+
+	select {
+	case <-retried:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("expected failed job retry after %v", pollerFailedRetryDelay)
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.failed[key] {
+		t.Fatalf("expected failed[%q] = false after successful retry", key)
+	}
+	if p.lastOKRun[key].IsZero() {
+		t.Fatalf("expected lastOKRun[%q] to be set after successful retry", key)
+	}
 }

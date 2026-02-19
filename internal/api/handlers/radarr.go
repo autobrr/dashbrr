@@ -136,15 +136,7 @@ func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *
 
 // broadcastRadarrQueue broadcasts Radarr queue updates to all connected SSE clients
 func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types.RadarrQueueResponse) {
-	// Calculate additional statistics
-	var totalSize int64
-	var downloading int
-	for _, record := range queueResp.Records {
-		totalSize += record.Size
-		if record.Status == "downloading" {
-			downloading++
-		}
-	}
+	downloading, totalSize := summarizeRadarrQueue(queueResp.Records)
 
 	// Match frontend shape: stats.radarr.queue
 	stats := map[string]interface{}{
