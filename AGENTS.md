@@ -1730,3 +1730,27 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
   - `go test ./...`
+
+## TODO (Next Service Integrations)
+- Add `Lidarr` support (health + queue/activities + key warnings).
+- Add `Readarr` support (health + queue/activities + key warnings).
+- Add `Bazarr` support (health + backlog/subtitle provider status).
+- Add `SABnzbd` support (queue health, speeds, disk pressure, failures).
+- Add `NZBGet` support (queue health, rates, disk, error/warn feed).
+- Add `Jellyfin` support (active sessions, transcode load, health).
+- Add `Uptime Kuma` support (synthetic monitor summaries + incidents).
+- Add `Traefik` support (router/service health + cert expiry visibility).
+- Add `Caddy` support (cert + endpoint health visibility).
+- `Tdarr`: deferred per request (do not implement now).
+
+### 2026-02-20 (OSS Context Sync for Planned Integrations)
+- Cloned/upstream-synced repos into `~/github/oss`:
+  - `Lidarr` -> `https://github.com/Lidarr/Lidarr.git`
+  - `Readarr` -> `https://github.com/Readarr/Readarr.git`
+  - `bazarr` -> `https://github.com/morpheus65535/bazarr.git`
+  - `sabnzbd` -> `https://github.com/sabnzbd/sabnzbd.git`
+  - `nzbget` -> `https://github.com/nzbgetcom/nzbget.git`
+  - `jellyfin` -> `https://github.com/jellyfin/jellyfin.git`
+  - `uptime-kuma` -> `https://github.com/louislam/uptime-kuma.git`
+  - `traefik` -> `https://github.com/traefik/traefik.git`
+  - `caddy` -> `https://github.com/caddyserver/caddy.git`
