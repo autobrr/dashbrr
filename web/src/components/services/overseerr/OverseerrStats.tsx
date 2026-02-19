@@ -22,43 +22,17 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import {
+  getRequestStatus,
+  OVERSEERR_REQUEST_STATUS,
+  resolveRequestStatus,
+} from "./status";
 
 interface OverseerrStatsProps {
   instanceId: string;
 }
 
 const EMPTY_REQUESTS: OverseerrMediaRequest[] = [];
-type StatusTone = "pending" | "success" | "error" | "neutral";
-
-type StatusMeta = {
-  label: string;
-  color: string;
-  tone: StatusTone;
-};
-
-// Mirrors seerr/server/constants/media.ts (MediaRequestStatus)
-const REQUEST_STATUS_META: Record<number, StatusMeta> = {
-  1: { label: "Pending", color: "text-yellow-500", tone: "pending" },
-  2: { label: "Approved", color: "text-green-500", tone: "success" },
-  3: { label: "Declined", color: "text-red-500", tone: "error" },
-  4: { label: "Failed", color: "text-red-500", tone: "error" },
-  5: { label: "Completed", color: "text-green-500", tone: "success" },
-};
-
-// Fallback for instances that expose media lifecycle statuses.
-const MEDIA_STATUS_META: Record<number, StatusMeta> = {
-  1: { label: "Unknown", color: "text-zinc-400", tone: "neutral" },
-  2: { label: "Pending", color: "text-yellow-500", tone: "pending" },
-  3: { label: "Processing", color: "text-blue-400", tone: "neutral" },
-  4: {
-    label: "Partially Available",
-    color: "text-blue-400",
-    tone: "neutral",
-  },
-  5: { label: "Available", color: "text-green-500", tone: "success" },
-  6: { label: "Blacklisted", color: "text-red-500", tone: "error" },
-  7: { label: "Deleted", color: "text-zinc-400", tone: "neutral" },
-};
 
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
@@ -77,7 +51,10 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       return next ? { ...req, status: next } : req;
     });
   }, [serviceRequests, statusOverrides]);
-  const pendingRequests = requests.filter((req) => req.status === 1);
+  const pendingRequests = requests.filter(
+    (req) =>
+      getRequestStatus(req.status) === OVERSEERR_REQUEST_STATUS.PENDING
+  );
   const pendingCount = pendingRequests.length;
   const isLoading = !service || service.status === "loading";
   const error = service?.status === "error" ? service.message : null;
@@ -148,27 +125,6 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   // Combine service message with health message if available
   const message = combineServiceMessage(service);
 
-  const resolveStatusMeta = (
-    request: OverseerrMediaRequest
-  ): StatusMeta & { isFallback: boolean } => {
-    const requestStatus = REQUEST_STATUS_META[request.status];
-    if (requestStatus) {
-      return { ...requestStatus, isFallback: false };
-    }
-
-    const mediaStatus = MEDIA_STATUS_META[request.media?.status];
-    if (mediaStatus) {
-      return { ...mediaStatus, isFallback: true };
-    }
-
-    return {
-      label: `Unknown (${request.status})`,
-      color: "text-zinc-400",
-      tone: "neutral",
-      isFallback: false,
-    };
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString(undefined, {
@@ -209,7 +165,10 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
     request: OverseerrMediaRequest;
     isPending?: boolean;
   }) => {
-    const statusMeta = resolveStatusMeta(request);
+    const status = resolveRequestStatus(request);
+    const statusMeta = status.meta;
+    const isPendingRequest =
+      status.requestStatus === OVERSEERR_REQUEST_STATUS.PENDING;
 
     return (
       <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors">
@@ -300,7 +259,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {request.status === 1 ? (
+              {isPendingRequest ? (
                 <>
                   <button
                     onClick={() => handleAction(request, "approve")}
@@ -322,7 +281,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
                   className={`${statusMeta.color} bg-gray-800/50 px-2 py-0.5 rounded font-medium`}
                 >
                   {statusMeta.label}
-                  {statusMeta.isFallback ? " (media)" : ""}
+                  {status.isFallback ? " (media)" : ""}
                 </span>
               )}
             </div>
@@ -370,14 +329,22 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       {requests.length > 0 ? (
         <CollapsibleSection
           title={`Recent Requests (${
-            requests.filter((request) => request.status !== 1).length
+            requests.filter(
+              (request) =>
+                getRequestStatus(request.status) !==
+                OVERSEERR_REQUEST_STATUS.PENDING
+            ).length
           })`}
           isExpanded={isExpanded}
           onToggle={toggle}
         >
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {requests
-                .filter((request) => request.status !== 1)
+                .filter(
+                  (request) =>
+                    getRequestStatus(request.status) !==
+                    OVERSEERR_REQUEST_STATUS.PENDING
+                )
                 .sort(
                   (a, b) =>
                     new Date(b.createdAt).getTime() -

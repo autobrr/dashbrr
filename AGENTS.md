@@ -1200,6 +1200,26 @@ Owner: soup (s0up4200@pm.me)
 - Goal: KISS/DRY on request validation paths; lower drift risk between handlers.
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (fix: overseerr status mapping aligned with seerr)
+- Source-of-truth check:
+  - verified local `~/github/oss/seerr/server/constants/media.ts` enums
+  - request status enum: `PENDING=1, APPROVED=2, DECLINED=3, FAILED=4, COMPLETED=5`
+  - media status enum: `UNKNOWN=1, PENDING=2, PROCESSING=3, PARTIALLY_AVAILABLE=4, AVAILABLE=5, BLACKLISTED=6, DELETED=7`
+- Frontend refactor:
+  - added shared resolver `web/src/components/services/overseerr/status.ts`
+  - robust status parsing supports numeric + string payloads (`\"2\"`, `\"APPROVED\"`, etc.)
+  - card state now uses resolver for:
+    - pending-request partitioning
+    - action buttons (approve/reject visibility)
+    - chip label/tone rendering
+  - fallback behavior tightened:
+    - prefers canonical request status when present
+    - uses media lifecycle labels when request status missing/legacy
+    - avoids noisy `Unknown` chip by using `Requested` fallback
+- Tests:
+  - added `web/tests/overseerr.status.test.ts` with resolver coverage for numeric/string/missing status cases
+- Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
@@ -1208,5 +1228,5 @@ Owner: soup (s0up4200@pm.me)
 - Backend: remove leftover dead fields/imports after SWR/singleflight migration
 - Backend: remove remaining `context.Background()` in request paths; keep ctx flow explicit
 - Backend: continue poller decomposition (extract payload-build helpers, add unit tests before behavior changes)
-- Overseerr: follow-up on status-label mapping (`Unknown`) when upstream payload uses newer states
+- Overseerr: keep `status.ts` synced with local `seerr` enums; update resolver tests first when upstream adds states
 - Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)
