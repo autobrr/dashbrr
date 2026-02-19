@@ -50,6 +50,10 @@ Owner: soup (s0up4200@pm.me)
   - removed legacy `/api/health/events` SSE alias; canonical stream path is `/api/events`
   - updated Vite dev proxy SSE header hint to only match `/api/events`
   - full gate green after route cleanup
+- Poller no-stall regression locks
+  - added tick-level tests for health-first behavior with slow stats jobs
+  - added forced-tick regression test ensuring stats jobs are skipped on forced startup/refresh pass
+  - uses temp sqlite DB in forced-tick test to cover real service reload path safely
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`
