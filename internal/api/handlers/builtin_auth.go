@@ -46,6 +46,29 @@ func (h *BuiltinAuthHandler) getSession(ctx context.Context, sessionToken string
 	return sessionData, nil
 }
 
+func (h *BuiltinAuthHandler) requireSession(c *gin.Context, cacheMissMessage string) (string, types.SessionData, bool) {
+	ctx := c.Request.Context()
+
+	sessionToken, err := getSessionToken(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
+		return "", types.SessionData{}, false
+	}
+
+	sessionData, err := h.getSession(ctx, sessionToken)
+	if err != nil {
+		if err == cache.ErrKeyNotFound {
+			log.Debug().Msg("session not found or expired")
+		} else {
+			log.Error().Err(err).Msg("failed to get session from cache")
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{"error": cacheMissMessage})
+		return "", types.SessionData{}, false
+	}
+
+	return sessionToken, sessionData, true
+}
+
 // CheckRegistrationStatus checks if registration is allowed (no users exist)
 func (h *BuiltinAuthHandler) CheckRegistrationStatus(c *gin.Context) {
 	hasUsers, err := h.db.HasUsers(c.Request.Context())
@@ -222,20 +245,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	sessionToken, err := getSessionToken(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
-		return
-	}
-
-	sessionData, err := h.getSession(ctx, sessionToken)
-	if err != nil {
-		if err == cache.ErrKeyNotFound {
-			log.Debug().Msg("session not found or expired")
-		} else {
-			log.Error().Err(err).Msg("failed to get session from cache")
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session not found or expired"})
+	sessionToken, sessionData, ok := h.requireSession(c, "Session not found or expired")
+	if !ok {
 		return
 	}
 
@@ -285,20 +296,8 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	sessionToken, err := getSessionToken(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
-		return
-	}
-
-	sessionData, err := h.getSession(ctx, sessionToken)
-	if err != nil {
-		if err == cache.ErrKeyNotFound {
-			log.Debug().Msg("session not found or expired")
-		} else {
-			log.Error().Err(err).Msg("failed to get session from cache")
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session not found"})
+	_, sessionData, ok := h.requireSession(c, "Session not found")
+	if !ok {
 		return
 	}
 

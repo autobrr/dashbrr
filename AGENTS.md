@@ -1287,9 +1287,12 @@ Owner: soup (s0up4200@pm.me)
     - `sessionCacheKey(...)`
     - `isSecureRequest(...)`
     - `BuiltinAuthHandler.getSession(...)`
+    - `BuiltinAuthHandler.requireSession(...)`
   - removed repeated session-cache lookup blocks in `Verify` + `GetUserInfo`
   - removed repeated secure-cookie checks in `Login` + `Logout`
   - behavior unchanged; lower drift risk between auth endpoints
+- Duplication scan update:
+  - reran `jscpd` after refactor; remaining duplicates in handlers are test-only (`broadcast_test.go`)
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
 ## Rolling Plan
