@@ -71,3 +71,37 @@ func TestEffectiveJobTimeout(t *testing.T) {
 		t.Fatalf("effectiveJobTimeout(override) = %v, want %v", got, override)
 	}
 }
+
+func TestPollerStaleDataThreshold(t *testing.T) {
+	t.Parallel()
+
+	if got := pollerStaleDataThreshold(5 * time.Second); got != pollerMinStaleThreshold {
+		t.Fatalf("pollerStaleDataThreshold(5s) = %v, want %v", got, pollerMinStaleThreshold)
+	}
+
+	if got := pollerStaleDataThreshold(40 * time.Second); got != 80*time.Second {
+		t.Fatalf("pollerStaleDataThreshold(40s) = %v, want %v", got, 80*time.Second)
+	}
+
+	if got := pollerStaleDataThreshold(8 * time.Minute); got != pollerMaxStaleThreshold {
+		t.Fatalf("pollerStaleDataThreshold(8m) = %v, want %v", got, pollerMaxStaleThreshold)
+	}
+}
+
+func TestApplyPollerJobJitter(t *testing.T) {
+	t.Parallel()
+
+	base := 60 * time.Second
+	a := applyPollerJobJitter("sonarr-1:sonarr_queue", base)
+	b := applyPollerJobJitter("sonarr-1:sonarr_queue", base)
+
+	if a != b {
+		t.Fatalf("jitter should be deterministic, got %v and %v", a, b)
+	}
+	if a < base {
+		t.Fatalf("jittered interval should not be below base: got %v base %v", a, base)
+	}
+	if a > base+pollerMaxJobJitter {
+		t.Fatalf("jittered interval should be bounded: got %v max %v", a, base+pollerMaxJobJitter)
+	}
+}

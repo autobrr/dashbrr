@@ -1352,6 +1352,30 @@ Owner: soup (s0up4200@pm.me)
   - `web/tests/serviceData.merge.test.ts` now checks configured services are not seeded with placeholder message
 - Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
 
+### 2026-02-19 (poller QoS: jitter + per-job timeouts + stale guard)
+- Poller scheduling (`internal/api/handlers/poller.go`):
+  - added deterministic per-job jitter for steady-state runs (`applyPollerJobJitter`)
+    - spreads non-failed jobs across the interval window (up to 10%, capped at 5s)
+    - reduces synchronized bursts against upstream services
+  - added stale-data threshold helper (`pollerStaleDataThreshold`)
+    - threshold = `2x interval`, bounded `30s..10m`
+  - added stale-warning state tracking (`staleWarn` map)
+    - on repeated failures beyond stale threshold, emits dedicated warning:
+      - `poller job data is stale`
+    - stale warning auto-clears on successful job run
+- Poller job timeout tuning (explicit by job):
+  - short: `12s` (e.g., `plex_sessions`, `qui_overview`)
+  - medium: `20s` (e.g., *arr queues/stats, overseerr requests, tailscale devices, autobrr stats/irc)
+  - long: existing `35s` for heavier collection/release pulls
+- Tests:
+  - `internal/api/handlers/poller_jobs_test.go`
+    - `TestPollerStaleDataThreshold`
+    - `TestApplyPollerJobJitter`
+  - `internal/api/handlers/poller_test.go`
+    - `TestPollerMaybeRun_FailureMarksJobStaleAfterThreshold`
+    - `TestPollerMaybeRun_SuccessClearsStaleWarning`
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

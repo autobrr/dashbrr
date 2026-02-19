@@ -216,3 +216,79 @@ func TestPollerMaybeRun_PanicMarksJobFailed(t *testing.T) {
 
 	t.Fatalf("expected panic job to be marked failed and cleared from inFlight")
 }
+
+func TestPollerMaybeRun_FailureMarksJobStaleAfterThreshold(t *testing.T) {
+	p := NewPoller(nil, nil)
+	sem := make(chan struct{}, 1)
+
+	svc := models.ServiceConfiguration{
+		InstanceID: "prowlarr-1",
+		URL:        "http://example",
+		APIKey:     "key",
+	}
+
+	job := "prowlarr_stats"
+	key := svc.InstanceID + ":" + job
+	interval := 20 * time.Second
+
+	p.mu.Lock()
+	p.lastOKRun[key] = time.Now().Add(-pollerStaleDataThreshold(interval) - time.Second)
+	p.mu.Unlock()
+
+	p.maybeRun(context.Background(), sem, svc, "prowlarr", job, interval, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+		return context.DeadlineExceeded
+	})
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		staleWarn := p.staleWarn[key]
+		inFlight := p.inFlight[key]
+		p.mu.Unlock()
+		if staleWarn && !inFlight {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	t.Fatalf("expected stale warning to be set for key %q after prolonged failure", key)
+}
+
+func TestPollerMaybeRun_SuccessClearsStaleWarning(t *testing.T) {
+	p := NewPoller(nil, nil)
+	sem := make(chan struct{}, 1)
+
+	svc := models.ServiceConfiguration{
+		InstanceID: "prowlarr-1",
+		URL:        "http://example",
+		APIKey:     "key",
+	}
+
+	job := "prowlarr_stats"
+	key := svc.InstanceID + ":" + job
+
+	p.mu.Lock()
+	p.staleWarn[key] = true
+	p.failed[key] = true
+	p.lastRun[key] = time.Now().Add(-pollerFailedRetryDelay - time.Second)
+	p.mu.Unlock()
+
+	p.maybeRun(context.Background(), sem, svc, "prowlarr", job, 20*time.Second, pollerDefaultJobTimeout, false, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+		return nil
+	})
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		staleWarn := p.staleWarn[key]
+		failed := p.failed[key]
+		inFlight := p.inFlight[key]
+		p.mu.Unlock()
+		if !staleWarn && !failed && !inFlight {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	t.Fatalf("expected stale warning and failed state to clear on successful run")
+}

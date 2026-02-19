@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"sync"
 	"time"
 
@@ -35,6 +36,11 @@ const (
 	pollerMaxConcurrentUpst = 8
 	pollerSlowJobThreshold  = 5 * time.Second
 	pollerFailedRetryDelay  = 10 * time.Second
+	pollerMaxJobJitter      = 5 * time.Second
+	pollerMinStaleThreshold = 30 * time.Second
+	pollerMaxStaleThreshold = 10 * time.Minute
+	pollerShortJobTimeout   = 12 * time.Second
+	pollerMediumJobTimeout  = 20 * time.Second
 )
 
 type jobRunner func(*Poller, context.Context, models.ServiceConfiguration, string) error
@@ -56,6 +62,7 @@ type Poller struct {
 	lastRun   map[string]time.Time // key: instanceId + ":" + job (last attempt)
 	lastOKRun map[string]time.Time // key: instanceId + ":" + job (last successful attempt)
 	failed    map[string]bool
+	staleWarn map[string]bool
 	inFlight  map[string]bool
 	services  []models.ServiceConfiguration
 	loadedAt  time.Time
@@ -76,40 +83,41 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		lastRun:   make(map[string]time.Time),
 		lastOKRun: make(map[string]time.Time),
 		failed:    make(map[string]bool),
+		staleWarn: make(map[string]bool),
 		inFlight:  make(map[string]bool),
 		refreshCh: make(chan refreshReq, 64),
 	}
 
 	p.jobs = map[string][]jobSpec{
 		"plex": {
-			{name: "plex_sessions", interval: 10 * time.Second, run: (*Poller).runPlexSessions},
+			{name: "plex_sessions", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runPlexSessions},
 		},
 		"overseerr": {
-			{name: "overseerr_requests", interval: 60 * time.Second, run: (*Poller).runOverseerrRequests},
+			{name: "overseerr_requests", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runOverseerrRequests},
 		},
 		"radarr": {
-			{name: "radarr_queue", interval: 60 * time.Second, run: (*Poller).runRadarrQueue},
+			{name: "radarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runRadarrQueue},
 		},
 		"sonarr": {
-			{name: "sonarr_queue", interval: 60 * time.Second, run: (*Poller).runSonarrQueue},
+			{name: "sonarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runSonarrQueue},
 		},
 		"prowlarr": {
-			{name: "prowlarr_stats", interval: 120 * time.Second, run: (*Poller).runProwlarrStats},
-			{name: "prowlarr_indexers", interval: 120 * time.Second, run: (*Poller).runProwlarrIndexers},
+			{name: "prowlarr_stats", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runProwlarrStats},
+			{name: "prowlarr_indexers", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runProwlarrIndexers},
 		},
 		"autobrr": {
-			{name: "autobrr_stats", interval: 120 * time.Second, run: (*Poller).runAutobrrStats},
-			{name: "autobrr_irc_status", interval: 120 * time.Second, run: (*Poller).runAutobrrIRC},
+			{name: "autobrr_stats", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runAutobrrStats},
+			{name: "autobrr_irc_status", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runAutobrrIRC},
 			{name: "autobrr_releases", interval: 120 * time.Second, timeout: pollerLongJobTimeout, run: (*Poller).runAutobrrReleases},
 		},
 		"maintainerr": {
 			{name: "maintainerr_collections", interval: 10 * time.Minute, timeout: pollerLongJobTimeout, run: (*Poller).runMaintainerrCollections},
 		},
 		"tailscale": {
-			{name: "tailscale_devices", interval: 60 * time.Second, run: (*Poller).runTailscaleDevices},
+			{name: "tailscale_devices", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runTailscaleDevices},
 		},
 		"qui": {
-			{name: "qui_overview", interval: 20 * time.Second, run: (*Poller).runQuiOverview},
+			{name: "qui_overview", interval: 20 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runQuiOverview},
 		},
 	}
 
@@ -210,6 +218,37 @@ func effectiveJobTimeout(timeout time.Duration) time.Duration {
 	return timeout
 }
 
+func pollerStaleDataThreshold(interval time.Duration) time.Duration {
+	threshold := interval * 2
+	if threshold < pollerMinStaleThreshold {
+		return pollerMinStaleThreshold
+	}
+	if threshold > pollerMaxStaleThreshold {
+		return pollerMaxStaleThreshold
+	}
+	return threshold
+}
+
+func applyPollerJobJitter(key string, interval time.Duration) time.Duration {
+	if interval <= pollerTickInterval {
+		return interval
+	}
+
+	maxJitter := interval / 10
+	if maxJitter > pollerMaxJobJitter {
+		maxJitter = pollerMaxJobJitter
+	}
+	if maxJitter <= 0 {
+		return interval
+	}
+
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(key))
+	jitter := time.Duration(hasher.Sum32() % uint32(maxJitter+1))
+
+	return interval + jitter
+}
+
 func isServiceConfigured(serviceType string, svc models.ServiceConfiguration) bool {
 	if svc.URL == "" {
 		return false
@@ -252,6 +291,8 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 	currentInterval := interval
 	if p.failed[key] {
 		currentInterval = pollerFailedRetryDelay
+	} else if !force && !last.IsZero() {
+		currentInterval = applyPollerJobJitter(key, interval)
 	}
 	due := force || last.IsZero() || time.Since(last) >= currentInterval
 	if !due {
@@ -296,15 +337,31 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 		duration := time.Since(started)
 		now := time.Now()
 
+		var (
+			lastOKRun       time.Time
+			shouldWarnStale bool
+			staleFor        time.Duration
+			staleThreshold  time.Duration
+		)
+
 		p.mu.Lock()
 		p.lastRun[key] = now
 		if err != nil {
 			p.failed[key] = true
+			lastOKRun = p.lastOKRun[key]
+			if !lastOKRun.IsZero() {
+				staleFor = now.Sub(lastOKRun)
+				staleThreshold = pollerStaleDataThreshold(interval)
+				if staleFor >= staleThreshold && !p.staleWarn[key] {
+					p.staleWarn[key] = true
+					shouldWarnStale = true
+				}
+			}
 		} else {
 			p.failed[key] = false
 			p.lastOKRun[key] = now
+			p.staleWarn[key] = false
 		}
-		lastOKRun := p.lastOKRun[key]
 		p.mu.Unlock()
 
 		baseLog := log.Debug().
@@ -324,9 +381,18 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 				Dur("queue_delay", queueDelay).
 				Dur("duration", duration)
 			if !lastOKRun.IsZero() {
-				failedLog = failedLog.Dur("stale_for", now.Sub(lastOKRun))
+				failedLog = failedLog.Dur("stale_for", staleFor)
 			}
 			failedLog.Msg("poller job failed")
+			if shouldWarnStale {
+				log.Warn().
+					Str("instance", svc.InstanceID).
+					Str("service", serviceType).
+					Str("job", job).
+					Dur("stale_for", staleFor).
+					Dur("stale_threshold", staleThreshold).
+					Msg("poller job data is stale")
+			}
 		case jobCtx.Err() == context.DeadlineExceeded:
 			log.Warn().
 				Str("instance", svc.InstanceID).
