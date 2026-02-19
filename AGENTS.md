@@ -19,13 +19,12 @@ Owner: soup (s0up4200@pm.me)
   - updated constructor expectations (no eager oauth config)
   - added lazy discovery success/failure coverage
   - added concurrent discovery regression test (one `.well-known` fetch across parallel callers)
-- Poller startup hardening (uncommitted; waiting for local test)
-  - forced poll ticks now publish immediate internal bootstrap status per configured service (`unknown`)
-  - keeps cards from hanging in skeleton state while slower health/stats jobs finish
+- Poller startup hardening
   - forced ticks now run health/pending pass only; stats deferred to next normal tick (global service-order fix)
-  - fixed snapshot merge regression: bootstrap/internal events no longer poison health event type on replay
+  - removed forced-tick synthetic bootstrap event (health-first scheduling only; less state coupling)
+  - fixed snapshot merge regression: prior internal events no longer poison health event type on replay
   - health-state merge now applies on any non-internal event (not gated by non-empty message)
-  - added regression tests around bootstrap snapshot behavior (seed + no clobber of healthy state)
+  - added regression tests around internal->health promotion + response-time/version replay safety
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`

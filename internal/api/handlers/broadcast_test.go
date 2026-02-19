@@ -242,11 +242,17 @@ func TestBroadcasterSnapshotKeepsHealthResponseTimeAcrossInternalEvents(t *testi
 	}
 }
 
-func TestBroadcasterSnapshotPromotesBootstrapInternalToHealthEventType(t *testing.T) {
+func TestBroadcasterSnapshotPromotesInternalEventToHealthEventType(t *testing.T) {
 	bc := NewBroadcaster(sse.NewHub())
 	now := time.Unix(1700000000, 0)
 
-	publishPollerBootstrapStatus(bc, "prowlarr-1")
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "prowlarr-1",
+		Status:      "unknown",
+		Message:     "prowlarr_indexers",
+		EventType:   models.ServiceEventInternal,
+		LastChecked: now.Add(-time.Second),
+	})
 	publishHealthServiceUpdate(bc, models.ServiceHealth{
 		ServiceID:    "prowlarr-1",
 		Status:       "warning",
