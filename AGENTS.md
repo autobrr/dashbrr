@@ -32,6 +32,9 @@ Owner: soup (s0up4200@pm.me)
 - SSE/reducer refresh regression matrix
   - added web merge test to lock `warning + version + responseTime` persistence across internal stats update + hydration refresh
   - protects prior startup/refresh latency regressions where cards briefly lost health fields after reconnect/reload
+- SSE snapshot backend regression matrix
+  - added broadcaster snapshot test locking combined replay persistence of `warning + version + responseTime` across internal payload updates
+  - mirrors frontend merge guardrail; prevents split-layer drift during reconnect/reload paths
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`
@@ -42,6 +45,7 @@ Owner: soup (s0up4200@pm.me)
 ## Next
 - Continue request-path reliability hardening in auth/handlers (same no-regression approach).
 - Keep poller/SSE regression guardrails tight while refactoring (no startup card stalls).
+- Expand backend + frontend mirrored snapshot coverage before deeper poller cleanup slices.
 - Defer qui parity/data-shape pass until requested (no qui repo edits).
 
 ### 2026-02-16

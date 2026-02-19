@@ -242,6 +242,57 @@ func TestBroadcasterSnapshotKeepsHealthResponseTimeAcrossInternalEvents(t *testi
 	}
 }
 
+func TestBroadcasterSnapshotKeepsWarningVersionAndResponseTimeAcrossInternalEvents(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	publishHealthServiceUpdate(bc, models.ServiceHealth{
+		ServiceID:    "prowlarr-1",
+		Status:       "warning",
+		Message:      "[IndexerLongTermStatusCheck] Indexers unavailable",
+		LastChecked:  now,
+		Version:      "2.3.2",
+		ResponseTime: 11,
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "prowlarr-1",
+		Status:      "online",
+		Message:     "prowlarr_indexers",
+		LastChecked: now.Add(time.Second),
+		Stats: map[string]interface{}{
+			"prowlarr": map[string]interface{}{
+				"indexers": []interface{}{"a"},
+			},
+		},
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	if decoded.Status != "warning" {
+		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "warning")
+	}
+	if decoded.Message != "[IndexerLongTermStatusCheck] Indexers unavailable" {
+		t.Fatalf("snapshot message = %q", decoded.Message)
+	}
+	if decoded.Version != "2.3.2" {
+		t.Fatalf("snapshot version = %q, want %q", decoded.Version, "2.3.2")
+	}
+	if decoded.ResponseTime != 11 {
+		t.Fatalf("snapshot responseTime = %d, want %d", decoded.ResponseTime, 11)
+	}
+}
+
 func TestBroadcasterSnapshotPromotesInternalEventToHealthEventType(t *testing.T) {
 	bc := NewBroadcaster(sse.NewHub())
 	now := time.Unix(1700000000, 0)
