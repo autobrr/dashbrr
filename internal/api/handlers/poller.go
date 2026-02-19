@@ -34,6 +34,7 @@ const (
 	pollerDefaultJobTimeout = 25 * time.Second
 	pollerLongJobTimeout    = 35 * time.Second
 	pollerMaxConcurrentUpst = 8
+	pollerMaxConcurrentHlt  = 16
 	pollerSlowJobThreshold  = 5 * time.Second
 	pollerFailedRetryDelay  = 10 * time.Second
 	pollerMaxJobJitter      = 5 * time.Second
@@ -148,28 +149,29 @@ func (p *Poller) run(ctx context.Context) {
 	log.Info().Msg("poller started")
 	defer log.Info().Msg("poller stopped")
 
-	sem := make(chan struct{}, pollerMaxConcurrentUpst) // cap concurrent upstream calls
+	healthSem := make(chan struct{}, pollerMaxConcurrentHlt) // keep health responsive
+	statsSem := make(chan struct{}, pollerMaxConcurrentUpst) // cap stats/detail concurrency
 
 	// small tick; jobs self-throttle by lastRun
 	t := time.NewTicker(pollerTickInterval)
 	defer t.Stop()
 
 	// initial blast
-	p.tick(ctx, sem, true, "")
+	p.tick(ctx, healthSem, statsSem, true, "")
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case req := <-p.refreshCh:
-			p.tick(ctx, sem, true, req.instanceID)
+			p.tick(ctx, healthSem, statsSem, true, req.instanceID)
 		case <-t.C:
-			p.tick(ctx, sem, false, "")
+			p.tick(ctx, healthSem, statsSem, false, "")
 		}
 	}
 }
 
-func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyInstance string) {
+func (p *Poller) tick(ctx context.Context, healthSem, statsSem chan struct{}, force bool, onlyInstance string) {
 	services := p.getServices(ctx, force || onlyInstance != "")
 	if services == nil {
 		return
@@ -203,10 +205,10 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 	// are not delayed behind stats jobs on startup and forced refreshes.
 	for _, ps := range pollServices {
 		if ps.configured {
-			p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 30*time.Second, pollerHealthTimeout, force, (*Poller).runHealth)
+			p.maybeRun(ctx, healthSem, ps.cfg, ps.kind, "health", 30*time.Second, pollerHealthTimeout, force, (*Poller).runHealth)
 			continue
 		}
-		p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 60*time.Second, pollerPendingTimeout, force, (*Poller).runPending)
+		p.maybeRun(ctx, healthSem, ps.cfg, ps.kind, "health", 60*time.Second, pollerPendingTimeout, force, (*Poller).runPending)
 	}
 
 	// Pass 2: enqueue stats only for configured services.
@@ -221,7 +223,7 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 			continue
 		}
 		for _, job := range p.jobs[ps.kind] {
-			p.maybeRun(ctx, sem, ps.cfg, ps.kind, job.name, job.interval, effectiveJobTimeout(job.timeout), force, job.run)
+			p.maybeRun(ctx, statsSem, ps.cfg, ps.kind, job.name, job.interval, effectiveJobTimeout(job.timeout), force, job.run)
 		}
 	}
 }

@@ -109,8 +109,9 @@ func TestPollerTick_ForcedRunSkipsStatsJobs(t *testing.T) {
 		},
 	}
 
-	sem := make(chan struct{}, 1)
-	p.tick(context.Background(), sem, true, "")
+	healthSem := make(chan struct{}, 1)
+	statsSem := make(chan struct{}, 1)
+	p.tick(context.Background(), healthSem, statsSem, true, "")
 
 	waitForLastRun(t, p, "plex-1:health", 300*time.Millisecond)
 
@@ -165,8 +166,9 @@ func TestPollerTick_HealthStillRunsWithSlowStatsJob(t *testing.T) {
 	p.mu.Unlock()
 
 	// Single worker slot: verifies queue ordering/priority behavior.
-	sem := make(chan struct{}, 1)
-	p.tick(context.Background(), sem, false, "")
+	healthSem := make(chan struct{}, 1)
+	statsSem := make(chan struct{}, 1)
+	p.tick(context.Background(), healthSem, statsSem, false, "")
 
 	waitForLastRun(t, p, "plex-1:health", time.Second)
 
@@ -183,4 +185,63 @@ func TestPollerTick_HealthStillRunsWithSlowStatsJob(t *testing.T) {
 	}
 
 	waitForLastRun(t, p, "plex-1:test_stats", time.Second)
+}
+
+func TestPollerTick_HealthNotBlockedBySaturatedStatsSemaphore(t *testing.T) {
+	db, cleanup := setupPollerTickTestDB(t)
+	defer cleanup()
+
+	err := db.CreateService(context.Background(), &models.ServiceConfiguration{
+		InstanceID:  "plex-1",
+		DisplayName: "Plex",
+		URL:         "http://example",
+		APIKey:      "key",
+	})
+	if err != nil {
+		t.Fatalf("failed to seed service: %v", err)
+	}
+
+	p := NewPoller(db, NewBroadcaster(sse.NewHub()))
+	p.registry = staticServiceRegistry{
+		checker: staticHealthChecker{
+			health: models.ServiceHealth{Status: "online", Message: "Healthy"},
+		},
+	}
+
+	statsRan := make(chan struct{}, 1)
+	p.jobs["plex"] = []jobSpec{
+		{
+			name:     "test_stats",
+			interval: time.Minute,
+			timeout:  time.Second,
+			run: func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+				statsRan <- struct{}{}
+				return nil
+			},
+		},
+	}
+
+	healthSem := make(chan struct{}, 1)
+	statsSem := make(chan struct{}, 1)
+	statsSem <- struct{}{} // block stats lane
+
+	p.tick(context.Background(), healthSem, statsSem, false, "")
+
+	waitForLastRun(t, p, "plex-1:health", 300*time.Millisecond)
+
+	select {
+	case <-statsRan:
+		t.Fatalf("expected stats to stay blocked while stats semaphore is saturated")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	<-statsSem // unblock stats lane
+
+	select {
+	case <-statsRan:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("expected stats to run after stats semaphore is released")
+	}
+
+	waitForLastRun(t, p, "plex-1:test_stats", 300*time.Millisecond)
 }

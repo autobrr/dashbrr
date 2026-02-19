@@ -8,6 +8,11 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-19
+- Poller latency hardening (next-item #1)
+  - split poller worker lanes: `health` and `stats` now use separate semaphores (`16` and `8`)
+  - removes head-of-line blocking where slow stats jobs could delay health/status/response-time updates
+  - added regression test: `TestPollerTick_HealthNotBlockedBySaturatedStatsSemaphore`
+  - verification: `go test ./internal/api/handlers -run Poller -count=1`, `go test ./...`
 - Auth/OIDC context cleanup slice completed.
 - `internal/api/handlers/auth.go`
   - removed constructor-time OIDC discovery on `context.Background()`
