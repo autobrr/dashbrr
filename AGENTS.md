@@ -8,6 +8,17 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-19
+- Poller/SSE regression guardrails (next-item #3)
+  - added `internal/api/handlers/events_test.go`:
+    - locks SSE stream contract for reconnects: writes `retry: 5000`, replays snapshot immediately, then streams live events in-order
+  - added `TestPollerTick_ForcedRefreshOnlyTargetsRequestedInstance` in `internal/api/handlers/poller_tick_test.go`:
+    - forced per-instance refresh no longer allowed to regress into global health fanout
+  - expanded `web/tests/serviceData.merge.test.ts`:
+    - locks frontend merge behavior where internal payloads include reset-like optional fields (`responseTime: 0`, `updateAvailable: false`) so prior health values remain stable
+  - verification:
+    - `go test ./internal/api/handlers -run "EventsHandler|PollerTick" -count=1`
+    - `pnpm -C web test -- serviceData.merge.test.ts`
+    - full gate: `go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`
 - Auth request-path hardening (next-item #2)
   - middleware: bearer parsing now whitespace-tolerant (`strings.Fields`) and case-insensitive
   - middleware: `OptionalAuth` now supports bearer-token fallback (same as `RequireAuth`)

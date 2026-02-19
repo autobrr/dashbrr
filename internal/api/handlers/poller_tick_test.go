@@ -245,3 +245,49 @@ func TestPollerTick_HealthNotBlockedBySaturatedStatsSemaphore(t *testing.T) {
 
 	waitForLastRun(t, p, "plex-1:test_stats", 300*time.Millisecond)
 }
+
+func TestPollerTick_ForcedRefreshOnlyTargetsRequestedInstance(t *testing.T) {
+	db, cleanup := setupPollerTickTestDB(t)
+	defer cleanup()
+
+	err := db.CreateService(context.Background(), &models.ServiceConfiguration{
+		InstanceID:  "plex-1",
+		DisplayName: "Plex",
+		URL:         "http://plex.example",
+		APIKey:      "key",
+	})
+	if err != nil {
+		t.Fatalf("failed to seed plex service: %v", err)
+	}
+
+	err = db.CreateService(context.Background(), &models.ServiceConfiguration{
+		InstanceID:  "radarr-1",
+		DisplayName: "Radarr",
+		URL:         "http://radarr.example",
+		APIKey:      "key",
+	})
+	if err != nil {
+		t.Fatalf("failed to seed radarr service: %v", err)
+	}
+
+	p := NewPoller(db, NewBroadcaster(sse.NewHub()))
+	p.registry = staticServiceRegistry{
+		checker: staticHealthChecker{
+			health: models.ServiceHealth{Status: "online", Message: "Healthy"},
+		},
+	}
+
+	healthSem := make(chan struct{}, 1)
+	statsSem := make(chan struct{}, 1)
+	p.tick(context.Background(), healthSem, statsSem, true, "radarr-1")
+
+	waitForLastRun(t, p, "radarr-1:health", 300*time.Millisecond)
+
+	time.Sleep(60 * time.Millisecond)
+	p.mu.Lock()
+	plexHealthRun := p.lastRun["plex-1:health"]
+	p.mu.Unlock()
+	if !plexHealthRun.IsZero() {
+		t.Fatalf("expected forced refresh for radarr-1 to skip unrelated plex-1 health run")
+	}
+}

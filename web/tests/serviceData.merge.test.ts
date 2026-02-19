@@ -186,6 +186,65 @@ test("hydrate_configurations keeps warning/version/responseTime after internal u
   });
 });
 
+test("hydrate_configurations keeps update flags when internal payload includes reset-like fields", () => {
+  const healthUpdate = deriveHealthUpdate({
+    serviceId: "radarr-1",
+    status: "online",
+    message: "Healthy",
+    eventType: "health",
+    responseTime: 42,
+    updateAvailable: true,
+    version: "6.1.1",
+    lastChecked: "2026-02-19T00:00:00Z",
+  });
+  assert.ok(healthUpdate);
+
+  const internalUpdate = deriveHealthUpdate({
+    serviceId: "radarr-1",
+    status: "online",
+    message: "radarr_queue",
+    eventType: "internal",
+    responseTime: 0,
+    updateAvailable: false,
+    stats: {
+      radarr: {
+        queue: { totalRecords: 2 },
+      },
+    },
+    lastChecked: "2026-02-19T00:00:01Z",
+  });
+  assert.ok(internalUpdate);
+
+  let snapshot: ServicePatchSnapshot = mergeServicePatchSnapshot(
+    undefined,
+    healthUpdate.patch,
+    healthUpdate.internalStatus
+  );
+  snapshot = mergeServicePatchSnapshot(
+    snapshot,
+    internalUpdate.patch,
+    internalUpdate.internalStatus
+  );
+
+  const hydrated = hydrateServicesFromConfigurations(
+    new Map(),
+    config,
+    new Map([["radarr-1", snapshot]])
+  ).get("radarr-1");
+
+  assert.ok(hydrated);
+  assert.equal(hydrated.status, "online");
+  assert.equal(hydrated.message, "Healthy");
+  assert.equal(hydrated.responseTime, 42);
+  assert.equal(hydrated.updateAvailable, true);
+  assert.equal(hydrated.version, "6.1.1");
+  assert.deepEqual(hydrated.stats, {
+    radarr: {
+      queue: { totalRecords: 2 },
+    },
+  });
+});
+
 test("mergeServicePatchSnapshot deep-merges nested stats payloads", () => {
   let snapshot: ServicePatchSnapshot = mergeServicePatchSnapshot(
     undefined,
