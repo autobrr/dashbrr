@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -152,6 +154,60 @@ func TestAuthHandlerEnsureProviderConfig_DiscoveryFailed(t *testing.T) {
 	err := handler.ensureProviderConfig(context.Background())
 	assert.Error(t, err)
 	assert.Nil(t, handler.oauth2Config)
+}
+
+func TestAuthHandlerEnsureProviderConfig_ConcurrentDiscoverySingleflight(t *testing.T) {
+	var serverURL string
+	var hits atomic.Int32
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/openid-configuration" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		hits.Add(1)
+		time.Sleep(25 * time.Millisecond)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		response := fmt.Sprintf(`{
+			"issuer": "%s",
+			"authorization_endpoint": "%s/authorize",
+			"token_endpoint": "%s/oauth/token",
+			"userinfo_endpoint": "%s/userinfo"
+		}`, serverURL, serverURL, serverURL, serverURL)
+		w.Write([]byte(response))
+	}))
+	defer ts.Close()
+	serverURL = ts.URL
+
+	config := &types.AuthConfig{
+		Issuer:       serverURL,
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		RedirectURL:  "http://localhost:3000/callback",
+	}
+	handler := NewAuthHandler(config, new(MockStore))
+
+	const workers = 12
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- handler.ensureProviderConfig(context.Background())
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		assert.NoError(t, err)
+	}
+	assert.NotNil(t, handler.oauth2Config)
+	assert.Equal(t, int32(1), hits.Load())
 }
 
 func TestLogin_NoFrontendURL(t *testing.T) {

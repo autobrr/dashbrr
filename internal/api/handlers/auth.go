@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/oauth2"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -32,6 +33,7 @@ type AuthHandler struct {
 	httpClient   *http.Client
 	userinfoURL  string
 	mu           sync.RWMutex
+	discoverySF  singleflight.Group
 }
 
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
@@ -62,31 +64,42 @@ func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
 	}
 	h.mu.RUnlock()
 
-	endpoints, userinfoURL, err := getProviderEndpoints(ctx, h.httpClient, h.config.Issuer)
-	if err != nil {
-		return err
-	}
+	_, err, _ := h.discoverySF.Do("oidc-provider-config", func() (interface{}, error) {
+		h.mu.RLock()
+		if h.oauth2Config != nil {
+			h.mu.RUnlock()
+			return nil, nil
+		}
+		h.mu.RUnlock()
 
-	oauth2Config := &oauth2.Config{
-		ClientID:     h.config.ClientID,
-		ClientSecret: h.config.ClientSecret,
-		RedirectURL:  h.config.RedirectURL,
-		Endpoint:     endpoints,
-		Scopes:       []string{"openid", "profile", "email"},
-	}
+		endpoints, userinfoURL, discoverErr := getProviderEndpoints(ctx, h.httpClient, h.config.Issuer)
+		if discoverErr != nil {
+			return nil, discoverErr
+		}
 
-	h.mu.Lock()
-	if h.oauth2Config == nil {
-		log.Debug().
-			Str("auth_url", endpoints.AuthURL).
-			Str("token_url", endpoints.TokenURL).
-			Msg("using discovered endpoints")
-		h.oauth2Config = oauth2Config
-		h.userinfoURL = userinfoURL
-	}
-	h.mu.Unlock()
+		oauth2Config := &oauth2.Config{
+			ClientID:     h.config.ClientID,
+			ClientSecret: h.config.ClientSecret,
+			RedirectURL:  h.config.RedirectURL,
+			Endpoint:     endpoints,
+			Scopes:       []string{"openid", "profile", "email"},
+		}
 
-	return nil
+		h.mu.Lock()
+		if h.oauth2Config == nil {
+			log.Debug().
+				Str("auth_url", endpoints.AuthURL).
+				Str("token_url", endpoints.TokenURL).
+				Msg("using discovered endpoints")
+			h.oauth2Config = oauth2Config
+			h.userinfoURL = userinfoURL
+		}
+		h.mu.Unlock()
+
+		return nil, nil
+	})
+
+	return err
 }
 
 // getProviderEndpoints fetches provider configuration and returns oauth2.Endpoint
