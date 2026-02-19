@@ -1609,3 +1609,15 @@ Owner: soup (s0up4200@pm.me)
 ## Next
 - Wire browser regression suite into CI as optional/non-blocking first pass, then promote to required after one stable cycle.
 - Expand harness with one service-card visual snapshot per breakpoint to catch spacing drift beyond class contracts.
+
+### 2026-02-19 (CI: browser regression lane)
+- CI workflow updated: added `web-browser-regression` job in `.github/workflows/release.yml`.
+- Behavior:
+  - runs Playwright browser suite (`pnpm run test:browser`) on Ubuntu
+  - installs Chromium + system deps (`playwright install --with-deps chromium`)
+  - non-blocking first phase via `continue-on-error: true`
+  - always uploads Playwright artifacts (`web/playwright-report`, `web/test-results`)
+- Existing required lanes unchanged (`web`, `test`, release/docker jobs).
+
+## Next
+- Watch 1-2 CI cycles for stability; then remove `continue-on-error` to make browser regressions required.
