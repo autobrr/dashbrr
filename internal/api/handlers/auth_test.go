@@ -69,6 +69,22 @@ func (m *MockStore) Expire(ctx context.Context, key string, expiration time.Dura
 }
 
 func TestNewAuthHandler(t *testing.T) {
+	config := &types.AuthConfig{
+		Issuer:       "https://example.com",
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		RedirectURL:  "http://localhost:3000/callback",
+	}
+	mockStore := new(MockStore)
+
+	handler := NewAuthHandler(config, mockStore)
+
+	assert.NotNil(t, handler)
+	assert.Equal(t, config, handler.config)
+	assert.Nil(t, handler.oauth2Config)
+}
+
+func TestAuthHandlerEnsureProviderConfig(t *testing.T) {
 	var serverURL string
 
 	// Create a test server that responds to OIDC discovery
@@ -81,7 +97,6 @@ func TestNewAuthHandler(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		// Create discovery response with proper endpoints
 		response := fmt.Sprintf(`{
 			"issuer": "%s",
 			"authorization_endpoint": "%s/authorize",
@@ -102,16 +117,18 @@ func TestNewAuthHandler(t *testing.T) {
 	mockStore := new(MockStore)
 
 	handler := NewAuthHandler(config, mockStore)
-
 	assert.NotNil(t, handler)
-	assert.Equal(t, config, handler.config)
+	assert.Nil(t, handler.oauth2Config)
+
+	err := handler.ensureProviderConfig(context.Background())
+	assert.NoError(t, err)
 	assert.NotNil(t, handler.oauth2Config)
 	assert.Equal(t, "test-client-id", handler.oauth2Config.ClientID)
 	assert.Equal(t, "test-client-secret", handler.oauth2Config.ClientSecret)
 	assert.Equal(t, "http://localhost:3000/callback", handler.oauth2Config.RedirectURL)
 }
 
-func TestNewAuthHandler_DiscoveryFailed(t *testing.T) {
+func TestAuthHandlerEnsureProviderConfig_DiscoveryFailed(t *testing.T) {
 	var serverURL string
 
 	// Create a test server that returns an error
@@ -130,7 +147,11 @@ func TestNewAuthHandler_DiscoveryFailed(t *testing.T) {
 	mockStore := new(MockStore)
 
 	handler := NewAuthHandler(config, mockStore)
-	assert.Nil(t, handler, "Handler should be nil when discovery fails")
+	assert.NotNil(t, handler)
+
+	err := handler.ensureProviderConfig(context.Background())
+	assert.Error(t, err)
+	assert.Nil(t, handler.oauth2Config)
 }
 
 func TestLogin_NoFrontendURL(t *testing.T) {

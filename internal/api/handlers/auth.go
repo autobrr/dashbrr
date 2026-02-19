@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,45 +31,62 @@ type AuthHandler struct {
 	oauth2Config *oauth2.Config
 	httpClient   *http.Client
 	userinfoURL  string
+	mu           sync.RWMutex
 }
 
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	httpClient := &http.Client{Timeout: 1 * time.Second}
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
 
 	log.Debug().
 		Str("issuer", config.Issuer).
 		Msg("initializing auth handler")
 
-	// Get provider endpoints through OIDC discovery
-	endpoints, userinfoURL, err := getProviderEndpoints(ctx, httpClient, config.Issuer)
-	if err != nil {
-		log.Error().Err(err).
-			Msg("OIDC discovery failed. Please ensure your provider supports OpenID Connect discovery as specified in https://openid.net/specs/openid-connect-discovery-1_0.html")
+	return &AuthHandler{
+		config:       config,
+		cache:        store,
+		httpClient:   httpClient,
+	}
+}
+
+func (h *AuthHandler) getOAuthConfig() *oauth2.Config {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.oauth2Config
+}
+
+func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
+	h.mu.RLock()
+	if h.oauth2Config != nil {
+		h.mu.RUnlock()
 		return nil
 	}
+	h.mu.RUnlock()
 
-	log.Debug().
-		Str("auth_url", endpoints.AuthURL).
-		Str("token_url", endpoints.TokenURL).
-		Msg("using discovered endpoints")
+	endpoints, userinfoURL, err := getProviderEndpoints(ctx, h.httpClient, h.config.Issuer)
+	if err != nil {
+		return err
+	}
 
 	oauth2Config := &oauth2.Config{
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
-		RedirectURL:  config.RedirectURL,
+		ClientID:     h.config.ClientID,
+		ClientSecret: h.config.ClientSecret,
+		RedirectURL:  h.config.RedirectURL,
 		Endpoint:     endpoints,
 		Scopes:       []string{"openid", "profile", "email"},
 	}
 
-	return &AuthHandler{
-		config:       config,
-		cache:        store,
-		oauth2Config: oauth2Config,
-		httpClient:   httpClient,
-		userinfoURL:  userinfoURL,
+	h.mu.Lock()
+	if h.oauth2Config == nil {
+		log.Debug().
+			Str("auth_url", endpoints.AuthURL).
+			Str("token_url", endpoints.TokenURL).
+			Msg("using discovered endpoints")
+		h.oauth2Config = oauth2Config
+		h.userinfoURL = userinfoURL
 	}
+	h.mu.Unlock()
+
+	return nil
 }
 
 // getProviderEndpoints fetches provider configuration and returns oauth2.Endpoint
@@ -208,6 +226,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	if err := h.ensureProviderConfig(ctx); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("OIDC discovery canceled during login")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
+		log.Error().Err(err).
+			Msg("OIDC discovery failed. Please ensure your provider supports OpenID Connect discovery as specified in https://openid.net/specs/openid-connect-discovery-1_0.html")
+		c.JSON(http.StatusBadGateway, gin.H{"error": "OIDC provider discovery failed"})
+		return
+	}
+
 	state, err := generateSecureRandomString(32)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to generate state")
@@ -241,7 +271,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	authURL := h.oauth2Config.AuthCodeURL(
+	authURL := h.getOAuthConfig().AuthCodeURL(
 		state,
 		oauth2.SetAuthURLParam("nonce", nonce),
 		oauth2.SetAuthURLParam("response_type", "code"),
@@ -261,6 +291,17 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	if code == "" {
 		log.Error().Msg("no code in callback")
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=no_code")
+		return
+	}
+
+	if err := h.ensureProviderConfig(ctx); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("OIDC discovery canceled during callback")
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
+			return
+		}
+		log.Error().Err(err).Msg("OIDC discovery failed during callback")
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=oidc_discovery_failed")
 		return
 	}
 
@@ -296,7 +337,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// Exchange code for token using context
-	token, err := h.oauth2Config.Exchange(ctx, code)
+	token, err := h.getOAuthConfig().Exchange(ctx, code)
 	if err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled during token exchange")
@@ -462,6 +503,16 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	if err := h.ensureProviderConfig(c.Request.Context()); err != nil {
+		if c.Request.Context().Err() != nil {
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
+		log.Error().Err(err).Msg("OIDC discovery failed during token refresh")
+		c.JSON(http.StatusBadGateway, gin.H{"error": "OIDC provider discovery failed"})
+		return
+	}
+
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	var sessionData types.SessionData
 	if err := h.cache.Get(c.Request.Context(), sessionKey, &sessionData); err != nil {
@@ -482,7 +533,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	}
 
 	// Create token source with context
-	tokenSource := h.oauth2Config.TokenSource(c.Request.Context(), token)
+	tokenSource := h.getOAuthConfig().TokenSource(c.Request.Context(), token)
 
 	// Refresh the token
 	newToken, err := tokenSource.Token()

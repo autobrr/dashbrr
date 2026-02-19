@@ -7,6 +7,28 @@ Owner: soup (s0up4200@pm.me)
 
 ## Progress Log
 
+### 2026-02-19
+- Auth/OIDC context cleanup slice completed.
+- `internal/api/handlers/auth.go`
+  - removed constructor-time OIDC discovery on `context.Background()`
+  - added lazy request-scoped discovery (`ensureProviderConfig(ctx)`)
+  - added mutex protection for provider/oauth config mutation
+  - preserved request validation order (frontend URL/code/session checks before discovery)
+- `internal/api/handlers/auth_test.go`
+  - updated constructor expectations (no eager oauth config)
+  - added lazy discovery success/failure coverage
+- Full gate run green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web build`
+
+## Next
+- Continue `context.Background()` cleanup on request paths outside auth handlers.
+- Keep poller/SSE regression guardrails tight while refactoring (no startup card stalls).
+- Defer qui parity/data-shape pass until requested (no qui repo edits).
+
 ### 2026-02-16
 - Branch: `refactor/modernize`
 - Repo scan: Go backend + Vite React frontend
