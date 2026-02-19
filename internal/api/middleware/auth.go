@@ -55,9 +55,8 @@ func attachAuthContext(c *gin.Context, baseCtx context.Context, sessionData type
 
 func bypassSessionData() types.SessionData {
 	return types.SessionData{
-		AccessToken: "bypass",
-		AuthType:    "builtin",
-		UserID:      1,
+		AuthType: "builtin",
+		UserID:   1,
 	}
 }
 

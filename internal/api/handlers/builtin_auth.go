@@ -204,11 +204,9 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	// Create session
 	expiresAt := time.Now().Add(24 * time.Hour)
 	sessionData := types.SessionData{
-		AccessToken: sessionToken,
-		TokenType:   "Bearer",
-		ExpiresAt:   expiresAt,
-		UserID:      user.ID,
-		AuthType:    "builtin",
+		ExpiresAt: expiresAt,
+		UserID:    user.ID,
+		AuthType:  "builtin",
 	}
 
 	// Store session in cache

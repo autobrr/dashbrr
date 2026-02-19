@@ -15,13 +15,9 @@ type AuthConfig struct {
 
 // SessionData holds the session information
 type SessionData struct {
-	AccessToken  string    `json:"access_token"`
-	TokenType    string    `json:"token_type"`
-	RefreshToken string    `json:"refresh_token"`
-	IDToken      string    `json:"id_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	UserID       int64     `json:"user_id,omitempty"`   // Added for built-in auth
-	AuthType     string    `json:"auth_type,omitempty"` // "oidc" or "builtin"
+	ExpiresAt time.Time `json:"expires_at"`
+	UserID    int64     `json:"user_id,omitempty"`   // Added for built-in auth
+	AuthType  string    `json:"auth_type,omitempty"` // "oidc" or "builtin"
 }
 
 // User represents a user in the system

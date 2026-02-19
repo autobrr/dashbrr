@@ -382,12 +382,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	sessionData := types.SessionData{
-		AccessToken:  token.AccessToken,
-		TokenType:    token.TokenType,
-		RefreshToken: token.RefreshToken,
-		IDToken:      rawIDToken,
-		ExpiresAt:    token.Expiry,
-		AuthType:     "oidc",
+		ExpiresAt: token.Expiry,
+		AuthType:  "oidc",
 	}
 
 	// Use a server-generated session ID. Provider access tokens can rotate and should

@@ -42,6 +42,10 @@ Owner: soup (s0up4200@pm.me)
   - removed unused OIDC refresh endpoint wiring (`POST /api/auth/oidc/refresh`)
   - removed dead frontend auth URL config key for refresh
   - full gate green after route cleanup
+- Session payload hardening
+  - removed unused OIDC token fields from cached `SessionData` (access/refresh/id token, token type)
+  - auth now stores only session metadata needed at runtime (`expires_at`, `auth_type`, `user_id`)
+  - full gate green after middleware + handler updates
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`
