@@ -1271,6 +1271,16 @@ Owner: soup (s0up4200@pm.me)
   - added `TestPollerMaybeRun_PanicMarksJobFailed` in `internal/api/handlers/poller_test.go`
 - Gates: pass (`go test ./internal/api/handlers/...`)
 
+### 2026-02-19 (DRY: queue hash wrappers)
+- Ran duplication scan:
+  - `jscpd -f go --pattern "internal/api/handlers/**/*.go" --gitignore . --min-lines 8 --min-tokens 80`
+  - detected duplicate wrapper logic in `internal/api/handlers/queue_hash.go`
+- Refactor:
+  - added shared generic mapper `wrapQueueRecords[T](...)`
+  - `wrapRadarrQueue` + `wrapSonarrQueue` now delegate to shared mapper
+  - behavior unchanged; less drift risk when queue wrapper fields evolve
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
