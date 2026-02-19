@@ -1711,3 +1711,22 @@ Owner: soup (s0up4200@pm.me)
   - `duration_ms`
   - `queue_delay_ms`
 - Updated in `internal/api/handlers/poller.go` for trace/warn paths (`completed`, `failed`, `slow`, `timeout`).
+
+### 2026-02-20 (UI DRY: shared section metadata + persistence regression guard)
+- `CollapsibleSection` now supports shared right-side metadata slot via `meta` prop.
+- Applied shared section-header metadata pattern in:
+  - `web/src/components/services/autobrr/AutobrrStats.tsx` (`Recent Releases`, shown-count)
+  - `web/src/components/services/overseerr/OverseerrStats.tsx` (`Recent Requests`, shown-count)
+- DRY cleanup in Overseerr list derivation:
+  - memoized pending/non-pending request collections to avoid repeated filter/sort chains.
+- Browser regression coverage expanded:
+  - `web/tests/browser/service-layout-harness.ts`
+  - `web/tests/browser/service-layout.spec.ts`
+  - added test asserting section collapse preference persistence across remount and key isolation (`qui:active_instances` vs `radarr:queue`).
+- Validation green:
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+  - `go test ./...`

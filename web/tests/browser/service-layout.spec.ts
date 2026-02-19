@@ -48,3 +48,24 @@ test("collapse shell removes idle header gap until expanded", async ({ page }) =
   await expect(shellHeader).toHaveClass(/mb-2/);
   await expect(shellContent).toHaveClass(/max-h-\[1000px\]/);
 });
+
+test("section collapse preference persists and stays key-isolated", async ({ page }) => {
+  await mountHarness(page);
+
+  const quiHeader = page.locator('[data-testid="prefs-qui"] > div > div').first();
+  const quiContent = page.locator('[data-testid="prefs-qui"] > div > div').nth(1);
+  const radarrContent = page
+    .locator('[data-testid="prefs-radarr"] > div > div')
+    .nth(1);
+
+  await expect(quiContent).toHaveClass(/max-h-\[1000px\]/);
+  await expect(radarrContent).toHaveClass(/max-h-\[1000px\]/);
+
+  await quiHeader.click();
+  await expect(quiContent).toHaveClass(/max-h-0/);
+  await expect(radarrContent).toHaveClass(/max-h-\[1000px\]/);
+
+  await page.getByTestId("prefs-remount").click();
+  await expect(quiContent).toHaveClass(/max-h-0/);
+  await expect(radarrContent).toHaveClass(/max-h-\[1000px\]/);
+});

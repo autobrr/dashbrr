@@ -51,9 +51,26 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       return next ? { ...req, status: next } : req;
     });
   }, [serviceRequests, statusOverrides]);
-  const pendingRequests = requests.filter(
-    (req) =>
-      getRequestStatus(req.status) === OVERSEERR_REQUEST_STATUS.PENDING
+  const pendingRequests = useMemo(
+    () =>
+      requests.filter(
+        (req) =>
+          getRequestStatus(req.status) === OVERSEERR_REQUEST_STATUS.PENDING
+      ),
+    [requests]
+  );
+  const recentNonPendingRequests = useMemo(
+    () =>
+      requests
+        .filter(
+          (req) =>
+            getRequestStatus(req.status) !== OVERSEERR_REQUEST_STATUS.PENDING
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ),
+    [requests]
   );
   const pendingCount = pendingRequests.length;
   const isLoading = !service || service.status === "loading";
@@ -326,30 +343,15 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       )}
 
       {/* Recent Requests */}
-      {requests.length > 0 ? (
+      {recentNonPendingRequests.length > 0 ? (
         <CollapsibleSection
-          title={`Recent Requests (${
-            requests.filter(
-              (request) =>
-                getRequestStatus(request.status) !==
-                OVERSEERR_REQUEST_STATUS.PENDING
-            ).length
-          })`}
+          title="Recent Requests"
+          meta={`${Math.min(recentNonPendingRequests.length, 5)} shown`}
           isExpanded={isExpanded}
           onToggle={toggle}
         >
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              {requests
-                .filter(
-                  (request) =>
-                    getRequestStatus(request.status) !==
-                    OVERSEERR_REQUEST_STATUS.PENDING
-                )
-                .sort(
-                  (a, b) =>
-                    new Date(b.createdAt).getTime() -
-                    new Date(a.createdAt).getTime()
-                )
+              {recentNonPendingRequests
                 .slice(0, 5)
                 .map((request) => (
                   <RequestItem key={request.id} request={request} />

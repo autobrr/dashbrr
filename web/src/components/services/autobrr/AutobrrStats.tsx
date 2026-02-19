@@ -60,6 +60,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
   } satisfies AutobrrStatsPayload;
   const ircStatus = service.details?.autobrr?.irc;
   const releases = service.stats?.autobrr?.releases?.data ?? [];
+  const displayedReleaseCount = Math.min(releases.length, 5);
 
   const showMessage = service.message || service.status !== "online";
 
@@ -177,6 +178,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
       {(service.status === "online" || service.status === "warning") && (
         <CollapsibleSection
           title="Recent Releases:"
+          meta={displayedReleaseCount > 0 ? `${displayedReleaseCount} shown` : "0"}
           isExpanded={isExpanded}
           onToggle={toggle}
         >
