@@ -1295,6 +1295,16 @@ Owner: soup (s0up4200@pm.me)
   - reran `jscpd` after refactor; remaining duplicates in handlers are test-only (`broadcast_test.go`)
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (tests: service-config helper coverage)
+- Added `internal/api/handlers/service_config_test.go`:
+  - `TestRequireServiceConfig`
+  - `TestRequireServiceConfig_NotConfigured`
+  - `TestRequireServiceConfigLegacy_NotConfigured`
+- Scope:
+  - verifies configured path and both not-configured semantics (`NewServiceNotConfigured` and legacy `ErrServiceNotConfigured`)
+  - guards future helper refactors from silently changing handler error behavior
+- Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path
