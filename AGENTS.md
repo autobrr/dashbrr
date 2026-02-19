@@ -1549,3 +1549,17 @@ Owner: soup (s0up4200@pm.me)
 - Backend: consolidate more *arr handler config/service fetch paths into shared helpers
 - Overseerr: keep `status.ts` synced with local `seerr` enums; update resolver tests first when upstream adds states
 - Housekeeping: checked for `ead` hooks; none found (only pnpm lock integrity strings)
+
+### 2026-02-19 (web UX: compact empty service bodies)
+- Added shared `hasMeaningfulServiceContent(...)` helper: `web/src/utils/serviceCardContent.ts`.
+- `ServiceCard` now uses compact spacing (`mt/pt`) when a service has no meaningful body content (status-only cards).
+- `ArrMessage` now removes extra bottom padding/stack gap when no actionable message box is rendered.
+- Added regression tests: `web/tests/serviceCardContent.test.ts` (plex/arr/autobrr/actionable-warning coverage).
+- Web gate green:
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+
+## Next
+- Manual UI pass for compact spacing across Plex/Sonarr/Radarr/General/Tailscale cards on desktop + mobile.
+- If any card still feels tall, move remaining one-off paddings into shared layout tokens in `ServiceCard`.

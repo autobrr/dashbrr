@@ -163,10 +163,12 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
   const statusDisplay = getStatusDisplay();
   const formattedMessage = formatMessage();
   const showMessageBox = isActionableStatus(status) && Boolean(formattedMessage);
+  const messageSpacing = showMessageBox ? "space-y-2" : "space-y-0";
+  const statusPadding = showMessageBox ? "pb-2" : "pb-0";
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 select-none pb-2">
+    <div className={`arr-message-root ${messageSpacing}`}>
+      <div className={`arr-message-status flex items-center gap-1.5 select-none ${statusPadding}`}>
         <div className="flex items-center gap-1">
           <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
             Status:
