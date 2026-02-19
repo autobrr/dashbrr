@@ -94,14 +94,12 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// Get service configuration
-	overseerrConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+	overseerrConfig, err := findServiceConfig(ctx, h.db, instanceId)
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get service configuration")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
-
 	if overseerrConfig == nil || overseerrConfig.URL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Service not configured"})
 		return

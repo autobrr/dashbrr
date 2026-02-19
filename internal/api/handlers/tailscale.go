@@ -20,7 +20,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 const (
@@ -112,12 +111,9 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 			if apiKey != "" {
 				devices, err = service.GetDevices(ctx, "", apiKey)
 			} else {
-				tailscaleConfig, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: instanceId})
+				tailscaleConfig, err := requireServiceConfig(ctx, h.db, instanceId, "tailscale")
 				if err != nil {
-					return tailscaleDevicesResponse{}, fmt.Errorf("[Tailscale] failed to fetch configuration: %v", err)
-				}
-				if tailscaleConfig == nil {
-					return tailscaleDevicesResponse{}, NewServiceNotConfigured("Tailscale")
+					return tailscaleDevicesResponse{}, err
 				}
 				devices, err = service.GetDevices(ctx, "", tailscaleConfig.APIKey)
 			}

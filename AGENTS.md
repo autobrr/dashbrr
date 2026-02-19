@@ -1253,6 +1253,9 @@ Owner: soup (s0up4200@pm.me)
   - `PlexHandler`: `fetchSessions`
   - `AutobrrHandler`: `fetchStats`, `fetchReleases`, `fetchIRC`
   - `OverseerrHandler`: `fetchRequests`
+- Follow-up migration:
+  - `OverseerrHandler.UpdateRequestStatus`: now uses shared `findServiceConfig(...)`
+  - `TailscaleHandler.GetTailscaleDevices`: now uses `requireServiceConfig(...)` for instance-key lookup path
 - Goal:
   - reduce config-loading drift between handlers
   - keep not-configured semantics explicit (legacy/non-legacy paths preserved)
