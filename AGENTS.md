@@ -35,6 +35,9 @@ Owner: soup (s0up4200@pm.me)
 - SSE snapshot backend regression matrix
   - added broadcaster snapshot test locking combined replay persistence of `warning + version + responseTime` across internal payload updates
   - mirrors frontend merge guardrail; prevents split-layer drift during reconnect/reload paths
+- Broadcaster test DRY cleanup
+  - removed repeated snapshot decode boilerplate via shared helper in `broadcast_test.go`
+  - keeps regression additions faster/safer while preserving runtime behavior
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`

@@ -13,6 +13,24 @@ import (
 	"github.com/autobrr/dashbrr/internal/sse"
 )
 
+func decodeSingleSnapshotHealth(t *testing.T, bc *Broadcaster) models.ServiceHealth {
+	t.Helper()
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	return decoded
+}
+
 func TestBroadcasterSnapshotKeepsLatestPerService(t *testing.T) {
 	bc := NewBroadcaster(sse.NewHub())
 	now := time.Unix(1700000000, 0)
@@ -54,17 +72,7 @@ func TestBroadcasterPublishNormalizesImplicitInternalEventType(t *testing.T) {
 		Message:   "radarr_queue",
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.EventType != models.ServiceEventInternal {
 		t.Fatalf("snapshot eventType = %q, want %q", decoded.EventType, models.ServiceEventInternal)
@@ -83,17 +91,7 @@ func TestBroadcasterPublishNormalizesImplicitHealthEventType(t *testing.T) {
 		Message:   "Healthy",
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.EventType != models.ServiceEventHealth {
 		t.Fatalf("snapshot eventType = %q, want %q", decoded.EventType, models.ServiceEventHealth)
@@ -172,17 +170,7 @@ func TestBroadcasterSnapshotKeepsWarningStateAcrossInternalEvents(t *testing.T) 
 		},
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.Status != "warning" {
 		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "warning")
@@ -219,17 +207,7 @@ func TestBroadcasterSnapshotKeepsHealthResponseTimeAcrossInternalEvents(t *testi
 		},
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.ResponseTime != 42 {
 		t.Fatalf("snapshot responseTime = %d, want %d", decoded.ResponseTime, 42)
@@ -267,17 +245,7 @@ func TestBroadcasterSnapshotKeepsWarningVersionAndResponseTimeAcrossInternalEven
 		},
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.Status != "warning" {
 		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "warning")
@@ -312,17 +280,7 @@ func TestBroadcasterSnapshotPromotesInternalEventToHealthEventType(t *testing.T)
 		ResponseTime: 7,
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.EventType != models.ServiceEventHealth {
 		t.Fatalf("snapshot eventType = %q, want %q", decoded.EventType, models.ServiceEventHealth)
@@ -354,17 +312,7 @@ func TestBroadcasterSnapshotAllowsEmptyHealthMessageToClearPriorWarning(t *testi
 		LastChecked: now.Add(time.Second),
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.Status != "online" {
 		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "online")
@@ -396,17 +344,7 @@ func TestBroadcasterSnapshotTreatsExplicitInternalEventTypeAsInternal(t *testing
 		},
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.Status != "warning" {
 		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "warning")
@@ -435,17 +373,7 @@ func TestBroadcasterSnapshotTreatsExplicitHealthEventTypeAsHealth(t *testing.T) 
 		LastChecked: now.Add(time.Second),
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.Status != "online" {
 		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "online")
@@ -475,17 +403,7 @@ func TestBroadcasterSnapshotClearsUpdateAvailableOnHealthUpdate(t *testing.T) {
 		UpdateAvailable: false,
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	if decoded.UpdateAvailable {
 		t.Fatalf("snapshot updateAvailable = %v, want false", decoded.UpdateAvailable)
@@ -520,17 +438,7 @@ func TestBroadcasterSnapshotMergesNestedStatsPayloads(t *testing.T) {
 		},
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	prowlarrStats, ok := decoded.Stats["prowlarr"].(map[string]interface{})
 	if !ok {
@@ -578,17 +486,7 @@ func TestBroadcasterSnapshotKeepsAutobrrStatsAndReleases(t *testing.T) {
 		},
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	autobrrStats, ok := decoded.Stats["autobrr"].(map[string]interface{})
 	if !ok {
@@ -636,17 +534,7 @@ func TestBroadcasterSnapshotKeepsAutobrrReleasesAfterHealthUpdate(t *testing.T) 
 		},
 	})
 
-	snapshot := bc.Snapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
-	}
-
-	var decoded models.ServiceHealth
-	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
-	raw = strings.TrimSuffix(raw, "\n\n")
-	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		t.Fatalf("failed to decode snapshot payload: %v", err)
-	}
+	decoded := decodeSingleSnapshotHealth(t, bc)
 
 	autobrrStats, ok := decoded.Stats["autobrr"].(map[string]interface{})
 	if !ok {
