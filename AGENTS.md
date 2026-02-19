@@ -1633,3 +1633,25 @@ Owner: soup (s0up4200@pm.me)
 
 ## Next
 - Monitor next CI cycle; if stable, add this check to branch protection required-status list if not auto-enforced.
+
+### 2026-02-19 (DRY: shared collapsibles for Plex/Qui/*arr queue)
+- Migrated custom collapsible shells to shared `CollapsibleSection` in:
+  - `web/src/components/services/plex/PlexStats.tsx` (`Active Streams`)
+  - `web/src/components/services/qui/QuiStats.tsx` (`Active qBittorrent Instances`)
+  - `web/src/components/services/common/ArrQueueStatsBase.tsx` (`Queue (n)` for Sonarr/Radarr)
+- Added persisted collapse state for newly-collapsible sections:
+  - `service:<instanceId>:section:qui:active_instances`
+  - `service:<instanceId>:section:sonarr:queue`
+  - `service:<instanceId>:section:radarr:queue`
+- Removed duplicated chevron/header/max-height shell code paths; single shared behavior now.
+- Full gate green after refactor:
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+  - `go test ./...`
+
+## Next
+- If desired, migrate Autobrr/Overseerr section titles to shared right-side metadata slot pattern for perfectly consistent header layout.
+- Optionally add one browser regression assertion for ArrQueue/Qui section expand-collapse persistence via localStorage.

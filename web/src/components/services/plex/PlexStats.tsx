@@ -21,10 +21,10 @@ import {
   FaExchangeAlt,
   FaPlayCircle,
 } from "react-icons/fa";
-import { ChevronUpIcon } from "@heroicons/react/24/outline";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
 
 interface PlexStatsProps {
   instanceId: string;
@@ -232,39 +232,35 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
       <ArrMessage status={service.status} message={message} />
 
       {activeStreams > 0 && (
-        <div className="space-y-3">
-          <div
-            onClick={toggle}
-            className="relative cursor-pointer select-none w-full flex items-center justify-between"
-          >
-            <div className="flex items-center justify-between flex-1">
-              <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                Active Streams:
-              </div>
-              <div className="flex items-center gap-4 pr-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Total:</span>
-                  <span className="text-xs font-medium text-blue-500 dark:text-blue-400">{activeStreams}</span>
+        <div>
+          <CollapsibleSection
+            title={
+              <div className="flex w-full items-center justify-between pr-6">
+                <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Active Streams:
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Transcoding:</span>
-                  <span className="text-xs font-medium text-amber-500 dark:text-amber-400">{transcodingCount}</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Total:
+                    </span>
+                    <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
+                      {activeStreams}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Transcoding:
+                    </span>
+                    <span className="text-xs font-medium text-amber-500 dark:text-amber-400">
+                      {transcodingCount}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
-              <ChevronUpIcon
-                className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
-                  isExpanded ? "rotate-180" : ""
-                } group-hover:text-gray-400`}
-              />
-            </div>
-          </div>
-
-          <div
-            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-              isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-            }`}
+            }
+            isExpanded={isExpanded}
+            onToggle={toggle}
           >
             <div className="space-y-2">
               {sessions.map((session: PlexSession) => (
@@ -349,7 +345,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                 </div>
               ))}
             </div>
-          </div>
+          </CollapsibleSection>
         </div>
       )}
     </div>

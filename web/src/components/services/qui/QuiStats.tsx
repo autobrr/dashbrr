@@ -9,6 +9,9 @@ import { ArrMessage } from "../common/ArrMessage";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { QuiInstanceTransfer } from "../../../types/service";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 
 interface QuiStatsProps {
   instanceId: string;
@@ -36,6 +39,10 @@ const toSpeedScore = (transfer: QuiInstanceTransfer) =>
 export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "qui:active_instances"),
+    true
+  );
 
   const quiStats = service?.stats?.qui;
   const summary = service?.details?.qui?.summary;
@@ -87,10 +94,11 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
       )}
 
       {transfers.length > 0 && (
-        <div>
-          <div className="mb-2 text-xs font-semibold text-zinc-300">
-            Active qBittorrent Instances
-          </div>
+        <CollapsibleSection
+          title="Active qBittorrent Instances"
+          isExpanded={isExpanded}
+          onToggle={toggle}
+        >
           <div className="space-y-1.5">
             {transfers.map((transfer) => (
               <div
@@ -118,7 +126,7 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
               </div>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
     </div>
   );

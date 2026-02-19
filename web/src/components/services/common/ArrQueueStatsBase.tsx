@@ -18,6 +18,9 @@ import { api } from "../../../utils/api";
 import Toast from "../../../components/Toast";
 import AnimatedModal from "../../ui/AnimatedModal";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import {
   ArrQueueDeleteOptions,
   buildArrQueueDeleteQueryParams,
@@ -129,6 +132,11 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   renderMessage,
 }) => {
   const { getService } = useServiceData();
+  const sectionKey = `${serviceName.toLowerCase()}:queue`;
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, sectionKey),
+    true
+  );
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
 
@@ -194,11 +202,11 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
       {renderMessage({ status: service.status, message: service.message })}
 
       {queue && queue.totalRecords > 0 && (
-        <div>
-          <div className="text-xs mb-2 font-semibold text-zinc-700 dark:text-zinc-300 cursor-default">
-            Queue ({queue.totalRecords}):
-          </div>
-
+        <CollapsibleSection
+          title={`Queue (${queue.totalRecords}):`}
+          isExpanded={isExpanded}
+          onToggle={toggle}
+        >
           <div className="space-y-2">
             {queue.records.slice(0, 3).map((record) => (
               <div
@@ -300,7 +308,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
               </div>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       <AnimatedModal
