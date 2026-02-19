@@ -237,6 +237,84 @@ func TestBroadcasterSnapshotKeepsHealthResponseTimeAcrossInternalEvents(t *testi
 	if !decoded.UpdateAvailable {
 		t.Fatalf("snapshot updateAvailable = %v, want true", decoded.UpdateAvailable)
 	}
+	if decoded.EventType != models.ServiceEventHealth {
+		t.Fatalf("snapshot eventType = %q, want %q", decoded.EventType, models.ServiceEventHealth)
+	}
+}
+
+func TestBroadcasterSnapshotPromotesBootstrapInternalToHealthEventType(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	publishPollerBootstrapStatus(bc, "prowlarr-1")
+	publishHealthServiceUpdate(bc, models.ServiceHealth{
+		ServiceID:    "prowlarr-1",
+		Status:       "warning",
+		Message:      "[IndexerLongTermStatusCheck] Indexers unavailable",
+		LastChecked:  now,
+		ResponseTime: 7,
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	if decoded.EventType != models.ServiceEventHealth {
+		t.Fatalf("snapshot eventType = %q, want %q", decoded.EventType, models.ServiceEventHealth)
+	}
+	if decoded.Status != "warning" {
+		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "warning")
+	}
+	if decoded.ResponseTime != 7 {
+		t.Fatalf("snapshot responseTime = %d, want %d", decoded.ResponseTime, 7)
+	}
+}
+
+func TestBroadcasterSnapshotAllowsEmptyHealthMessageToClearPriorWarning(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "general-1",
+		Status:      "warning",
+		Message:     "Old warning",
+		LastChecked: now,
+	})
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "general-1",
+		Status:      "online",
+		Message:     "",
+		EventType:   models.ServiceEventHealth,
+		LastChecked: now.Add(time.Second),
+	})
+
+	snapshot := bc.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 snapshot payload, got %d", len(snapshot))
+	}
+
+	var decoded models.ServiceHealth
+	raw := strings.TrimPrefix(string(snapshot[0]), "data: ")
+	raw = strings.TrimSuffix(raw, "\n\n")
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+
+	if decoded.Status != "online" {
+		t.Fatalf("snapshot status = %q, want %q", decoded.Status, "online")
+	}
+	if decoded.Message != "" {
+		t.Fatalf("snapshot message = %q, want empty", decoded.Message)
+	}
 }
 
 func TestBroadcasterSnapshotTreatsExplicitInternalEventTypeAsInternal(t *testing.T) {

@@ -86,8 +86,11 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	if shouldMergeState && next.Status != "" {
 		merged.Status = next.Status
 	}
-	if shouldMergeState && next.Message != "" {
+	if shouldMergeState {
 		merged.Message = next.Message
+		merged.EventType = models.ServiceEventHealth
+	} else if merged.EventType == "" && next.EventType != "" {
+		merged.EventType = next.EventType
 	}
 	merged.LastChecked = next.LastChecked
 

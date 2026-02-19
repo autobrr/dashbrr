@@ -41,7 +41,7 @@ func isInternalServiceEvent(health models.ServiceHealth) bool {
 }
 
 func shouldMergeHealthState(health models.ServiceHealth) bool {
-	return health.Message != "" && !isInternalServiceEvent(health)
+	return !isInternalServiceEvent(health)
 }
 
 func publishInternalServiceUpdate(bc *Broadcaster, health models.ServiceHealth) {

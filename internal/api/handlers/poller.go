@@ -194,6 +194,9 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 	// are not delayed behind stats jobs on startup and forced refreshes.
 	for _, ps := range pollServices {
 		if ps.configured {
+			if force {
+				publishPollerBootstrapStatus(p.bc, ps.cfg.InstanceID)
+			}
 			p.maybeRun(ctx, sem, ps.cfg, ps.kind, "health", 30*time.Second, pollerHealthTimeout, force, (*Poller).runHealth)
 			continue
 		}
@@ -201,6 +204,12 @@ func (p *Poller) tick(ctx context.Context, sem chan struct{}, force bool, onlyIn
 	}
 
 	// Pass 2: enqueue stats only for configured services.
+	// On forced ticks (startup/manual refresh), prioritize status correctness first.
+	// Stats follow on the next normal tick.
+	if force {
+		return
+	}
+
 	for _, ps := range pollServices {
 		if !ps.configured {
 			continue
@@ -509,6 +518,19 @@ func summarizeQuiCardStatus(summary types.QuiTransferSummary) string {
 		return "warning"
 	}
 	return "online"
+}
+
+func publishPollerBootstrapStatus(bc *Broadcaster, instanceID string) {
+	if bc == nil || instanceID == "" {
+		return
+	}
+
+	publishInternalServiceUpdate(bc, models.ServiceHealth{
+		ServiceID:   instanceID,
+		Status:      "unknown",
+		Message:     "bootstrap_state",
+		LastChecked: time.Now(),
+	})
 }
 
 func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfiguration, _ string) error {

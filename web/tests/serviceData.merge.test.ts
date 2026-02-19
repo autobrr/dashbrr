@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  deriveHealthUpdate,
   hydrateServicesFromConfigurations,
   mergeServicePatchSnapshot,
   type ServicePatchSnapshot,
@@ -98,4 +99,23 @@ test("hydrate_configurations promotes loading to online from internal snapshots"
   assert.equal(hydrated.status, "online");
   assert.equal(hydrated.message, "radarr_queue");
   assert.deepEqual(hydrated.stats, { radarr: { queue: { totalRecords: 3 } } });
+});
+
+test("deriveHealthUpdate applies health state even when message is empty", () => {
+  const update = deriveHealthUpdate({
+    serviceId: "general-1",
+    status: "online",
+    message: "",
+    eventType: "health",
+    responseTime: 4,
+    version: "1.0.0",
+    lastChecked: "2026-02-19T00:00:00Z",
+  });
+
+  assert.ok(update);
+  assert.equal(update.instanceId, "general-1");
+  assert.equal(update.patch.status, "online");
+  assert.equal(update.patch.message, "");
+  assert.equal(update.patch.responseTime, 4);
+  assert.equal(update.patch.version, "1.0.0");
 });

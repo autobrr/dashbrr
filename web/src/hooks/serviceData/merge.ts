@@ -87,8 +87,7 @@ const buildServicePatchFromHealth = (
   health: ServiceHealth,
   presence: HealthPatchPresence
 ): Partial<Service> => {
-  const shouldApplyHealthState =
-    health.message !== "" && !isInternalServiceEvent(health);
+  const shouldApplyHealthState = !isInternalServiceEvent(health);
 
   const patch: Partial<Service> = {
     lastChecked: health.lastChecked,

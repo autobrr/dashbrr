@@ -4,8 +4,13 @@
 package handlers
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/sse"
 )
 
 func TestNewPoller_AutobrrJobsAreSplit(t *testing.T) {
@@ -103,5 +108,74 @@ func TestApplyPollerJobJitter(t *testing.T) {
 	}
 	if a > base+pollerMaxJobJitter {
 		t.Fatalf("jittered interval should be bounded: got %v max %v", a, base+pollerMaxJobJitter)
+	}
+}
+
+func decodeSnapshotHealth(t *testing.T, payload []byte) models.ServiceHealth {
+	t.Helper()
+
+	line := strings.TrimSpace(string(payload))
+	if !strings.HasPrefix(line, "data: ") {
+		t.Fatalf("snapshot payload missing data prefix: %q", line)
+	}
+
+	var health models.ServiceHealth
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &health); err != nil {
+		t.Fatalf("decode snapshot payload: %v", err)
+	}
+
+	return health
+}
+
+func TestPublishPollerBootstrapStatus_SeedsUnknownSnapshot(t *testing.T) {
+	t.Parallel()
+
+	bc := NewBroadcaster(sse.NewHub())
+	publishPollerBootstrapStatus(bc, "sonarr-1")
+
+	snapshots := bc.Snapshot()
+	if len(snapshots) != 1 {
+		t.Fatalf("snapshot count = %d, want 1", len(snapshots))
+	}
+
+	health := decodeSnapshotHealth(t, snapshots[0])
+	if health.ServiceID != "sonarr-1" {
+		t.Fatalf("serviceID = %q, want %q", health.ServiceID, "sonarr-1")
+	}
+	if health.Status != "unknown" {
+		t.Fatalf("status = %q, want %q", health.Status, "unknown")
+	}
+	if health.Message != "bootstrap_state" {
+		t.Fatalf("message = %q, want %q", health.Message, "bootstrap_state")
+	}
+	if health.EventType != models.ServiceEventInternal {
+		t.Fatalf("eventType = %q, want %q", health.EventType, models.ServiceEventInternal)
+	}
+}
+
+func TestPublishPollerBootstrapStatus_DoesNotClobberHealthSnapshot(t *testing.T) {
+	t.Parallel()
+
+	bc := NewBroadcaster(sse.NewHub())
+	publishHealthServiceUpdate(bc, models.ServiceHealth{
+		ServiceID:   "radarr-1",
+		Status:      "online",
+		Message:     "Healthy",
+		LastChecked: time.Now().Add(-time.Minute),
+	})
+
+	publishPollerBootstrapStatus(bc, "radarr-1")
+
+	snapshots := bc.Snapshot()
+	if len(snapshots) != 1 {
+		t.Fatalf("snapshot count = %d, want 1", len(snapshots))
+	}
+
+	health := decodeSnapshotHealth(t, snapshots[0])
+	if health.Status != "online" {
+		t.Fatalf("status = %q, want %q", health.Status, "online")
+	}
+	if health.Message != "Healthy" {
+		t.Fatalf("message = %q, want %q", health.Message, "Healthy")
 	}
 }
