@@ -11,11 +11,11 @@ import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import {
   ClockIcon,
   ArrowDownTrayIcon,
   MagnifyingGlassIcon,
-  ChevronUpIcon,
 } from "@heroicons/react/24/outline";
 
 interface ProwlarrStatsProps {
@@ -74,23 +74,17 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
 
       {/* Active Indexers */}
       <div>
-        <div
-          onClick={toggle}
-          className="relative cursor-pointer select-none w-full flex items-center justify-between text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 group"
-        >
-          <span>Active Indexers <span className="text-xs font-bold lowercase">(Last 30 Days)</span></span>
-          <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
-            <ChevronUpIcon
-              className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
-                isExpanded ? "rotate-180" : ""
-              } group-hover:text-gray-400`}
-            />
-          </div>
-        </div>
-        <div
-          className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-            isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-          }`}
+        <CollapsibleSection
+          title={
+            <>
+              Active Indexers{" "}
+              <span className="text-xs font-bold lowercase">
+                (Last 30 Days)
+              </span>
+            </>
+          }
+          isExpanded={isExpanded}
+          onToggle={toggle}
         >
           <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 pointer-events-none">
             <div className="divide-y divide-gray-850">
@@ -139,7 +133,7 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
               ))}
             </div>
           </div>
-        </div>
+        </CollapsibleSection>
       </div>
     </div>
   );

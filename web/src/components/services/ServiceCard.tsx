@@ -22,7 +22,10 @@ import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useConfiguration } from "../../contexts/useConfiguration";
 import { useCollapsiblePreference } from "../../hooks/useCollapsiblePreference";
 import { serviceCardCollapseKey } from "../../utils/collapsePreferences";
-import { hasMeaningfulServiceContent } from "../../utils/serviceCardContent";
+import {
+  getServiceCardLayoutClasses,
+  hasMeaningfulServiceContent,
+} from "../../utils/serviceCardContent";
 
 interface DragHandleProps {
   role?: string;
@@ -104,6 +107,9 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
     isConnected &&
     !isInitialLoad &&
     !hasMeaningfulServiceContent(service);
+  const layoutClasses = getServiceCardLayoutClasses(
+    shouldCompactContentLayout ? "compact" : "regular"
+  );
 
   const renderServiceSpecificControls = () => {
     if (needsConfiguration) return null;
@@ -183,7 +189,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
               </div>
             ) : (
               serviceSpecificControls && (
-                <div className={shouldCompactContentLayout ? "mt-1" : "mt-2"}>
+                <div className={layoutClasses.bodyMarginClass}>
                   {serviceSpecificControls}
                 </div>
               )
@@ -192,9 +198,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
 
           {/* Response time and Last checked */}
           <div
-            className={`space-y-1 pointer-events-none border-zinc-100 dark:border-zinc-700 select-none ${
-              shouldCompactContentLayout ? "mt-2 pt-2" : "mt-4 pt-4"
-            }`}
+            className={`space-y-1 pointer-events-none border-zinc-100 dark:border-zinc-700 select-none ${layoutClasses.footerSpacingClass}`}
           >
             {service.responseTime !== undefined && (
               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">

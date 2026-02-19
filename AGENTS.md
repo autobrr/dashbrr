@@ -1563,3 +1563,24 @@ Owner: soup (s0up4200@pm.me)
 ## Next
 - Manual UI pass for compact spacing across Plex/Sonarr/Radarr/General/Tailscale cards on desktop + mobile.
 - If any card still feels tall, move remaining one-off paddings into shared layout tokens in `ServiceCard`.
+
+### 2026-02-19 (web UX: section-shell compaction + DRY)
+- DRY card spacing classes extracted in `web/src/utils/serviceCardContent.ts`:
+  - `SERVICE_CARD_LAYOUT`
+  - `getServiceCardLayoutClasses(...)`
+- `ServiceCard` now consumes shared spacing classes (compact/regular) instead of inline ternaries.
+- `CollapsibleSection` improved:
+  - `title` now supports `ReactNode`
+  - header bottom spacing is now state-aware (`mb-2` expanded, `mb-0` collapsed) to remove idle shell gap.
+- `ProwlarrStats` migrated to shared `CollapsibleSection` (removed duplicate chevron/collapse markup).
+- Added class-snapshot regression coverage in `web/tests/serviceCardContent.test.ts` for status-only compact layout stability.
+- Full gate green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web build`
+
+## Next
+- Manual browser pass on mixed cards (expanded/collapsed/empty sections) across desktop + mobile breakpoints.
+- If any service still looks tall while empty, move remaining section paddings into shared section tokens.

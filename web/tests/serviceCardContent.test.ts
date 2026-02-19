@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { hasMeaningfulServiceContent } from "../src/utils/serviceCardContent.ts";
+import {
+  getServiceCardLayoutClasses,
+  SERVICE_CARD_LAYOUT,
+  hasMeaningfulServiceContent,
+} from "../src/utils/serviceCardContent.ts";
 import type { Service } from "../src/types/service.ts";
 
 const makeService = (overrides: Partial<Service>): Service => ({
@@ -58,4 +62,24 @@ test("autobrr always keeps full spacing for stat tiles", () => {
   const service = makeService({ type: "autobrr" });
 
   assert.equal(hasMeaningfulServiceContent(service), true);
+});
+
+test("service card layout snapshot stays stable", () => {
+  assert.deepEqual(SERVICE_CARD_LAYOUT, {
+    compact: {
+      bodyMarginClass: "mt-1",
+      footerSpacingClass: "mt-2 pt-2",
+    },
+    regular: {
+      bodyMarginClass: "mt-2",
+      footerSpacingClass: "mt-4 pt-4",
+    },
+  });
+});
+
+test("status-only cards use compact spacing classes", () => {
+  assert.deepEqual(getServiceCardLayoutClasses("compact"), {
+    bodyMarginClass: "mt-1",
+    footerSpacingClass: "mt-2 pt-2",
+  });
 });

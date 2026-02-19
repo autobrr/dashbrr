@@ -17,6 +17,23 @@ const hasActionableMessage = (service: Service): boolean =>
   ACTIONABLE_STATUSES.has(service.status) &&
   (hasText(service.message) || hasText(service.health?.message));
 
+export const SERVICE_CARD_LAYOUT = {
+  compact: {
+    bodyMarginClass: "mt-1",
+    footerSpacingClass: "mt-2 pt-2",
+  },
+  regular: {
+    bodyMarginClass: "mt-2",
+    footerSpacingClass: "mt-4 pt-4",
+  },
+} as const;
+
+export type ServiceCardLayoutMode = keyof typeof SERVICE_CARD_LAYOUT;
+
+export const getServiceCardLayoutClasses = (
+  mode: ServiceCardLayoutMode
+) => SERVICE_CARD_LAYOUT[mode];
+
 export const hasMeaningfulServiceContent = (service: Service): boolean => {
   if (hasActionableMessage(service)) {
     return true;

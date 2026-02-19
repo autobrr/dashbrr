@@ -7,7 +7,7 @@ import React from "react";
 import { ChevronUpIcon } from "@heroicons/react/24/outline";
 
 interface CollapsibleSectionProps {
-  title: string;
+  title: React.ReactNode;
   isExpanded: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -19,11 +19,13 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   onToggle,
   children,
 }) => {
+  const headerSpacingClass = isExpanded ? "mb-2" : "mb-0";
+
   return (
     <div>
       <div
         onClick={onToggle}
-        className="relative mb-2 flex w-full cursor-pointer select-none items-center justify-between text-xs font-semibold text-gray-700 group dark:text-gray-300"
+        className={`relative flex w-full cursor-pointer select-none items-center justify-between text-xs font-semibold text-gray-700 group dark:text-gray-300 ${headerSpacingClass}`}
       >
         <span>{title}</span>
         <div className="absolute right-0 top-1/2 -translate-y-1/2 pr-0.5 text-gray-500 transition-transform duration-200">
