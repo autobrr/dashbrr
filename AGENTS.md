@@ -1338,6 +1338,20 @@ Owner: soup (s0up4200@pm.me)
     - `TestGetIndexerStats_SendsProwlarrCompatibleDateParams`
 - Gates: pass (`go test ./...`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (ui/bootstrap: remove placeholder warning leak + overseerr parity tests)
+- Frontend service hydration:
+  - removed configured-service placeholder message `"Waiting for updates"` from base config hydration path
+  - configured services now start with no message until first health state arrives
+  - avoids misleading transient warning text before real health payload (notably on Prowlarr)
+- Overseerr parity hardening:
+  - validated enum values against local source of truth `~/github/oss/seerr/server/constants/media.ts`
+  - expanded tests in `web/tests/overseerr.status.test.ts`:
+    - explicit request/media enum parity assertions
+    - approved+available resolution behavior assertion
+- Regression tests:
+  - `web/tests/serviceData.merge.test.ts` now checks configured services are not seeded with placeholder message
+- Gates: pass (`pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`, `go test ./...`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

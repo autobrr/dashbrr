@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   getMediaStatus,
   getRequestStatus,
+  OVERSEERR_MEDIA_STATUS,
   OVERSEERR_REQUEST_STATUS,
   resolveRequestStatus,
 } from "../src/components/services/overseerr/status.ts";
@@ -116,3 +117,36 @@ test("keeps pending request actions when status is string encoded", () => {
   assert.equal(pending.meta.label, "Pending");
 });
 
+test("matches seerr request status enum values", () => {
+  assert.deepEqual(OVERSEERR_REQUEST_STATUS, {
+    PENDING: 1,
+    APPROVED: 2,
+    DECLINED: 3,
+    FAILED: 4,
+    COMPLETED: 5,
+  });
+});
+
+test("matches seerr media status enum values", () => {
+  assert.deepEqual(OVERSEERR_MEDIA_STATUS, {
+    UNKNOWN: 1,
+    PENDING: 2,
+    PROCESSING: 3,
+    PARTIALLY_AVAILABLE: 4,
+    AVAILABLE: 5,
+    BLACKLISTED: 6,
+    DELETED: 7,
+  });
+});
+
+test("prefers media lifecycle for approved requests when media state exists", () => {
+  const resolved = resolveRequestStatus(
+    baseRequest({
+      status: OVERSEERR_REQUEST_STATUS.APPROVED,
+      media: { ...baseRequest({}).media, status: OVERSEERR_MEDIA_STATUS.AVAILABLE },
+    })
+  );
+
+  assert.equal(resolved.meta.label, "Available");
+  assert.equal(resolved.isFallback, true);
+});

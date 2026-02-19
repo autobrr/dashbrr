@@ -136,7 +136,7 @@ const buildServiceFromConfig = (
     apiKey: config.apiKey,
     displayName: config.displayName,
     healthEndpoint: template?.healthEndpoint,
-    message: hasRequiredConfig ? "Waiting for updates" : "Service not configured",
+    message: hasRequiredConfig ? undefined : "Service not configured",
     stats: {},
     details: {},
   };

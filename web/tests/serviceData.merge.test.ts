@@ -43,6 +43,16 @@ test("hydrate_configurations keeps runtime status on refresh", () => {
   assert.deepEqual(hydrated.stats, { radarr: { queue: { totalRecords: 1 } } });
 });
 
+test("hydrate_configurations does not seed configured services with placeholder message", () => {
+  const hydrated = hydrateServicesFromConfigurations(new Map(), config, new Map()).get(
+    "radarr-1"
+  );
+
+  assert.ok(hydrated);
+  assert.equal(hydrated.status, "loading");
+  assert.equal(hydrated.message, undefined);
+});
+
 test("hydrate_configurations applies cached internal status snapshot", () => {
   const snapshot: ServicePatchSnapshot = mergeServicePatchSnapshot(
     undefined,
