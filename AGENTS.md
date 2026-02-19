@@ -61,6 +61,7 @@ Owner: soup (s0up4200@pm.me)
 - CI flake fix
   - stabilized poller slow-stats regression timing to avoid runner scheduling false negatives
   - renamed test intent to reflect behavior under slow stats contention
+  - removed non-deterministic assertion that assumed health goroutine always acquires semaphore before stats
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`

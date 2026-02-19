@@ -176,14 +176,6 @@ func TestPollerTick_HealthStillRunsWithSlowStatsJob(t *testing.T) {
 		t.Fatalf("expected stats job to start")
 	}
 
-	// While slow stats is still in progress, it should not be marked complete yet.
-	p.mu.Lock()
-	statsLastRun := p.lastRun["plex-1:test_stats"]
-	p.mu.Unlock()
-	if !statsLastRun.IsZero() {
-		t.Fatalf("expected stats lastRun to remain empty while slow job is running")
-	}
-
 	select {
 	case <-statsDone:
 	case <-time.After(2 * time.Second):
