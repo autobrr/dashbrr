@@ -29,6 +29,9 @@ Owner: soup (s0up4200@pm.me)
   - added per-service one-shot startup metric log: `poller first health seen`
   - structured fields: `instance`, `service`, `status`, `startup_elapsed`
   - added regression tests for once-only tracking + startup timestamp guard
+- SSE/reducer refresh regression matrix
+  - added web merge test to lock `warning + version + responseTime` persistence across internal stats update + hydration refresh
+  - protects prior startup/refresh latency regressions where cards briefly lost health fields after reconnect/reload
 - Full gate run green:
   - `go test ./...`
   - `pnpm -C web lint`

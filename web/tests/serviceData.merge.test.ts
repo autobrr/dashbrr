@@ -119,3 +119,69 @@ test("deriveHealthUpdate applies health state even when message is empty", () =>
   assert.equal(update.patch.responseTime, 4);
   assert.equal(update.patch.version, "1.0.0");
 });
+
+test("hydrate_configurations keeps warning/version/responseTime after internal update", () => {
+  const healthUpdate = deriveHealthUpdate({
+    serviceId: "prowlarr-1",
+    status: "warning",
+    message: "[IndexerLongTermStatusCheck] Indexers unavailable",
+    eventType: "health",
+    responseTime: 6,
+    version: "2.3.2",
+    lastChecked: "2026-02-19T00:00:00Z",
+  });
+
+  assert.ok(healthUpdate);
+
+  const internalUpdate = deriveHealthUpdate({
+    serviceId: "prowlarr-1",
+    status: "online",
+    message: "prowlarr_indexers",
+    eventType: "internal",
+    stats: {
+      prowlarr: {
+        indexers: [{ id: 1, name: "One" }],
+      },
+    },
+    lastChecked: "2026-02-19T00:00:01Z",
+  });
+
+  assert.ok(internalUpdate);
+
+  let snapshot: ServicePatchSnapshot = mergeServicePatchSnapshot(
+    undefined,
+    healthUpdate.patch,
+    healthUpdate.internalStatus
+  );
+  snapshot = mergeServicePatchSnapshot(
+    snapshot,
+    internalUpdate.patch,
+    internalUpdate.internalStatus
+  );
+
+  const hydrated = hydrateServicesFromConfigurations(
+    new Map(),
+    {
+      "prowlarr-1": {
+        url: "https://prowlarr.example",
+        displayName: "Prowlarr",
+        apiKey: "key",
+      },
+    },
+    new Map([["prowlarr-1", snapshot]])
+  ).get("prowlarr-1");
+
+  assert.ok(hydrated);
+  assert.equal(hydrated.status, "warning");
+  assert.equal(
+    hydrated.message,
+    "[IndexerLongTermStatusCheck] Indexers unavailable"
+  );
+  assert.equal(hydrated.version, "2.3.2");
+  assert.equal(hydrated.responseTime, 6);
+  assert.deepEqual(hydrated.stats, {
+    prowlarr: {
+      indexers: [{ id: 1, name: "One" }],
+    },
+  });
+});
