@@ -1258,6 +1258,16 @@ Owner: soup (s0up4200@pm.me)
   - keep not-configured semantics explicit (legacy/non-legacy paths preserved)
 - Gates: pass (`go test ./...`, `pnpm -C web test`, `pnpm -C web lint`, `pnpm -C web typecheck`, `pnpm -C web build`)
 
+### 2026-02-19 (poller hardening #2: panic-safe jobs)
+- Reliability hardening in `internal/api/handlers/poller.go`:
+  - job execution now wrapped with panic recovery
+  - recovered panic is converted into job failure (`error: panic: ...`)
+  - failed state/fast-retry path remains active after panic (same as normal failures)
+  - prevents one bad integration payload/job panic from crashing the process
+- Tests:
+  - added `TestPollerMaybeRun_PanicMarksJobFailed` in `internal/api/handlers/poller_test.go`
+- Gates: pass (`go test ./internal/api/handlers/...`)
+
 ## Rolling Plan
 - CI/watch: PR `#82` (`refactor/modernize` -> `develop`)
 - Backend/frontend: continue normalizing multi-payload service events so each UI field has one canonical SSE key/path

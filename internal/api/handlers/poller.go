@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -283,7 +284,15 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 
 		started := time.Now()
 		queueDelay := started.Sub(queuedAt)
-		err := run(p, jobCtx, svc, serviceType)
+		var err error
+		func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					err = fmt.Errorf("panic: %v", recovered)
+				}
+			}()
+			err = run(p, jobCtx, svc, serviceType)
+		}()
 		duration := time.Since(started)
 		now := time.Now()
 

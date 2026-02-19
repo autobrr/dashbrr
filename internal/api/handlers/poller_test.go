@@ -184,3 +184,35 @@ func TestPollerMaybeRun_FailedJobsRetrySoonerThanNominalInterval(t *testing.T) {
 		t.Fatalf("expected lastOKRun[%q] to be set after successful retry", key)
 	}
 }
+
+func TestPollerMaybeRun_PanicMarksJobFailed(t *testing.T) {
+	p := NewPoller(nil, nil)
+	sem := make(chan struct{}, 1)
+
+	svc := models.ServiceConfiguration{
+		InstanceID: "radarr-1",
+		URL:        "http://example",
+		APIKey:     "key",
+	}
+
+	job := "radarr_queue"
+	key := svc.InstanceID + ":" + job
+
+	p.maybeRun(context.Background(), sem, svc, "radarr", job, time.Hour, pollerDefaultJobTimeout, true, func(*Poller, context.Context, models.ServiceConfiguration, string) error {
+		panic("boom")
+	})
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		failed := p.failed[key]
+		inFlight := p.inFlight[key]
+		p.mu.Unlock()
+		if failed && !inFlight {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	t.Fatalf("expected panic job to be marked failed and cleared from inFlight")
+}
