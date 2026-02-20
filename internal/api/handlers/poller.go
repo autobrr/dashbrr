@@ -25,6 +25,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/qui"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/readarr"
+	"github.com/autobrr/dashbrr/internal/services/sabnzbd"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -131,6 +132,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"bazarr": {
 			{name: "bazarr_summary", interval: 90 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runBazarrSummary},
+		},
+		"sabnzbd": {
+			{name: "sabnzbd_summary", interval: 45 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runSabnzbdSummary},
 		},
 		"maintainerr": {
 			{name: "maintainerr_collections", interval: 10 * time.Minute, timeout: pollerLongJobTimeout, run: (*Poller).runMaintainerrCollections},
@@ -832,6 +836,17 @@ func (p *Poller) runBazarrSummary(ctx context.Context, svc models.ServiceConfigu
 	}
 
 	publishInternalServiceUpdate(p.bc, buildBazarrSummaryServiceUpdate(svc.InstanceID, &summary))
+	return nil
+}
+
+func (p *Poller) runSabnzbdSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := sabnzbd.NewSabnzbdService().(*sabnzbd.SabnzbdService)
+	summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildSabnzbdSummaryServiceUpdate(svc.InstanceID, &summary))
 	return nil
 }
 

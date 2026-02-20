@@ -5,6 +5,8 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
@@ -231,6 +233,61 @@ func buildBazarrSummaryServiceUpdate(instanceID string, summary *types.BazarrSum
 	}
 }
 
+func buildSabnzbdSummaryServiceUpdate(instanceID string, summary *types.SabnzbdSummaryResponse) models.ServiceHealth {
+	if summary == nil {
+		summary = &types.SabnzbdSummaryResponse{
+			Queue: types.SabnzbdQueue{
+				Slots: []types.SabnzbdQueueSlot{},
+			},
+			RecentFailures: []types.SabnzbdHistorySlot{},
+		}
+	}
+	if summary.Queue.Slots == nil {
+		summary.Queue.Slots = []types.SabnzbdQueueSlot{}
+	}
+	if summary.RecentFailures == nil {
+		summary.RecentFailures = []types.SabnzbdHistorySlot{}
+	}
+
+	queueCount := parseSummaryCount(summary.Queue.NoOfSlots)
+	totalQueueCount := parseSummaryCount(summary.Queue.NoOfSlotsTotal)
+	if totalQueueCount <= 0 {
+		totalQueueCount = queueCount
+	}
+	warningsCount := parseSummaryCount(summary.Queue.HaveWarnings)
+
+	status := "online"
+	if warningsCount > 0 || summary.FailedCount > 0 || strings.EqualFold(summary.Queue.Status, "paused") {
+		status = "warning"
+	}
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    status,
+		Message:   "sabnzbd_summary",
+		Stats: map[string]interface{}{
+			"sabnzbd": map[string]interface{}{
+				"summary": summary,
+			},
+		},
+		Details: map[string]interface{}{
+			"sabnzbd": map[string]interface{}{
+				"queueCount":       queueCount,
+				"totalQueueCount":  totalQueueCount,
+				"failedCount":      summary.FailedCount,
+				"warningsCount":    warningsCount,
+				"status":           summary.Queue.Status,
+				"speed":            summary.Queue.Speed,
+				"timeLeft":         summary.Queue.TimeLeft,
+				"sizeLeft":         summary.Queue.SizeLeft,
+				"incompleteFree":   summary.Queue.Diskspace1Norm,
+				"completeFree":     summary.Queue.Diskspace2Norm,
+				"recentFailureLen": len(summary.RecentFailures),
+			},
+		},
+	}
+}
+
 func buildAutobrrStatsServiceUpdate(instanceID string, stats types.AutobrrStats) models.ServiceHealth {
 	return models.ServiceHealth{
 		ServiceID: instanceID,
@@ -334,4 +391,19 @@ func buildQuiOverviewServiceUpdate(instanceID string, instances []types.QuiInsta
 			},
 		},
 	}
+}
+
+func parseSummaryCount(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	if intVal, err := strconv.Atoi(raw); err == nil {
+		return intVal
+	}
+	floatVal, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0
+	}
+	return int(floatVal)
 }

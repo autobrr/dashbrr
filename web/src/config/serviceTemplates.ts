@@ -61,6 +61,15 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "/api/health/bazarr",
   },
   {
+    name: "SABnzbd",
+    displayName: "",
+    type: "sabnzbd",
+    status: "offline",
+    url: "",
+    accessUrl: "",
+    healthEndpoint: "/api/health/sabnzbd",
+  },
+  {
     name: "Prowlarr",
     displayName: "",
     type: "prowlarr",

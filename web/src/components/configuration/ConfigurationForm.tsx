@@ -119,6 +119,7 @@ export const ConfigurationForm = ({
       case "lidarr":
       case "readarr":
       case "bazarr":
+      case "sabnzbd":
       case "prowlarr":
         return "API Key";
       case "overseerr":
@@ -153,11 +154,15 @@ export const ConfigurationForm = ({
       case "lidarr":
       case "readarr":
       case "bazarr":
+      case "sabnzbd":
       case "prowlarr":
         return {
           prefix: "Found in ",
-          text: "Settings > General",
-          link: getSettingsUrl("/settings/general"),
+          text: serviceType === "sabnzbd" ? "Config > General" : "Settings > General",
+          link:
+            serviceType === "sabnzbd"
+              ? getSettingsUrl("/config/general/")
+              : getSettingsUrl("/settings/general"),
         };
       case "overseerr":
         return {
@@ -188,6 +193,8 @@ export const ConfigurationForm = ({
         return "http://localhost:7476";
       case "bazarr":
         return "http://localhost:6767";
+      case "sabnzbd":
+        return "http://localhost:8080";
       case "general":
         return "Enter full URL including health endpoint";
       default:

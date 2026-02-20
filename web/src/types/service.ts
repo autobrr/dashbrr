@@ -12,6 +12,7 @@ export type ServiceType =
   | 'lidarr'
   | 'readarr'
   | 'bazarr'
+  | 'sabnzbd'
   | 'prowlarr'
   | 'overseerr'
   | 'plex'
@@ -536,6 +537,58 @@ export interface ProwlarrIndexerStats {
   numberOfFailedAuthQueries: number;
 }
 
+export interface SabnzbdQueueSlot {
+  nzo_id: string;
+  filename: string;
+  status: string;
+  size: string;
+  sizeleft: string;
+  percentage: string;
+  timeleft: string;
+  cat: string;
+  priority: string;
+}
+
+export interface SabnzbdQueue {
+  version: string;
+  status: string;
+  paused: boolean;
+  speed: string;
+  kbpersec: string;
+  timeleft: string;
+  sizeleft: string;
+  size: string;
+  mbleft: string;
+  mb: string;
+  noofslots: string;
+  noofslots_total: string;
+  diskspace1: string;
+  diskspace2: string;
+  diskspacetotal1: string;
+  diskspacetotal2: string;
+  diskspace1_norm: string;
+  diskspace2_norm: string;
+  have_warnings: string;
+  speedlimit_abs: string;
+  slots: SabnzbdQueueSlot[];
+}
+
+export interface SabnzbdHistorySlot {
+  nzo_id: string;
+  name: string;
+  status: string;
+  fail_message: string;
+  category: string;
+  size: string;
+  completed: number;
+}
+
+export interface SabnzbdSummary {
+  queue: SabnzbdQueue;
+  failedCount: number;
+  recentFailures: SabnzbdHistorySlot[];
+}
+
 export interface TailscaleDevice {
   id: string;
   name: string;
@@ -638,6 +691,9 @@ export interface ServiceStats {
   bazarr?: {
     summary: BazarrSummary;
   };
+  sabnzbd?: {
+    summary: SabnzbdSummary;
+  };
   prowlarr?: {
     stats: ProwlarrStats;
     indexers: ProwlarrIndexer[];
@@ -709,6 +765,19 @@ export interface ServiceDetails {
     healthIssues: number;
     sonarrSignalR?: string;
     radarrSignalR?: string;
+  };
+  sabnzbd?: {
+    queueCount: number;
+    totalQueueCount: number;
+    failedCount: number;
+    warningsCount: number;
+    status: string;
+    speed: string;
+    timeLeft: string;
+    sizeLeft: string;
+    incompleteFree: string;
+    completeFree: string;
+    recentFailureLen: number;
   };
   prowlarr?: {
     activeIndexers: number;

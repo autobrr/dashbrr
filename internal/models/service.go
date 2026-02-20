@@ -54,6 +54,7 @@ var (
 	NewSonarrService      func() ServiceHealthChecker
 	NewLidarrService      func() ServiceHealthChecker
 	NewReadarrService     func() ServiceHealthChecker
+	NewSabnzbdService     func() ServiceHealthChecker
 	NewProwlarrService    func() ServiceHealthChecker
 	NewOverseerrService   func() ServiceHealthChecker
 	NewPlexService        func() ServiceHealthChecker

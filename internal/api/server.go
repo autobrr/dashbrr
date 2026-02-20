@@ -139,6 +139,7 @@ func (s *Server) Handler() http.Handler {
 	readarrHandler := handlers.NewReadarrHandler(s.db, s.cache, bc)
 	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
 	bazarrHandler := handlers.NewBazarrHandler(s.db, s.cache, bc)
+	sabnzbdHandler := handlers.NewSabnzbdHandler(s.db, s.cache, bc)
 	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
 	// Initialize auth handlers and middleware
@@ -317,6 +318,12 @@ func (s *Server) Handler() http.Handler {
 				bazarr := regularServices.Group("/bazarr")
 				{
 					bazarr.GET("/summary", bazarrHandler.GetSummary)
+				}
+
+				// SABnzbd endpoints
+				sabnzbd := regularServices.Group("/sabnzbd")
+				{
+					sabnzbd.GET("/summary", sabnzbdHandler.GetSummary)
 				}
 			}
 

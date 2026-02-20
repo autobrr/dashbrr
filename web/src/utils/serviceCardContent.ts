@@ -59,6 +59,9 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
     case "bazarr":
       // Bazarr cards always render summary tiles.
       return true;
+    case "sabnzbd":
+      // SABnzbd cards render queue/failure summary tiles.
+      return true;
     case "prowlarr":
       return (service.stats?.prowlarr?.indexers?.length ?? 0) > 0;
     case "overseerr":

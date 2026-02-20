@@ -104,6 +104,21 @@ func TestNewPoller_BazarrJobsAreSummaryOnly(t *testing.T) {
 	}
 }
 
+func TestNewPoller_SabnzbdJobsAreSummaryOnly(t *testing.T) {
+	t.Parallel()
+
+	poller := NewPoller(nil, nil)
+	jobs := poller.jobs["sabnzbd"]
+
+	if len(jobs) != 1 {
+		t.Fatalf("sabnzbd job count = %d, want 1", len(jobs))
+	}
+
+	if jobs[0].name != "sabnzbd_summary" {
+		t.Fatalf("sabnzbd job[0] = %q, want %q", jobs[0].name, "sabnzbd_summary")
+	}
+}
+
 func TestEffectiveJobTimeout(t *testing.T) {
 	t.Parallel()
 

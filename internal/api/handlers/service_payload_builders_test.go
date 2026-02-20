@@ -208,3 +208,59 @@ func TestBuildBazarrSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("healthIssues = %v, want 2", got)
 	}
 }
+
+func TestBuildSabnzbdSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
+	summary := &types.SabnzbdSummaryResponse{
+		Queue: types.SabnzbdQueue{
+			Status:         "Downloading",
+			Speed:          "12.34 MB",
+			TimeLeft:       "0:12:34",
+			SizeLeft:       "8.2 GB",
+			NoOfSlots:      "3",
+			NoOfSlotsTotal: "7",
+			HaveWarnings:   "1",
+			Diskspace1Norm: "120.0 GB",
+			Diskspace2Norm: "980.0 GB",
+			Slots:          []types.SabnzbdQueueSlot{{NzoID: "A"}},
+		},
+		FailedCount:    4,
+		RecentFailures: []types.SabnzbdHistorySlot{{NzoID: "F1"}},
+	}
+
+	health := buildSabnzbdSummaryServiceUpdate("sabnzbd-1", summary)
+	if health.Message != "sabnzbd_summary" {
+		t.Fatalf("message = %q, want sabnzbd_summary", health.Message)
+	}
+	if health.Status != "warning" {
+		t.Fatalf("status = %q, want warning", health.Status)
+	}
+
+	stats, ok := health.Stats["sabnzbd"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected sabnzbd stats object")
+	}
+	gotSummary, ok := stats["summary"].(*types.SabnzbdSummaryResponse)
+	if !ok {
+		t.Fatalf("expected summary payload pointer")
+	}
+	if gotSummary.FailedCount != 4 {
+		t.Fatalf("failedCount = %d, want 4", gotSummary.FailedCount)
+	}
+
+	details, ok := health.Details["sabnzbd"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected sabnzbd details object")
+	}
+	if got := details["queueCount"]; got != 3 {
+		t.Fatalf("queueCount = %v, want 3", got)
+	}
+	if got := details["totalQueueCount"]; got != 7 {
+		t.Fatalf("totalQueueCount = %v, want 7", got)
+	}
+	if got := details["warningsCount"]; got != 1 {
+		t.Fatalf("warningsCount = %v, want 1", got)
+	}
+	if got := details["recentFailureLen"]; got != 1 {
+		t.Fatalf("recentFailureLen = %v, want 1", got)
+	}
+}
