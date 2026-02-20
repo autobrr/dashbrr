@@ -10,34 +10,41 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 
 	"github.com/autobrr/dashbrr/internal/models"
 )
 
-// KubernetesDiscovery handles service discovery from Kubernetes labels
+// KubernetesDiscovery handles service discovery from Kubernetes metadata.
 type KubernetesDiscovery struct {
 	client *kubernetes.Clientset
 }
 
 // NewKubernetesDiscovery creates a new Kubernetes discovery instance
 func NewKubernetesDiscovery() (*KubernetesDiscovery, error) {
-	// Try to load kubeconfig from standard locations
-	var kubeconfig string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	}
-
-	// Allow overriding kubeconfig location via environment variable
-	if envKubeconfig := os.Getenv("KUBECONFIG"); envKubeconfig != "" {
-		kubeconfig = envKubeconfig
-	}
-
-	// Create the config from kubeconfig file
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	// Prefer in-cluster auth when running inside Kubernetes.
+	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
+		inClusterErr := err
+
+		// Fallback to kubeconfig for local CLI usage.
+		var kubeconfig string
+		if envKubeconfig := os.Getenv("KUBECONFIG"); envKubeconfig != "" {
+			kubeconfig = envKubeconfig
+		} else if home := homedir.HomeDir(); home != "" {
+			kubeconfig = filepath.Join(home, ".kube", "config")
+		}
+
+		if kubeconfig == "" {
+			return nil, fmt.Errorf("failed to load in-cluster config and no kubeconfig found: %w", inClusterErr)
+		}
+
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load in-cluster config (%v) and kubeconfig (%s): %w", inClusterErr, kubeconfig, err)
+		}
 	}
 
 	// Create the clientset
@@ -51,12 +58,10 @@ func NewKubernetesDiscovery() (*KubernetesDiscovery, error) {
 	}, nil
 }
 
-// DiscoverServices finds services configured via Kubernetes labels
+// DiscoverServices finds services configured via Kubernetes metadata
 func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.ServiceConfiguration, error) {
-	// List all services in all namespaces with dashbrr labels
-	services, err := k.client.CoreV1().Services("").List(ctx, metav1.ListOptions{
-		LabelSelector: GetLabelKey(labelTypeKey),
-	})
+	// List all services, then filter in-memory. Annotation selectors are not supported.
+	services, err := k.client.CoreV1().Services("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
@@ -64,13 +69,13 @@ func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.Se
 	var configurations []models.ServiceConfiguration
 
 	for _, service := range services.Items {
-		config, err := k.parseServiceLabels(service.Labels, service.Namespace)
+		config, err := k.parseServiceAnnotations(service.Annotations, service.Namespace, service.Name)
 		if err != nil {
 			log.Warn().
 				Err(err).
 				Str("namespace", service.Namespace).
 				Str("service", service.Name).
-				Msg("Failed to parse discovery labels")
+				Msg("Failed to parse discovery metadata")
 			continue
 		}
 		if config != nil {
@@ -81,11 +86,15 @@ func (k *KubernetesDiscovery) DiscoverServices(ctx context.Context) ([]models.Se
 	return configurations, nil
 }
 
-// parseServiceLabels extracts service configuration from Kubernetes labels
-func (k *KubernetesDiscovery) parseServiceLabels(labels map[string]string, namespace string) (*models.ServiceConfiguration, error) {
-	parsed, err := parseDiscoveryLabels(labels)
+// parseServiceAnnotations extracts service configuration from Kubernetes annotations.
+func (k *KubernetesDiscovery) parseServiceAnnotations(annotations map[string]string, namespace, serviceName string) (*models.ServiceConfiguration, error) {
+	if annotations[GetLabelKey(labelTypeKey)] == "" {
+		return nil, nil
+	}
+
+	parsed, err := parseDiscoveryLabels(annotations)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid discovery metadata for %s/%s: %w", namespace, serviceName, err)
 	}
 	if !parsed.enabled {
 		return nil, nil

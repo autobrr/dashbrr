@@ -181,12 +181,12 @@ Key configuration options include:
 
 ### Service Discovery
 
-Dashbrr supports automatic service discovery and configuration through Docker labels, Kubernetes labels, and external configuration files. For detailed information about service discovery and configuration management, see our [Service Discovery Documentation](docs/config_management.md).
+Dashbrr supports automatic service discovery and configuration through Docker labels, Kubernetes annotations, and external configuration files. For detailed information about service discovery and configuration management, see our [Service Discovery Documentation](docs/config_management.md).
 
 Key features include:
 
 - Docker container label-based discovery
-- Kubernetes service label-based discovery
+- Kubernetes service annotation-based discovery
 - YAML/JSON configuration file import/export
 - Environment variable substitution for API keys
 - Secure configuration management

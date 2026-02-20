@@ -5,7 +5,7 @@
 Dashbrr supports automatic service discovery and configuration management through:
 
 - Docker container labels
-- Kubernetes service labels
+- Kubernetes service annotations
 - External configuration files (YAML/JSON)
 
 ## Command Usage
@@ -18,6 +18,9 @@ dashbrr config discover --docker
 
 # Discover services from Kubernetes
 dashbrr config discover --k8s
+
+# Discover from Kubernetes and auto-confirm service import
+dashbrr config discover --k8s --yes
 
 # Discover from both Docker and Kubernetes
 dashbrr config discover
@@ -60,16 +63,16 @@ services:
       com.dashbrr.service.name: "Movies"
 ```
 
-## Kubernetes Label Configuration
+## Kubernetes Annotation Configuration
 
-Configure services using Kubernetes service labels:
+Configure services using Kubernetes service annotations:
 
 ```yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: radarr
-  labels:
+  annotations:
     com.dashbrr.service.type: "radarr"
     com.dashbrr.service.url: "http://radarr.media.svc:7878"
     com.dashbrr.service.apikey: "${RADARR_API_KEY}"
@@ -81,6 +84,11 @@ spec:
   selector:
     app: radarr
 ```
+
+Notes:
+
+- Dashbrr uses annotations for Kubernetes discovery because URLs and API-key placeholders are not valid Kubernetes label values.
+- When Dashbrr runs inside Kubernetes, discovery uses in-cluster credentials automatically.
 
 ## Configuration File Format
 

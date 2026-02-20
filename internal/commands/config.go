@@ -59,7 +59,7 @@ func ConfigImportCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
-		if err := handleDiscoveredServices(cmd.Context(), db, services); err != nil {
+		if err := handleDiscoveredServices(cmd.Context(), db, services, false); err != nil {
 			return err
 		}
 
@@ -150,10 +150,12 @@ func ConfigDiscoverCommand() *cobra.Command {
 	var (
 		useDocker = false
 		useK8s    = false
+		assumeYes = false
 	)
 
 	command.Flags().BoolVarP(&useDocker, "docker", "d", false, "Use Docker discovery")
 	command.Flags().BoolVarP(&useK8s, "k8s", "k", false, "Use Kubernetes discovery")
+	command.Flags().BoolVarP(&assumeYes, "yes", "y", false, "Automatically confirm and add discovered services")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
 		// If no specific platform is selected, try both
@@ -167,20 +169,46 @@ func ConfigDiscoverCommand() *cobra.Command {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
-		// Create discovery manager
-		manager, err := discovery.NewManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize service discovery: %v", err)
-		}
-		defer manager.Close()
+		discoverers := make([]discovery.ServiceDiscoverer, 0, 2)
 
-		// Discover services
-		services, err := manager.DiscoverAll(cmd.Context())
-		if err != nil {
-			return fmt.Errorf("service discovery failed: %v", err)
+		if useDocker {
+			dockerDiscovery, dockerErr := discovery.NewDockerDiscovery()
+			if dockerErr != nil {
+				fmt.Printf("Warning: Docker discovery unavailable: %v\n", dockerErr)
+			} else {
+				discoverers = append(discoverers, dockerDiscovery)
+			}
 		}
 
-		if err := handleDiscoveredServices(cmd.Context(), db, services); err != nil {
+		if useK8s {
+			k8sDiscovery, k8sErr := discovery.NewKubernetesDiscovery()
+			if k8sErr != nil {
+				fmt.Printf("Warning: Kubernetes discovery unavailable: %v\n", k8sErr)
+			} else {
+				discoverers = append(discoverers, k8sDiscovery)
+			}
+		}
+
+		if len(discoverers) == 0 {
+			return fmt.Errorf("failed to initialize any requested discovery backends")
+		}
+
+		defer func() {
+			for _, discoverer := range discoverers {
+				_ = discoverer.Close()
+			}
+		}()
+
+		var services []models.ServiceConfiguration
+		for _, discoverer := range discoverers {
+			discovered, discoverErr := discoverer.DiscoverServices(cmd.Context())
+			if discoverErr != nil {
+				return fmt.Errorf("service discovery failed: %v", discoverErr)
+			}
+			services = append(services, discovered...)
+		}
+
+		if err := handleDiscoveredServices(cmd.Context(), db, services, assumeYes); err != nil {
 			return err
 		}
 
@@ -191,7 +219,7 @@ func ConfigDiscoverCommand() *cobra.Command {
 }
 
 // handleDiscoveredServices processes discovered services
-func handleDiscoveredServices(ctx context.Context, db *database.DB, services []models.ServiceConfiguration) error {
+func handleDiscoveredServices(ctx context.Context, db *database.DB, services []models.ServiceConfiguration, assumeYes bool) error {
 	if len(services) == 0 {
 		fmt.Println("No services discovered.")
 		return nil
@@ -223,12 +251,16 @@ func handleDiscoveredServices(ctx context.Context, db *database.DB, services []m
 	}
 
 	// Ask for confirmation before adding services
-	fmt.Print("Would you like to add these services? [y/N] ")
-	var response string
-	fmt.Scanln(&response)
-	if strings.ToLower(response) != "y" {
-		fmt.Println("Operation cancelled.")
-		return nil
+	if !assumeYes {
+		fmt.Print("Would you like to add these services? [y/N] ")
+		var response string
+		fmt.Scanln(&response)
+		if strings.ToLower(response) != "y" {
+			fmt.Println("Operation cancelled.")
+			return nil
+		}
+	} else {
+		fmt.Println("Auto-confirm enabled; adding discovered services.")
 	}
 
 	// Add services to database
