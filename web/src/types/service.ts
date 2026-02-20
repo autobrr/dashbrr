@@ -297,12 +297,23 @@ export interface JellyfinNowPlayingItem {
   SeriesName?: string;
   Type?: string;
   RunTimeTicks?: number;
+  MediaStreams?: JellyfinMediaStream[];
+}
+
+export interface JellyfinMediaStream {
+  Codec?: string;
+  BitRate?: number;
+  Channels?: number;
+  Index?: number;
+  Width?: number;
+  Height?: number;
 }
 
 export interface JellyfinPlayerState {
   PositionTicks?: number;
   IsPaused?: boolean;
   PlayMethod?: string;
+  AudioStreamIndex?: number;
 }
 
 export interface JellyfinTranscodingInfo {
@@ -315,6 +326,7 @@ export interface JellyfinTranscodingInfo {
   CompletionPercentage?: number;
   Width?: number;
   Height?: number;
+  AudioChannels?: number;
 }
 
 export interface JellyfinSession {

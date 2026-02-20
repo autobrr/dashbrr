@@ -13,7 +13,11 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
-import type { JellyfinSession, JellyfinSummary } from "../../../types/service";
+import type {
+  JellyfinMediaStream,
+  JellyfinSession,
+  JellyfinSummary,
+} from "../../../types/service";
 import {
   formatBitrateBps,
   formatDurationTicks,
@@ -54,6 +58,44 @@ const isPlayingSession = (session: JellyfinSession): boolean =>
 const isTranscodingSession = (session: JellyfinSession): boolean =>
   Boolean(session.TranscodingInfo) ||
   (session.PlayState?.PlayMethod || "").toLowerCase() === "transcode";
+
+const isLikelyVideoStream = (stream: JellyfinMediaStream): boolean =>
+  (stream.Width || 0) > 0 || (stream.Height || 0) > 0;
+
+const getAudioStream = (session: JellyfinSession): JellyfinMediaStream | undefined => {
+  const streams = session.NowPlayingItem?.MediaStreams ?? [];
+  const streamIndex = session.PlayState?.AudioStreamIndex;
+
+  if (typeof streamIndex === "number") {
+    const selected = streams.find((stream) => stream.Index === streamIndex);
+    if (selected) {
+      return selected;
+    }
+  }
+
+  const byChannels = streams.find((stream) => (stream.Channels || 0) > 0);
+  if (byChannels) {
+    return byChannels;
+  }
+
+  return streams.find((stream) => !isLikelyVideoStream(stream) && Boolean(stream.Codec));
+};
+
+const getVideoStream = (session: JellyfinSession): JellyfinMediaStream | undefined => {
+  const streams = session.NowPlayingItem?.MediaStreams ?? [];
+  return streams.find((stream) => isLikelyVideoStream(stream));
+};
+
+const formatCodecWithChannels = (codec?: string, channels?: number): string => {
+  const normalizedCodec = (codec || "").trim().toUpperCase();
+  if (!normalizedCodec) {
+    return "";
+  }
+  if (channels && channels > 0) {
+    return `${normalizedCodec} ${channels}ch`;
+  }
+  return normalizedCodec;
+};
 
 interface TimerState {
   offsetTicks: number;
@@ -210,8 +252,28 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                 const progress = getProgressPercentage(currentOffsetTicks, runtimeTicks);
                 const transcodingInfo = session.TranscodingInfo;
                 const isPaused = Boolean(session.PlayState?.IsPaused);
-                const audioCodec = (transcodingInfo?.AudioCodec || "").toUpperCase();
-                const videoCodec = (transcodingInfo?.VideoCodec || "").toUpperCase();
+                const audioStream = getAudioStream(session);
+                const videoStream = getVideoStream(session);
+                const transcodeAudioLabel = formatCodecWithChannels(
+                  transcodingInfo?.AudioCodec,
+                  transcodingInfo?.AudioChannels
+                );
+                const transcodeVideoCodec = (transcodingInfo?.VideoCodec || "")
+                  .trim()
+                  .toUpperCase();
+                const directAudioLabel = formatCodecWithChannels(
+                  audioStream?.Codec,
+                  audioStream?.Channels
+                );
+                const metadataLabel =
+                  transcodeAudioLabel || transcodeVideoCodec
+                    ? `${transcodeAudioLabel || "AUDIO"}${transcodeVideoCodec ? ` · ${transcodeVideoCodec}` : ""}`
+                    : directAudioLabel;
+                const displayBitrate =
+                  transcodingInfo?.Bitrate ||
+                  videoStream?.BitRate ||
+                  audioStream?.BitRate ||
+                  0;
 
                 return (
                   <div
@@ -286,14 +348,14 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                         </div>
 
                         <div className="flex items-center gap-2 text-[10px]">
-                          {transcodingInfo?.Bitrate ? (
+                          {displayBitrate > 0 ? (
                             <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-                              {formatBitrateBps(transcodingInfo.Bitrate)}
+                              {formatBitrateBps(displayBitrate)}
                             </span>
                           ) : null}
-                          {audioCodec || videoCodec ? (
+                          {metadataLabel ? (
                             <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-                              {audioCodec || "AUDIO"} {videoCodec ? `· ${videoCodec}` : ""}
+                              {metadataLabel}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">

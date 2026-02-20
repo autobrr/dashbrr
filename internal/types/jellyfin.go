@@ -11,16 +11,27 @@ type JellyfinSystemInfo struct {
 }
 
 type JellyfinNowPlayingItem struct {
-	Name         string `json:"Name"`
-	SeriesName   string `json:"SeriesName"`
-	Type         string `json:"Type"`
-	RunTimeTicks int64  `json:"RunTimeTicks"`
+	Name         string                `json:"Name"`
+	SeriesName   string                `json:"SeriesName"`
+	Type         string                `json:"Type"`
+	RunTimeTicks int64                 `json:"RunTimeTicks"`
+	MediaStreams []JellyfinMediaStream `json:"MediaStreams"`
+}
+
+type JellyfinMediaStream struct {
+	Codec    string `json:"Codec"`
+	BitRate  int64  `json:"BitRate"`
+	Channels int    `json:"Channels"`
+	Index    int    `json:"Index"`
+	Width    int    `json:"Width"`
+	Height   int    `json:"Height"`
 }
 
 type JellyfinPlayerState struct {
-	PositionTicks int64  `json:"PositionTicks"`
-	IsPaused      bool   `json:"IsPaused"`
-	PlayMethod    string `json:"PlayMethod"`
+	PositionTicks    int64  `json:"PositionTicks"`
+	IsPaused         bool   `json:"IsPaused"`
+	PlayMethod       string `json:"PlayMethod"`
+	AudioStreamIndex *int   `json:"AudioStreamIndex"`
 }
 
 type JellyfinTranscodingInfo struct {
@@ -33,6 +44,7 @@ type JellyfinTranscodingInfo struct {
 	CompletionPercentage float64 `json:"CompletionPercentage"`
 	Width                int     `json:"Width"`
 	Height               int     `json:"Height"`
+	AudioChannels        int     `json:"AudioChannels"`
 }
 
 type JellyfinSession struct {

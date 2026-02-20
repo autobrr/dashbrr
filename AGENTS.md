@@ -35,6 +35,25 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
   - `go test ./...`
+- Jellyfin API parity pass (repo context: `~/github/oss/jellyfin`)
+  - verified upstream session payload supports richer playback fields:
+    - `NowPlayingItem.MediaStreams`
+    - `PlayState.AudioStreamIndex`
+    - `TranscodingInfo.AudioChannels`
+  - backend types extended: `internal/types/jellyfin.go`
+  - frontend types extended: `web/src/types/service.ts`
+  - Jellyfin card now prefers real stream metadata for direct play:
+    - selected audio stream by `AudioStreamIndex` fallback heuristics
+    - bitrate from active video/audio stream when not transcoding
+    - codec/channels label from stream metadata (`AAC 6ch` style)
+    - transcode label now includes output audio channels when provided
+  - verification rerun:
+    - `pnpm -C web lint`
+    - `pnpm -C web typecheck`
+    - `pnpm -C web test`
+    - `pnpm -C web test:browser`
+    - `pnpm -C web build`
+    - `go test ./...`
 
 ### 2026-02-19
 - Poller log-noise reduction
