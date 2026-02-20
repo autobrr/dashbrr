@@ -44,7 +44,7 @@ Configure services using Docker container labels:
 labels:
   com.dashbrr.service.type: "radarr" # Required: Service type
   com.dashbrr.service.url: "http://radarr:7878" # Required: Service URL
-  com.dashbrr.service.apikey: "${RADARR_API_KEY}" # Required: API key (supports env vars)
+  com.dashbrr.service.apikey: "${RADARR_API_KEY}" # Usually required: API key/token (supports env vars)
   com.dashbrr.service.name: "My Radarr" # Optional: Custom display name
   com.dashbrr.service.enabled: "true" # Optional: Enable/disable service
 ```
@@ -75,7 +75,7 @@ metadata:
   annotations:
     com.dashbrr.service.type: "radarr"
     com.dashbrr.service.url: "http://radarr.media.svc:7878"
-    com.dashbrr.service.apikey: "${RADARR_API_KEY}"
+    com.dashbrr.service.apikey: "${RADARR_API_KEY}" # Optional for general/traefik
     com.dashbrr.service.name: "Movies"
     com.dashbrr.service.enabled: "true"
 spec:
@@ -89,6 +89,33 @@ Notes:
 
 - Dashbrr uses annotations for Kubernetes discovery because URLs and API-key placeholders are not valid Kubernetes label values.
 - When Dashbrr runs inside Kubernetes, discovery uses in-cluster credentials automatically.
+- Dashbrr discovers Services across all namespaces, so its ServiceAccount needs list/read access to Services cluster-wide.
+
+Minimal RBAC for in-cluster discovery:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dashbrr-discovery
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dashbrr-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dashbrr-discovery
+subjects:
+  - kind: ServiceAccount
+    name: dashbrr
+    namespace: your-namespace
+```
 
 ## Configuration File Format
 
@@ -111,17 +138,49 @@ services:
 
 ## Environment Variables
 
-When using environment variables for API keys (${SERVICE_API_KEY}), the following naming convention is used:
+When using environment variables for API keys/tokens (`${SERVICE_API_KEY}`), the following naming convention is used:
 
-- `DASHBRR_RADARR_API_KEY`
-- `DASHBRR_SONARR_API_KEY`
-- `DASHBRR_PROWLARR_API_KEY`
-- `DASHBRR_OVERSEERR_API_KEY`
-- `DASHBRR_MAINTAINERR_API_KEY`
-- `DASHBRR_TAILSCALE_API_KEY`
-- `DASHBRR_PLEX_API_KEY`
 - `DASHBRR_AUTOBRR_API_KEY`
+- `DASHBRR_BAZARR_API_KEY`
+- `DASHBRR_GENERAL_API_KEY` (optional)
+- `DASHBRR_JELLYFIN_API_KEY`
+- `DASHBRR_LIDARR_API_KEY`
+- `DASHBRR_MAINTAINERR_API_KEY`
+- `DASHBRR_NZBGET_API_KEY`
+- `DASHBRR_OVERSEERR_API_KEY`
+- `DASHBRR_PLEX_API_KEY`
+- `DASHBRR_PROWLARR_API_KEY`
 - `DASHBRR_QUI_API_KEY`
+- `DASHBRR_RADARR_API_KEY`
+- `DASHBRR_READARR_API_KEY`
+- `DASHBRR_SABNZBD_API_KEY`
+- `DASHBRR_SONARR_API_KEY`
+- `DASHBRR_TAILSCALE_API_KEY`
+- `DASHBRR_TRAEFIK_API_KEY` (optional)
+- `DASHBRR_UPTIMEKUMA_API_KEY`
+
+## Supported Discovery Service Types
+
+Discovery/import currently supports these service type keys:
+
+- `autobrr`
+- `bazarr`
+- `general`
+- `jellyfin`
+- `lidarr`
+- `maintainerr`
+- `nzbget`
+- `overseerr`
+- `plex`
+- `prowlarr`
+- `qui`
+- `radarr`
+- `readarr`
+- `sabnzbd`
+- `sonarr`
+- `tailscale`
+- `traefik`
+- `uptimekuma`
 
 ## Security Considerations
 

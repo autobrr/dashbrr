@@ -7,6 +7,35 @@ Owner: soup (s0up4200@pm.me)
 
 ## Progress Log
 
+### 2026-02-20
+- Docs parity sweep (supported services + k8s + CLI syntax)
+  - `docs/commands.md`
+    - corrected command-group name to `generic` (not `general`)
+    - corrected generic add/remove/list examples
+    - corrected tailscale add signature (`dashbrr service tailscale add <api-key>`)
+    - corrected Maintainerr example port (`6246`)
+    - added parameter notes for `generic` and tailscale URL behavior
+  - `docs/config_management.md`
+    - added k8s RBAC minimum for in-cluster service discovery
+    - added missing `DASHBRR_GENERAL_API_KEY` env var
+    - added full supported discovery service-type list
+  - `README.md`
+    - refreshed supported service inventory (media/download/network/infra groups)
+- Plex/Jellyfin UI DRY alignment
+  - new shared playback helpers: `web/src/components/services/common/playbackUi.tsx`
+    - duration formatting (ms/ticks), bitrate formatting (kbps/bps), media/device icons, progress percent
+  - `PlexStats` moved to shared helpers (dedupe only; no behavior change intent)
+  - `JellyfinStats` refactor toward Plex-like active stream presentation
+    - consistent stream tile layout, progress, and badges
+    - fixed hook ordering to avoid conditional-hook regression
+- Verification
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+  - `go test ./...`
+
 ### 2026-02-19
 - Poller log-noise reduction
   - downgraded successful `poller job completed` heartbeat from `debug` to `trace` (`internal/api/handlers/poller.go`)

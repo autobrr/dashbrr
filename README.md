@@ -53,24 +53,31 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 ### Media Management
 
 - **Plex**: Active streams monitoring, version check
-- **Sonarr & Radarr**:
-  - Comprehensive queue management:
-    - Monitor active downloads
-    - Stuck downloads detection and resolution
-  - Error reporting for indexers and download clients
+- **Jellyfin**: Active sessions monitoring, play/transcode state, version check
+- **Sonarr, Radarr, Lidarr, Readarr**:
+  - Queue visibility and download state
   - Version check and update notifications
+- **Bazarr**: Subtitle backlog, provider status, health issue visibility
+- **Prowlarr**: Indexer health, stats, active indexers
 - **Overseerr**: Request management, pending requests monitoring
+- **Maintainerr**: Collection and deletion-rule monitoring
 
 ### Download Management
 
-- **Autobrr**: IRC network health, release statistics
-- **Qui**: qBittorrent instance connectivity, transfer telemetry, cross-seed automation status
-- **Prowlarr**: Indexer health monitoring
-- **Maintainerr**: Rule matching, scheduled deletion monitoring
+- **Autobrr**: IRC network health, release statistics, recent releases
+- **SABnzbd**: Queue and failure summary
+- **NZBGet**: Queue and failure summary
+- **Qui**: qBittorrent instance connectivity and transfer telemetry
 
 ### Network
 
 - **Tailscale**: Device status, information tracking, tag overview
+
+### Monitoring / Infrastructure
+
+- **Uptime Kuma**: Monitor status summary via metrics
+- **Traefik**: Router/service/middleware overview and issue routers
+- **General Service**: Generic health endpoint checks
 
 ## Installation
 

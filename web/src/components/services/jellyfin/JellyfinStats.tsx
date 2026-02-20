@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React from "react";
-import { FaExchangeAlt, FaPause, FaPlay, FaTv, FaUser } from "react-icons/fa";
+import React, { useEffect, useState } from "react";
+import { FaExchangeAlt, FaPause, FaPlay, FaUser } from "react-icons/fa";
 
 import { useServiceData } from "../../../hooks/useServiceData";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
@@ -13,7 +13,14 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
-import type { JellyfinSummary } from "../../../types/service";
+import type { JellyfinSession, JellyfinSummary } from "../../../types/service";
+import {
+  formatBitrateBps,
+  formatDurationTicks,
+  getDeviceIcon,
+  getMediaTypeIcon,
+  getProgressPercentage,
+} from "../common/playbackUi";
 
 interface JellyfinStatsProps {
   instanceId: string;
@@ -28,21 +35,7 @@ const EMPTY_SUMMARY: JellyfinSummary = {
   },
   sessions: [],
 };
-
-const TICKS_PER_SECOND = 10_000_000;
-
-const formatTicks = (ticks?: number): string => {
-  if (!ticks || ticks <= 0) return "0:00";
-  const totalSeconds = Math.floor(ticks / TICKS_PER_SECOND);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-};
+const EMPTY_SESSIONS: JellyfinSession[] = [];
 
 const getSessionTitle = (name?: string, seriesName?: string): string => {
   if (seriesName && name) {
@@ -51,18 +44,103 @@ const getSessionTitle = (name?: string, seriesName?: string): string => {
   return name || seriesName || "Unknown playback";
 };
 
-const getPlayStateText = (isPaused?: boolean): string =>
-  isPaused ? "Paused" : "Playing";
+const getPlayStateText = (isPaused?: boolean): string => (isPaused ? "Paused" : "Playing");
+
+const isPlayingSession = (session: JellyfinSession): boolean =>
+  !session.PlayState?.IsPaused &&
+  Boolean(session.NowPlayingItem) &&
+  (session.IsActive || (session.PlayState?.PositionTicks ?? 0) > 0);
+
+const isTranscodingSession = (session: JellyfinSession): boolean =>
+  Boolean(session.TranscodingInfo) ||
+  (session.PlayState?.PlayMethod || "").toLowerCase() === "transcode";
+
+interface TimerState {
+  offsetTicks: number;
+  lastUpdated: number;
+  isPaused: boolean;
+}
+
+const getPlaybackKey = (session: JellyfinSession): string =>
+  session.Id ||
+  `${session.UserName || "unknown"}:${session.NowPlayingItem?.SeriesName || ""}:${session.NowPlayingItem?.Name || ""}`;
 
 export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const summary = service?.stats?.jellyfin?.summary ?? EMPTY_SUMMARY;
+  const sessions = summary.sessions ?? EMPTY_SESSIONS;
+  const [playbackStates, setPlaybackStates] = useState<Record<string, TimerState>>({});
 
   const { isExpanded, toggle } = useCollapsiblePreference(
     serviceSectionCollapseKey(instanceId, "jellyfin:active_streams"),
     true
   );
+
+  useEffect(() => {
+    setPlaybackStates((prev) => {
+      const now = Date.now();
+      const next: Record<string, TimerState> = {};
+
+      for (const session of sessions) {
+        const key = getPlaybackKey(session);
+        const existing = prev[key];
+        const currentOffset = session.PlayState?.PositionTicks ?? 0;
+        const isPaused = Boolean(session.PlayState?.IsPaused);
+
+        if (existing) {
+          const offsetTicks =
+            !existing.isPaused && isPlayingSession(session)
+              ? existing.offsetTicks + Math.floor((now - existing.lastUpdated) * 10000)
+              : currentOffset;
+          next[key] = { offsetTicks, lastUpdated: now, isPaused };
+          continue;
+        }
+
+        next[key] = {
+          offsetTicks: currentOffset,
+          lastUpdated: now,
+          isPaused,
+        };
+      }
+
+      return next;
+    });
+
+    const timer = window.setInterval(() => {
+      setPlaybackStates((prev) => {
+        const now = Date.now();
+        const next = { ...prev };
+
+        for (const session of sessions) {
+          const key = getPlaybackKey(session);
+          const current = next[key];
+          if (!current || current.isPaused || !isPlayingSession(session)) {
+            continue;
+          }
+
+          const elapsedMs = now - current.lastUpdated;
+          next[key] = {
+            ...current,
+            offsetTicks: current.offsetTicks + Math.floor(elapsedMs * 10000),
+            lastUpdated: now,
+          };
+        }
+
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [sessions]);
+
+  const getCurrentOffsetTicks = (session: JellyfinSession): number => {
+    const key = getPlaybackKey(session);
+    const state = playbackStates[key];
+    return state ? state.offsetTicks : session.PlayState?.PositionTicks ?? 0;
+  };
 
   const isInitialLoading =
     service?.status === "loading" && !service?.stats?.jellyfin?.summary;
@@ -76,114 +154,161 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
   }
 
   const message = combineServiceMessage(service);
-  const activeStreams = service.details?.jellyfin?.activeStreams ?? summary.sessions.length;
+  const activeStreams = service.details?.jellyfin?.activeStreams ?? sessions.length;
   const transcoding =
     service.details?.jellyfin?.transcoding ??
-    summary.sessions.filter((session) => Boolean(session.TranscodingInfo)).length;
+    sessions.filter((session) => isTranscodingSession(session)).length;
   const paused =
     service.details?.jellyfin?.paused ??
-    summary.sessions.filter((session) => Boolean(session.PlayState?.IsPaused)).length;
+    sessions.filter((session) => Boolean(session.PlayState?.IsPaused)).length;
 
   return (
     <div className="space-y-4">
       <ArrMessage status={service.status} message={message} />
 
       {activeStreams > 0 && (
-        <CollapsibleSection
-          title={
-            <div className="flex w-full items-center justify-between pr-6">
-              <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                Active Streams:
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <span className="text-gray-500 dark:text-gray-400">
-                  Total: <span className="font-medium text-blue-500 dark:text-blue-400">{activeStreams}</span>
-                </span>
-                <span className="text-gray-500 dark:text-gray-400">
-                  Transcoding: <span className="font-medium text-amber-500 dark:text-amber-400">{transcoding}</span>
-                </span>
-                <span className="text-gray-500 dark:text-gray-400">
-                  Paused: <span className="font-medium text-zinc-300">{paused}</span>
-                </span>
-              </div>
-            </div>
-          }
-          isExpanded={isExpanded}
-          onToggle={toggle}
-        >
-          <div className="space-y-2">
-            {summary.sessions.map((session) => {
-              const runtimeTicks = session.NowPlayingItem?.RunTimeTicks ?? 0;
-              const positionTicks = session.PlayState?.PositionTicks ?? 0;
-              const progress =
-                runtimeTicks > 0
-                  ? Math.max(0, Math.min(100, Math.round((positionTicks / runtimeTicks) * 100)))
-                  : 0;
-
-              return (
-                <div
-                  key={session.Id}
-                  className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FaTv className="text-blue-500 h-3.5 w-3.5" />
-                      <span
-                        className="text-xs font-medium text-gray-200 truncate"
-                        title={getSessionTitle(session.NowPlayingItem?.Name, session.NowPlayingItem?.SeriesName)}
-                      >
-                        {getSessionTitle(session.NowPlayingItem?.Name, session.NowPlayingItem?.SeriesName)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {session.TranscodingInfo && (
-                        <span className="flex items-center gap-1 text-amber-400">
-                          <FaExchangeAlt className="h-3 w-3" />
-                          Transcoding
-                        </span>
-                      )}
-                      <span className="text-zinc-400">
-                        {session.PlayState?.IsPaused ? (
-                          <span className="inline-flex items-center gap-1"><FaPause className="h-3 w-3" /> Paused</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1"><FaPlay className="h-3 w-3" /> Playing</span>
-                        )}
-                      </span>
-                    </div>
+        <div>
+          <CollapsibleSection
+            title={
+              <div className="flex w-full items-center justify-between pr-6">
+                <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Active Streams:
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Total:
+                    </span>
+                    <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
+                      {activeStreams}
+                    </span>
                   </div>
-
-                  {runtimeTicks > 0 && (
-                    <div className="mt-2 px-0.5">
-                      <div className="w-full bg-gray-700/50 rounded-full h-1">
-                        <div
-                          className="bg-blue-500 h-1 rounded-full transition-all duration-300"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                        <span>{formatTicks(positionTicks)}</span>
-                        <span>{formatTicks(runtimeTicks)}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-400">
-                    <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-                      <FaUser className="h-3 w-3" />
-                      {session.UserName || "Unknown user"}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Transcoding:
                     </span>
-                    <span className="bg-gray-800/50 px-2 py-0.5 rounded truncate max-w-[45%]">
-                      {session.Client || session.DeviceName || "Unknown client"}
+                    <span className="text-xs font-medium text-amber-500 dark:text-amber-400">
+                      {transcoding}
                     </span>
-                    <span className="bg-gray-800/50 px-2 py-0.5 rounded">
-                      {session.PlayState?.PlayMethod || getPlayStateText(session.PlayState?.IsPaused)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Paused:
                     </span>
+                    <span className="text-xs font-medium text-zinc-300">{paused}</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </CollapsibleSection>
+              </div>
+            }
+            isExpanded={isExpanded}
+            onToggle={toggle}
+          >
+            <div className="space-y-2">
+              {sessions.map((session) => {
+                const runtimeTicks = session.NowPlayingItem?.RunTimeTicks ?? 0;
+                const currentOffsetTicks = getCurrentOffsetTicks(session);
+                const progress = getProgressPercentage(currentOffsetTicks, runtimeTicks);
+                const transcodingInfo = session.TranscodingInfo;
+                const isPaused = Boolean(session.PlayState?.IsPaused);
+                const audioCodec = (transcodingInfo?.AudioCodec || "").toUpperCase();
+                const videoCodec = (transcodingInfo?.VideoCodec || "").toUpperCase();
+
+                return (
+                  <div
+                    key={getPlaybackKey(session)}
+                    className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors"
+                  >
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className={isPaused ? "text-yellow-500" : "text-blue-500"}>
+                          {getMediaTypeIcon(session.NowPlayingItem?.Type, isPaused)}
+                        </span>
+                        <div className="flex items-center justify-between flex-1 gap-2">
+                          <span
+                            className="text-xs font-medium text-gray-200 truncate"
+                            title={getSessionTitle(
+                              session.NowPlayingItem?.Name,
+                              session.NowPlayingItem?.SeriesName
+                            )}
+                          >
+                            {getSessionTitle(
+                              session.NowPlayingItem?.Name,
+                              session.NowPlayingItem?.SeriesName
+                            )}
+                          </span>
+                          {isTranscodingSession(session) && (
+                            <div className="flex items-center gap-1 ml-2 text-amber-500 dark:text-amber-400">
+                              <FaExchangeAlt className="h-3 w-3" />
+                              <span className="text-[10px]">Transcoding</span>
+                            </div>
+                          )}
+                          <span className="text-[10px] text-zinc-400 ml-1">
+                            {isPaused ? (
+                              <span className="inline-flex items-center gap-1">
+                                <FaPause className="h-2.5 w-2.5" /> Paused
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1">
+                                <FaPlay className="h-2.5 w-2.5" /> Playing
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {runtimeTicks > 0 && (
+                        <div className="px-6">
+                          <div className="w-full bg-gray-700/50 rounded-full h-1">
+                            <div
+                              className="bg-blue-500 h-1 rounded-full transition-all duration-300"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                            <span>{formatDurationTicks(currentOffsetTicks)}</span>
+                            <span>{formatDurationTicks(runtimeTicks)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between -ml-2">
+                        <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
+                          <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                            <FaUser className="h-4 w-4 text-gray-400" />
+                            <span>{session.UserName || "Unknown user"}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                            {getDeviceIcon(session.DeviceType || session.Client)}
+                            <span className="truncate">
+                              {session.Client || session.DeviceName || "Unknown client"}
+                            </span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[10px]">
+                          {transcodingInfo?.Bitrate ? (
+                            <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                              {formatBitrateBps(transcodingInfo.Bitrate)}
+                            </span>
+                          ) : null}
+                          {audioCodec || videoCodec ? (
+                            <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                              {audioCodec || "AUDIO"} {videoCodec ? `· ${videoCodec}` : ""}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                              {session.PlayState?.PlayMethod || getPlayStateText(isPaused)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CollapsibleSection>
+        </div>
       )}
     </div>
   );

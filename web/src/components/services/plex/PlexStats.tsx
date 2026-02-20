@@ -8,95 +8,22 @@ import { useServiceData } from "../../../hooks/useServiceData";
 import { PlexSession } from "../../../types/service";
 import { ArrMessage } from "../common/ArrMessage";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
-import {
-  FaUser,
-  FaPlay,
-  FaPause,
-  FaMusic,
-  FaFilm,
-  FaTv,
-  FaDesktop,
-  FaMobile,
-  FaTablet,
-  FaExchangeAlt,
-  FaPlayCircle,
-} from "react-icons/fa";
+import { FaUser, FaExchangeAlt } from "react-icons/fa";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import {
+  formatBitrateKbps,
+  formatDurationMs,
+  getDeviceIcon,
+  getMediaTypeIcon,
+  getProgressPercentage,
+} from "../common/playbackUi";
 
 interface PlexStatsProps {
   instanceId: string;
 }
-
-const formatDuration = (duration: number): string => {
-  const hours = Math.floor(duration / 3600000);
-  const minutes = Math.floor((duration % 3600000) / 60000);
-  const seconds = Math.floor((duration % 60000) / 1000);
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}`;
-  }
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
-const getMediaTypeIcon = (
-  type: string | undefined,
-  playerState: string | undefined
-) => {
-
-  if (playerState?.toLowerCase() === "paused") {
-    return <FaPause className="text-gray-500 dark:text-gray-400 h-4 w-4" />;
-  }
-
-  switch (type?.toLowerCase()) {
-    case "track":
-      return <FaMusic className="text-blue-600 dark:text-blue-400 h-4 w-4" />;
-    case "movie":
-      return <FaFilm className="text-amber-500 dark:text-amber-300 h-4 w-4" />;
-    case "episode":
-      return <FaTv className="text-green-600 dark:text-green-400 h-4 w-4" />;
-    case "clip":
-      return <FaPlayCircle className="text-purple-500 dark:text-purple-400 h-4 w-4" />;
-    default:
-      return <FaPlay className="text-gray-500 h-4 w-4" />;
-  }
-};
-
-const getDeviceIcon = (platform: string) => {
-  switch (platform.toLowerCase()) {
-    case "windows":
-    case "macos":
-    case "linux":
-      return <FaDesktop className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
-    case "ios":
-    case "android":
-      return <FaMobile className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
-    case "tvos":
-    case "roku":
-    case "androidtv":
-      return <FaTv className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
-    default:
-      return <FaTablet className="text-gray-600 dark:text-gray-400 w-4" />;
-  }
-};
-
-const getProgressPercentage = (
-  viewOffset: number,
-  duration: number
-): number => {
-  return Math.round((viewOffset / duration) * 100);
-};
-
-const formatBitrate = (bitrate: number): string => {
-  if (bitrate > 1000) {
-    return `${(bitrate / 1000).toFixed(1)} Mbps`;
-  }
-  return `${bitrate} Kbps`;
-};
 
 const isTranscoding = (session: PlexSession): boolean => {
   return (
@@ -271,7 +198,10 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-center gap-2">
                       <span className={session.Player?.state?.toLowerCase() === "paused" ? "text-yellow-500" : "text-blue-500"}>
-                        {getMediaTypeIcon(session.type || "", session.Player?.state)}
+                        {getMediaTypeIcon(
+                          session.type || "",
+                          session.Player?.state?.toLowerCase() === "paused"
+                        )}
                       </span>
                       <div className="flex items-center justify-between flex-1">
                         <span className="text-xs font-medium text-gray-200 truncate" title={session.title}>
@@ -309,8 +239,8 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                           />
                         </div>
                         <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                          <span>{formatDuration(getCurrentOffset(session))}</span>
-                          <span>{formatDuration(session.duration)}</span>
+                          <span>{formatDurationMs(getCurrentOffset(session))}</span>
+                          <span>{formatDurationMs(session.duration)}</span>
                         </div>
                       </div>
                     )}
@@ -333,7 +263,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                       {session.Media && session.Media[0] && (
                         <div className="flex items-center gap-2 text-[10px]">
                           <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-                            {formatBitrate(session.Media[0].bitrate)}
+                            {formatBitrateKbps(session.Media[0].bitrate)}
                           </span>
                           <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
                             {session.Media[0].audioCodec.toUpperCase()} {session.Media[0].audioChannels}ch
