@@ -124,6 +124,8 @@ export const ConfigurationForm = ({
         return "API Key";
       case "overseerr":
         return "API Key";
+      case "jellyfin":
+        return "API Key";
       case "nzbget":
         return "Control Password";
       default:
@@ -174,6 +176,12 @@ export const ConfigurationForm = ({
                 ? getSettingsUrl("/?tab=config#S_SECURITY")
               : getSettingsUrl("/settings/general"),
         };
+      case "jellyfin":
+        return {
+          prefix: "Found in ",
+          text: "Dashboard > API Keys",
+          link: getSettingsUrl("/web/index.html#!/apikeys.html"),
+        };
       case "overseerr":
         return {
           prefix: "Found in ",
@@ -201,6 +209,8 @@ export const ConfigurationForm = ({
         return "http://localhost:32400";
       case "qui":
         return "http://localhost:7476";
+      case "jellyfin":
+        return "http://localhost:8096";
       case "bazarr":
         return "http://localhost:6767";
       case "sabnzbd":

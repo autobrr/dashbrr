@@ -106,6 +106,15 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "/api/health/plex",
   },
   {
+    name: "Jellyfin",
+    displayName: "",
+    type: "jellyfin",
+    status: "offline",
+    url: "",
+    accessUrl: "",
+    healthEndpoint: "/api/health/jellyfin",
+  },
+  {
     name: "Tailscale",
     displayName: "",
     type: "tailscale",

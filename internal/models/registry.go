@@ -34,6 +34,10 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewNzbgetService != nil {
 			return NewNzbgetService()
 		}
+	case "jellyfin":
+		if NewJellyfinService != nil {
+			return NewJellyfinService()
+		}
 	case "radarr":
 		if NewRadarrService != nil {
 			return NewRadarrService()

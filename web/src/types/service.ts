@@ -17,6 +17,7 @@ export type ServiceType =
   | 'prowlarr'
   | 'overseerr'
   | 'plex'
+  | 'jellyfin'
   | 'tailscale'
   | 'maintainerr'
   | 'qui'
@@ -279,6 +280,57 @@ export interface PlexSession {
     location: string;
   };
   TranscodeSession?: PlexTranscodeSession;
+}
+
+// Jellyfin Types
+export interface JellyfinSystemInfo {
+  ServerName: string;
+  Version: string;
+  ProductName: string;
+  Id: string;
+}
+
+export interface JellyfinNowPlayingItem {
+  Name: string;
+  SeriesName?: string;
+  Type?: string;
+  RunTimeTicks?: number;
+}
+
+export interface JellyfinPlayerState {
+  PositionTicks?: number;
+  IsPaused?: boolean;
+  PlayMethod?: string;
+}
+
+export interface JellyfinTranscodingInfo {
+  AudioCodec?: string;
+  VideoCodec?: string;
+  Container?: string;
+  IsVideoDirect?: boolean;
+  IsAudioDirect?: boolean;
+  Bitrate?: number;
+  CompletionPercentage?: number;
+  Width?: number;
+  Height?: number;
+}
+
+export interface JellyfinSession {
+  Id: string;
+  UserName?: string;
+  Client?: string;
+  DeviceName?: string;
+  DeviceType?: string;
+  ApplicationVersion?: string;
+  IsActive?: boolean;
+  PlayState?: JellyfinPlayerState;
+  NowPlayingItem?: JellyfinNowPlayingItem;
+  TranscodingInfo?: JellyfinTranscodingInfo;
+}
+
+export interface JellyfinSummary {
+  system: JellyfinSystemInfo;
+  sessions: JellyfinSession[];
 }
 
 // Overseerr Types
@@ -730,6 +782,9 @@ export interface ServiceStats {
   plex?: {
     sessions: PlexSession[];
   };
+  jellyfin?: {
+    summary: JellyfinSummary;
+  };
   overseerr?: OverseerrStats;
   sonarr?: {
     queue: SonarrQueue;
@@ -781,6 +836,12 @@ export interface ServiceDetails {
   plex?: {
     activeStreams: number;
     transcoding: number;
+  };
+  jellyfin?: {
+    activeStreams: number;
+    transcoding: number;
+    paused: number;
+    serverName?: string;
   };
   maintainerr?: {
     activeCollections: number;

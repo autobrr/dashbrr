@@ -19,6 +19,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/bazarr"
+	"github.com/autobrr/dashbrr/internal/services/jellyfin"
 	"github.com/autobrr/dashbrr/internal/services/lidarr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/nzbget"
@@ -108,6 +109,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 	p.jobs = map[string][]jobSpec{
 		"plex": {
 			{name: "plex_sessions", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runPlexSessions},
+		},
+		"jellyfin": {
+			{name: "jellyfin_summary", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runJellyfinSummary},
 		},
 		"overseerr": {
 			{name: "overseerr_requests", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runOverseerrRequests},
@@ -669,6 +673,17 @@ func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfigur
 	}
 
 	publishInternalServiceUpdate(p.bc, buildPlexSessionsServiceUpdate(svc.InstanceID, metadata))
+	return nil
+}
+
+func (p *Poller) runJellyfinSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := jellyfin.NewJellyfinService().(*jellyfin.JellyfinService)
+	summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildJellyfinSummaryServiceUpdate(svc.InstanceID, &summary))
 	return nil
 }
 

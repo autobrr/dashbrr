@@ -113,6 +113,34 @@ func TestCountOnlineDevices(t *testing.T) {
 	}
 }
 
+func TestCountJellyfinTranscoding(t *testing.T) {
+	t.Parallel()
+
+	sessions := []types.JellyfinSession{
+		{},
+		{TranscodingInfo: &types.JellyfinTranscodingInfo{}},
+		{TranscodingInfo: &types.JellyfinTranscodingInfo{}},
+	}
+
+	if got := countJellyfinTranscoding(sessions); got != 2 {
+		t.Fatalf("countJellyfinTranscoding() = %d, want 2", got)
+	}
+}
+
+func TestCountJellyfinPaused(t *testing.T) {
+	t.Parallel()
+
+	sessions := []types.JellyfinSession{
+		{},
+		{PlayState: &types.JellyfinPlayerState{IsPaused: true}},
+		{PlayState: &types.JellyfinPlayerState{IsPaused: false}},
+	}
+
+	if got := countJellyfinPaused(sessions); got != 1 {
+		t.Fatalf("countJellyfinPaused() = %d, want 1", got)
+	}
+}
+
 func TestSummarizeQuiCardStatus(t *testing.T) {
 	t.Parallel()
 

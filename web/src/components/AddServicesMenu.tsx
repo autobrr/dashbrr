@@ -59,6 +59,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   nzbget: "MEDIA_MANAGEMENT",
   prowlarr: "MEDIA_MANAGEMENT",
   plex: "MEDIA_SERVER",
+  jellyfin: "MEDIA_SERVER",
   overseerr: "REQUESTS",
   maintainerr: "REQUESTS",
   qui: "AUTOMATION",
@@ -89,6 +90,7 @@ const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
 
 const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   plex: "http://localhost:32400",
+  jellyfin: "http://localhost:8096",
   qui: "http://localhost:7476",
   bazarr: "http://localhost:6767",
   sabnzbd: "http://localhost:8080",
@@ -129,6 +131,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     prefix: "Found in ",
     text: "Settings > General",
     link: getSettingsUrl("/settings/general"),
+  }),
+  jellyfin: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Dashboard > API Keys",
+    link: getSettingsUrl("/web/index.html#!/apikeys.html"),
   }),
   sabnzbd: ({ getSettingsUrl }) => ({
     prefix: "Found in ",

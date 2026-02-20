@@ -23,6 +23,65 @@ func TestBuildAutobrrIRCServiceUpdate_Healthy(t *testing.T) {
 	}
 }
 
+func TestBuildJellyfinSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
+	summary := &types.JellyfinSummaryResponse{
+		System: types.JellyfinSystemInfo{
+			ServerName: "Jellyfin",
+			Version:    "10.10.7",
+		},
+		Sessions: []types.JellyfinSession{
+			{
+				ID:       "1",
+				UserName: "alice",
+				PlayState: &types.JellyfinPlayerState{
+					IsPaused: false,
+				},
+				NowPlayingItem:  &types.JellyfinNowPlayingItem{Name: "Movie A"},
+				TranscodingInfo: &types.JellyfinTranscodingInfo{VideoCodec: "h264"},
+			},
+			{
+				ID:       "2",
+				UserName: "bob",
+				PlayState: &types.JellyfinPlayerState{
+					IsPaused: true,
+				},
+				NowPlayingItem: &types.JellyfinNowPlayingItem{Name: "Movie B"},
+			},
+		},
+	}
+
+	health := buildJellyfinSummaryServiceUpdate("jellyfin-1", summary)
+	if health.Message != "jellyfin_summary" {
+		t.Fatalf("message = %q, want jellyfin_summary", health.Message)
+	}
+
+	stats, ok := health.Stats["jellyfin"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected jellyfin stats object")
+	}
+	gotSummary, ok := stats["summary"].(*types.JellyfinSummaryResponse)
+	if !ok {
+		t.Fatalf("expected summary payload pointer")
+	}
+	if gotSummary.System.Version != "10.10.7" {
+		t.Fatalf("version = %q, want 10.10.7", gotSummary.System.Version)
+	}
+
+	details, ok := health.Details["jellyfin"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected jellyfin details object")
+	}
+	if got := details["activeStreams"]; got != 2 {
+		t.Fatalf("activeStreams = %v, want 2", got)
+	}
+	if got := details["transcoding"]; got != 1 {
+		t.Fatalf("transcoding = %v, want 1", got)
+	}
+	if got := details["paused"]; got != 1 {
+		t.Fatalf("paused = %v, want 1", got)
+	}
+}
+
 func TestBuildAutobrrIRCServiceUpdate_Unhealthy(t *testing.T) {
 	health, eventType := buildAutobrrIRCServiceUpdate("autobrr-1", []types.IRCStatus{
 		{Name: "alpha", Healthy: false, Enabled: true},

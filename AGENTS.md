@@ -2008,8 +2008,56 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
 
+### 2026-02-20 (Jellyfin integration: backend + frontend + poller + tests)
+- Added full `Jellyfin` service support with summary-first design:
+  - service implementation: `internal/services/jellyfin/jellyfin.go`
+  - summary/status/session types: `internal/types/jellyfin.go`
+  - supports authenticated `GET /System/Info` + `GET /Sessions?ActiveWithinSeconds=300`.
+- API/handler wiring:
+  - new handler: `internal/api/handlers/jellyfin.go`
+  - new route in `internal/api/server.go`:
+    - `GET /api/jellyfin/summary`
+  - cache policy: `JellyfinStatus` TTL + `/jellyfin` path routing in `internal/api/middleware/cache.go`.
+- Poller/SSE wiring:
+  - added single details job in `internal/api/handlers/poller.go`:
+    - `jellyfin_summary` (10s interval, atomic payload)
+  - new payload builder in `internal/api/handlers/service_payload_builders.go`:
+    - `buildJellyfinSummaryServiceUpdate`
+    - canonical message key: `jellyfin_summary`
+- Registry/commands wiring:
+  - service registry updated (`internal/models/service.go`, `internal/models/registry.go`)
+  - side-effect registration updated (`internal/services/services.go`, `internal/commands/health.go`)
+  - CLI command added: `internal/commands/service_jellyfin.go`
+  - command root updated: `internal/commands/service.go`
+- Frontend wiring:
+  - service type + payload typing: `web/src/types/service.ts`
+  - add-service modal/category/API-help + URL placeholder:
+    - `web/src/components/AddServicesMenu.tsx`
+    - `web/src/components/configuration/ConfigurationForm.tsx`
+  - service template: `web/src/config/serviceTemplates.ts`
+  - card renderer + component:
+    - `web/src/components/services/jellyfin/JellyfinStats.tsx`
+    - `web/src/components/services/ServiceCard.tsx`
+  - card density + timeout + repo links:
+    - `web/src/utils/serviceCardContent.ts`
+    - `web/src/utils/api.ts`
+    - `web/src/config/repoUrls.ts`
+- Tests updated:
+  - `internal/services/jellyfin/jellyfin_test.go`
+  - `internal/api/handlers/poller_jobs_test.go`
+  - `internal/api/handlers/poller_stats_test.go`
+  - `internal/api/handlers/service_payload_builders_test.go`
+  - `internal/api/handlers/service_payload_contract_test.go`
+  - `internal/models/registry_test.go`
+- Full gate green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+
 ## Next
-- Implement `Jellyfin` service support (sessions/transcode/health visibility).
 - Implement `Uptime Kuma` service support (monitor summary/incidents).
 - Implement `Traefik` service support (router/service health + cert expiry).
 - Implement `Caddy` service support (cert + endpoint health visibility).

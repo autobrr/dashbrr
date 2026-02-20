@@ -11,6 +11,7 @@ import (
 
 var canonicalServiceMessageKeys = []string{
 	"plex_sessions",
+	"jellyfin_summary",
 	"overseerr_requests",
 	"radarr_queue",
 	"lidarr_queue",

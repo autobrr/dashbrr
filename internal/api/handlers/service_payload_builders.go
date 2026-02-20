@@ -33,6 +33,40 @@ func buildPlexSessionsServiceUpdate(instanceID string, sessions []types.PlexSess
 	}
 }
 
+func buildJellyfinSummaryServiceUpdate(instanceID string, summary *types.JellyfinSummaryResponse) models.ServiceHealth {
+	if summary == nil {
+		summary = &types.JellyfinSummaryResponse{
+			Sessions: []types.JellyfinSession{},
+		}
+	}
+	if summary.Sessions == nil {
+		summary.Sessions = []types.JellyfinSession{}
+	}
+
+	activeStreams := len(summary.Sessions)
+	transcoding := countJellyfinTranscoding(summary.Sessions)
+	paused := countJellyfinPaused(summary.Sessions)
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    "online",
+		Message:   "jellyfin_summary",
+		Stats: map[string]interface{}{
+			"jellyfin": map[string]interface{}{
+				"summary": summary,
+			},
+		},
+		Details: map[string]interface{}{
+			"jellyfin": map[string]interface{}{
+				"activeStreams": activeStreams,
+				"transcoding":   transcoding,
+				"paused":        paused,
+				"serverName":    summary.System.ServerName,
+			},
+		},
+	}
+}
+
 func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.RequestsStats) models.ServiceHealth {
 	serviceStatus := "online"
 	if stats.PendingCount > 0 {
@@ -56,6 +90,26 @@ func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.Request
 			},
 		},
 	}
+}
+
+func countJellyfinTranscoding(sessions []types.JellyfinSession) int {
+	transcoding := 0
+	for _, session := range sessions {
+		if session.TranscodingInfo != nil {
+			transcoding++
+		}
+	}
+	return transcoding
+}
+
+func countJellyfinPaused(sessions []types.JellyfinSession) int {
+	paused := 0
+	for _, session := range sessions {
+		if session.PlayState != nil && session.PlayState.IsPaused {
+			paused++
+		}
+	}
+	return paused
 }
 
 func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQueueResponse) models.ServiceHealth {

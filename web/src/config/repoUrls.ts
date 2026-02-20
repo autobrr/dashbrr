@@ -21,4 +21,5 @@ export const repoUrls: RepoUrls = {
   "bazarr": "https://github.com/morpheus65535/bazarr/releases",
   "sabnzbd": "https://github.com/sabnzbd/sabnzbd/releases",
   "nzbget": "https://github.com/nzbgetcom/nzbget/releases",
+  "jellyfin": "https://github.com/jellyfin/jellyfin/releases",
 };

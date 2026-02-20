@@ -48,6 +48,11 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
         (service.details?.plex?.activeStreams ?? 0) > 0 ||
         (service.stats?.plex?.sessions?.length ?? 0) > 0
       );
+    case "jellyfin":
+      return (
+        (service.details?.jellyfin?.activeStreams ?? 0) > 0 ||
+        (service.stats?.jellyfin?.summary?.sessions?.length ?? 0) > 0
+      );
     case "sonarr":
       return (service.stats?.sonarr?.queue?.totalRecords ?? 0) > 0;
     case "radarr":
