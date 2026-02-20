@@ -45,6 +45,29 @@ type TraefikVersionResponse struct {
 }
 
 type TraefikSummaryResponse struct {
-	Overview     TraefikOverviewResponse `json:"overview"`
-	IssueRouters []TraefikRouter         `json:"issueRouters"`
+	Overview     TraefikOverviewResponse    `json:"overview"`
+	IssueRouters []TraefikRouter            `json:"issueRouters"`
+	Certificates *TraefikCertificateSummary `json:"certificates,omitempty"`
+}
+
+type TraefikCertificate struct {
+	CommonName       string   `json:"commonName,omitempty"`
+	Serial           string   `json:"serial,omitempty"`
+	SANs             []string `json:"sans,omitempty"`
+	NotAfter         string   `json:"notAfter"`
+	NotAfterUnix     int64    `json:"notAfterUnix"`
+	ExpiresInSeconds int64    `json:"expiresInSeconds"`
+	Status           string   `json:"status"`
+}
+
+type TraefikCertificateSummary struct {
+	Total               int                  `json:"total"`
+	Expired             int                  `json:"expired"`
+	ExpiringSoon        int                  `json:"expiringSoon"`
+	NextExpiry          string               `json:"nextExpiry,omitempty"`
+	NextExpiryUnix      int64                `json:"nextExpiryUnix,omitempty"`
+	NextExpiryInSeconds int64                `json:"nextExpiryInSeconds,omitempty"`
+	MetricsURL          string               `json:"metricsUrl,omitempty"`
+	MetricName          string               `json:"metricName,omitempty"`
+	Certificates        []TraefikCertificate `json:"certificates,omitempty"`
 }

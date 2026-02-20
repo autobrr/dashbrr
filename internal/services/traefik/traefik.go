@@ -4,14 +4,18 @@
 package traefik
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,12 +28,18 @@ import (
 )
 
 const (
-	traefikVersionCacheTTL = 1 * time.Hour
-	traefikVersionPath     = "/api/version"
-	traefikOverviewPath    = "/api/overview"
-	traefikRoutersPath     = "/api/http/routers"
-	maxIssueRouters        = 25
+	traefikVersionCacheTTL  = 1 * time.Hour
+	traefikVersionPath      = "/api/version"
+	traefikOverviewPath     = "/api/overview"
+	traefikRoutersPath      = "/api/http/routers"
+	traefikMetricsPath      = "/metrics"
+	traefikCertMetricName   = "traefik_tls_certs_not_after"
+	traefikCertExpiringSoon = 30 * 24 * time.Hour
+	maxIssueRouters         = 25
+	maxTrackedCertEntries   = 25
 )
+
+var prometheusLabelRegexp = regexp.MustCompile(`([a-zA-Z_][a-zA-Z0-9_]*)="((?:[^"\\]|\\.)*)"`)
 
 type ErrTraefik struct {
 	Op       string
@@ -246,6 +256,215 @@ func mergeIssueRouters(warningRouters, disabledRouters []types.TraefikRouter) []
 	return merged
 }
 
+func parsePrometheusLabels(raw string) map[string]string {
+	matches := prometheusLabelRegexp.FindAllStringSubmatch(raw, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	labels := make(map[string]string, len(matches))
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+		unquoted, err := strconv.Unquote(`"` + match[2] + `"`)
+		if err != nil {
+			unquoted = match[2]
+		}
+		labels[match[1]] = unquoted
+	}
+	return labels
+}
+
+func certificateStatus(expiresIn time.Duration) string {
+	if expiresIn <= 0 {
+		return "expired"
+	}
+	if expiresIn <= traefikCertExpiringSoon {
+		return "expiring"
+	}
+	return "valid"
+}
+
+func parseTraefikCertificateMetrics(metricsBody string, now time.Time) (types.TraefikCertificateSummary, error) {
+	scanner := bufio.NewScanner(strings.NewReader(metricsBody))
+	certs := make([]types.TraefikCertificate, 0)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !strings.HasPrefix(line, traefikCertMetricName) {
+			continue
+		}
+
+		labelsRaw := ""
+		valueRaw := ""
+		if open := strings.IndexByte(line, '{'); open >= 0 {
+			close := strings.LastIndexByte(line, '}')
+			if close <= open {
+				continue
+			}
+			labelsRaw = line[open+1 : close]
+			valueRaw = strings.TrimSpace(line[close+1:])
+		} else {
+			parts := strings.Fields(line)
+			if len(parts) < 2 {
+				continue
+			}
+			valueRaw = parts[len(parts)-1]
+		}
+
+		notAfterFloat, err := strconv.ParseFloat(valueRaw, 64)
+		if err != nil {
+			continue
+		}
+
+		notAfterUnix := int64(notAfterFloat)
+		notAfter := time.Unix(notAfterUnix, 0).UTC()
+		expiresIn := notAfter.Sub(now)
+		labels := parsePrometheusLabels(labelsRaw)
+
+		sans := make([]string, 0)
+		if sansRaw := strings.TrimSpace(labels["sans"]); sansRaw != "" {
+			for _, san := range strings.Split(sansRaw, ",") {
+				san = strings.TrimSpace(san)
+				if san != "" {
+					sans = append(sans, san)
+				}
+			}
+		}
+
+		certs = append(certs, types.TraefikCertificate{
+			CommonName:       strings.TrimSpace(labels["cn"]),
+			Serial:           strings.TrimSpace(labels["serial"]),
+			SANs:             sans,
+			NotAfter:         notAfter.Format(time.RFC3339),
+			NotAfterUnix:     notAfterUnix,
+			ExpiresInSeconds: int64(expiresIn.Seconds()),
+			Status:           certificateStatus(expiresIn),
+		})
+	}
+	if err := scanner.Err(); err != nil {
+		return types.TraefikCertificateSummary{}, err
+	}
+
+	sort.SliceStable(certs, func(i, j int) bool {
+		if certs[i].NotAfterUnix == certs[j].NotAfterUnix {
+			return certs[i].CommonName < certs[j].CommonName
+		}
+		return certs[i].NotAfterUnix < certs[j].NotAfterUnix
+	})
+
+	summary := types.TraefikCertificateSummary{
+		Total: len(certs),
+	}
+
+	if len(certs) > 0 {
+		next := certs[0]
+		summary.NextExpiry = next.NotAfter
+		summary.NextExpiryUnix = next.NotAfterUnix
+		summary.NextExpiryInSeconds = next.ExpiresInSeconds
+	}
+
+	for _, cert := range certs {
+		switch cert.Status {
+		case "expired":
+			summary.Expired++
+		case "expiring":
+			summary.ExpiringSoon++
+		}
+	}
+
+	if len(certs) > maxTrackedCertEntries {
+		certs = certs[:maxTrackedCertEntries]
+	}
+	summary.Certificates = certs
+
+	return summary, nil
+}
+
+func (s *TraefikService) metricsEndpoints(baseURL string) ([]string, error) {
+	primary, err := s.buildEndpoint(baseURL, traefikMetricsPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoints := []string{primary}
+	parsed, err := url.Parse(strings.TrimSpace(strings.TrimRight(baseURL, "/")))
+	if err != nil {
+		return endpoints, nil
+	}
+
+	host := parsed.Hostname()
+	if host == "" || parsed.Port() == "9100" {
+		return endpoints, nil
+	}
+
+	alt := *parsed
+	alt.Host = net.JoinHostPort(host, "9100")
+	alt.Path = traefikMetricsPath
+	alt.RawQuery = ""
+	altURL := alt.String()
+	if altURL != primary {
+		endpoints = append(endpoints, altURL)
+	}
+
+	return endpoints, nil
+}
+
+func (s *TraefikService) GetCertificateSummary(ctx context.Context, baseURL, apiKey string) (types.TraefikCertificateSummary, error) {
+	endpoints, err := s.metricsEndpoints(baseURL)
+	if err != nil {
+		return types.TraefikCertificateSummary{}, &ErrTraefik{Op: "get_cert_metrics", Err: err}
+	}
+
+	headers := map[string]string{
+		"Accept": "text/plain",
+	}
+	if authHeader := authHeaderFromAPIKey(apiKey); authHeader != "" {
+		headers["Authorization"] = authHeader
+	}
+
+	var lastErr error
+	now := time.Now().UTC()
+
+	for _, endpoint := range endpoints {
+		resp, reqErr := s.DoRequest(ctx, http.MethodGet, endpoint, headers, nil)
+		if reqErr != nil {
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("request failed for %s: %w", endpoint, reqErr)}
+			continue
+		}
+
+		body, readErr := s.ReadBody(resp)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("read failed for %s: %w", endpoint, readErr)}
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", HttpCode: resp.StatusCode}
+			continue
+		}
+
+		summary, parseErr := parseTraefikCertificateMetrics(string(body), now)
+		if parseErr != nil {
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("parse failed for %s: %w", endpoint, parseErr)}
+			continue
+		}
+
+		summary.MetricsURL = endpoint
+		summary.MetricName = traefikCertMetricName
+		return summary, nil
+	}
+
+	if lastErr == nil {
+		lastErr = errors.New("no metrics endpoint candidates")
+	}
+	return types.TraefikCertificateSummary{}, lastErr
+}
+
 func (s *TraefikService) GetSummary(ctx context.Context, baseURL, apiKey string) (types.TraefikSummaryResponse, error) {
 	var (
 		overview        types.TraefikOverviewResponse
@@ -254,10 +473,12 @@ func (s *TraefikService) GetSummary(ctx context.Context, baseURL, apiKey string)
 		warningErr      error
 		disabledRouters []types.TraefikRouter
 		disabledErr     error
+		certs           types.TraefikCertificateSummary
+		certsErr        error
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
@@ -274,6 +495,11 @@ func (s *TraefikService) GetSummary(ctx context.Context, baseURL, apiKey string)
 		disabledRouters, disabledErr = s.GetRoutersByStatus(ctx, baseURL, apiKey, "disabled")
 	}()
 
+	go func() {
+		defer wg.Done()
+		certs, certsErr = s.GetCertificateSummary(ctx, baseURL, apiKey)
+	}()
+
 	wg.Wait()
 
 	if overviewErr != nil {
@@ -285,11 +511,19 @@ func (s *TraefikService) GetSummary(ctx context.Context, baseURL, apiKey string)
 	if disabledErr != nil {
 		log.Debug().Err(disabledErr).Msg("traefik disabled routers fetch failed")
 	}
+	if certsErr != nil {
+		log.Debug().Err(certsErr).Msg("traefik cert metrics fetch failed")
+	}
 
-	return types.TraefikSummaryResponse{
+	summary := types.TraefikSummaryResponse{
 		Overview:     overview,
 		IssueRouters: mergeIssueRouters(warningRouters, disabledRouters),
-	}, nil
+	}
+	if certsErr == nil {
+		summary.Certificates = &certs
+	}
+
+	return summary, nil
 }
 
 func (s *TraefikService) CheckHealth(ctx context.Context, baseURL, apiKey string) (models.ServiceHealth, int) {

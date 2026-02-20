@@ -130,7 +130,7 @@ func createTraefikSummaryHash(summary *types.TraefikSummaryResponse) string {
 	var builder strings.Builder
 	fmt.Fprintf(
 		&builder,
-		"http:%d:%d:%d|svc:%d:%d:%d|mid:%d:%d:%d|providers:%d|issues:%d|",
+		"http:%d:%d:%d|svc:%d:%d:%d|mid:%d:%d:%d|providers:%d|issues:%d|cert:%d:%d:%d:%d|",
 		sectionTotal(summary.Overview.HTTP.Routers),
 		sectionWarnings(summary.Overview.HTTP.Routers),
 		sectionErrors(summary.Overview.HTTP.Routers),
@@ -142,12 +142,44 @@ func createTraefikSummaryHash(summary *types.TraefikSummaryResponse) string {
 		sectionErrors(summary.Overview.HTTP.Middlewares),
 		len(summary.Overview.Providers),
 		len(summary.IssueRouters),
+		traefikCertTotal(summary.Certificates),
+		traefikCertExpired(summary.Certificates),
+		traefikCertExpiringSoon(summary.Certificates),
+		traefikCertNextExpiryUnix(summary.Certificates),
 	)
 	for _, router := range summary.IssueRouters {
 		fmt.Fprintf(&builder, "r:%s:%s:%s|", router.Name, router.Provider, router.Status)
 	}
 
 	return builder.String()
+}
+
+func traefikCertTotal(summary *types.TraefikCertificateSummary) int {
+	if summary == nil {
+		return 0
+	}
+	return summary.Total
+}
+
+func traefikCertExpired(summary *types.TraefikCertificateSummary) int {
+	if summary == nil {
+		return 0
+	}
+	return summary.Expired
+}
+
+func traefikCertExpiringSoon(summary *types.TraefikCertificateSummary) int {
+	if summary == nil {
+		return 0
+	}
+	return summary.ExpiringSoon
+}
+
+func traefikCertNextExpiryUnix(summary *types.TraefikCertificateSummary) int64 {
+	if summary == nil {
+		return 0
+	}
+	return summary.NextExpiryUnix
 }
 
 func statusFromTraefikError(err error) int {

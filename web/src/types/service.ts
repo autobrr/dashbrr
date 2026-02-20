@@ -658,6 +658,29 @@ export interface TraefikRouter {
 export interface TraefikSummary {
   overview: TraefikOverview;
   issueRouters: TraefikRouter[];
+  certificates?: TraefikCertificateSummary;
+}
+
+export interface TraefikCertificate {
+  commonName?: string;
+  serial?: string;
+  sans?: string[];
+  notAfter: string;
+  notAfterUnix: number;
+  expiresInSeconds: number;
+  status: "valid" | "expiring" | "expired";
+}
+
+export interface TraefikCertificateSummary {
+  total: number;
+  expired: number;
+  expiringSoon: number;
+  nextExpiry?: string;
+  nextExpiryUnix?: number;
+  nextExpiryInSeconds?: number;
+  metricsUrl?: string;
+  metricName?: string;
+  certificates?: TraefikCertificate[];
 }
 
 export interface SabnzbdQueueSlot {
@@ -1013,6 +1036,11 @@ export interface ServiceDetails {
     metrics?: string;
     tracing?: string;
     accessLog?: boolean;
+    certificateTotal?: number;
+    certificateExpired?: number;
+    certificateExpiringSoon?: number;
+    certificateNextExpiry?: string;
+    certificateNextExpiryInSeconds?: number;
   };
   tailscale?: {
     total: number;

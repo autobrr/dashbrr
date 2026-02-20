@@ -152,6 +152,13 @@ func TestBuildTraefikSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 			{Name: "warn@docker", Status: "warning"},
 			{Name: "down@docker", Status: "disabled"},
 		},
+		Certificates: &types.TraefikCertificateSummary{
+			Total:               3,
+			Expired:             1,
+			ExpiringSoon:        1,
+			NextExpiry:          "2026-03-01T00:00:00Z",
+			NextExpiryInSeconds: 86400,
+		},
 	}
 
 	health := buildTraefikSummaryServiceUpdate("traefik-1", summary)
@@ -192,6 +199,18 @@ func TestBuildTraefikSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 	}
 	if got := details["issueRouters"]; got != 2 {
 		t.Fatalf("issueRouters = %v, want 2", got)
+	}
+	if got := details["certificateTotal"]; got != 3 {
+		t.Fatalf("certificateTotal = %v, want 3", got)
+	}
+	if got := details["certificateExpired"]; got != 1 {
+		t.Fatalf("certificateExpired = %v, want 1", got)
+	}
+	if got := details["certificateExpiringSoon"]; got != 1 {
+		t.Fatalf("certificateExpiringSoon = %v, want 1", got)
+	}
+	if got := details["certificateNextExpiry"]; got != "2026-03-01T00:00:00Z" {
+		t.Fatalf("certificateNextExpiry = %v, want 2026-03-01T00:00:00Z", got)
 	}
 }
 

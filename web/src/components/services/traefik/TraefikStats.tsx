@@ -20,6 +20,36 @@ interface TraefikStatsProps {
 const renderFeature = (value?: string): string =>
   value && value.trim() ? value : "Off";
 
+const formatDuration = (seconds?: number): string => {
+  if (seconds === undefined || Number.isNaN(seconds)) {
+    return "n/a";
+  }
+  if (seconds <= 0) {
+    return "expired";
+  }
+  const days = Math.floor(seconds / 86400);
+  if (days >= 1) {
+    return `${days}d`;
+  }
+  const hours = Math.floor(seconds / 3600);
+  if (hours >= 1) {
+    return `${hours}h`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return `${Math.max(minutes, 1)}m`;
+};
+
+const formatTimestamp = (value?: string): string => {
+  if (!value) {
+    return "n/a";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+};
+
 const statusBadgeClass = (status: string): string => {
   const normalized = status.trim().toLowerCase();
   if (normalized === "warning") {
@@ -31,6 +61,16 @@ const statusBadgeClass = (status: string): string => {
   return "bg-zinc-700/50 text-zinc-300";
 };
 
+const certificateBadgeClass = (status: string): string => {
+  if (status === "expired") {
+    return "bg-rose-500/15 text-rose-300";
+  }
+  if (status === "expiring") {
+    return "bg-amber-500/15 text-amber-300";
+  }
+  return "bg-emerald-500/15 text-emerald-300";
+};
+
 export const TraefikStats: React.FC<TraefikStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
@@ -38,10 +78,16 @@ export const TraefikStats: React.FC<TraefikStatsProps> = ({ instanceId }) => {
     serviceSectionCollapseKey(instanceId, "traefik:issue_routers"),
     true
   );
+  const { isExpanded: certsExpanded, toggle: toggleCerts } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "traefik:certificates"),
+    false
+  );
 
   const summary = service?.stats?.traefik?.summary;
   const details = service?.details?.traefik;
   const issueRouters = summary?.issueRouters ?? [];
+  const certSummary = summary?.certificates;
+  const certificates = certSummary?.certificates ?? [];
 
   if (service?.status === "loading" && !summary) {
     return <StatsSkeleton rows={3} />;
@@ -105,8 +151,61 @@ export const TraefikStats: React.FC<TraefikStatsProps> = ({ instanceId }) => {
                 {details.accessLog ? "On" : "Off"}
               </span>
             </span>
+            <span className="rounded-md bg-zinc-900/80 px-2 py-1">
+              Certs:{" "}
+              <span className="font-semibold">
+                {details.certificateTotal || 0}
+              </span>{" "}
+              ·{" "}
+              <span className="font-semibold text-amber-300">
+                {details.certificateExpiringSoon || 0} expiring
+              </span>{" "}
+              ·{" "}
+              <span className="font-semibold text-rose-300">
+                {details.certificateExpired || 0} expired
+              </span>
+            </span>
+            <span className="rounded-md bg-zinc-900/80 px-2 py-1">
+              Next expiry:{" "}
+              <span className="font-semibold">
+                {formatDuration(details.certificateNextExpiryInSeconds)}
+              </span>{" "}
+              ({formatTimestamp(details.certificateNextExpiry)})
+            </span>
           </div>
         </>
+      )}
+
+      {certificates.length > 0 && (
+        <CollapsibleSection
+          title="Certificates"
+          meta={`${certSummary?.total ?? certificates.length}`}
+          isExpanded={certsExpanded}
+          onToggle={toggleCerts}
+        >
+          <div className="space-y-2">
+            {certificates.slice(0, 10).map((cert, index) => (
+              <div
+                key={`${cert.serial || cert.commonName || "cert"}:${cert.notAfterUnix}:${index}`}
+                className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium text-zinc-200">
+                    {cert.commonName || cert.sans?.[0] || "Unnamed certificate"}
+                  </span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${certificateBadgeClass(cert.status)}`}
+                  >
+                    {cert.status}
+                  </span>
+                </div>
+                <div className="mt-1 text-zinc-400">
+                  Expires {formatDuration(cert.expiresInSeconds)} · {formatTimestamp(cert.notAfter)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CollapsibleSection>
       )}
 
       {issueRouters.length > 0 && (

@@ -90,6 +90,8 @@ Notes:
 - Dashbrr uses annotations for Kubernetes discovery because URLs and API-key placeholders are not valid Kubernetes label values.
 - When Dashbrr runs inside Kubernetes, discovery uses in-cluster credentials automatically.
 - Dashbrr discovers Services across all namespaces, so its ServiceAccount needs list/read access to Services cluster-wide.
+- Traefik certificate expiry insights use the `traefik_tls_certs_not_after` Prometheus metric from `/metrics`.
+  Make sure Traefik metrics are reachable from Dashbrr (same URL or a reachable `:9100` metrics port on the same host).
 
 Minimal RBAC for in-cluster discovery:
 

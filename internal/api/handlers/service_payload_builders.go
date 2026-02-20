@@ -127,8 +127,21 @@ func buildTraefikSummaryServiceUpdate(instanceID string, summary *types.TraefikS
 	middlewareWarnings := sectionWarnings(summary.Overview.HTTP.Middlewares) + sectionWarnings(summary.Overview.TCP.Middlewares)
 	middlewareErrors := sectionErrors(summary.Overview.HTTP.Middlewares) + sectionErrors(summary.Overview.TCP.Middlewares)
 
+	certificateTotal := 0
+	certificateExpired := 0
+	certificateExpiringSoon := 0
+	certificateNextExpiry := ""
+	certificateNextExpiryInSeconds := int64(0)
+	if summary.Certificates != nil {
+		certificateTotal = summary.Certificates.Total
+		certificateExpired = summary.Certificates.Expired
+		certificateExpiringSoon = summary.Certificates.ExpiringSoon
+		certificateNextExpiry = summary.Certificates.NextExpiry
+		certificateNextExpiryInSeconds = summary.Certificates.NextExpiryInSeconds
+	}
+
 	status := "online"
-	if routerWarnings+routerErrors+serviceWarnings+serviceErrors+middlewareWarnings+middlewareErrors > 0 {
+	if routerWarnings+routerErrors+serviceWarnings+serviceErrors+middlewareWarnings+middlewareErrors+certificateExpired+certificateExpiringSoon > 0 {
 		status = "warning"
 	}
 
@@ -143,20 +156,25 @@ func buildTraefikSummaryServiceUpdate(instanceID string, summary *types.TraefikS
 		},
 		Details: map[string]interface{}{
 			"traefik": map[string]interface{}{
-				"routerTotal":        routerTotal,
-				"routerWarnings":     routerWarnings,
-				"routerErrors":       routerErrors,
-				"serviceTotal":       serviceTotal,
-				"serviceWarnings":    serviceWarnings,
-				"serviceErrors":      serviceErrors,
-				"middlewareTotal":    middlewareTotal,
-				"middlewareWarnings": middlewareWarnings,
-				"middlewareErrors":   middlewareErrors,
-				"providers":          len(summary.Overview.Providers),
-				"issueRouters":       len(summary.IssueRouters),
-				"metrics":            summary.Overview.Features.Metrics,
-				"tracing":            summary.Overview.Features.Tracing,
-				"accessLog":          summary.Overview.Features.AccessLog,
+				"routerTotal":                    routerTotal,
+				"routerWarnings":                 routerWarnings,
+				"routerErrors":                   routerErrors,
+				"serviceTotal":                   serviceTotal,
+				"serviceWarnings":                serviceWarnings,
+				"serviceErrors":                  serviceErrors,
+				"middlewareTotal":                middlewareTotal,
+				"middlewareWarnings":             middlewareWarnings,
+				"middlewareErrors":               middlewareErrors,
+				"providers":                      len(summary.Overview.Providers),
+				"issueRouters":                   len(summary.IssueRouters),
+				"metrics":                        summary.Overview.Features.Metrics,
+				"tracing":                        summary.Overview.Features.Tracing,
+				"accessLog":                      summary.Overview.Features.AccessLog,
+				"certificateTotal":               certificateTotal,
+				"certificateExpired":             certificateExpired,
+				"certificateExpiringSoon":        certificateExpiringSoon,
+				"certificateNextExpiry":          certificateNextExpiry,
+				"certificateNextExpiryInSeconds": certificateNextExpiryInSeconds,
 			},
 		},
 	}
