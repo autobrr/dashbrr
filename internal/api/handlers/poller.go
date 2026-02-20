@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/bazarr"
 	"github.com/autobrr/dashbrr/internal/services/lidarr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
+	"github.com/autobrr/dashbrr/internal/services/nzbget"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
@@ -135,6 +138,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"sabnzbd": {
 			{name: "sabnzbd_summary", interval: 45 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runSabnzbdSummary},
+		},
+		"nzbget": {
+			{name: "nzbget_summary", interval: 45 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runNzbgetSummary},
 		},
 		"maintainerr": {
 			{name: "maintainerr_collections", interval: 10 * time.Minute, timeout: pollerLongJobTimeout, run: (*Poller).runMaintainerrCollections},
@@ -307,7 +313,20 @@ func isServiceConfigured(serviceType string, svc models.ServiceConfiguration) bo
 	if serviceType == "general" {
 		return true
 	}
+	if serviceType == "nzbget" && svc.APIKey == "" {
+		return urlHasUserCredentials(svc.URL)
+	}
 	return svc.APIKey != ""
+}
+
+func urlHasUserCredentials(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.User == nil {
+		return false
+	}
+	username := strings.TrimSpace(u.User.Username())
+	password, _ := u.User.Password()
+	return username != "" && strings.TrimSpace(password) != ""
 }
 
 func (p *Poller) getServices(ctx context.Context, force bool) []models.ServiceConfiguration {
@@ -847,6 +866,17 @@ func (p *Poller) runSabnzbdSummary(ctx context.Context, svc models.ServiceConfig
 	}
 
 	publishInternalServiceUpdate(p.bc, buildSabnzbdSummaryServiceUpdate(svc.InstanceID, &summary))
+	return nil
+}
+
+func (p *Poller) runNzbgetSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := nzbget.NewNzbgetService().(*nzbget.NzbgetService)
+	summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildNzbgetSummaryServiceUpdate(svc.InstanceID, &summary))
 	return nil
 }
 

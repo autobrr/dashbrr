@@ -17,6 +17,7 @@ import { LidarrStats } from "./lidarr/LidarrStats";
 import { ReadarrStats } from "./readarr/ReadarrStats";
 import { BazarrStats } from "./bazarr/BazarrStats";
 import { SabnzbdStats } from "./sabnzbd/SabnzbdStats";
+import { NzbgetStats } from "./nzbget/NzbgetStats";
 import { ProwlarrStats } from "./prowlarr/ProwlarrStats";
 import { QuiStats } from "./qui/QuiStats";
 import { GeneralStats } from "./general/GeneralStats";
@@ -86,6 +87,7 @@ const SERVICE_STATS_RENDERERS: Partial<
   readarr: (instanceId) => <ReadarrStats instanceId={instanceId} />,
   bazarr: (instanceId) => <BazarrStats instanceId={instanceId} />,
   sabnzbd: (instanceId) => <SabnzbdStats instanceId={instanceId} />,
+  nzbget: (instanceId) => <NzbgetStats instanceId={instanceId} />,
   prowlarr: (instanceId) => <ProwlarrStats instanceId={instanceId} />,
   qui: (instanceId) => <QuiStats instanceId={instanceId} />,
   general: (instanceId) => <GeneralStats instanceId={instanceId} />,

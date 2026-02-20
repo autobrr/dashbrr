@@ -264,3 +264,63 @@ func TestBuildSabnzbdSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("recentFailureLen = %v, want 1", got)
 	}
 }
+
+func TestBuildNzbgetSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
+	summary := &types.NzbgetSummaryResponse{
+		Status: types.NzbgetStatus{
+			DownloadPaused:  true,
+			QuotaReached:    true,
+			DownloadRateLo:  1024,
+			DownloadRateHi:  0,
+			RemainingSizeLo: 2048,
+			RemainingSizeHi: 0,
+			FreeDiskSpaceLo: 4096,
+			FreeDiskSpaceHi: 0,
+		},
+		Queue: []types.NzbgetQueueItem{
+			{NZBID: 1, NZBName: "A", Status: "DOWNLOADING"},
+		},
+		FailedCount:    3,
+		RecentFailures: []types.NzbgetHistoryItem{{NZBID: 10}},
+	}
+
+	health := buildNzbgetSummaryServiceUpdate("nzbget-1", summary)
+	if health.Message != "nzbget_summary" {
+		t.Fatalf("message = %q, want nzbget_summary", health.Message)
+	}
+	if health.Status != "warning" {
+		t.Fatalf("status = %q, want warning", health.Status)
+	}
+
+	stats, ok := health.Stats["nzbget"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected nzbget stats object")
+	}
+	gotSummary, ok := stats["summary"].(*types.NzbgetSummaryResponse)
+	if !ok {
+		t.Fatalf("expected summary payload pointer")
+	}
+	if gotSummary.FailedCount != 3 {
+		t.Fatalf("failedCount = %d, want 3", gotSummary.FailedCount)
+	}
+
+	details, ok := health.Details["nzbget"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected nzbget details object")
+	}
+	if got := details["queueCount"]; got != 1 {
+		t.Fatalf("queueCount = %v, want 1", got)
+	}
+	if got := details["downloadPaused"]; got != true {
+		t.Fatalf("downloadPaused = %v, want true", got)
+	}
+	if got := details["quotaReached"]; got != true {
+		t.Fatalf("quotaReached = %v, want true", got)
+	}
+	if got := details["speedBps"]; got != uint64(1024) {
+		t.Fatalf("speedBps = %v, want 1024", got)
+	}
+	if got := details["recentFailureLen"]; got != 1 {
+		t.Fatalf("recentFailureLen = %v, want 1", got)
+	}
+}

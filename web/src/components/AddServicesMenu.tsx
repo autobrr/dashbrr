@@ -56,6 +56,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   readarr: "MEDIA_MANAGEMENT",
   bazarr: "MEDIA_MANAGEMENT",
   sabnzbd: "MEDIA_MANAGEMENT",
+  nzbget: "MEDIA_MANAGEMENT",
   prowlarr: "MEDIA_MANAGEMENT",
   plex: "MEDIA_SERVER",
   overseerr: "REQUESTS",
@@ -83,6 +84,7 @@ type ApiHelpContext = {
 
 const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
   tailscale: "API Token",
+  nzbget: "Control Password",
 };
 
 const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
@@ -90,6 +92,7 @@ const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   qui: "http://localhost:7476",
   bazarr: "http://localhost:6767",
   sabnzbd: "http://localhost:8080",
+  nzbget: "http://localhost:6789",
   general: "Enter full URL including health endpoint",
   tailscale: "https://api.tailscale.com",
 };
@@ -131,6 +134,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     prefix: "Found in ",
     text: "Config > General",
     link: getSettingsUrl("/config/general/"),
+  }),
+  nzbget: ({ getSettingsUrl }) => ({
+    prefix: "Use ",
+    text: "ControlPassword (or username:password)",
+    link: getSettingsUrl("/?tab=config#S_SECURITY"),
   }),
   prowlarr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",

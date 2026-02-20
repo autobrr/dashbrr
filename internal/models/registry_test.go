@@ -31,6 +31,7 @@ func TestCreateService(t *testing.T) {
 	originalLidarrService := NewLidarrService
 	originalReadarrService := NewReadarrService
 	originalSabnzbdService := NewSabnzbdService
+	originalNzbgetService := NewNzbgetService
 	defer func() {
 		NewAutobrrService = originalAutobrrService
 		NewBazarrService = originalBazarrService
@@ -38,6 +39,7 @@ func TestCreateService(t *testing.T) {
 		NewLidarrService = originalLidarrService
 		NewReadarrService = originalReadarrService
 		NewSabnzbdService = originalSabnzbdService
+		NewNzbgetService = originalNzbgetService
 	}()
 
 	called := false
@@ -106,5 +108,15 @@ func TestCreateService(t *testing.T) {
 	registry.CreateService("sabnzbd")
 	if !called {
 		t.Error("Service creator not called for sabnzbd service type")
+	}
+
+	called = false
+	NewNzbgetService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("nzbget")
+	if !called {
+		t.Error("Service creator not called for nzbget service type")
 	}
 }

@@ -13,6 +13,7 @@ export type ServiceType =
   | 'readarr'
   | 'bazarr'
   | 'sabnzbd'
+  | 'nzbget'
   | 'prowlarr'
   | 'overseerr'
   | 'plex'
@@ -589,6 +590,62 @@ export interface SabnzbdSummary {
   recentFailures: SabnzbdHistorySlot[];
 }
 
+export interface NzbgetStatus {
+  RemainingSizeLo: number;
+  RemainingSizeHi: number;
+  RemainingSizeMB: number;
+  DownloadRate: number;
+  DownloadRateLo: number;
+  DownloadRateHi: number;
+  DownloadPaused: boolean;
+  PostPaused: boolean;
+  ScanPaused: boolean;
+  ServerStandBy: boolean;
+  QuotaReached: boolean;
+  ServerTime: number;
+  ResumeTime: number;
+  FreeDiskSpaceLo: number;
+  FreeDiskSpaceHi: number;
+  FreeDiskSpaceMB: number;
+  TotalDiskSpaceLo: number;
+  TotalDiskSpaceHi: number;
+  TotalDiskSpaceMB: number;
+}
+
+export interface NzbgetQueueItem {
+  NZBID: number;
+  NZBName: string;
+  Category: string;
+  Status: string;
+  RemainingSizeLo: number;
+  RemainingSizeHi: number;
+  RemainingSizeMB: number;
+  DownloadedSizeMB: number;
+  DownloadTimeSec: number;
+  Health: number;
+  CriticalHealth: number;
+}
+
+export interface NzbgetHistoryItem {
+  NZBID: number;
+  Kind: string;
+  Name: string;
+  NZBName: string;
+  Category: string;
+  Status: string;
+  HistoryTime: number;
+  FileSizeMB: number;
+  DownloadedSizeMB: number;
+  DownloadTimeSec: number;
+}
+
+export interface NzbgetSummary {
+  status: NzbgetStatus;
+  queue: NzbgetQueueItem[];
+  failedCount: number;
+  recentFailures: NzbgetHistoryItem[];
+}
+
 export interface TailscaleDevice {
   id: string;
   name: string;
@@ -694,6 +751,9 @@ export interface ServiceStats {
   sabnzbd?: {
     summary: SabnzbdSummary;
   };
+  nzbget?: {
+    summary: NzbgetSummary;
+  };
   prowlarr?: {
     stats: ProwlarrStats;
     indexers: ProwlarrIndexer[];
@@ -777,6 +837,16 @@ export interface ServiceDetails {
     sizeLeft: string;
     incompleteFree: string;
     completeFree: string;
+    recentFailureLen: number;
+  };
+  nzbget?: {
+    queueCount: number;
+    failedCount: number;
+    downloadPaused: boolean;
+    quotaReached: boolean;
+    speedBps: number;
+    remainingBytes: number;
+    freeDiskBytes: number;
     recentFailureLen: number;
   };
   prowlarr?: {

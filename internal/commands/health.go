@@ -16,6 +16,7 @@ import (
 	_ "github.com/autobrr/dashbrr/internal/services/general"
 	_ "github.com/autobrr/dashbrr/internal/services/lidarr"
 	_ "github.com/autobrr/dashbrr/internal/services/maintainerr"
+	_ "github.com/autobrr/dashbrr/internal/services/nzbget"
 	_ "github.com/autobrr/dashbrr/internal/services/overseerr"
 	_ "github.com/autobrr/dashbrr/internal/services/plex"
 	_ "github.com/autobrr/dashbrr/internal/services/prowlarr"

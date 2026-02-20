@@ -119,6 +119,21 @@ func TestNewPoller_SabnzbdJobsAreSummaryOnly(t *testing.T) {
 	}
 }
 
+func TestNewPoller_NzbgetJobsAreSummaryOnly(t *testing.T) {
+	t.Parallel()
+
+	poller := NewPoller(nil, nil)
+	jobs := poller.jobs["nzbget"]
+
+	if len(jobs) != 1 {
+		t.Fatalf("nzbget job count = %d, want 1", len(jobs))
+	}
+
+	if jobs[0].name != "nzbget_summary" {
+		t.Fatalf("nzbget job[0] = %q, want %q", jobs[0].name, "nzbget_summary")
+	}
+}
+
 func TestEffectiveJobTimeout(t *testing.T) {
 	t.Parallel()
 

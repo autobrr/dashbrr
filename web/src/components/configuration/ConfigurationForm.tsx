@@ -124,6 +124,8 @@ export const ConfigurationForm = ({
         return "API Key";
       case "overseerr":
         return "API Key";
+      case "nzbget":
+        return "Control Password";
       default:
         return "API Key";
     }
@@ -155,13 +157,21 @@ export const ConfigurationForm = ({
       case "readarr":
       case "bazarr":
       case "sabnzbd":
+      case "nzbget":
       case "prowlarr":
         return {
           prefix: "Found in ",
-          text: serviceType === "sabnzbd" ? "Config > General" : "Settings > General",
+          text:
+            serviceType === "sabnzbd"
+              ? "Config > General"
+              : serviceType === "nzbget"
+                ? "Config > Security"
+                : "Settings > General",
           link:
             serviceType === "sabnzbd"
               ? getSettingsUrl("/config/general/")
+              : serviceType === "nzbget"
+                ? getSettingsUrl("/?tab=config#S_SECURITY")
               : getSettingsUrl("/settings/general"),
         };
       case "overseerr":
@@ -195,6 +205,8 @@ export const ConfigurationForm = ({
         return "http://localhost:6767";
       case "sabnzbd":
         return "http://localhost:8080";
+      case "nzbget":
+        return "http://localhost:6789";
       case "general":
         return "Enter full URL including health endpoint";
       default:

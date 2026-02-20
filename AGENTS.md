@@ -1955,8 +1955,60 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
 
+### 2026-02-20 (NZBGet integration: backend + frontend + poller + tests)
+- Added full `NZBGet` service support with summary-first design:
+  - service implementation: `internal/services/nzbget/nzbget.go`
+  - summary/status types: `internal/types/nzbget.go`
+  - supports `status`, `listgroups`, `history`, `version` over JSON-RPC.
+- Auth model:
+  - supports URL credentials (`http://user:pass@host:6789`) and API field credentials.
+  - API field accepts:
+    - `password` (uses default user `nzbget`)
+    - `username:password` (custom user)
+- API/handler wiring:
+  - new handler: `internal/api/handlers/nzbget.go`
+  - new route in `internal/api/server.go`:
+    - `GET /api/nzbget/summary`
+  - cache policy: `NzbgetStatus` TTL + `/nzbget` path routing in `internal/api/middleware/cache.go`.
+- Poller/SSE wiring:
+  - added single details job in `internal/api/handlers/poller.go`:
+    - `nzbget_summary` (atomic payload; avoids staggered card loading)
+  - new payload builder in `internal/api/handlers/service_payload_builders.go`:
+    - `buildNzbgetSummaryServiceUpdate`
+    - canonical message key: `nzbget_summary`
+- Registry/commands wiring:
+  - service registry updated (`internal/models/service.go`, `internal/models/registry.go`)
+  - side-effect registration updated (`internal/services/services.go`, `internal/commands/health.go`)
+  - CLI command added: `internal/commands/service_nzbget.go`
+  - command root updated: `internal/commands/service.go`
+- Frontend wiring:
+  - service type + payload typing: `web/src/types/service.ts`
+  - add-service modal/category/API-help + URL placeholder:
+    - `web/src/components/AddServicesMenu.tsx`
+    - `web/src/components/configuration/ConfigurationForm.tsx`
+  - service template: `web/src/config/serviceTemplates.ts`
+  - card renderer + component:
+    - `web/src/components/services/nzbget/NzbgetStats.tsx`
+    - `web/src/components/services/ServiceCard.tsx`
+  - card density + timeout + repo links:
+    - `web/src/utils/serviceCardContent.ts`
+    - `web/src/utils/api.ts`
+    - `web/src/config/repoUrls.ts`
+- Tests updated:
+  - `internal/services/nzbget/nzbget_test.go`
+  - `internal/api/handlers/poller_jobs_test.go`
+  - `internal/api/handlers/service_payload_builders_test.go`
+  - `internal/api/handlers/service_payload_contract_test.go`
+  - `internal/models/registry_test.go`
+- Full gate green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+
 ## Next
-- Implement `NZBGet` service support (queue/rates/disk/error visibility).
 - Implement `Jellyfin` service support (sessions/transcode/health visibility).
 - Implement `Uptime Kuma` service support (monitor summary/incidents).
 - Implement `Traefik` service support (router/service health + cert expiry).

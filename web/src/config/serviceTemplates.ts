@@ -70,6 +70,15 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "/api/health/sabnzbd",
   },
   {
+    name: "NZBGet",
+    displayName: "",
+    type: "nzbget",
+    status: "offline",
+    url: "",
+    accessUrl: "",
+    healthEndpoint: "/api/health/nzbget",
+  },
+  {
     name: "Prowlarr",
     displayName: "",
     type: "prowlarr",

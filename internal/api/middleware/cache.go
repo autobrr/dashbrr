@@ -40,6 +40,7 @@ var CacheDurations = struct {
 	ProwlarrStatus    time.Duration
 	BazarrStatus      time.Duration
 	SabnzbdStatus     time.Duration
+	NzbgetStatus      time.Duration
 }{
 	Default:           30 * time.Second,
 	HealthCheck:       10 * time.Minute,
@@ -57,6 +58,7 @@ var CacheDurations = struct {
 	ProwlarrStatus:    1 * time.Minute,
 	BazarrStatus:      1 * time.Minute,
 	SabnzbdStatus:     1 * time.Minute,
+	NzbgetStatus:      1 * time.Minute,
 }
 
 type CacheMiddleware struct {
@@ -184,6 +186,8 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 		return CacheDurations.BazarrStatus
 	case strings.Contains(path, "/sabnzbd"):
 		return CacheDurations.SabnzbdStatus
+	case strings.Contains(path, "/nzbget"):
+		return CacheDurations.NzbgetStatus
 	default:
 		return CacheDurations.Default
 	}

@@ -288,6 +288,58 @@ func buildSabnzbdSummaryServiceUpdate(instanceID string, summary *types.SabnzbdS
 	}
 }
 
+func buildNzbgetSummaryServiceUpdate(instanceID string, summary *types.NzbgetSummaryResponse) models.ServiceHealth {
+	if summary == nil {
+		summary = &types.NzbgetSummaryResponse{
+			Queue:          []types.NzbgetQueueItem{},
+			RecentFailures: []types.NzbgetHistoryItem{},
+		}
+	}
+	if summary.Queue == nil {
+		summary.Queue = []types.NzbgetQueueItem{}
+	}
+	if summary.RecentFailures == nil {
+		summary.RecentFailures = []types.NzbgetHistoryItem{}
+	}
+
+	queueCount := len(summary.Queue)
+	paused := summary.Status.DownloadPaused
+	downloadRate := joinHiLo(summary.Status.DownloadRateHi, summary.Status.DownloadRateLo)
+	if downloadRate == 0 && summary.Status.DownloadRate > 0 {
+		downloadRate = uint64(summary.Status.DownloadRate)
+	}
+	remainingBytes := joinHiLo(summary.Status.RemainingSizeHi, summary.Status.RemainingSizeLo)
+	freeBytes := joinHiLo(summary.Status.FreeDiskSpaceHi, summary.Status.FreeDiskSpaceLo)
+
+	status := "online"
+	if paused || summary.FailedCount > 0 || summary.Status.QuotaReached {
+		status = "warning"
+	}
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    status,
+		Message:   "nzbget_summary",
+		Stats: map[string]interface{}{
+			"nzbget": map[string]interface{}{
+				"summary": summary,
+			},
+		},
+		Details: map[string]interface{}{
+			"nzbget": map[string]interface{}{
+				"queueCount":       queueCount,
+				"failedCount":      summary.FailedCount,
+				"downloadPaused":   paused,
+				"quotaReached":     summary.Status.QuotaReached,
+				"speedBps":         downloadRate,
+				"remainingBytes":   remainingBytes,
+				"freeDiskBytes":    freeBytes,
+				"recentFailureLen": len(summary.RecentFailures),
+			},
+		},
+	}
+}
+
 func buildAutobrrStatsServiceUpdate(instanceID string, stats types.AutobrrStats) models.ServiceHealth {
 	return models.ServiceHealth{
 		ServiceID: instanceID,
@@ -406,4 +458,8 @@ func parseSummaryCount(raw string) int {
 		return 0
 	}
 	return int(floatVal)
+}
+
+func joinHiLo(hi, lo uint64) uint64 {
+	return (hi << 32) | (lo & 0xffffffff)
 }
