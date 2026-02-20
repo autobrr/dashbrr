@@ -8,6 +8,11 @@ Dashbrr supports automatic service discovery and configuration management throug
 - Kubernetes service annotations
 - External configuration files (YAML/JSON)
 
+Reference files:
+
+- Service matrix: [`docs/services_matrix.md`](services_matrix.md)
+- Kubernetes manifest bundle: [`docs/k8s_discovery_example.yaml`](k8s_discovery_example.yaml)
+
 ## Command Usage
 
 ### Service Discovery
@@ -204,3 +209,7 @@ Discovery/import currently supports these service type keys:
    - Keep a backup of your configuration
    - Use version control for configuration files
    - Document any custom service configurations
+
+3. Kubernetes:
+   - Start from [`docs/k8s_discovery_example.yaml`](k8s_discovery_example.yaml) for RBAC + annotation shape.
+   - Keep discovery credentials in environment variables on the Dashbrr workload, not inline in annotations.

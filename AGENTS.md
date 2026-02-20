@@ -8,6 +8,17 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-20
+- Docs item #3 completed (docs hardening)
+  - added `docs/services_matrix.md` with current support matrix:
+    - CLI group, discovery key, credential type/required-ness
+    - detail endpoints and poll intervals from poller jobs
+  - added `docs/k8s_discovery_example.yaml`:
+    - ServiceAccount + ClusterRole + ClusterRoleBinding
+    - annotated Service examples (`radarr`, `traefik`, `general`)
+    - env placeholder pattern for `${VAR}` annotation substitution
+  - linked new docs from:
+    - `docs/config_management.md`
+    - `README.md` service discovery section
 - Docs parity sweep (supported services + k8s + CLI syntax)
   - `docs/commands.md`
     - corrected command-group name to `generic` (not `general`)

@@ -190,6 +190,11 @@ Key configuration options include:
 
 Dashbrr supports automatic service discovery and configuration through Docker labels, Kubernetes annotations, and external configuration files. For detailed information about service discovery and configuration management, see our [Service Discovery Documentation](docs/config_management.md).
 
+Quick references:
+
+- [Supported Services Matrix](docs/services_matrix.md)
+- [Kubernetes Discovery Manifest Example](docs/k8s_discovery_example.yaml)
+
 Key features include:
 
 - Docker container label-based discovery

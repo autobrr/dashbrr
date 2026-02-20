@@ -1,0 +1,106 @@
+# Example Kubernetes manifest bundle for Dashbrr service discovery.
+#
+# Apply:
+#   kubectl apply -f docs/k8s_discovery_example.yaml
+#
+# Important:
+# - Dashbrr resolves ${ENV_VAR} placeholders from its own process env.
+# - Set matching env vars on the Dashbrr Deployment/Pod (example included).
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: media
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashbrr
+  namespace: media
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dashbrr-discovery
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dashbrr-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dashbrr-discovery
+subjects:
+  - kind: ServiceAccount
+    name: dashbrr
+    namespace: media
+---
+# Minimal env example for Dashbrr pod (snippet only; merge into your Deployment).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashbrr-env-example
+  namespace: media
+data:
+  RADARR_API_KEY: "replace-me"
+  SONARR_API_KEY: "replace-me"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radarr
+  namespace: media
+  annotations:
+    com.dashbrr.service.type: "radarr"
+    com.dashbrr.service.url: "http://radarr.media.svc.cluster.local:7878"
+    com.dashbrr.service.apikey: "${RADARR_API_KEY}"
+    com.dashbrr.service.name: "Radarr"
+    com.dashbrr.service.enabled: "true"
+spec:
+  selector:
+    app: radarr
+  ports:
+    - name: http
+      port: 7878
+      targetPort: 7878
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+  namespace: media
+  annotations:
+    com.dashbrr.service.type: "traefik"
+    com.dashbrr.service.url: "http://traefik.media.svc.cluster.local:8080"
+    com.dashbrr.service.name: "Traefik"
+    com.dashbrr.service.enabled: "true"
+spec:
+  selector:
+    app: traefik
+  ports:
+    - name: dashboard
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: custom-health
+  namespace: media
+  annotations:
+    com.dashbrr.service.type: "general"
+    com.dashbrr.service.url: "http://custom-health.media.svc.cluster.local:8080/healthz"
+    com.dashbrr.service.name: "Custom Health"
+    com.dashbrr.service.enabled: "true"
+spec:
+  selector:
+    app: custom-health
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
