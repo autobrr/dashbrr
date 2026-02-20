@@ -53,6 +53,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   radarr: "MEDIA_MANAGEMENT",
   sonarr: "MEDIA_MANAGEMENT",
   lidarr: "MEDIA_MANAGEMENT",
+  readarr: "MEDIA_MANAGEMENT",
   prowlarr: "MEDIA_MANAGEMENT",
   plex: "MEDIA_SERVER",
   overseerr: "REQUESTS",
@@ -108,6 +109,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     link: getSettingsUrl("/settings/general"),
   }),
   lidarr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > General",
+    link: getSettingsUrl("/settings/general"),
+  }),
+  readarr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",
     text: "Settings > General",
     link: getSettingsUrl("/settings/general"),

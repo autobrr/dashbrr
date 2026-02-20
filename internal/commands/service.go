@@ -42,6 +42,7 @@ func ServiceCommand() *cobra.Command {
 	command.AddCommand(ServiceProwlarrCommand())
 	command.AddCommand(ServiceQuiCommand())
 	command.AddCommand(ServiceRadarrCommand())
+	command.AddCommand(ServiceReadarrCommand())
 	command.AddCommand(ServiceSonarrCommand())
 	command.AddCommand(ServiceTailscaleCommand())
 

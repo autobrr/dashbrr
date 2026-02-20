@@ -116,3 +116,42 @@ func TestBuildLidarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("totalSize = %v, want 50", got)
 	}
 }
+
+func TestBuildReadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
+	resp := &types.ReadarrQueueResponse{
+		TotalRecords: 2,
+		Records: []types.ReadarrQueueItem{
+			{Status: "downloading", Size: 84},
+			{Status: "queued", Size: 16},
+		},
+	}
+
+	health := buildReadarrQueueServiceUpdate("readarr-1", resp)
+
+	if health.Message != "readarr_queue" {
+		t.Fatalf("message = %q, want readarr_queue", health.Message)
+	}
+
+	stats, ok := health.Stats["readarr"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected readarr stats object")
+	}
+	queue, ok := stats["queue"].(*types.ReadarrQueueResponse)
+	if !ok {
+		t.Fatalf("expected queue payload pointer")
+	}
+	if queue.TotalRecords != 2 {
+		t.Fatalf("queue.TotalRecords = %d, want 2", queue.TotalRecords)
+	}
+
+	details, ok := health.Details["readarr"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected readarr details object")
+	}
+	if got := details["downloadingCount"]; got != 1 {
+		t.Fatalf("downloadingCount = %v, want 1", got)
+	}
+	if got := details["totalSize"]; got != int64(100) {
+		t.Fatalf("totalSize = %v, want 100", got)
+	}
+}

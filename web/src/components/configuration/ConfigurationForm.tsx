@@ -117,6 +117,7 @@ export const ConfigurationForm = ({
       case "radarr":
       case "sonarr":
       case "lidarr":
+      case "readarr":
       case "prowlarr":
         return "API Key";
       case "overseerr":
@@ -149,6 +150,7 @@ export const ConfigurationForm = ({
       case "radarr":
       case "sonarr":
       case "lidarr":
+      case "readarr":
       case "prowlarr":
         return {
           prefix: "Found in ",

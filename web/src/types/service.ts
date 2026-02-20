@@ -10,6 +10,7 @@ export type ServiceType =
   | 'radarr'
   | 'sonarr'
   | 'lidarr'
+  | 'readarr'
   | 'prowlarr'
   | 'overseerr'
   | 'plex'
@@ -444,6 +445,33 @@ export interface LidarrQueue {
   records: LidarrQueueItem[];
 }
 
+// Readarr Types
+export interface ReadarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
+export interface ReadarrQueueItem {
+  id: number;
+  title: string;
+  status: string;
+  protocol: string; // "usenet" or "torrent"
+  indexer?: string;
+  customFormatScore: number;
+  downloadClient: string;
+  timeLeft?: string;
+  trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  statusMessages?: ReadarrStatusMessage[];
+  size: number;
+}
+
+export interface ReadarrQueue {
+  totalRecords: number;
+  records: ReadarrQueueItem[];
+}
+
 // Prowlarr Types
 export interface ProwlarrIndexer {
   id: number;
@@ -575,6 +603,9 @@ export interface ServiceStats {
   lidarr?: {
     queue: LidarrQueue;
   };
+  readarr?: {
+    queue: ReadarrQueue;
+  };
   prowlarr?: {
     stats: ProwlarrStats;
     indexers: ProwlarrIndexer[];
@@ -628,6 +659,12 @@ export interface ServiceDetails {
     totalSize?: number;
   };
   lidarr?: {
+    queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    totalSize?: number;
+  };
+  readarr?: {
     queueCount: number;
     totalRecords?: number;
     downloadingCount?: number;

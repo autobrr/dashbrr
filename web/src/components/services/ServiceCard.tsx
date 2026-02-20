@@ -14,6 +14,7 @@ import { MaintainerrService } from "./maintainerr/MaintainerrService";
 import { SonarrStats } from "./sonarr/SonarrStats";
 import { RadarrStats } from "./radarr/RadarrStats";
 import { LidarrStats } from "./lidarr/LidarrStats";
+import { ReadarrStats } from "./readarr/ReadarrStats";
 import { ProwlarrStats } from "./prowlarr/ProwlarrStats";
 import { QuiStats } from "./qui/QuiStats";
 import { GeneralStats } from "./general/GeneralStats";
@@ -80,6 +81,7 @@ const SERVICE_STATS_RENDERERS: Partial<
   sonarr: (instanceId) => <SonarrStats instanceId={instanceId} />,
   radarr: (instanceId) => <RadarrStats instanceId={instanceId} />,
   lidarr: (instanceId) => <LidarrStats instanceId={instanceId} />,
+  readarr: (instanceId) => <ReadarrStats instanceId={instanceId} />,
   prowlarr: (instanceId) => <ProwlarrStats instanceId={instanceId} />,
   qui: (instanceId) => <QuiStats instanceId={instanceId} />,
   general: (instanceId) => <GeneralStats instanceId={instanceId} />,

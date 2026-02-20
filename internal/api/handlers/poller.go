@@ -23,6 +23,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/services/qui"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
+	"github.com/autobrr/dashbrr/internal/services/readarr"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -111,6 +112,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"lidarr": {
 			{name: "lidarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runLidarrQueue},
+		},
+		"readarr": {
+			{name: "readarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runReadarrQueue},
 		},
 		"sonarr": {
 			{name: "sonarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runSonarrQueue},
@@ -568,6 +572,20 @@ func summarizeLidarrQueue(records []types.LidarrQueueItem) (int, int64) {
 	return downloading, totalSize
 }
 
+func summarizeReadarrQueue(records []types.ReadarrQueueItem) (int, int64) {
+	downloading := 0
+	var totalSize int64
+
+	for _, record := range records {
+		totalSize += record.Size
+		if record.Status == "downloading" {
+			downloading++
+		}
+	}
+
+	return downloading, totalSize
+}
+
 func summarizeSonarrQueue(records []types.QueueRecord) (int, int, int64) {
 	downloading := 0
 	episodeCount := 0
@@ -682,6 +700,25 @@ func (p *Poller) runLidarrQueue(ctx context.Context, svc models.ServiceConfigura
 	}
 
 	publishInternalServiceUpdate(p.bc, buildLidarrQueueServiceUpdate(svc.InstanceID, resp))
+	return nil
+}
+
+func (p *Poller) runReadarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := &readarr.ReadarrService{}
+	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+	if records == nil {
+		records = []types.ReadarrQueueItem{}
+	}
+
+	resp := &types.ReadarrQueueResponse{
+		Records:      records,
+		TotalRecords: len(records),
+	}
+
+	publishInternalServiceUpdate(p.bc, buildReadarrQueueServiceUpdate(svc.InstanceID, resp))
 	return nil
 }
 

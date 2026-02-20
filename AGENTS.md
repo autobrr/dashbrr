@@ -1732,8 +1732,6 @@ Owner: soup (s0up4200@pm.me)
   - `go test ./...`
 
 ## TODO (Next Service Integrations)
-- Add `Lidarr` support (health + queue/activities + key warnings).
-- Add `Readarr` support (health + queue/activities + key warnings).
 - Add `Bazarr` support (health + backlog/subtitle provider status).
 - Add `SABnzbd` support (queue health, speeds, disk pressure, failures).
 - Add `NZBGet` support (queue health, rates, disk, error/warn feed).
@@ -1814,7 +1812,56 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
 
+### 2026-02-20 (Readarr integration: backend + frontend + poller + tests)
+- Added full `Readarr` service support using Readarr API `v1`:
+  - service implementation: `internal/services/readarr/readarr.go`
+  - queue types: `internal/types/readarr.go`
+  - health/version/update checks via shared ARR helpers (`v1` path support)
+- API/handler wiring:
+  - new handler: `internal/api/handlers/readarr.go`
+  - new routes in `internal/api/server.go`:
+    - `GET /api/readarr/queue`
+    - `DELETE /api/readarr/queue/:id`
+  - queue hash wrapper support: `internal/api/handlers/queue_hash.go`
+  - payload builder support: `internal/api/handlers/service_payload_builders.go`
+  - poller job support: `internal/api/handlers/poller.go` (`readarr_queue`)
+- Registry/commands wiring:
+  - service registry updated (`internal/models/service.go`, `internal/models/registry.go`)
+  - side-effect registration updated (`internal/services/services.go`, `internal/commands/health.go`)
+  - CLI command added: `internal/commands/service_readarr.go`
+  - command root updated: `internal/commands/service.go`
+- Frontend wiring:
+  - service type + payload typing: `web/src/types/service.ts`
+  - add-service modal/category/API-help: `web/src/components/AddServicesMenu.tsx`
+  - service template: `web/src/config/serviceTemplates.ts`
+  - config form API key guidance: `web/src/components/configuration/ConfigurationForm.tsx`
+  - card renderer + component:
+    - `web/src/components/services/readarr/ReadarrStats.tsx`
+    - `web/src/components/services/ServiceCard.tsx`
+  - ARR queue base now accepts Readarr path/service name:
+    - `web/src/components/services/common/ArrQueueStatsBase.tsx`
+  - card density heuristic includes Readarr queue presence:
+    - `web/src/utils/serviceCardContent.ts`
+  - API timeout + release URL:
+    - `web/src/utils/api.ts`
+    - `web/src/config/repoUrls.ts`
+- Cache policy:
+  - added `ReadarrStatus` TTL + path routing in `internal/api/middleware/cache.go`.
+- Tests updated:
+  - `internal/models/registry_test.go`
+  - `internal/api/handlers/poller_jobs_test.go`
+  - `internal/api/handlers/poller_stats_test.go`
+  - `internal/api/handlers/service_payload_contract_test.go`
+  - `internal/api/handlers/service_payload_builders_test.go`
+- Full gate green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+
 ## Next
-- Add `Readarr` with same ARR-queue/poller architecture used for Lidarr.
-- Reuse v1 ARR helper pathing for Readarr to avoid service-specific URL builders.
-- Keep shared queue UI path (`ArrQueueStatsBase`) for Readarr/Lidarr/Sonarr/Radarr to stay DRY.
+- Implement `Bazarr` service support (health + useful subtitle/backlog stats).
+- Implement `SABnzbd` service support (queue/speeds/storage/error visibility).
+- Implement `NZBGet` service support (queue/rates/disk/error visibility).
