@@ -8,6 +8,13 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-20
+- Web API client legacy timeout cleanup
+  - removed dead per-service timeout map in `web/src/utils/api.ts` (old polling-era endpoints no longer used)
+  - simplified timeout policy to:
+    - default: `8000ms`
+    - config health validation (`/api/health/:instance`): `12000ms`
+  - switched timeout override selection to nullish (`customTimeout ?? ...`)
+  - ensured abort timer cleanup runs on all fetch outcomes (`try/finally`)
 - Docs item #3 completed (docs hardening)
   - added `docs/services_matrix.md` with current support matrix:
     - CLI group, discovery key, credential type/required-ness

@@ -5,27 +5,8 @@
 
 import { readErrorMessage } from "./http";
 
-// Service-specific timeouts
-const SERVICE_TIMEOUTS: Record<string, number> = {
-  '/api/autobrr/stats': 60000,      // 1 minute for autobrr stats
-  '/api/autobrr/irc': 300000,       // 5 minutes for autobrr IRC
-  '/api/autobrr/releases': 60000,   // 1 minute for autobrr releases
-  '/api/plex/sessions': 5000,       // 5 seconds for plex sessions
-  '/api/jellyfin': 30000,           // 30 seconds for jellyfin summary
-  '/api/uptimekuma': 30000,         // 30 seconds for uptime kuma summary
-  '/api/maintainerr': 600000,       // 10 minutes for maintainerr
-  '/api/overseerr': 30000,          // 30 seconds for overseerr
-  '/api/radarr': 60000,             // 1 minute for radarr
-  '/api/sonarr': 60000,             // 1 minute for sonarr
-  '/api/lidarr': 60000,             // 1 minute for lidarr
-  '/api/readarr': 60000,            // 1 minute for readarr
-  '/api/bazarr': 60000,             // 1 minute for bazarr
-  '/api/sabnzbd': 60000,            // 1 minute for sabnzbd
-  '/api/nzbget': 60000,             // 1 minute for nzbget
-  '/api/prowlarr': 60000,           // 1 minute for prowlarr
-  '/api/traefik': 30000,            // 30 seconds for traefik
-  '/api/health': 600000,            // 10 minutes for health checks
-};
+const DEFAULT_TIMEOUT_MS = 8000;
+const HEALTH_CHECK_TIMEOUT_MS = 12000;
 
 const getDefaultHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
@@ -46,20 +27,11 @@ const createRequest = (method: string, data?: unknown): RequestInit => {
 };
 
 const getTimeoutForPath = (path: string): number => {
-  // Check for exact matches first
-  if (SERVICE_TIMEOUTS[path]) {
-    return SERVICE_TIMEOUTS[path];
+  const apiPath = path.startsWith("/api") ? path : `/api${path}`;
+  if (apiPath.startsWith("/api/health/")) {
+    return HEALTH_CHECK_TIMEOUT_MS;
   }
-
-  // Check for partial matches
-  for (const [key, timeout] of Object.entries(SERVICE_TIMEOUTS)) {
-    if (path.includes(key)) {
-      return timeout;
-    }
-  }
-
-  // Default timeout of 8 seconds
-  return 8000;
+  return DEFAULT_TIMEOUT_MS;
 };
 
 // Utility to unregister service worker
@@ -96,7 +68,7 @@ const handleRequest = async <T>(
   retryCount = 0,
   customTimeout?: number
 ): Promise<T> => {
-  const timeout = customTimeout || getTimeoutForPath(path);
+  const timeout = customTimeout ?? getTimeoutForPath(path);
   
   try {
     const apiPath = path.startsWith('/api') ? path : `/api${path}`;
@@ -110,8 +82,12 @@ const handleRequest = async <T>(
       signal: controller.signal,
     };
 
-    const response = await fetch(url, requestOptions);
-    clearTimeout(timeoutId);
+    let response: Response;
+    try {
+      response = await fetch(url, requestOptions);
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.status === 401) {
       // Prevent multiple auth handlers from running simultaneously
