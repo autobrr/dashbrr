@@ -7,6 +7,7 @@ import (
 	// Import all services to register their init functions
 
 	_ "github.com/autobrr/dashbrr/internal/services/autobrr"
+	_ "github.com/autobrr/dashbrr/internal/services/bazarr"
 	_ "github.com/autobrr/dashbrr/internal/services/general"
 	_ "github.com/autobrr/dashbrr/internal/services/lidarr"
 	_ "github.com/autobrr/dashbrr/internal/services/maintainerr"

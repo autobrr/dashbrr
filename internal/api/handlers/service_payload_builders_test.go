@@ -155,3 +155,56 @@ func TestBuildReadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("totalSize = %v, want 100", got)
 	}
 }
+
+func TestBuildBazarrSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
+	summary := &types.BazarrSummaryResponse{
+		Badges: types.BazarrBadges{
+			Episodes:      5,
+			Movies:        3,
+			Status:        1,
+			SonarrSignalR: "LIVE",
+			RadarrSignalR: "",
+		},
+		Providers: []types.BazarrProviderStatus{
+			{Name: "opensubtitles", Status: "Throttle", Retry: "10m"},
+		},
+		HealthIssues: []types.BazarrHealthIssue{
+			{Object: "Series Root", Issue: "Path not accessible"},
+			{Object: "Languages", Issue: "Missing profile"},
+		},
+	}
+
+	health := buildBazarrSummaryServiceUpdate("bazarr-1", summary)
+	if health.Message != "bazarr_summary" {
+		t.Fatalf("message = %q, want bazarr_summary", health.Message)
+	}
+	if health.Status != "warning" {
+		t.Fatalf("status = %q, want warning", health.Status)
+	}
+
+	stats, ok := health.Stats["bazarr"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected bazarr stats object")
+	}
+	gotSummary, ok := stats["summary"].(*types.BazarrSummaryResponse)
+	if !ok {
+		t.Fatalf("expected summary payload pointer")
+	}
+	if gotSummary.Badges.Episodes != 5 {
+		t.Fatalf("badges.episodes = %d, want 5", gotSummary.Badges.Episodes)
+	}
+
+	details, ok := health.Details["bazarr"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected bazarr details object")
+	}
+	if got := details["episodeBacklog"]; got != 5 {
+		t.Fatalf("episodeBacklog = %v, want 5", got)
+	}
+	if got := details["providersWithIssues"]; got != 1 {
+		t.Fatalf("providersWithIssues = %v, want 1", got)
+	}
+	if got := details["healthIssues"]; got != 2 {
+		t.Fatalf("healthIssues = %v, want 2", got)
+	}
+}

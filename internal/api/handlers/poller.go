@@ -16,6 +16,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
+	"github.com/autobrr/dashbrr/internal/services/bazarr"
 	"github.com/autobrr/dashbrr/internal/services/lidarr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
@@ -127,6 +128,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 			{name: "autobrr_stats", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runAutobrrStats},
 			{name: "autobrr_irc_status", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runAutobrrIRC},
 			{name: "autobrr_releases", interval: 120 * time.Second, timeout: pollerLongJobTimeout, run: (*Poller).runAutobrrReleases},
+		},
+		"bazarr": {
+			{name: "bazarr_summary", interval: 90 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runBazarrSummary},
 		},
 		"maintainerr": {
 			{name: "maintainerr_collections", interval: 10 * time.Minute, timeout: pollerLongJobTimeout, run: (*Poller).runMaintainerrCollections},
@@ -817,6 +821,17 @@ func (p *Poller) runAutobrrReleases(ctx context.Context, svc models.ServiceConfi
 	}
 
 	publishInternalServiceUpdate(p.bc, buildAutobrrReleasesServiceUpdate(svc.InstanceID, releases))
+	return nil
+}
+
+func (p *Poller) runBazarrSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := bazarr.NewBazarrService().(*bazarr.BazarrService)
+	summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildBazarrSummaryServiceUpdate(svc.InstanceID, &summary))
 	return nil
 }
 

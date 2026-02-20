@@ -118,6 +118,7 @@ export const ConfigurationForm = ({
       case "sonarr":
       case "lidarr":
       case "readarr":
+      case "bazarr":
       case "prowlarr":
         return "API Key";
       case "overseerr":
@@ -151,6 +152,7 @@ export const ConfigurationForm = ({
       case "sonarr":
       case "lidarr":
       case "readarr":
+      case "bazarr":
       case "prowlarr":
         return {
           prefix: "Found in ",
@@ -184,6 +186,8 @@ export const ConfigurationForm = ({
         return "http://localhost:32400";
       case "qui":
         return "http://localhost:7476";
+      case "bazarr":
+        return "http://localhost:6767";
       case "general":
         return "Enter full URL including health endpoint";
       default:

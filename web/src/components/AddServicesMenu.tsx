@@ -54,6 +54,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   sonarr: "MEDIA_MANAGEMENT",
   lidarr: "MEDIA_MANAGEMENT",
   readarr: "MEDIA_MANAGEMENT",
+  bazarr: "MEDIA_MANAGEMENT",
   prowlarr: "MEDIA_MANAGEMENT",
   plex: "MEDIA_SERVER",
   overseerr: "REQUESTS",
@@ -86,6 +87,7 @@ const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
 const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   plex: "http://localhost:32400",
   qui: "http://localhost:7476",
+  bazarr: "http://localhost:6767",
   general: "Enter full URL including health endpoint",
   tailscale: "https://api.tailscale.com",
 };
@@ -114,6 +116,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     link: getSettingsUrl("/settings/general"),
   }),
   readarr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > General",
+    link: getSettingsUrl("/settings/general"),
+  }),
+  bazarr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",
     text: "Settings > General",
     link: getSettingsUrl("/settings/general"),

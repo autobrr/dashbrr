@@ -49,6 +49,7 @@ type ServiceHealthChecker interface {
 // Service creation function types
 var (
 	NewAutobrrService     func() ServiceHealthChecker
+	NewBazarrService      func() ServiceHealthChecker
 	NewRadarrService      func() ServiceHealthChecker
 	NewSonarrService      func() ServiceHealthChecker
 	NewLidarrService      func() ServiceHealthChecker

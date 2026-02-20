@@ -11,6 +11,7 @@ export type ServiceType =
   | 'sonarr'
   | 'lidarr'
   | 'readarr'
+  | 'bazarr'
   | 'prowlarr'
   | 'overseerr'
   | 'plex'
@@ -472,6 +473,34 @@ export interface ReadarrQueue {
   records: ReadarrQueueItem[];
 }
 
+// Bazarr Types
+export interface BazarrBadges {
+  episodes: number;
+  movies: number;
+  providers: number;
+  status: number;
+  sonarr_signalr: string;
+  radarr_signalr: string;
+  announcements: number;
+}
+
+export interface BazarrProviderStatus {
+  name: string;
+  status: string;
+  retry: string;
+}
+
+export interface BazarrHealthIssue {
+  object: string;
+  issue: string;
+}
+
+export interface BazarrSummary {
+  badges: BazarrBadges;
+  providers: BazarrProviderStatus[];
+  healthIssues: BazarrHealthIssue[];
+}
+
 // Prowlarr Types
 export interface ProwlarrIndexer {
   id: number;
@@ -606,6 +635,9 @@ export interface ServiceStats {
   readarr?: {
     queue: ReadarrQueue;
   };
+  bazarr?: {
+    summary: BazarrSummary;
+  };
   prowlarr?: {
     stats: ProwlarrStats;
     indexers: ProwlarrIndexer[];
@@ -669,6 +701,14 @@ export interface ServiceDetails {
     totalRecords?: number;
     downloadingCount?: number;
     totalSize?: number;
+  };
+  bazarr?: {
+    episodeBacklog: number;
+    movieBacklog: number;
+    providersWithIssues: number;
+    healthIssues: number;
+    sonarrSignalR?: string;
+    radarrSignalR?: string;
   };
   prowlarr?: {
     activeIndexers: number;

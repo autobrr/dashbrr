@@ -19,6 +19,7 @@ var canonicalServiceMessageKeys = []string{
 	"sonarr_stats",
 	"prowlarr_stats",
 	"prowlarr_indexers",
+	"bazarr_summary",
 	"autobrr_stats",
 	"autobrr_releases",
 	"autobrr_irc_status",

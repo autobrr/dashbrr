@@ -138,6 +138,7 @@ func (s *Server) Handler() http.Handler {
 	lidarrHandler := handlers.NewLidarrHandler(s.db, s.cache, bc)
 	readarrHandler := handlers.NewReadarrHandler(s.db, s.cache, bc)
 	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
+	bazarrHandler := handlers.NewBazarrHandler(s.db, s.cache, bc)
 	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
 	// Initialize auth handlers and middleware
@@ -310,6 +311,12 @@ func (s *Server) Handler() http.Handler {
 				{
 					prowlarr.GET("/stats", prowlarrHandler.GetStats)
 					prowlarr.GET("/indexers", prowlarrHandler.GetIndexers)
+				}
+
+				// Bazarr endpoints
+				bazarr := regularServices.Group("/bazarr")
+				{
+					bazarr.GET("/summary", bazarrHandler.GetSummary)
 				}
 			}
 

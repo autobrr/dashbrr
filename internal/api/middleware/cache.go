@@ -38,6 +38,7 @@ var CacheDurations = struct {
 	LidarrStatus      time.Duration
 	ReadarrStatus     time.Duration
 	ProwlarrStatus    time.Duration
+	BazarrStatus      time.Duration
 }{
 	Default:           30 * time.Second,
 	HealthCheck:       10 * time.Minute,
@@ -53,6 +54,7 @@ var CacheDurations = struct {
 	LidarrStatus:      1 * time.Minute,
 	ReadarrStatus:     1 * time.Minute,
 	ProwlarrStatus:    1 * time.Minute,
+	BazarrStatus:      1 * time.Minute,
 }
 
 type CacheMiddleware struct {
@@ -176,6 +178,8 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 		return CacheDurations.ReadarrStatus
 	case strings.Contains(path, "/prowlarr"):
 		return CacheDurations.ProwlarrStatus
+	case strings.Contains(path, "/bazarr"):
+		return CacheDurations.BazarrStatus
 	default:
 		return CacheDurations.Default
 	}

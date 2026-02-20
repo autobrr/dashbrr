@@ -56,6 +56,9 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
       return (service.stats?.lidarr?.queue?.totalRecords ?? 0) > 0;
     case "readarr":
       return (service.stats?.readarr?.queue?.totalRecords ?? 0) > 0;
+    case "bazarr":
+      // Bazarr cards always render summary tiles.
+      return true;
     case "prowlarr":
       return (service.stats?.prowlarr?.indexers?.length ?? 0) > 0;
     case "overseerr":

@@ -196,6 +196,41 @@ func buildProwlarrIndexersServiceUpdate(instanceID string, indexers []types.Prow
 	}
 }
 
+func buildBazarrSummaryServiceUpdate(instanceID string, summary *types.BazarrSummaryResponse) models.ServiceHealth {
+	if summary == nil {
+		summary = &types.BazarrSummaryResponse{
+			Providers:    []types.BazarrProviderStatus{},
+			HealthIssues: []types.BazarrHealthIssue{},
+		}
+	}
+
+	status := "online"
+	if len(summary.HealthIssues) > 0 || len(summary.Providers) > 0 || summary.Badges.Status > 0 {
+		status = "warning"
+	}
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    status,
+		Message:   "bazarr_summary",
+		Stats: map[string]interface{}{
+			"bazarr": map[string]interface{}{
+				"summary": summary,
+			},
+		},
+		Details: map[string]interface{}{
+			"bazarr": map[string]interface{}{
+				"episodeBacklog":      summary.Badges.Episodes,
+				"movieBacklog":        summary.Badges.Movies,
+				"providersWithIssues": len(summary.Providers),
+				"healthIssues":        len(summary.HealthIssues),
+				"sonarrSignalR":       summary.Badges.SonarrSignalR,
+				"radarrSignalR":       summary.Badges.RadarrSignalR,
+			},
+		},
+	}
+}
+
 func buildAutobrrStatsServiceUpdate(instanceID string, stats types.AutobrrStats) models.ServiceHealth {
 	return models.ServiceHealth{
 		ServiceID: instanceID,
