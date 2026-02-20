@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -71,16 +70,17 @@ func (h *RadarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	// Add hash-based change detection
-	h.compareAndLogQueueChanges(instanceId, &result)
+	compareAndLogArrQueueChanges(
+		h.lastQueueHash,
+		&h.lastQueueHashMu,
+		"Radarr",
+		instanceId,
+		result.TotalRecords,
+		wrapRadarrQueue(&result),
+	)
 
 	if result.Records != nil {
-		// Broadcast queue update via SSE
-		h.broadcastRadarrQueue(instanceId, &result)
-	} else {
-		log.Debug().
-			Str("instanceId", instanceId).
-			Msg("[Radarr] Retrieved empty queue")
+		publishInternalServiceUpdate(h.bc, buildRadarrQueueServiceUpdate(instanceId, &result))
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -106,32 +106,6 @@ func (h *RadarrHandler) fetchQueue(ctx context.Context, instanceId string) (type
 		Records:      records,
 		TotalRecords: len(records),
 	}, nil
-}
-
-// compareAndLogQueueChanges tracks and logs changes in Radarr queue
-func (h *RadarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.RadarrQueueResponse) {
-	h.lastQueueHashMu.Lock()
-	defer h.lastQueueHashMu.Unlock()
-
-	wrapped := wrapRadarrQueue(queueResp)
-	currentHash := generateQueueHash(wrapped)
-	lastHash := h.lastQueueHash[instanceId]
-
-	if currentHash != lastHash {
-		changes := detectQueueChanges(lastHash, currentHash)
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Str("change", changes).
-			Msg("[Radarr] Queue changed")
-
-		h.lastQueueHash[instanceId] = currentHash
-	}
-}
-
-// broadcastRadarrQueue broadcasts Radarr queue updates to all connected SSE clients
-func (h *RadarrHandler) broadcastRadarrQueue(instanceId string, queueResp *types.RadarrQueueResponse) {
-	publishInternalServiceUpdate(h.bc, buildRadarrQueueServiceUpdate(instanceId, queueResp))
 }
 
 // DeleteQueueItem handles the deletion of a queue item with specified options
@@ -177,7 +151,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 			return h.fetchQueue(ctx, instanceId)
 		},
 		func(result *types.RadarrQueueResponse) {
-			h.broadcastRadarrQueue(instanceId, result)
+			publishInternalServiceUpdate(h.bc, buildRadarrQueueServiceUpdate(instanceId, result))
 		},
 		"Radarr",
 		instanceId,

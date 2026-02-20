@@ -13,10 +13,6 @@ import { UptimeKumaStats } from "./uptimekuma/UptimeKumaStats";
 import { OverseerrStats } from "./overseerr/OverseerrStats";
 import { AutobrrStats } from "./autobrr/AutobrrStats";
 import { MaintainerrService } from "./maintainerr/MaintainerrService";
-import { SonarrStats } from "./sonarr/SonarrStats";
-import { RadarrStats } from "./radarr/RadarrStats";
-import { LidarrStats } from "./lidarr/LidarrStats";
-import { ReadarrStats } from "./readarr/ReadarrStats";
 import { BazarrStats } from "./bazarr/BazarrStats";
 import { SabnzbdStats } from "./sabnzbd/SabnzbdStats";
 import { NzbgetStats } from "./nzbget/NzbgetStats";
@@ -24,6 +20,7 @@ import { ProwlarrStats } from "./prowlarr/ProwlarrStats";
 import { TraefikStats } from "./traefik/TraefikStats";
 import { QuiStats } from "./qui/QuiStats";
 import { GeneralStats } from "./general/GeneralStats";
+import { ArrQueueStats } from "./common/ArrQueueStats";
 import AnimatedModal from "../ui/AnimatedModal";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon } from "@heroicons/react/24/outline";
@@ -86,10 +83,18 @@ const SERVICE_STATS_RENDERERS: Partial<
         <MaintainerrService instanceId={instanceId} />
       </div>
     ) : null,
-  sonarr: (instanceId) => <SonarrStats instanceId={instanceId} />,
-  radarr: (instanceId) => <RadarrStats instanceId={instanceId} />,
-  lidarr: (instanceId) => <LidarrStats instanceId={instanceId} />,
-  readarr: (instanceId) => <ReadarrStats instanceId={instanceId} />,
+  sonarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="sonarr" />
+  ),
+  radarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="radarr" />
+  ),
+  lidarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="lidarr" />
+  ),
+  readarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="readarr" />
+  ),
   bazarr: (instanceId) => <BazarrStats instanceId={instanceId} />,
   sabnzbd: (instanceId) => <SabnzbdStats instanceId={instanceId} />,
   nzbget: (instanceId) => <NzbgetStats instanceId={instanceId} />,

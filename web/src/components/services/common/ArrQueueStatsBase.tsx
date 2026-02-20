@@ -28,7 +28,7 @@ import {
   getRemovalMethodText,
 } from "./ArrQueueDelete";
 
-type ArrQueueRecord = {
+export type ArrQueueRecord = {
   id: number;
   title: string;
   protocol: string;

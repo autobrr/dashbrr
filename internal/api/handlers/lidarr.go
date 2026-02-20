@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -70,9 +69,16 @@ func (h *LidarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	h.compareAndLogQueueChanges(instanceID, &result)
+	compareAndLogArrQueueChanges(
+		h.lastQueueHash,
+		&h.lastQueueHashMu,
+		"Lidarr",
+		instanceID,
+		result.TotalRecords,
+		wrapLidarrQueue(&result),
+	)
 	if result.Records != nil {
-		h.broadcastLidarrQueue(instanceID, &result)
+		publishInternalServiceUpdate(h.bc, buildLidarrQueueServiceUpdate(instanceID, &result))
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -94,30 +100,6 @@ func (h *LidarrHandler) fetchQueue(ctx context.Context, instanceID string) (type
 		Records:      records,
 		TotalRecords: len(records),
 	}, nil
-}
-
-func (h *LidarrHandler) compareAndLogQueueChanges(instanceID string, queueResp *types.LidarrQueueResponse) {
-	h.lastQueueHashMu.Lock()
-	defer h.lastQueueHashMu.Unlock()
-
-	wrapped := wrapLidarrQueue(queueResp)
-	currentHash := generateQueueHash(wrapped)
-	lastHash := h.lastQueueHash[instanceID]
-
-	if currentHash != lastHash {
-		changes := detectQueueChanges(lastHash, currentHash)
-		log.Debug().
-			Str("instanceId", instanceID).
-			Int("totalRecords", queueResp.TotalRecords).
-			Str("change", changes).
-			Msg("[Lidarr] Queue changed")
-
-		h.lastQueueHash[instanceID] = currentHash
-	}
-}
-
-func (h *LidarrHandler) broadcastLidarrQueue(instanceID string, queueResp *types.LidarrQueueResponse) {
-	publishInternalServiceUpdate(h.bc, buildLidarrQueueServiceUpdate(instanceID, queueResp))
 }
 
 func (h *LidarrHandler) DeleteQueueItem(c *gin.Context) {
@@ -160,7 +142,7 @@ func (h *LidarrHandler) DeleteQueueItem(c *gin.Context) {
 			return h.fetchQueue(ctx, instanceID)
 		},
 		func(result *types.LidarrQueueResponse) {
-			h.broadcastLidarrQueue(instanceID, result)
+			publishInternalServiceUpdate(h.bc, buildLidarrQueueServiceUpdate(instanceID, result))
 		},
 		"Lidarr",
 		instanceID,

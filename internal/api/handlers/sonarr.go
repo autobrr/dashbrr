@@ -86,12 +86,15 @@ func (h *SonarrHandler) GetQueue(c *gin.Context) {
 			Str("instanceId", instanceId).
 			Int("totalRecords", result.TotalRecords).
 			Msg("[Sonarr] Queue retrieved with records")
-
-		// Add hash-based change detection
-		h.compareAndLogQueueChanges(instanceId, &result)
-
-		// Broadcast queue update via SSE
-		h.broadcastSonarrQueue(instanceId, &result)
+		compareAndLogArrQueueChanges(
+			h.lastQueueHash,
+			&h.lastQueueHashMu,
+			"Sonarr",
+			instanceId,
+			result.TotalRecords,
+			wrapSonarrQueue(&result),
+		)
+		publishInternalServiceUpdate(h.bc, buildSonarrQueueServiceUpdate(instanceId, &result))
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -157,11 +160,9 @@ func (h *SonarrHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	// Add hash-based change detection
 	h.compareAndLogStatsChanges(instanceId, &result.Stats)
 
-	// Broadcast stats update via SSE
-	h.broadcastSonarrStats(instanceId, &result.Stats, result.Version)
+	publishInternalServiceUpdate(h.bc, buildSonarrStatsServiceUpdate(instanceId, &result.Stats, result.Version))
 
 	c.JSON(http.StatusOK, gin.H{
 		"stats":   result.Stats,
@@ -244,7 +245,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 			return h.fetchQueue(ctx, instanceId)
 		},
 		func(result *types.SonarrQueueResponse) {
-			h.broadcastSonarrQueue(instanceId, result)
+			publishInternalServiceUpdate(h.bc, buildSonarrQueueServiceUpdate(instanceId, result))
 		},
 		"Sonarr",
 		instanceId,
@@ -267,26 +268,6 @@ func (h *SonarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId
 }
 
 // Helper methods for change detection
-func (h *SonarrHandler) compareAndLogQueueChanges(instanceId string, queueResp *types.SonarrQueueResponse) {
-	h.lastQueueHashMu.Lock()
-	defer h.lastQueueHashMu.Unlock()
-
-	wrapped := wrapSonarrQueue(queueResp)
-	currentHash := generateQueueHash(wrapped)
-	lastHash := h.lastQueueHash[instanceId]
-
-	if currentHash != lastHash {
-		changes := detectQueueChanges(lastHash, currentHash)
-		log.Debug().
-			Str("instanceId", instanceId).
-			Int("totalRecords", queueResp.TotalRecords).
-			Str("change", changes).
-			Msg("[Sonarr] Queue changed")
-
-		h.lastQueueHash[instanceId] = currentHash
-	}
-}
-
 func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *types.SonarrStatsResponse) {
 	h.lastStatsHashMu.Lock()
 	defer h.lastStatsHashMu.Unlock()
@@ -307,12 +288,4 @@ func (h *SonarrHandler) compareAndLogStatsChanges(instanceId string, stats *type
 
 		h.lastStatsHash[instanceId] = currentHash
 	}
-}
-
-func (h *SonarrHandler) broadcastSonarrQueue(instanceId string, queueResp *types.SonarrQueueResponse) {
-	publishInternalServiceUpdate(h.bc, buildSonarrQueueServiceUpdate(instanceId, queueResp))
-}
-
-func (h *SonarrHandler) broadcastSonarrStats(instanceId string, statsResp *types.SonarrStatsResponse, version string) {
-	publishInternalServiceUpdate(h.bc, buildSonarrStatsServiceUpdate(instanceId, statsResp, version))
 }

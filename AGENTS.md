@@ -8,6 +8,25 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-20
+- ARR DRY pass (backend + frontend)
+  - frontend:
+    - added shared `ArrQueueStats` wrapper (`web/src/components/services/common/ArrQueueStats.tsx`)
+    - removed four near-identical service wrappers:
+      - `web/src/components/services/sonarr/SonarrStats.tsx`
+      - `web/src/components/services/radarr/RadarrStats.tsx`
+      - `web/src/components/services/lidarr/LidarrStats.tsx`
+      - `web/src/components/services/readarr/ReadarrStats.tsx`
+    - `ServiceCard` now routes sonarr/radarr/lidarr/readarr through the shared component
+  - backend:
+    - added shared queue hash/log helper `compareAndLogArrQueueChanges` (`internal/api/handlers/arr_queue_hash.go`)
+    - sonarr/radarr/lidarr/readarr handlers now use shared helper; removed duplicated per-handler queue hash logging methods
+    - removed duplicated per-handler queue broadcast one-liners and inlined shared publish path
+  - verification:
+    - `pnpm -C web lint`
+    - `pnpm -C web typecheck`
+    - `pnpm -C web test`
+    - `pnpm -C web build`
+    - `go test ./...`
 - Web API client legacy timeout cleanup
   - removed dead per-service timeout map in `web/src/utils/api.ts` (old polling-era endpoints no longer used)
   - simplified timeout policy to:

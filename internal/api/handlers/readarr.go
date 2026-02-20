@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
@@ -70,9 +69,16 @@ func (h *ReadarrHandler) GetQueue(c *gin.Context) {
 		return
 	}
 
-	h.compareAndLogQueueChanges(instanceID, &result)
+	compareAndLogArrQueueChanges(
+		h.lastQueueHash,
+		&h.lastQueueHashMu,
+		"Readarr",
+		instanceID,
+		result.TotalRecords,
+		wrapReadarrQueue(&result),
+	)
 	if result.Records != nil {
-		h.broadcastReadarrQueue(instanceID, &result)
+		publishInternalServiceUpdate(h.bc, buildReadarrQueueServiceUpdate(instanceID, &result))
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -94,30 +100,6 @@ func (h *ReadarrHandler) fetchQueue(ctx context.Context, instanceID string) (typ
 		Records:      records,
 		TotalRecords: len(records),
 	}, nil
-}
-
-func (h *ReadarrHandler) compareAndLogQueueChanges(instanceID string, queueResp *types.ReadarrQueueResponse) {
-	h.lastQueueHashMu.Lock()
-	defer h.lastQueueHashMu.Unlock()
-
-	wrapped := wrapReadarrQueue(queueResp)
-	currentHash := generateQueueHash(wrapped)
-	lastHash := h.lastQueueHash[instanceID]
-
-	if currentHash != lastHash {
-		changes := detectQueueChanges(lastHash, currentHash)
-		log.Debug().
-			Str("instanceId", instanceID).
-			Int("totalRecords", queueResp.TotalRecords).
-			Str("change", changes).
-			Msg("[Readarr] Queue changed")
-
-		h.lastQueueHash[instanceID] = currentHash
-	}
-}
-
-func (h *ReadarrHandler) broadcastReadarrQueue(instanceID string, queueResp *types.ReadarrQueueResponse) {
-	publishInternalServiceUpdate(h.bc, buildReadarrQueueServiceUpdate(instanceID, queueResp))
 }
 
 func (h *ReadarrHandler) DeleteQueueItem(c *gin.Context) {
@@ -160,7 +142,7 @@ func (h *ReadarrHandler) DeleteQueueItem(c *gin.Context) {
 			return h.fetchQueue(ctx, instanceID)
 		},
 		func(result *types.ReadarrQueueResponse) {
-			h.broadcastReadarrQueue(instanceID, result)
+			publishInternalServiceUpdate(h.bc, buildReadarrQueueServiceUpdate(instanceID, result))
 		},
 		"Readarr",
 		instanceID,
