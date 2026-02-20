@@ -42,6 +42,10 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewUptimeKumaService != nil {
 			return NewUptimeKumaService()
 		}
+	case "traefik":
+		if NewTraefikService != nil {
+			return NewTraefikService()
+		}
 	case "radarr":
 		if NewRadarrService != nil {
 			return NewRadarrService()

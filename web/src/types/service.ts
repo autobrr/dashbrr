@@ -15,6 +15,7 @@ export type ServiceType =
   | 'sabnzbd'
   | 'nzbget'
   | 'prowlarr'
+  | 'traefik'
   | 'overseerr'
   | 'plex'
   | 'jellyfin'
@@ -605,6 +606,48 @@ export interface ProwlarrIndexerStats {
   numberOfFailedAuthQueries: number;
 }
 
+export interface TraefikSection {
+  total: number;
+  warnings: number;
+  errors: number;
+}
+
+export interface TraefikSchemeOverview {
+  routers?: TraefikSection;
+  services?: TraefikSection;
+  middlewares?: TraefikSection;
+}
+
+export interface TraefikFeatures {
+  tracing: string;
+  metrics: string;
+  accessLog: boolean;
+}
+
+export interface TraefikOverview {
+  http: TraefikSchemeOverview;
+  tcp: TraefikSchemeOverview;
+  udp: TraefikSchemeOverview;
+  features?: TraefikFeatures;
+  providers?: string[];
+}
+
+export interface TraefikRouter {
+  name: string;
+  provider: string;
+  status: string;
+  rule: string;
+  service: string;
+  entryPoints?: string[];
+  middlewares?: string[];
+  using?: string[];
+}
+
+export interface TraefikSummary {
+  overview: TraefikOverview;
+  issueRouters: TraefikRouter[];
+}
+
 export interface SabnzbdQueueSlot {
   nzo_id: string;
   filename: string;
@@ -835,6 +878,9 @@ export interface ServiceStats {
       indexers: ProwlarrIndexerStats[];
     };
   };
+  traefik?: {
+    summary: TraefikSummary;
+  };
   tailscale?: {
     devices: TailscaleDevice[];
   };
@@ -939,6 +985,22 @@ export interface ServiceDetails {
   prowlarr?: {
     activeIndexers: number;
     totalGrabs: number;
+  };
+  traefik?: {
+    routerTotal: number;
+    routerWarnings: number;
+    routerErrors: number;
+    serviceTotal: number;
+    serviceWarnings: number;
+    serviceErrors: number;
+    middlewareTotal: number;
+    middlewareWarnings: number;
+    middlewareErrors: number;
+    providers: number;
+    issueRouters: number;
+    metrics?: string;
+    tracing?: string;
+    accessLog?: boolean;
   };
   tailscale?: {
     total: number;

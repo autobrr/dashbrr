@@ -58,6 +58,7 @@ var (
 	NewNzbgetService      func() ServiceHealthChecker
 	NewJellyfinService    func() ServiceHealthChecker
 	NewUptimeKumaService  func() ServiceHealthChecker
+	NewTraefikService     func() ServiceHealthChecker
 	NewProwlarrService    func() ServiceHealthChecker
 	NewOverseerrService   func() ServiceHealthChecker
 	NewPlexService        func() ServiceHealthChecker

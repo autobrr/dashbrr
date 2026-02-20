@@ -23,6 +23,7 @@ const SERVICE_TIMEOUTS: Record<string, number> = {
   '/api/sabnzbd': 60000,            // 1 minute for sabnzbd
   '/api/nzbget': 60000,             // 1 minute for nzbget
   '/api/prowlarr': 60000,           // 1 minute for prowlarr
+  '/api/traefik': 30000,            // 30 seconds for traefik
   '/api/health': 600000,            // 10 minutes for health checks
 };
 

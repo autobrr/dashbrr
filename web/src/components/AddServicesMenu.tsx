@@ -58,6 +58,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   sabnzbd: "MEDIA_MANAGEMENT",
   nzbget: "MEDIA_MANAGEMENT",
   prowlarr: "MEDIA_MANAGEMENT",
+  traefik: "MONITORING",
   plex: "MEDIA_SERVER",
   jellyfin: "MEDIA_SERVER",
   uptimekuma: "MONITORING",
@@ -87,6 +88,7 @@ type ApiHelpContext = {
 const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
   tailscale: "API Token",
   nzbget: "Control Password",
+  traefik: "Auth Token (Optional)",
 };
 
 const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
@@ -94,6 +96,7 @@ const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   jellyfin: "http://localhost:8096",
   uptimekuma: "http://localhost:3001",
   qui: "http://localhost:7476",
+  traefik: "http://localhost:8080",
   bazarr: "http://localhost:6767",
   sabnzbd: "http://localhost:8080",
   nzbget: "http://localhost:6789",
@@ -158,6 +161,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     prefix: "Found in ",
     text: "Settings > General",
     link: getSettingsUrl("/settings/general"),
+  }),
+  traefik: () => ({
+    prefix: "Optional - ",
+    text: "Bearer token or user:password for protected dashboard APIs",
+    link: null,
   }),
   overseerr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",
@@ -335,7 +343,8 @@ export function AddServicesMenu({
     return grouped;
   }, [availableTemplates, searchQuery]);
 
-  const isApiKeyRequired = pendingService?.type !== "general";
+  const isApiKeyRequired =
+    pendingService?.type !== "general" && pendingService?.type !== "traefik";
 
   // Clear search when menu closes
   const handleMenuClose = () => {

@@ -32,6 +32,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/sabnzbd"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
+	"github.com/autobrr/dashbrr/internal/services/traefik"
 	"github.com/autobrr/dashbrr/internal/services/uptimekuma"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -158,6 +159,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"qui": {
 			{name: "qui_overview", interval: 20 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runQuiOverview},
+		},
+		"traefik": {
+			{name: "traefik_summary", interval: 30 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runTraefikSummary},
 		},
 	}
 
@@ -318,10 +322,10 @@ func isServiceConfigured(serviceType string, svc models.ServiceConfiguration) bo
 	if svc.URL == "" {
 		return false
 	}
-	if serviceType == "general" {
+	if !serviceRequiresAPIKey(serviceType) {
 		return true
 	}
-	if (serviceType == "nzbget" || serviceType == "uptimekuma") && svc.APIKey == "" {
+	if serviceAllowsURLCredentials(serviceType) && svc.APIKey == "" {
 		return urlHasUserCredentials(svc.URL)
 	}
 	return svc.APIKey != ""
@@ -952,5 +956,16 @@ func (p *Poller) runQuiOverview(ctx context.Context, svc models.ServiceConfigura
 	summary, transfers := service.GetAggregatedTransferInfo(ctx, svc.URL, svc.APIKey, instances)
 
 	publishInternalServiceUpdate(p.bc, buildQuiOverviewServiceUpdate(svc.InstanceID, instances, summary, transfers))
+	return nil
+}
+
+func (p *Poller) runTraefikSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := traefik.NewTraefikService().(*traefik.TraefikService)
+	summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildTraefikSummaryServiceUpdate(svc.InstanceID, &summary))
 	return nil
 }

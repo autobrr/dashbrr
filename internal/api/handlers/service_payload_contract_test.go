@@ -21,6 +21,7 @@ var canonicalServiceMessageKeys = []string{
 	"sonarr_stats",
 	"prowlarr_stats",
 	"prowlarr_indexers",
+	"traefik_summary",
 	"bazarr_summary",
 	"sabnzbd_summary",
 	"nzbget_summary",

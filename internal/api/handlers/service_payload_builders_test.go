@@ -132,6 +132,69 @@ func TestBuildUptimeKumaSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 	}
 }
 
+func TestBuildTraefikSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
+	summary := &types.TraefikSummaryResponse{
+		Overview: types.TraefikOverviewResponse{
+			HTTP: types.TraefikSchemeOverview{
+				Routers:     &types.TraefikSection{Total: 10, Warnings: 2, Errors: 1},
+				Services:    &types.TraefikSection{Total: 8, Warnings: 1, Errors: 0},
+				Middlewares: &types.TraefikSection{Total: 6, Warnings: 0, Errors: 1},
+			},
+			TCP: types.TraefikSchemeOverview{
+				Routers:     &types.TraefikSection{Total: 2, Warnings: 0, Errors: 0},
+				Services:    &types.TraefikSection{Total: 2, Warnings: 0, Errors: 0},
+				Middlewares: &types.TraefikSection{Total: 1, Warnings: 0, Errors: 0},
+			},
+			Features:  types.TraefikFeatures{Metrics: "Prometheus", Tracing: "jaeger", AccessLog: true},
+			Providers: []string{"Docker", "File"},
+		},
+		IssueRouters: []types.TraefikRouter{
+			{Name: "warn@docker", Status: "warning"},
+			{Name: "down@docker", Status: "disabled"},
+		},
+	}
+
+	health := buildTraefikSummaryServiceUpdate("traefik-1", summary)
+	if health.Message != "traefik_summary" {
+		t.Fatalf("message = %q, want traefik_summary", health.Message)
+	}
+	if health.Status != "warning" {
+		t.Fatalf("status = %q, want warning", health.Status)
+	}
+
+	stats, ok := health.Stats["traefik"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected traefik stats object")
+	}
+	gotSummary, ok := stats["summary"].(*types.TraefikSummaryResponse)
+	if !ok {
+		t.Fatalf("expected summary payload pointer")
+	}
+	if len(gotSummary.IssueRouters) != 2 {
+		t.Fatalf("issue routers = %d, want 2", len(gotSummary.IssueRouters))
+	}
+
+	details, ok := health.Details["traefik"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected traefik details object")
+	}
+	if got := details["routerTotal"]; got != 12 {
+		t.Fatalf("routerTotal = %v, want 12", got)
+	}
+	if got := details["routerWarnings"]; got != 2 {
+		t.Fatalf("routerWarnings = %v, want 2", got)
+	}
+	if got := details["routerErrors"]; got != 1 {
+		t.Fatalf("routerErrors = %v, want 1", got)
+	}
+	if got := details["providers"]; got != 2 {
+		t.Fatalf("providers = %v, want 2", got)
+	}
+	if got := details["issueRouters"]; got != 2 {
+		t.Fatalf("issueRouters = %v, want 2", got)
+	}
+}
+
 func TestBuildAutobrrIRCServiceUpdate_Unhealthy(t *testing.T) {
 	health, eventType := buildAutobrrIRCServiceUpdate("autobrr-1", []types.IRCStatus{
 		{Name: "alpha", Healthy: false, Enabled: true},

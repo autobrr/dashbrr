@@ -59,6 +59,21 @@ func TestNewPoller_QuiJobsAreOverviewOnly(t *testing.T) {
 	}
 }
 
+func TestNewPoller_TraefikJobsAreSummaryOnly(t *testing.T) {
+	t.Parallel()
+
+	poller := NewPoller(nil, nil)
+	jobs := poller.jobs["traefik"]
+
+	if len(jobs) != 1 {
+		t.Fatalf("traefik job count = %d, want 1", len(jobs))
+	}
+
+	if jobs[0].name != "traefik_summary" {
+		t.Fatalf("traefik job[0] = %q, want %q", jobs[0].name, "traefik_summary")
+	}
+}
+
 func TestNewPoller_LidarrJobsAreQueueOnly(t *testing.T) {
 	t.Parallel()
 

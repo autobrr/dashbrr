@@ -75,6 +75,11 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
       return true;
     case "prowlarr":
       return (service.stats?.prowlarr?.indexers?.length ?? 0) > 0;
+    case "traefik":
+      return (
+        (service.details?.traefik?.routerTotal ?? 0) > 0 ||
+        (service.stats?.traefik?.summary?.issueRouters?.length ?? 0) > 0
+      );
     case "overseerr":
       return (service.stats?.overseerr?.requests?.length ?? 0) > 0;
     case "maintainerr":

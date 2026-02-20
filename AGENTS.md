@@ -2110,6 +2110,64 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web build`
 
 ## Next
-- Implement `Traefik` service support (router/service health + cert expiry).
 - Implement `Caddy` service support (cert + endpoint health visibility).
-- Keep `Tdarr` deferred per request.
+- Implement `Tdarr` service support (when un-deferred).
+
+### 2026-02-20 (Traefik integration: backend + frontend + poller + tests)
+- Synced upstream context first from `~/github/oss/traefik` for API parity.
+- Added full `Traefik` service support with summary-first design:
+  - service implementation: `internal/services/traefik/traefik.go`
+  - summary/version/router types: `internal/types/traefik.go`
+  - supports:
+    - `GET /api/version` (health + version cache)
+    - `GET /api/overview`
+    - `GET /api/http/routers?status=warning|disabled`
+  - auth handling:
+    - optional
+    - `Bearer <token>` or `user:password` basic-auth encoding.
+- API/handler wiring:
+  - new handler: `internal/api/handlers/traefik.go`
+  - new route in `internal/api/server.go`:
+    - `GET /api/traefik/summary`
+  - cache policy: `TraefikStatus` TTL + `/traefik` path routing in `internal/api/middleware/cache.go`.
+- Poller/SSE wiring:
+  - added detail job in `internal/api/handlers/poller.go`:
+    - `traefik_summary` (30s interval)
+  - payload builder in `internal/api/handlers/service_payload_builders.go`:
+    - `buildTraefikSummaryServiceUpdate`
+    - canonical message key: `traefik_summary`
+- Registry/commands wiring:
+  - service registry updated (`internal/models/service.go`, `internal/models/registry.go`)
+  - side-effect registration updated (`internal/services/services.go`)
+  - CLI command added: `internal/commands/service_traefik.go`
+  - command root updated: `internal/commands/service.go`
+- Shared requirement handling:
+  - added `internal/api/handlers/service_requirements.go` + tests
+  - centralized API-key required logic; `traefik` treated as URL-required/API-key-optional.
+- Frontend wiring:
+  - service type + payload typing: `web/src/types/service.ts`
+  - add/config modal support:
+    - `web/src/components/AddServicesMenu.tsx`
+    - `web/src/components/configuration/ConfigurationForm.tsx`
+  - service template: `web/src/config/serviceTemplates.ts`
+  - card renderer + component:
+    - `web/src/components/services/traefik/TraefikStats.tsx`
+    - `web/src/components/services/ServiceCard.tsx`
+  - card density + timeout + repo links:
+    - `web/src/utils/serviceCardContent.ts`
+    - `web/src/utils/api.ts`
+    - `web/src/config/repoUrls.ts`
+- Tests updated:
+  - `internal/services/traefik/traefik_test.go`
+  - `internal/api/handlers/poller_jobs_test.go`
+  - `internal/api/handlers/service_payload_builders_test.go`
+  - `internal/api/handlers/service_payload_contract_test.go`
+  - `internal/models/registry_test.go`
+  - `internal/api/handlers/service_requirements_test.go`
+- Full gate green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`

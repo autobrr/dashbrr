@@ -13,6 +13,7 @@ export const repoUrls: RepoUrls = {
   "maintainerr": "https://github.com/jorenn92/Maintainerr/releases/",
   "overseerr": "https://github.com/sct/overseerr/releases/",
   "prowlarr": "https://github.com/Prowlarr/Prowlarr/releases",
+  "traefik": "https://github.com/traefik/traefik/releases",
   "qui": "https://github.com/autobrr/qui/releases/",
   "sonarr": "https://github.com/Sonarr/Sonarr/releases",
   "radarr": "https://github.com/Radarr/Radarr/releases",

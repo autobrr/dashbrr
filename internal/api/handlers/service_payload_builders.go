@@ -105,6 +105,63 @@ func buildUptimeKumaSummaryServiceUpdate(instanceID string, summary *types.Uptim
 	}
 }
 
+func buildTraefikSummaryServiceUpdate(instanceID string, summary *types.TraefikSummaryResponse) models.ServiceHealth {
+	if summary == nil {
+		summary = &types.TraefikSummaryResponse{
+			IssueRouters: []types.TraefikRouter{},
+		}
+	}
+	if summary.IssueRouters == nil {
+		summary.IssueRouters = []types.TraefikRouter{}
+	}
+
+	routerTotal := sectionTotal(summary.Overview.HTTP.Routers) + sectionTotal(summary.Overview.TCP.Routers) + sectionTotal(summary.Overview.UDP.Routers)
+	routerWarnings := sectionWarnings(summary.Overview.HTTP.Routers) + sectionWarnings(summary.Overview.TCP.Routers) + sectionWarnings(summary.Overview.UDP.Routers)
+	routerErrors := sectionErrors(summary.Overview.HTTP.Routers) + sectionErrors(summary.Overview.TCP.Routers) + sectionErrors(summary.Overview.UDP.Routers)
+
+	serviceTotal := sectionTotal(summary.Overview.HTTP.Services) + sectionTotal(summary.Overview.TCP.Services) + sectionTotal(summary.Overview.UDP.Services)
+	serviceWarnings := sectionWarnings(summary.Overview.HTTP.Services) + sectionWarnings(summary.Overview.TCP.Services) + sectionWarnings(summary.Overview.UDP.Services)
+	serviceErrors := sectionErrors(summary.Overview.HTTP.Services) + sectionErrors(summary.Overview.TCP.Services) + sectionErrors(summary.Overview.UDP.Services)
+
+	middlewareTotal := sectionTotal(summary.Overview.HTTP.Middlewares) + sectionTotal(summary.Overview.TCP.Middlewares)
+	middlewareWarnings := sectionWarnings(summary.Overview.HTTP.Middlewares) + sectionWarnings(summary.Overview.TCP.Middlewares)
+	middlewareErrors := sectionErrors(summary.Overview.HTTP.Middlewares) + sectionErrors(summary.Overview.TCP.Middlewares)
+
+	status := "online"
+	if routerWarnings+routerErrors+serviceWarnings+serviceErrors+middlewareWarnings+middlewareErrors > 0 {
+		status = "warning"
+	}
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    status,
+		Message:   "traefik_summary",
+		Stats: map[string]interface{}{
+			"traefik": map[string]interface{}{
+				"summary": summary,
+			},
+		},
+		Details: map[string]interface{}{
+			"traefik": map[string]interface{}{
+				"routerTotal":        routerTotal,
+				"routerWarnings":     routerWarnings,
+				"routerErrors":       routerErrors,
+				"serviceTotal":       serviceTotal,
+				"serviceWarnings":    serviceWarnings,
+				"serviceErrors":      serviceErrors,
+				"middlewareTotal":    middlewareTotal,
+				"middlewareWarnings": middlewareWarnings,
+				"middlewareErrors":   middlewareErrors,
+				"providers":          len(summary.Overview.Providers),
+				"issueRouters":       len(summary.IssueRouters),
+				"metrics":            summary.Overview.Features.Metrics,
+				"tracing":            summary.Overview.Features.Tracing,
+				"accessLog":          summary.Overview.Features.AccessLog,
+			},
+		},
+	}
+}
+
 func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.RequestsStats) models.ServiceHealth {
 	serviceStatus := "online"
 	if stats.PendingCount > 0 {
@@ -128,6 +185,27 @@ func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.Request
 			},
 		},
 	}
+}
+
+func sectionTotal(section *types.TraefikSection) int {
+	if section == nil {
+		return 0
+	}
+	return section.Total
+}
+
+func sectionWarnings(section *types.TraefikSection) int {
+	if section == nil {
+		return 0
+	}
+	return section.Warnings
+}
+
+func sectionErrors(section *types.TraefikSection) int {
+	if section == nil {
+		return 0
+	}
+	return section.Errors
 }
 
 func countJellyfinTranscoding(sessions []types.JellyfinSession) int {

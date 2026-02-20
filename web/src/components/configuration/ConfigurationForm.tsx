@@ -28,6 +28,8 @@ export const ConfigurationForm = ({
   const hasExistingConfig = Boolean(currentConfig);
   const serviceType = instanceId.split("-")[0];
   const isPlexService = serviceType === "plex";
+  const requiresApiKey =
+    serviceType !== "general" && serviceType !== "traefik";
 
   const [url, setUrl] = useState(currentConfig?.url || "");
   const [accessUrl, setAccessUrl] = useState(currentConfig?.accessUrl || "");
@@ -129,6 +131,8 @@ export const ConfigurationForm = ({
         return "API Key";
       case "nzbget":
         return "Control Password";
+      case "traefik":
+        return "Auth Token (Optional)";
       default:
         return "API Key";
     }
@@ -195,6 +199,12 @@ export const ConfigurationForm = ({
           text: "Settings",
           link: getSettingsUrl("/settings/main"),
         };
+      case "traefik":
+        return {
+          prefix: "Optional - ",
+          text: "Bearer token or user:password for protected dashboard APIs",
+          link: null,
+        };
       case "qui":
         return {
           prefix: "Found in ",
@@ -222,6 +232,8 @@ export const ConfigurationForm = ({
         return "http://localhost:3001";
       case "bazarr":
         return "http://localhost:6767";
+      case "traefik":
+        return "http://localhost:8080";
       case "sabnzbd":
         return "http://localhost:8080";
       case "nzbget":
@@ -313,7 +325,7 @@ export const ConfigurationForm = ({
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={`Enter ${getApiKeyLabel()}`}
             helpText={apiKeyHelp}
-            required={!hasExistingConfig}
+            required={!hasExistingConfig && requiresApiKey}
             data-1p-ignore
           />
         ))}

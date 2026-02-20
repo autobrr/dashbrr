@@ -140,6 +140,7 @@ func (s *Server) Handler() http.Handler {
 	lidarrHandler := handlers.NewLidarrHandler(s.db, s.cache, bc)
 	readarrHandler := handlers.NewReadarrHandler(s.db, s.cache, bc)
 	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
+	traefikHandler := handlers.NewTraefikHandler(s.db, s.cache, bc)
 	bazarrHandler := handlers.NewBazarrHandler(s.db, s.cache, bc)
 	sabnzbdHandler := handlers.NewSabnzbdHandler(s.db, s.cache, bc)
 	nzbgetHandler := handlers.NewNzbgetHandler(s.db, s.cache, bc)
@@ -317,6 +318,12 @@ func (s *Server) Handler() http.Handler {
 				{
 					prowlarr.GET("/stats", prowlarrHandler.GetStats)
 					prowlarr.GET("/indexers", prowlarrHandler.GetIndexers)
+				}
+
+				// Traefik endpoints
+				traefik := regularServices.Group("/traefik")
+				{
+					traefik.GET("/summary", traefikHandler.GetSummary)
 				}
 
 				// Bazarr endpoints

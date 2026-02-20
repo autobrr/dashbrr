@@ -75,7 +75,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 
 		// API keys are write-only in settings payloads.
 		// If URL is provided without API key, reuse stored key for validation.
-		if serviceType != "general" && service.APIKey == "" {
+		if serviceRequiresAPIKey(serviceType) && service.APIKey == "" {
 			existing, findErr := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
 			if findErr != nil {
 				// Check for context cancellation
@@ -133,7 +133,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 
 	// For general service, API key is optional
 	// For other services, ensure API key is provided
-	if serviceType != "general" && service.APIKey == "" {
+	if serviceRequiresAPIKey(serviceType) && service.APIKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "API key is required for this service type",

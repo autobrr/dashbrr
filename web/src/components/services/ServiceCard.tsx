@@ -21,6 +21,7 @@ import { BazarrStats } from "./bazarr/BazarrStats";
 import { SabnzbdStats } from "./sabnzbd/SabnzbdStats";
 import { NzbgetStats } from "./nzbget/NzbgetStats";
 import { ProwlarrStats } from "./prowlarr/ProwlarrStats";
+import { TraefikStats } from "./traefik/TraefikStats";
 import { QuiStats } from "./qui/QuiStats";
 import { GeneralStats } from "./general/GeneralStats";
 import AnimatedModal from "../ui/AnimatedModal";
@@ -93,6 +94,7 @@ const SERVICE_STATS_RENDERERS: Partial<
   sabnzbd: (instanceId) => <SabnzbdStats instanceId={instanceId} />,
   nzbget: (instanceId) => <NzbgetStats instanceId={instanceId} />,
   prowlarr: (instanceId) => <ProwlarrStats instanceId={instanceId} />,
+  traefik: (instanceId) => <TraefikStats instanceId={instanceId} />,
   qui: (instanceId) => <QuiStats instanceId={instanceId} />,
   general: (instanceId) => <GeneralStats instanceId={instanceId} />,
 };
