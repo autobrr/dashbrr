@@ -82,6 +82,56 @@ func TestBuildJellyfinSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 	}
 }
 
+func TestBuildUptimeKumaSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
+	summary := &types.UptimeKumaSummaryResponse{
+		Monitors: []types.UptimeKumaMonitor{
+			{ID: "1", Name: "API", Status: "up", ResponseTimeMs: 32},
+			{ID: "2", Name: "DB", Status: "down"},
+			{ID: "3", Name: "Queue", Status: "pending"},
+		},
+	}
+
+	health := buildUptimeKumaSummaryServiceUpdate("uptimekuma-1", summary)
+	if health.Message != "uptimekuma_summary" {
+		t.Fatalf("message = %q, want uptimekuma_summary", health.Message)
+	}
+	if health.Status != "warning" {
+		t.Fatalf("status = %q, want warning", health.Status)
+	}
+
+	stats, ok := health.Stats["uptimekuma"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected uptimekuma stats object")
+	}
+	gotSummary, ok := stats["summary"].(*types.UptimeKumaSummaryResponse)
+	if !ok {
+		t.Fatalf("expected summary payload pointer")
+	}
+	if len(gotSummary.Monitors) != 3 {
+		t.Fatalf("summary monitor count = %d, want 3", len(gotSummary.Monitors))
+	}
+
+	details, ok := health.Details["uptimekuma"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected uptimekuma details object")
+	}
+	if got := details["total"]; got != 3 {
+		t.Fatalf("total = %v, want 3", got)
+	}
+	if got := details["up"]; got != 1 {
+		t.Fatalf("up = %v, want 1", got)
+	}
+	if got := details["down"]; got != 1 {
+		t.Fatalf("down = %v, want 1", got)
+	}
+	if got := details["pending"]; got != 1 {
+		t.Fatalf("pending = %v, want 1", got)
+	}
+	if got := details["issues"]; got != 2 {
+		t.Fatalf("issues = %v, want 2", got)
+	}
+}
+
 func TestBuildAutobrrIRCServiceUpdate_Unhealthy(t *testing.T) {
 	health, eventType := buildAutobrrIRCServiceUpdate("autobrr-1", []types.IRCStatus{
 		{Name: "alpha", Healthy: false, Enabled: true},

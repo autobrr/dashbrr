@@ -141,6 +141,26 @@ func TestCountJellyfinPaused(t *testing.T) {
 	}
 }
 
+func TestCountUptimeKumaStates(t *testing.T) {
+	t.Parallel()
+
+	monitors := []types.UptimeKumaMonitor{
+		{Status: "up"},
+		{Status: "up"},
+		{Status: "down"},
+		{Status: "pending"},
+		{Status: "maintenance"},
+	}
+
+	total, up, down, pending, maintenance := countUptimeKumaStates(monitors)
+	if total != 5 || up != 2 || down != 1 || pending != 1 || maintenance != 1 {
+		t.Fatalf(
+			"countUptimeKumaStates() = total:%d up:%d down:%d pending:%d maintenance:%d, want total:5 up:2 down:1 pending:1 maintenance:1",
+			total, up, down, pending, maintenance,
+		)
+	}
+}
+
 func TestSummarizeQuiCardStatus(t *testing.T) {
 	t.Parallel()
 

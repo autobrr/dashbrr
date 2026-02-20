@@ -125,6 +125,7 @@ export const ConfigurationForm = ({
       case "overseerr":
         return "API Key";
       case "jellyfin":
+      case "uptimekuma":
         return "API Key";
       case "nzbget":
         return "Control Password";
@@ -182,6 +183,12 @@ export const ConfigurationForm = ({
           text: "Dashboard > API Keys",
           link: getSettingsUrl("/web/index.html#!/apikeys.html"),
         };
+      case "uptimekuma":
+        return {
+          prefix: "Found in ",
+          text: "Settings > API Keys",
+          link: getSettingsUrl("/settings/api-keys"),
+        };
       case "overseerr":
         return {
           prefix: "Found in ",
@@ -211,6 +218,8 @@ export const ConfigurationForm = ({
         return "http://localhost:7476";
       case "jellyfin":
         return "http://localhost:8096";
+      case "uptimekuma":
+        return "http://localhost:3001";
       case "bazarr":
         return "http://localhost:6767";
       case "sabnzbd":

@@ -131,6 +131,7 @@ func (s *Server) Handler() http.Handler {
 	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache, bc)
 	plexHandler := handlers.NewPlexHandler(s.db, s.cache, bc)
 	jellyfinHandler := handlers.NewJellyfinHandler(s.db, s.cache, bc)
+	uptimeKumaHandler := handlers.NewUptimeKumaHandler(s.db, s.cache, bc)
 	plexAuthHandler := handlers.NewPlexAuthHandler()
 	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
 	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache, bc)
@@ -273,6 +274,7 @@ func (s *Server) Handler() http.Handler {
 				regularServices.GET("/autobrr/releases", autobrrHandler.GetAutobrrReleases)
 				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
 				regularServices.GET("/jellyfin/summary", jellyfinHandler.GetSummary)
+				regularServices.GET("/uptimekuma/summary", uptimeKumaHandler.GetSummary)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
 
 				// Overseerr endpoints

@@ -42,6 +42,7 @@ var CacheDurations = struct {
 	SabnzbdStatus     time.Duration
 	NzbgetStatus      time.Duration
 	JellyfinStatus    time.Duration
+	UptimeKumaStatus  time.Duration
 }{
 	Default:           30 * time.Second,
 	HealthCheck:       10 * time.Minute,
@@ -61,6 +62,7 @@ var CacheDurations = struct {
 	SabnzbdStatus:     1 * time.Minute,
 	NzbgetStatus:      1 * time.Minute,
 	JellyfinStatus:    15 * time.Second,
+	UptimeKumaStatus:  30 * time.Second,
 }
 
 type CacheMiddleware struct {
@@ -192,6 +194,8 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 		return CacheDurations.NzbgetStatus
 	case strings.Contains(path, "/jellyfin"):
 		return CacheDurations.JellyfinStatus
+	case strings.Contains(path, "/uptimekuma"):
+		return CacheDurations.UptimeKumaStatus
 	default:
 		return CacheDurations.Default
 	}

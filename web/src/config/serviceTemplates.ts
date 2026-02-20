@@ -115,6 +115,15 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "/api/health/jellyfin",
   },
   {
+    name: "Uptime Kuma",
+    displayName: "",
+    type: "uptimekuma",
+    status: "offline",
+    url: "",
+    accessUrl: "",
+    healthEndpoint: "/api/health/uptimekuma",
+  },
+  {
     name: "Tailscale",
     displayName: "",
     type: "tailscale",

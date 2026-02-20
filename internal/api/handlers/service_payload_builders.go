@@ -67,6 +67,44 @@ func buildJellyfinSummaryServiceUpdate(instanceID string, summary *types.Jellyfi
 	}
 }
 
+func buildUptimeKumaSummaryServiceUpdate(instanceID string, summary *types.UptimeKumaSummaryResponse) models.ServiceHealth {
+	if summary == nil {
+		summary = &types.UptimeKumaSummaryResponse{
+			Monitors: []types.UptimeKumaMonitor{},
+		}
+	}
+	if summary.Monitors == nil {
+		summary.Monitors = []types.UptimeKumaMonitor{}
+	}
+
+	total, up, down, pending, maintenance := countUptimeKumaStates(summary.Monitors)
+	status := "online"
+	if down > 0 || pending > 0 {
+		status = "warning"
+	}
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    status,
+		Message:   "uptimekuma_summary",
+		Stats: map[string]interface{}{
+			"uptimekuma": map[string]interface{}{
+				"summary": summary,
+			},
+		},
+		Details: map[string]interface{}{
+			"uptimekuma": map[string]interface{}{
+				"total":       total,
+				"up":          up,
+				"down":        down,
+				"pending":     pending,
+				"maintenance": maintenance,
+				"issues":      down + pending,
+			},
+		},
+	}
+}
+
 func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.RequestsStats) models.ServiceHealth {
 	serviceStatus := "online"
 	if stats.PendingCount > 0 {
@@ -110,6 +148,23 @@ func countJellyfinPaused(sessions []types.JellyfinSession) int {
 		}
 	}
 	return paused
+}
+
+func countUptimeKumaStates(monitors []types.UptimeKumaMonitor) (total, up, down, pending, maintenance int) {
+	total = len(monitors)
+	for _, monitor := range monitors {
+		switch monitor.Status {
+		case "up":
+			up++
+		case "down":
+			down++
+		case "pending":
+			pending++
+		case "maintenance":
+			maintenance++
+		}
+	}
+	return total, up, down, pending, maintenance
 }
 
 func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQueueResponse) models.ServiceHealth {

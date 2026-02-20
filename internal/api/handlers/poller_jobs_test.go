@@ -149,6 +149,21 @@ func TestNewPoller_JellyfinJobsAreSummaryOnly(t *testing.T) {
 	}
 }
 
+func TestNewPoller_UptimeKumaJobsAreSummaryOnly(t *testing.T) {
+	t.Parallel()
+
+	poller := NewPoller(nil, nil)
+	jobs := poller.jobs["uptimekuma"]
+
+	if len(jobs) != 1 {
+		t.Fatalf("uptimekuma job count = %d, want 1", len(jobs))
+	}
+
+	if jobs[0].name != "uptimekuma_summary" {
+		t.Fatalf("uptimekuma job[0] = %q, want %q", jobs[0].name, "uptimekuma_summary")
+	}
+}
+
 func TestEffectiveJobTimeout(t *testing.T) {
 	t.Parallel()
 

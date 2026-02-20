@@ -2057,8 +2057,59 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
 
+### 2026-02-20 (Uptime Kuma integration: backend + frontend + poller + tests)
+- Added full `Uptime Kuma` service support with summary-first design via Prometheus metrics:
+  - service implementation: `internal/services/uptimekuma/uptimekuma.go`
+  - summary/monitor types: `internal/types/uptimekuma.go`
+  - supports authenticated `GET /metrics` parsing (`monitor_status`, `monitor_response_time`).
+- Auth model:
+  - supports API key from config (preferred).
+  - supports URL basic-auth credentials fallback (`http://user:pass@host:3001`).
+- API/handler wiring:
+  - new handler: `internal/api/handlers/uptimekuma.go`
+  - new route in `internal/api/server.go`:
+    - `GET /api/uptimekuma/summary`
+  - cache policy: `UptimeKumaStatus` TTL + `/uptimekuma` path routing in `internal/api/middleware/cache.go`.
+- Poller/SSE wiring:
+  - added single details job in `internal/api/handlers/poller.go`:
+    - `uptimekuma_summary` (30s interval, atomic payload)
+  - new payload builder in `internal/api/handlers/service_payload_builders.go`:
+    - `buildUptimeKumaSummaryServiceUpdate`
+    - canonical message key: `uptimekuma_summary`
+- Registry/commands wiring:
+  - service registry updated (`internal/models/service.go`, `internal/models/registry.go`)
+  - side-effect registration updated (`internal/services/services.go`, `internal/commands/health.go`)
+  - CLI command added: `internal/commands/service_uptimekuma.go`
+  - command root updated: `internal/commands/service.go`
+- Frontend wiring:
+  - service type + payload typing: `web/src/types/service.ts`
+  - add-service modal/category/API-help + URL placeholder:
+    - `web/src/components/AddServicesMenu.tsx`
+    - `web/src/components/configuration/ConfigurationForm.tsx`
+  - service template: `web/src/config/serviceTemplates.ts`
+  - card renderer + component:
+    - `web/src/components/services/uptimekuma/UptimeKumaStats.tsx`
+    - `web/src/components/services/ServiceCard.tsx`
+  - card density + timeout + repo links:
+    - `web/src/utils/serviceCardContent.ts`
+    - `web/src/utils/api.ts`
+    - `web/src/config/repoUrls.ts`
+- Tests updated:
+  - `internal/services/uptimekuma/uptimekuma_test.go`
+  - `internal/api/handlers/poller_jobs_test.go`
+  - `internal/api/handlers/poller_stats_test.go`
+  - `internal/api/handlers/service_payload_builders_test.go`
+  - `internal/api/handlers/service_payload_contract_test.go`
+  - `internal/models/registry_test.go`
+- Full gate green:
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+  - `pnpm -C web test`
+  - `pnpm -C web test:browser`
+  - `pnpm -C web build`
+
 ## Next
-- Implement `Uptime Kuma` service support (monitor summary/incidents).
 - Implement `Traefik` service support (router/service health + cert expiry).
 - Implement `Caddy` service support (cert + endpoint health visibility).
 - Keep `Tdarr` deferred per request.

@@ -32,6 +32,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/sabnzbd"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
+	"github.com/autobrr/dashbrr/internal/services/uptimekuma"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -112,6 +113,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"jellyfin": {
 			{name: "jellyfin_summary", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runJellyfinSummary},
+		},
+		"uptimekuma": {
+			{name: "uptimekuma_summary", interval: 30 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runUptimeKumaSummary},
 		},
 		"overseerr": {
 			{name: "overseerr_requests", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runOverseerrRequests},
@@ -317,7 +321,7 @@ func isServiceConfigured(serviceType string, svc models.ServiceConfiguration) bo
 	if serviceType == "general" {
 		return true
 	}
-	if serviceType == "nzbget" && svc.APIKey == "" {
+	if (serviceType == "nzbget" || serviceType == "uptimekuma") && svc.APIKey == "" {
 		return urlHasUserCredentials(svc.URL)
 	}
 	return svc.APIKey != ""
@@ -684,6 +688,17 @@ func (p *Poller) runJellyfinSummary(ctx context.Context, svc models.ServiceConfi
 	}
 
 	publishInternalServiceUpdate(p.bc, buildJellyfinSummaryServiceUpdate(svc.InstanceID, &summary))
+	return nil
+}
+
+func (p *Poller) runUptimeKumaSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := uptimekuma.NewUptimeKumaService().(*uptimekuma.UptimeKumaService)
+	summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildUptimeKumaSummaryServiceUpdate(svc.InstanceID, &summary))
 	return nil
 }
 

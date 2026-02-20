@@ -37,6 +37,7 @@ func ServiceCommand() *cobra.Command {
 	command.AddCommand(ServiceBazarrCommand())
 	command.AddCommand(ServiceGeneralCommand())
 	command.AddCommand(ServiceJellyfinCommand())
+	command.AddCommand(ServiceUptimeKumaCommand())
 	command.AddCommand(ServiceLidarrCommand())
 	command.AddCommand(ServiceMaintainerrCommand())
 	command.AddCommand(ServiceOverseerrCommand())

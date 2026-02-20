@@ -57,6 +57,7 @@ var (
 	NewSabnzbdService     func() ServiceHealthChecker
 	NewNzbgetService      func() ServiceHealthChecker
 	NewJellyfinService    func() ServiceHealthChecker
+	NewUptimeKumaService  func() ServiceHealthChecker
 	NewProwlarrService    func() ServiceHealthChecker
 	NewOverseerrService   func() ServiceHealthChecker
 	NewPlexService        func() ServiceHealthChecker

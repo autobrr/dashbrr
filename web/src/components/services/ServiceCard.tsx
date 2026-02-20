@@ -9,6 +9,7 @@ import { ConfigurationForm } from "../configuration/ConfigurationForm";
 import { ServiceHeader } from "../ui/ServiceHeader";
 import { PlexStats } from "./plex/PlexStats";
 import { JellyfinStats } from "./jellyfin/JellyfinStats";
+import { UptimeKumaStats } from "./uptimekuma/UptimeKumaStats";
 import { OverseerrStats } from "./overseerr/OverseerrStats";
 import { AutobrrStats } from "./autobrr/AutobrrStats";
 import { MaintainerrService } from "./maintainerr/MaintainerrService";
@@ -77,6 +78,7 @@ const SERVICE_STATS_RENDERERS: Partial<
   overseerr: (instanceId) => <OverseerrStats instanceId={instanceId} />,
   plex: (instanceId) => <PlexStats instanceId={instanceId} />,
   jellyfin: (instanceId) => <JellyfinStats instanceId={instanceId} />,
+  uptimekuma: (instanceId) => <UptimeKumaStats instanceId={instanceId} />,
   maintainerr: (instanceId, url) =>
     url ? (
       <div className="bg-transparent">

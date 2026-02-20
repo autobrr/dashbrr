@@ -18,6 +18,7 @@ export type ServiceType =
   | 'overseerr'
   | 'plex'
   | 'jellyfin'
+  | 'uptimekuma'
   | 'tailscale'
   | 'maintainerr'
   | 'qui'
@@ -331,6 +332,20 @@ export interface JellyfinSession {
 export interface JellyfinSummary {
   system: JellyfinSystemInfo;
   sessions: JellyfinSession[];
+}
+
+// Uptime Kuma Types
+export interface UptimeKumaMonitor {
+  id: string;
+  name: string;
+  type?: string;
+  url?: string;
+  status: "up" | "down" | "pending" | "maintenance" | "unknown";
+  responseTimeMs?: number;
+}
+
+export interface UptimeKumaSummary {
+  monitors: UptimeKumaMonitor[];
 }
 
 // Overseerr Types
@@ -785,6 +800,9 @@ export interface ServiceStats {
   jellyfin?: {
     summary: JellyfinSummary;
   };
+  uptimekuma?: {
+    summary: UptimeKumaSummary;
+  };
   overseerr?: OverseerrStats;
   sonarr?: {
     queue: SonarrQueue;
@@ -842,6 +860,14 @@ export interface ServiceDetails {
     transcoding: number;
     paused: number;
     serverName?: string;
+  };
+  uptimekuma?: {
+    total: number;
+    up: number;
+    down: number;
+    pending: number;
+    maintenance: number;
+    issues: number;
   };
   maintainerr?: {
     activeCollections: number;

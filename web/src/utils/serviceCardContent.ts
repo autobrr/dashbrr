@@ -53,6 +53,9 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
         (service.details?.jellyfin?.activeStreams ?? 0) > 0 ||
         (service.stats?.jellyfin?.summary?.sessions?.length ?? 0) > 0
       );
+    case "uptimekuma":
+      // Uptime Kuma cards render persistent monitor stat tiles.
+      return true;
     case "sonarr":
       return (service.stats?.sonarr?.queue?.totalRecords ?? 0) > 0;
     case "radarr":

@@ -12,6 +12,7 @@ const SERVICE_TIMEOUTS: Record<string, number> = {
   '/api/autobrr/releases': 60000,   // 1 minute for autobrr releases
   '/api/plex/sessions': 5000,       // 5 seconds for plex sessions
   '/api/jellyfin': 30000,           // 30 seconds for jellyfin summary
+  '/api/uptimekuma': 30000,         // 30 seconds for uptime kuma summary
   '/api/maintainerr': 600000,       // 10 minutes for maintainerr
   '/api/overseerr': 30000,          // 30 seconds for overseerr
   '/api/radarr': 60000,             // 1 minute for radarr

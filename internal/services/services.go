@@ -22,4 +22,5 @@ import (
 	_ "github.com/autobrr/dashbrr/internal/services/sabnzbd"
 	_ "github.com/autobrr/dashbrr/internal/services/sonarr"
 	_ "github.com/autobrr/dashbrr/internal/services/tailscale"
+	_ "github.com/autobrr/dashbrr/internal/services/uptimekuma"
 )
