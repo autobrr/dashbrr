@@ -16,6 +16,9 @@ Owner: soup (s0up4200@pm.me)
     - `only-new-issues: false`
     - `args: --new-from-rev=HEAD~1`
   - result: backend lint remains incremental per pushed commit and avoids diff-API hard limit
+  - CI status after fallback:
+    - `Lint #22263181003`: success
+    - `build #22263181007`: success
 
 ### 2026-02-20
 - Dependency + security sweep (items #1 + #2)
