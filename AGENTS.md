@@ -13,6 +13,7 @@ Owner: soup (s0up4200@pm.me)
   - fix: `.github/workflows/lint.yml` backend lint step now uses:
     - `only-new-issues: false`
     - `args: --new-from-rev=HEAD~1`
+    - backend checkout pinned to `pull_request.head.sha` so `HEAD~1` references prior branch commit (not synthetic merge parent)
   - result: CI lint gates incremental commit delta; avoids PR diff API limit fallback
 
 ### 2026-02-20
