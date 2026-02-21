@@ -11,8 +11,8 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/sse"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/web"
 
@@ -24,16 +24,18 @@ type Server struct {
 	cfg        *config.Config
 	db         *database.DB
 	cache      cache.Store
-	healthSvc  *services.HealthService
+	hub        *sse.Hub
+	poller     *handlers.Poller
+	pollerStop context.CancelFunc
 	httpServer *http.Server
 }
 
-func NewServer(cfg *config.Config, db *database.DB, cache cache.Store, healthSvc *services.HealthService) *Server {
+func NewServer(cfg *config.Config, db *database.DB, cache cache.Store) *Server {
 	return &Server{
-		cfg:       cfg,
-		db:        db,
-		cache:     cache,
-		healthSvc: healthSvc,
+		cfg:   cfg,
+		db:    db,
+		cache: cache,
+		hub:   sse.NewHub(),
 	}
 }
 
@@ -50,10 +52,11 @@ func (s *Server) ListenAndServe() error {
 		Msg("Starting server")
 
 	s.httpServer = &http.Server{
-		Addr:         s.cfg.Server.ListenAddr,
-		Handler:      s.Handler(),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:        s.cfg.Server.ListenAddr,
+		Handler:     s.Handler(),
+		ReadTimeout: 15 * time.Second,
+		// Keep disabled to support long-lived streaming responses (SSE).
+		WriteTimeout: 0,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -62,6 +65,12 @@ func (s *Server) ListenAndServe() error {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	//s.cache.Close()
+	if s.pollerStop != nil {
+		s.pollerStop()
+	}
+	if s.hub != nil {
+		s.hub.Close()
+	}
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -85,7 +94,13 @@ func (s *Server) Handler() http.Handler {
 		log.Error().Err(err).Msg("Failed to set trusted proxies")
 	}
 
-	r.Use(middleware.SetupCORS())
+	r.Use(middleware.SetupCORS(
+		s.cfg.Server.CORSOrigins,
+		s.cfg.Server.CORSHeaders,
+		s.cfg.Server.CORSMethods,
+		time.Duration(s.cfg.Server.CORSMaxAgeH)*time.Hour,
+		s.cfg.Server.CORSCreds,
+	))
 
 	// Create rate limiters with different configurations
 	apiRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 60, "api:")       // 60 requests per minute for API
@@ -99,19 +114,37 @@ func (s *Server) Handler() http.Handler {
 	cacheMiddleware := middleware.NewCacheMiddleware(s.cache)
 
 	// Initialize handlers with cache
-	settingsHandler := handlers.NewSettingsHandler(s.db, s.healthSvc, s.cache)
+	bc := handlers.NewBroadcaster(s.hub)
+	// Background polling will publish SSE updates.
+	if s.poller == nil {
+		s.poller = handlers.NewPoller(s.db, bc)
+		pctx, cancel := context.WithCancel(context.Background())
+		s.pollerStop = cancel
+		s.poller.Start(pctx)
+	}
+
+	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache, s.poller)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
-	healthHandler := handlers.NewHealthHandler(s.db, s.healthSvc)
-	eventsHandler := handlers.NewEventsHandler(s.db, s.healthSvc)
-	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache)
-	omegabrrHandler := handlers.NewOmegabrrHandler(s.db, s.cache)
-	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache)
-	plexHandler := handlers.NewPlexHandler(s.db, s.cache)
+	healthHandler := handlers.NewHealthHandler(s.db)
+	eventsHandler := handlers.NewEventsHandler(s.hub, bc)
+	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, bc)
+	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache, bc)
+	plexHandler := handlers.NewPlexHandler(s.db, s.cache, bc)
+	jellyfinHandler := handlers.NewJellyfinHandler(s.db, s.cache, bc)
+	uptimeKumaHandler := handlers.NewUptimeKumaHandler(s.db, s.cache, bc)
+	plexAuthHandler := handlers.NewPlexAuthHandler()
 	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
-	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache)
-	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache)
-	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache)
-	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache)
+	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache, bc)
+	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache, bc)
+	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache, bc)
+	lidarrHandler := handlers.NewLidarrHandler(s.db, s.cache, bc)
+	readarrHandler := handlers.NewReadarrHandler(s.db, s.cache, bc)
+	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
+	traefikHandler := handlers.NewTraefikHandler(s.db, s.cache, bc)
+	bazarrHandler := handlers.NewBazarrHandler(s.db, s.cache, bc)
+	sabnzbdHandler := handlers.NewSabnzbdHandler(s.db, s.cache, bc)
+	nzbgetHandler := handlers.NewNzbgetHandler(s.db, s.cache, bc)
+	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
@@ -124,13 +157,10 @@ func (s *Server) Handler() http.Handler {
 			Issuer:       getEnvOrDefault("OIDC_ISSUER", ""),
 			ClientID:     getEnvOrDefault("OIDC_CLIENT_ID", ""),
 			ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),
-			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/callback"),
+			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/oidc/callback"),
 		}
 		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
 	}
-
-	// Start the health monitor
-	eventsHandler.StartHealthMonitor()
 
 	// Public routes (no auth required)
 	public := r.Group("")
@@ -146,10 +176,14 @@ func (s *Server) Handler() http.Handler {
 		// OIDC auth endpoints (only if OIDC is configured)
 		if oidcAuthHandler != nil {
 			public.GET("/api/auth/callback", oidcAuthHandler.Callback)
+			// Alias: keep callback under the OIDC path for consistency.
+			public.GET("/api/auth/oidc/callback", oidcAuthHandler.Callback)
 			oidcAuth := public.Group("/api/auth/oidc")
 			oidcAuth.Use(authRateLimiter.RateLimit())
 			{
 				oidcAuth.GET("/login", oidcAuthHandler.Login)
+				// Support top-level browser navigation (GET) and programmatic (POST).
+				oidcAuth.GET("/logout", oidcAuthHandler.Logout)
 				oidcAuth.POST("/logout", oidcAuthHandler.Logout)
 			}
 		}
@@ -174,7 +208,6 @@ func (s *Server) Handler() http.Handler {
 		if oidcAuthHandler != nil {
 			oidc := protectedAuth.Group("/oidc")
 			{
-				oidc.POST("/refresh", oidcAuthHandler.RefreshToken)
 				oidc.GET("/verify", oidcAuthHandler.VerifyToken)
 				oidc.GET("/userinfo", oidcAuthHandler.UserInfo)
 			}
@@ -194,13 +227,28 @@ func (s *Server) Handler() http.Handler {
 			settings.DELETE("/:instance", settingsHandler.DeleteSettings)
 		}
 
-		// Health check endpoints (no cache for SSE)
+		uiPreferences := api.Group("/ui/preferences")
+		{
+			uiPreferences.GET("/collapse", uiPreferencesHandler.GetCollapsePreferences)
+			uiPreferences.PUT("/collapse", uiPreferencesHandler.UpsertCollapsePreference)
+		}
+
+		plexAuth := api.Group("/plex/auth")
+		plexAuth.Use(apiRateLimiter.RateLimit())
+		{
+			plexAuth.POST("/pin", plexAuthHandler.CreatePIN)
+			plexAuth.GET("/pin/:pinId", plexAuthHandler.GetPIN)
+		}
+
+		// Health check endpoints
 		health := api.Group("/health")
 		health.Use(healthRateLimiter.RateLimit())
 		{
 			health.GET("/:service", healthHandler.CheckHealth)
-			health.GET("/events", eventsHandler.StreamHealth)
 		}
+
+		// SSE events (preferred)
+		api.GET("/events", eventsHandler.Stream)
 
 		//serviceRoutes := api.Group("/services")
 		//serviceRoutes.Use(cacheMiddleware.Cache())
@@ -226,6 +274,8 @@ func (s *Server) Handler() http.Handler {
 				regularServices.GET("/autobrr/irc", autobrrHandler.GetAutobrrIRCStatus)
 				regularServices.GET("/autobrr/releases", autobrrHandler.GetAutobrrReleases)
 				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
+				regularServices.GET("/jellyfin/summary", jellyfinHandler.GetSummary)
+				regularServices.GET("/uptimekuma/summary", uptimeKumaHandler.GetSummary)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
 
 				// Overseerr endpoints
@@ -249,6 +299,20 @@ func (s *Server) Handler() http.Handler {
 					radarr.DELETE("/queue/:id", radarrHandler.DeleteQueueItem)
 				}
 
+				// Lidarr endpoints
+				lidarr := regularServices.Group("/lidarr")
+				{
+					lidarr.GET("/queue", lidarrHandler.GetQueue)
+					lidarr.DELETE("/queue/:id", lidarrHandler.DeleteQueueItem)
+				}
+
+				// Readarr endpoints
+				readarr := regularServices.Group("/readarr")
+				{
+					readarr.GET("/queue", readarrHandler.GetQueue)
+					readarr.DELETE("/queue/:id", readarrHandler.DeleteQueueItem)
+				}
+
 				// Prowlarr endpoints
 				prowlarr := regularServices.Group("/prowlarr")
 				{
@@ -256,16 +320,28 @@ func (s *Server) Handler() http.Handler {
 					prowlarr.GET("/indexers", prowlarrHandler.GetIndexers)
 				}
 
-				// Omegabrr endpoints
-				omegabrr := regularServices.Group("/omegabrr")
+				// Traefik endpoints
+				traefik := regularServices.Group("/traefik")
 				{
-					omegabrr.GET("/status", omegabrrHandler.GetOmegabrrStatus)
-					webhook := omegabrr.Group("/webhook")
-					{
-						webhook.POST("/arrs", omegabrrHandler.TriggerWebhookArrs)
-						webhook.POST("/lists", omegabrrHandler.TriggerWebhookLists)
-						webhook.POST("/all", omegabrrHandler.TriggerWebhookAll)
-					}
+					traefik.GET("/summary", traefikHandler.GetSummary)
+				}
+
+				// Bazarr endpoints
+				bazarr := regularServices.Group("/bazarr")
+				{
+					bazarr.GET("/summary", bazarrHandler.GetSummary)
+				}
+
+				// SABnzbd endpoints
+				sabnzbd := regularServices.Group("/sabnzbd")
+				{
+					sabnzbd.GET("/summary", sabnzbdHandler.GetSummary)
+				}
+
+				// NZBGet endpoints
+				nzbget := regularServices.Group("/nzbget")
+				{
+					nzbget.GET("/summary", nzbgetHandler.GetSummary)
 				}
 			}
 

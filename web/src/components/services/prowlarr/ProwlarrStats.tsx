@@ -7,11 +7,15 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { ProwlarrIndexer } from "../../../types/service";
 import { ProwlarrMessage } from "./ProwlarrMessage";
+import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { combineServiceMessage } from "../../../utils/serviceMessage";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import {
   ClockIcon,
   ArrowDownTrayIcon,
   MagnifyingGlassIcon,
-  ChevronUpIcon,
 } from "@heroicons/react/24/outline";
 
 interface ProwlarrStatsProps {
@@ -19,12 +23,15 @@ interface ProwlarrStatsProps {
 }
 
 export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
+  const { getService } = useServiceData();
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
   const [stableIndexers, setStableIndexers] = useState<ProwlarrIndexer[]>([]);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "prowlarr:active_indexers"),
+    true
+  );
 
-  const service = services.find((s) => s.instanceId === instanceId);
+  const service = getService(instanceId);
   const prowlarrData = service?.stats?.prowlarr;
 
   // Only show loading on initial load
@@ -40,50 +47,25 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
       .slice(0, 10);
   }, [stableIndexers]);
 
-  // Update stable indexers only when we have complete data
+  // Keep indexers visible even if stats payload arrives later.
   useEffect(() => {
-    if (prowlarrData?.indexers?.length && prowlarrData.stats) {
+    if (prowlarrData?.indexers?.length) {
       setStableIndexers(prowlarrData.indexers);
       if (!hasInitiallyLoaded) {
         setHasInitiallyLoaded(true);
       }
     }
-  }, [prowlarrData?.indexers, prowlarrData?.stats, hasInitiallyLoaded]);
+  }, [prowlarrData?.indexers, hasInitiallyLoaded]);
 
   if (isInitialLoading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="flex items-center space-x-3 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg animate-pulse"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2" />
-              <div className="flex space-x-2">
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20" />
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24" />
-              </div>
-            </div>
-            <div className="flex-shrink-0">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-16" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+    return <StatsSkeleton rows={3} />;
   }
 
   if (!service || !stableIndexers.length) {
     return null;
   }
 
-  // Combine service message with health message if available
-  const message = service.health?.message
-    ? service.message
-      ? `${service.message}\n${service.health.message}`
-      : service.health.message
-    : service.message;
+  const message = combineServiceMessage(service);
 
   return (
     <div className="space-y-4">
@@ -92,23 +74,17 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
 
       {/* Active Indexers */}
       <div>
-        <div
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="relative cursor-pointer select-none w-full flex items-center justify-between text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 group"
-        >
-          <span>Active Indexers <span className="text-xs font-bold lowercase">(Last 30 Days)</span></span>
-          <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
-            <ChevronUpIcon
-              className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
-                isExpanded ? "rotate-180" : ""
-              } group-hover:text-gray-400`}
-            />
-          </div>
-        </div>
-        <div
-          className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-            isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-          }`}
+        <CollapsibleSection
+          title={
+            <>
+              Active Indexers{" "}
+              <span className="text-xs font-bold lowercase">
+                (Last 30 Days)
+              </span>
+            </>
+          }
+          isExpanded={isExpanded}
+          onToggle={toggle}
         >
           <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 pointer-events-none">
             <div className="divide-y divide-gray-850">
@@ -157,7 +133,7 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
               ))}
             </div>
           </div>
-        </div>
+        </CollapsibleSection>
       </div>
     </div>
   );

@@ -18,40 +18,80 @@ type QueueRecordWrapper struct {
 	Size   int64
 }
 
-// wrapRadarrQueue converts RadarrQueueResponse to slice of QueueRecordWrapper
-func wrapRadarrQueue(queue *types.RadarrQueueResponse) []QueueRecordWrapper {
-	if queue == nil || len(queue.Records) == 0 {
+func wrapQueueRecords[T any](records []T, toWrapper func(T) QueueRecordWrapper) []QueueRecordWrapper {
+	if len(records) == 0 {
 		return nil
 	}
 
-	result := make([]QueueRecordWrapper, len(queue.Records))
-	for i, record := range queue.Records {
-		result[i] = QueueRecordWrapper{
-			ID:     record.ID,
-			Title:  record.Title,
-			Status: record.Status,
-			Size:   record.Size,
-		}
+	result := make([]QueueRecordWrapper, len(records))
+	for i, record := range records {
+		result[i] = toWrapper(record)
 	}
 	return result
 }
 
-// wrapSonarrQueue converts SonarrQueueResponse to slice of QueueRecordWrapper
-func wrapSonarrQueue(queue *types.SonarrQueueResponse) []QueueRecordWrapper {
-	if queue == nil || len(queue.Records) == 0 {
+// wrapRadarrQueue converts RadarrQueueResponse to slice of QueueRecordWrapper
+func wrapRadarrQueue(queue *types.RadarrQueueResponse) []QueueRecordWrapper {
+	if queue == nil {
 		return nil
 	}
 
-	result := make([]QueueRecordWrapper, len(queue.Records))
-	for i, record := range queue.Records {
-		result[i] = QueueRecordWrapper{
+	return wrapQueueRecords(queue.Records, func(record types.RadarrQueueRecord) QueueRecordWrapper {
+		return QueueRecordWrapper{
 			ID:     record.ID,
 			Title:  record.Title,
 			Status: record.Status,
 			Size:   record.Size,
 		}
+	})
+}
+
+// wrapLidarrQueue converts LidarrQueueResponse to slice of QueueRecordWrapper.
+func wrapLidarrQueue(queue *types.LidarrQueueResponse) []QueueRecordWrapper {
+	if queue == nil {
+		return nil
 	}
-	return result
+
+	return wrapQueueRecords(queue.Records, func(record types.LidarrQueueItem) QueueRecordWrapper {
+		return QueueRecordWrapper{
+			ID:     record.ID,
+			Title:  record.Title,
+			Status: record.Status,
+			Size:   record.Size,
+		}
+	})
+}
+
+// wrapReadarrQueue converts ReadarrQueueResponse to slice of QueueRecordWrapper.
+func wrapReadarrQueue(queue *types.ReadarrQueueResponse) []QueueRecordWrapper {
+	if queue == nil {
+		return nil
+	}
+
+	return wrapQueueRecords(queue.Records, func(record types.ReadarrQueueItem) QueueRecordWrapper {
+		return QueueRecordWrapper{
+			ID:     record.ID,
+			Title:  record.Title,
+			Status: record.Status,
+			Size:   record.Size,
+		}
+	})
+}
+
+// wrapSonarrQueue converts SonarrQueueResponse to slice of QueueRecordWrapper
+func wrapSonarrQueue(queue *types.SonarrQueueResponse) []QueueRecordWrapper {
+	if queue == nil {
+		return nil
+	}
+
+	return wrapQueueRecords(queue.Records, func(record types.QueueRecord) QueueRecordWrapper {
+		return QueueRecordWrapper{
+			ID:     record.ID,
+			Title:  record.Title,
+			Status: record.Status,
+			Size:   record.Size,
+		}
+	})
 }
 
 // generateQueueHash creates a hash string from queue records

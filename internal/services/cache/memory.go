@@ -72,11 +72,9 @@ func NewMemoryStore(ctx context.Context, dataDir string) Store {
 	store.loadSessions()
 
 	// Start cleanup goroutine
-	store.wg.Add(1)
-	go func() {
-		defer store.wg.Done()
+	store.wg.Go(func() {
 		store.localCacheCleanup()
-	}()
+	})
 
 	return store
 }
@@ -153,7 +151,7 @@ func (s *MemoryStore) persistSessions() {
 }
 
 // Get retrieves a value from cache
-func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) error {
+func (s *MemoryStore) Get(_ context.Context, key string, value any) error {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
@@ -176,7 +174,7 @@ func (s *MemoryStore) Get(ctx context.Context, key string, value interface{}) er
 }
 
 // Set stores a value in cache
-func (s *MemoryStore) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (s *MemoryStore) Set(_ context.Context, key string, value any, expiration time.Duration) error {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
@@ -398,7 +396,7 @@ func (s *MemoryStore) localCacheCleanup() {
 			}
 
 			// Cleanup expired rate limiting windows
-			s.rateLimits.Range(func(key, value interface{}) bool {
+			s.rateLimits.Range(func(key, value any) bool {
 				w := value.(*rateWindow)
 				w.Lock()
 				if now.After(w.expiration) {

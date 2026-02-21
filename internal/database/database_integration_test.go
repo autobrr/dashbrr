@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 //go:build integration
-// +build integration
 
 package database
 

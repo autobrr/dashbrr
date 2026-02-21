@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -19,12 +20,10 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
-	"github.com/autobrr/dashbrr/internal/utils"
 )
 
 const (
@@ -35,6 +34,7 @@ const (
 type OverseerrHandler struct {
 	db             *database.DB
 	cache          cache.Store
+	bc             *Broadcaster
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
 
@@ -42,71 +42,15 @@ type OverseerrHandler struct {
 	hashMu           sync.Mutex
 }
 
-func NewOverseerrHandler(db *database.DB, cache cache.Store) *OverseerrHandler {
+func NewOverseerrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *OverseerrHandler {
 	return &OverseerrHandler{
 		db:               db,
 		cache:            cache,
+		bc:               bc,
 		sf:               &singleflight.Group{},
 		circuitBreaker:   resilience.NewCircuitBreaker(5, 1*time.Minute),
 		lastRequestsHash: make(map[string]string),
 	}
-}
-
-func (h *OverseerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (*types.RequestsStats, error)) (*types.RequestsStats, error) {
-	var data types.RequestsStats
-
-	// Try to get from cache first
-	err := h.cache.Get(ctx, cacheKey, &data)
-	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.OverseerrRequests + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.OverseerrRequests)
-				}
-			}
-		}()
-		return &data, nil
-	}
-
-	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
-		// Try to get stale data when circuit is open
-		var staleData types.RequestsStats
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return &staleData, nil
-		}
-		return nil, fmt.Errorf("circuit breaker is open")
-	}
-
-	// Cache miss or error, fetch fresh data with retry
-	var freshData *types.RequestsStats
-	err = resilience.RetryWithBackoff(ctx, func() error {
-		var fetchErr error
-		freshData, fetchErr = fetchFn()
-		return fetchErr
-	})
-
-	if err != nil {
-		h.circuitBreaker.RecordFailure()
-		// Try to get stale data
-		var staleData types.RequestsStats
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			return &staleData, nil
-		}
-		return nil, err
-	}
-
-	h.circuitBreaker.RecordSuccess()
-
-	// Cache the fresh data
-	if err := h.cache.Set(ctx, cacheKey, freshData, middleware.CacheDurations.OverseerrRequests); err == nil {
-		// Also cache as stale data with longer duration
-		_ = h.cache.Set(ctx, cacheKey+":stale", freshData, overseerrStaleDataDuration)
-	}
-
-	return freshData, nil
 }
 
 func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
@@ -147,14 +91,14 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 		return
 	}
 
-	// Get service configuration
-	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+	ctx := c.Request.Context()
+
+	overseerrConfig, err := findServiceConfig(ctx, h.db, instanceId)
 	if err != nil {
 		log.Error().Err(err).Str("instanceId", instanceId).Msg("Failed to get service configuration")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
-
 	if overseerrConfig == nil || overseerrConfig.URL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Service not configured"})
 		return
@@ -166,14 +110,13 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	// Update request status using singleflight with retry and circuit breaker
 	sfKey := fmt.Sprintf("update_status:%s:%s", instanceId, requestId)
-	ctx := context.Background()
 
 	if h.circuitBreaker.IsOpen() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Service is temporarily unavailable"})
 		return
 	}
 
-	_, err, _ = h.sf.Do(sfKey, func() (interface{}, error) {
+	_, err, _ = h.sf.Do(sfKey, func() (any, error) {
 		return nil, resilience.RetryWithBackoff(ctx, func() error {
 			return service.UpdateRequestStatus(ctx, overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve)
 		})
@@ -194,54 +137,65 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	// Clear the cache for this instance to force a refresh
 	cacheKey := overseerrCachePrefix + instanceId
-	if err := h.cache.Delete(context.Background(), cacheKey); err != nil {
+	if err := DeleteSWRCacheKeys(ctx, h.cache, cacheKey); err != nil {
 		log.Warn().Err(err).Str("instanceId", instanceId).Msg("Failed to clear cache after status update")
 	}
 
 	// Fetch fresh data and broadcast update using singleflight
 	sfKey = fmt.Sprintf("requests:%s", instanceId)
-	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchRequests(instanceId)
+	result, err, _ := h.sf.Do(sfKey, func() (any, error) {
+		return h.fetchRequests(ctx, instanceId)
 	})
 
 	if err == nil && result != nil {
-		stats, err := utils.SafeConvert[*types.RequestsStats](result)
-		if err == nil {
-			h.broadcastOverseerrRequests(instanceId, stats)
+		stats := result.(*types.RequestsStats)
+		if stats != nil && stats.Requests == nil {
+			stats.Requests = []types.MediaRequest{}
 		}
+		h.broadcastOverseerrRequests(instanceId, stats)
 	}
 
 	c.Status(http.StatusOK)
 }
 
 func (h *OverseerrHandler) GetRequests(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("No instanceId provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "instanceId is required"})
-		return
-	}
-
-	// Verify this is an Overseerr instance
-	if instanceId[:9] != "overseerr" {
-		log.Error().Str("instanceId", instanceId).Msg("Invalid Overseerr instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Overseerr instance ID"})
+	instanceId, ok := requireInstanceID(c, "overseerr", "Overseerr")
+	if !ok {
 		return
 	}
 
 	cacheKey := overseerrCachePrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
-	// Use singleflight to prevent duplicate requests
 	sfKey := fmt.Sprintf("requests:%s", instanceId)
-	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchDataWithCache(ctx, cacheKey, func() (*types.RequestsStats, error) {
-			return h.fetchRequests(instanceId)
-		})
+	statsVal, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RequestsStats]{
+		Store:           h.cache,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.OverseerrRequests,
+		StaleTTL:        overseerrStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    h.sf,
+		SingleflightKey: sfKey,
+		Fetch: func() (types.RequestsStats, error) {
+			fresh, err := h.fetchRequests(ctx, instanceId)
+			if err != nil {
+				return types.RequestsStats{}, err
+			}
+			if fresh == nil {
+				return types.RequestsStats{
+					PendingCount: 0,
+					Requests:     []types.MediaRequest{},
+				}, nil
+			}
+			if fresh.Requests == nil {
+				fresh.Requests = []types.MediaRequest{}
+			}
+			return *fresh, nil
+		},
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			// Return empty response for unconfigured service
 			c.JSON(http.StatusOK, &types.RequestsStats{
 				PendingCount: 0,
@@ -261,11 +215,7 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 		return
 	}
 
-	stats, err := utils.SafeConvert[*types.RequestsStats](result)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid response format"})
-		return
-	}
+	stats := &statsVal
 
 	h.hashMu.Lock()
 	currentHash, changes := createOverseerrRequestsHash(stats)
@@ -297,20 +247,16 @@ func (h *OverseerrHandler) GetRequests(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-func (h *OverseerrHandler) fetchRequests(instanceId string) (*types.RequestsStats, error) {
-	overseerrConfig, err := h.db.FindServiceBy(context.Background(), types.FindServiceParams{InstanceID: instanceId})
+func (h *OverseerrHandler) fetchRequests(ctx context.Context, instanceId string) (*types.RequestsStats, error) {
+	overseerrConfig, err := requireServiceConfigLegacy(ctx, h.db, instanceId)
 	if err != nil {
 		return nil, err
-	}
-
-	if overseerrConfig == nil || overseerrConfig.URL == "" {
-		return nil, fmt.Errorf("service not configured")
 	}
 
 	service := &overseerr.OverseerrService{}
 	service.SetDB(h.db)
 
-	stats, err := service.GetRequests(context.Background(), overseerrConfig.URL, overseerrConfig.APIKey)
+	stats, err := service.GetRequests(ctx, overseerrConfig.URL, overseerrConfig.APIKey)
 	if err != nil {
 		return nil, err
 	}
@@ -332,35 +278,7 @@ func (h *OverseerrHandler) broadcastOverseerrRequests(instanceId string, stats *
 		return
 	}
 
-	serviceStatus := "online"
-	message := "overseerr_requests"
-
-	// Set warning status if there are pending requests
-	if stats.PendingCount > 0 {
-		serviceStatus = "warning"
-		message = fmt.Sprintf("%d pending requests", stats.PendingCount)
-	}
-
-	health := models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      serviceStatus,
-		Message:     message,
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"overseerr": types.OverseerrStats{
-				Requests:     stats.Requests,
-				PendingCount: stats.PendingCount,
-			},
-		},
-		Details: map[string]interface{}{
-			"overseerr": types.OverseerrDetails{
-				PendingCount:  stats.PendingCount,
-				TotalRequests: len(stats.Requests),
-			},
-		},
-	}
-
-	BroadcastHealth(health)
+	publishInternalServiceUpdate(h.bc, buildOverseerrRequestsServiceUpdate(instanceId, stats))
 }
 
 // createOverseerrRequestsHash generates a deterministic hash of the requests state

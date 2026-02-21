@@ -6,28 +6,22 @@ package arr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 const (
-	healthCacheDuration = 30 * time.Second
-	arrCachePrefix      = "arr:"
-)
-
-var (
-	sf singleflight.Group
-	mu sync.RWMutex
+	updateCacheTTL      = time.Hour
+	updateErrorCacheTTL = 10 * time.Minute
 )
 
 // HealthResponse represents a common health check response structure
@@ -40,49 +34,27 @@ type HealthResponse struct {
 
 // HealthChecker interface defines methods required for health checking
 type HealthChecker interface {
-	GetSystemStatus(url, apiKey string) (string, error)
-	CheckForUpdates(url, apiKey string) (bool, error)
+	GetSystemStatus(ctx context.Context, url, apiKey string) (string, error)
+	CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error)
 	GetHealthEndpoint(baseURL string) string
 }
 
 // ArrHealthCheck provides a common implementation of health checking for *arr services
-func ArrHealthCheck(s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, int) {
+func ArrHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, int) {
 	if url == "" {
 		return s.CreateHealthResponse(time.Now(), "error", "URL is required"), http.StatusBadRequest
 	}
 
 	startTime := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
-	// Try to get cached health response
-	cacheKey := arrCachePrefix + "health:" + url
-	var cachedHealth models.ServiceHealth
-	if _, err := s.GetCachedVersion(ctx, cacheKey, "", func(_, _ string) (string, error) {
-		return "", nil // Cache miss, will handle below
-	}); err == nil && cachedHealth.Status != "" {
-		// Refresh cache in background
-		go func() {
-			refreshKey := fmt.Sprintf("refresh:%s", url)
-			_, _, _ = sf.Do(refreshKey, func() (interface{}, error) {
-				return performHealthCheck(ctx, s, url, apiKey, checker)
-			})
-		}()
-		return cachedHealth, http.StatusOK
-	}
-
-	// Use singleflight for health check
-	healthKey := fmt.Sprintf("health:%s", url)
-	result, err, _ := sf.Do(healthKey, func() (interface{}, error) {
-		return performHealthCheck(ctx, s, url, apiKey, checker)
-	})
-
+	health, err := performHealthCheck(healthCtx, s, url, apiKey, checker)
 	if err != nil {
 		log.Error().Err(err).Str("url", url).Msg("Health check failed")
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
 	}
 
-	health := result.(models.ServiceHealth)
 	return health, http.StatusOK
 }
 
@@ -91,12 +63,12 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	startTime := time.Now()
 
 	// Get version synchronously first
-	version := s.GetVersionFromCache(url)
+	version := s.GetVersionFromCache(ctx, url)
 	if version == "" {
 		var err error
-		version, err = checker.GetSystemStatus(url, apiKey)
+		version, err = checker.GetSystemStatus(ctx, url, apiKey)
 		if err == nil {
-			s.CacheVersion(url, version, time.Hour)
+			s.CacheVersion(ctx, url, version, time.Hour)
 		}
 	}
 
@@ -106,7 +78,36 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		"X-Api-Key": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, apiKey, headers)
+	updateAvailable, hasCachedUpdate := s.GetUpdateStatusFromCacheWithFound(ctx, url)
+	if ctx.Err() == nil && !hasCachedUpdate {
+		go func() {
+			updateBaseCtx := context.WithoutCancel(ctx)
+			updateCtx, cancel := context.WithTimeout(updateBaseCtx, core.DefaultTimeout)
+			defer cancel()
+			cacheCtx, cacheCancel := context.WithTimeout(updateBaseCtx, core.DefaultTimeout)
+			defer cacheCancel()
+
+			hasUpdate, err := checker.CheckForUpdates(updateCtx, url, apiKey)
+			if err != nil {
+				cancelledErr := errors.Is(err, context.Canceled) ||
+					errors.Is(err, context.DeadlineExceeded) ||
+					errors.Is(err, core.ErrContextCanceled)
+				if !cancelledErr {
+					log.Debug().Err(err).Str("url", url).Msg("Update check failed")
+				}
+				if err := s.CacheUpdateStatus(cacheCtx, url, updateAvailable, updateErrorCacheTTL); err != nil {
+					log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
+				}
+				return
+			}
+
+			if err := s.CacheUpdateStatus(cacheCtx, url, hasUpdate, updateCacheTTL); err != nil {
+				log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
+			}
+		}()
+	}
+
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return models.ServiceHealth{}, fmt.Errorf("failed to connect: %v", err)
 	}
@@ -114,7 +115,6 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		return models.ServiceHealth{}, fmt.Errorf("nil response")
 	}
 
-	defer resp.Body.Close()
 	body, err := s.ReadBody(resp)
 	if err != nil {
 		return models.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
@@ -152,8 +152,9 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	}
 
 	// Build response
-	extras := map[string]interface{}{
-		"responseTime": responseTimeMs,
+	extras := map[string]any{
+		"responseTime":    responseTimeMs,
+		"updateAvailable": updateAvailable,
 	}
 
 	// Set version in extras
@@ -161,21 +162,21 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		extras["version"] = version
 	}
 
-	// Check for updates in background
-	go func() {
-		if hasUpdate, err := checker.CheckForUpdates(url, apiKey); err == nil && hasUpdate {
-			updateKey := fmt.Sprintf("%s:update", url)
-			s.CacheVersion(updateKey, "true", time.Hour)
-			extras["updateAvailable"] = true
-		}
-	}()
-
 	// Determine status and message
 	status := "online"
 	var warnings []string
+	seenWarnings := make(map[string]struct{}, len(healthIssues))
 	for _, issue := range healthIssues {
 		if issue.Type == "warning" || issue.Type == "error" {
-			warnings = append(warnings, fmt.Sprintf("[%s] %s", issue.Source, issue.Message))
+			display, dedupeKey := formatWarningMessage(issue.Source, issue.Message)
+			if display == "" {
+				continue
+			}
+			if _, seen := seenWarnings[dedupeKey]; seen {
+				continue
+			}
+			seenWarnings[dedupeKey] = struct{}{}
+			warnings = append(warnings, display)
 			status = "warning"
 		}
 	}
@@ -187,13 +188,23 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 
 	health := s.CreateHealthResponse(startTime, status, message, extras)
 
-	// Cache the health response
-	if status != "error" {
-		cacheKey := arrCachePrefix + "health:" + url
-		if err := s.CacheVersion(cacheKey, fmt.Sprintf("%+v", health), healthCacheDuration); err != nil {
-			log.Warn().Err(err).Str("url", url).Msg("Failed to cache health response")
-		}
+	return health, nil
+}
+
+func formatWarningMessage(source, message string) (display string, dedupeKey string) {
+	normalizedSource := strings.Join(strings.Fields(strings.TrimSpace(source)), " ")
+	normalizedMessage := strings.Join(strings.Fields(strings.TrimSpace(message)), " ")
+
+	switch {
+	case normalizedSource == "" && normalizedMessage == "":
+		return "", ""
+	case normalizedSource == "":
+		display = normalizedMessage
+	case normalizedMessage == "":
+		display = "[" + normalizedSource + "]"
+	default:
+		display = fmt.Sprintf("[%s] %s", normalizedSource, normalizedMessage)
 	}
 
-	return health, nil
+	return display, strings.ToLower(display)
 }

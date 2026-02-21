@@ -20,8 +20,8 @@ interface MaintainerrServiceProps {
 export const MaintainerrService: React.FC<MaintainerrServiceProps> = ({
   instanceId,
 }) => {
-  const { services } = useServiceData();
-  const service = services.find((s) => s.instanceId === instanceId);
+  const { getService } = useServiceData();
+  const service = getService(instanceId);
 
   const renderStatus = () => {
     if (!service) return null;

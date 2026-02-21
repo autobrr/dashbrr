@@ -1,0 +1,169 @@
+// Copyright (c) 2026, s0up and the autobrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+package handlers
+
+import (
+	"sort"
+	"sync"
+
+	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/sse"
+)
+
+// Broadcaster publishes service updates to SSE clients.
+type Broadcaster struct {
+	hub *sse.Hub
+
+	mu     sync.RWMutex
+	latest map[string]models.ServiceHealth
+}
+
+func NewBroadcaster(hub *sse.Hub) *Broadcaster {
+	return &Broadcaster{
+		hub:    hub,
+		latest: make(map[string]models.ServiceHealth),
+	}
+}
+
+func (b *Broadcaster) Publish(health models.ServiceHealth) {
+	if b == nil || b.hub == nil {
+		return
+	}
+
+	health = normalizeServiceEvent(health)
+
+	payload := EncodeHealthAsSSE(health)
+	b.hub.Publish(payload)
+
+	if health.ServiceID == "" {
+		return
+	}
+
+	b.mu.Lock()
+	prev, hasPrev := b.latest[health.ServiceID]
+	if hasPrev {
+		b.latest[health.ServiceID] = mergeHealthSnapshot(prev, health)
+	} else {
+		b.latest[health.ServiceID] = health
+	}
+	b.mu.Unlock()
+}
+
+// Snapshot returns last known payloads per service for initial SSE replay.
+func (b *Broadcaster) Snapshot() [][]byte {
+	if b == nil {
+		return nil
+	}
+
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	if len(b.latest) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(b.latest))
+	for serviceID := range b.latest {
+		keys = append(keys, serviceID)
+	}
+	sort.Strings(keys)
+
+	out := make([][]byte, 0, len(keys))
+	for _, serviceID := range keys {
+		out = append(out, EncodeHealthAsSSE(b.latest[serviceID]))
+	}
+
+	return out
+}
+
+// PublishLatest re-publishes the latest known service payload to active subscribers.
+// Returns false when no cached payload exists for the service.
+func (b *Broadcaster) PublishLatest(serviceID string) bool {
+	if b == nil || b.hub == nil || serviceID == "" {
+		return false
+	}
+
+	b.mu.RLock()
+	health, ok := b.latest[serviceID]
+	b.mu.RUnlock()
+	if !ok {
+		return false
+	}
+
+	b.hub.Publish(EncodeHealthAsSSE(health))
+	return true
+}
+
+func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
+	merged := prev
+	merged.ServiceID = next.ServiceID
+
+	shouldMergeState := shouldMergeHealthState(next)
+
+	if shouldMergeState && next.Status != "" {
+		merged.Status = next.Status
+	}
+	if shouldMergeState {
+		merged.Message = next.Message
+		merged.EventType = models.ServiceEventHealth
+	} else if merged.EventType == "" && next.EventType != "" {
+		merged.EventType = next.EventType
+	}
+	merged.LastChecked = next.LastChecked
+
+	if next.Version != "" {
+		merged.Version = next.Version
+	}
+	if shouldMergeState {
+		merged.ResponseTime = next.ResponseTime
+		merged.UpdateAvailable = next.UpdateAvailable
+	}
+
+	merged.Stats = mergeHealthPayload(prev.Stats, next.Stats)
+	merged.Details = mergeHealthPayload(prev.Details, next.Details)
+
+	return merged
+}
+
+func mergeHealthPayload(current, incoming map[string]any) map[string]any {
+	if incoming == nil {
+		return current
+	}
+	if current == nil {
+		return cloneMap(incoming)
+	}
+
+	merged := cloneMap(current)
+	for key, nextValue := range incoming {
+		prevValue, ok := current[key]
+		if ok {
+			prevMap, prevOK := prevValue.(map[string]any)
+			nextMap, nextOK := nextValue.(map[string]any)
+			if prevOK && nextOK {
+				merged[key] = mergeHealthPayload(prevMap, nextMap)
+				continue
+			}
+		}
+		merged[key] = nextValue
+	}
+
+	return merged
+}
+
+func cloneMap(value map[string]any) map[string]any {
+	if value == nil {
+		return nil
+	}
+
+	cloned := make(map[string]any, len(value))
+	for key, v := range value {
+		if nested, ok := v.(map[string]any); ok {
+			cloned[key] = cloneMap(nested)
+			continue
+		}
+		cloned[key] = v
+	}
+
+	return cloned
+}

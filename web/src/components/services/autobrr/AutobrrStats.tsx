@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState } from "react";
+import React from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { StatusIcon } from "../../ui/StatusIcon";
-import { AutobrrMessage } from "./AutobrrMessage";
+import { ArrMessage } from "../common/ArrMessage";
 import {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
@@ -16,43 +16,32 @@ import {
   ExclamationCircleIcon,
   NoSymbolIcon,
   ClockIcon,
-  ChevronUpIcon,
 } from "@heroicons/react/24/outline";
-import { AutobrrRelease } from "../../../types/service";
+import {
+  AutobrrRelease,
+  AutobrrStats as AutobrrStatsPayload,
+} from "../../../types/service";
 import { getMediaType, getMediaTypeIcon } from "../../../utils/mediaTypes";
+import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 
 interface AutobrrStatsProps {
   instanceId: string;
 }
 
 export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
-  const service = services.find((s) => s.instanceId === instanceId);
+  const { getService } = useServiceData();
+  const service = getService(instanceId);
   const isLoading = service?.status === "loading";
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "autobrr:recent_releases"),
+    true
+  );
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="flex items-center space-x-3 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg animate-pulse"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2" />
-              <div className="flex space-x-2">
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20" />
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24" />
-              </div>
-            </div>
-            <div className="flex-shrink-0">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-16" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+    return <StatsSkeleton rows={3} />;
   }
 
   if (!service) {
@@ -61,16 +50,17 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
 
   // Always show stats section if service is online, even if stats are empty
   const showStats = true;
-  const stats = service.stats?.autobrr || {
+  const stats = service.stats?.autobrr?.stats ?? {
     total_count: 0,
     filtered_count: 0,
     filter_rejected_count: 0,
     push_approved_count: 0,
     push_rejected_count: 0,
     push_error_count: 0,
-  };
+  } satisfies AutobrrStatsPayload;
   const ircStatus = service.details?.autobrr?.irc;
-  const releases = service.releases?.data || [];
+  const releases = service.stats?.autobrr?.releases?.data ?? [];
+  const displayedReleaseCount = Math.min(releases.length, 5);
 
   const showMessage = service.message || service.status !== "online";
 
@@ -89,7 +79,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
     <div className="space-y-4">
       {/* Status and Messages */}
       {showMessage && (
-        <AutobrrMessage status={service.status} message={service.message} />
+        <ArrMessage status={service.status} message={service.message} />
       )}
 
       {/* IRC Status */}
@@ -120,7 +110,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
             Stats:
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
             <a
               href={getReleasesUrl()}
               target="_blank"
@@ -186,27 +176,14 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
 
       {/* Recent Releases */}
       {(service.status === "online" || service.status === "warning") && (
-        <div>
-          <div
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="relative cursor-pointer select-none w-full flex items-center justify-between text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 group"
-          >
-            <span>Recent Releases:</span>
-            <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
-              <ChevronUpIcon
-                className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
-                  isExpanded ? "rotate-180" : ""
-                } group-hover:text-gray-400`}
-              />
-            </div>
-          </div>
-          <div
-            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-              isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-            }`}
-          >
+        <CollapsibleSection
+          title="Recent Releases:"
+          meta={displayedReleaseCount > 0 ? `${displayedReleaseCount} shown` : "0"}
+          isExpanded={isExpanded}
+          onToggle={toggle}
+        >
             {releases.length > 0 ? (
-              <div className="space-y-2">
+              <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
                 {releases.slice(0, 5).map((release: AutobrrRelease) => (
                   <div
                     key={release.id}
@@ -313,8 +290,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                 No recent releases
               </div>
             )}
-          </div>
-        </div>
+        </CollapsibleSection>
       )}
     </div>
   );

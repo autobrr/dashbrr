@@ -105,6 +105,27 @@ Each service type supports the following operations:
 - `remove`: Remove an existing service configuration
 - `list`: List all configured services of that type
 
+Currently supported service command groups:
+
+- `autobrr`
+- `bazarr`
+- `generic` (general health endpoint service)
+- `jellyfin`
+- `lidarr`
+- `maintainerr`
+- `nzbget`
+- `overseerr`
+- `plex`
+- `prowlarr`
+- `qui`
+- `radarr`
+- `readarr`
+- `sabnzbd`
+- `sonarr`
+- `tailscale`
+- `traefik`
+- `uptimekuma`
+
 ### Autobrr
 
 ```bash
@@ -120,20 +141,65 @@ Example: dashbrr service autobrr remove http://localhost:7474
 dashbrr service autobrr list
 ```
 
-### General Services
+### Bazarr
 
 ```bash
-# Add a General service
-dashbrr service general add <url> [name] [api-key]
-Example: dashbrr service general add http://my.general.service/healthz/liveness MyService
-Example: dashbrr service general add http://my.general.service/healthz/liveness MyService optional-api-key
+# Add a Bazarr service
+dashbrr service bazarr add <url> <api-key>
+Example: dashbrr service bazarr add http://localhost:6767 your-api-key
 
-# Remove a General service
-dashbrr service general remove <url>
-Example: dashbrr service general remove http://localhost:7475
+# Remove a Bazarr service
+dashbrr service bazarr remove <url>
+Example: dashbrr service bazarr remove http://localhost:6767
 
-# List General services
-dashbrr service general list
+# List Bazarr services
+dashbrr service bazarr list
+```
+
+### Generic (General) Services
+
+```bash
+# Add a Generic service
+dashbrr service generic add <url> <name> [api-key]
+Example: dashbrr service generic add http://my.general.service/healthz/liveness MyService
+Example: dashbrr service generic add http://my.general.service/healthz/liveness MyService optional-api-key
+
+# Remove a Generic service
+dashbrr service generic remove <url>
+Example: dashbrr service generic remove http://my.general.service/healthz/liveness
+
+# List Generic services
+dashbrr service generic list
+```
+
+### Jellyfin
+
+```bash
+# Add a Jellyfin service
+dashbrr service jellyfin add <url> <api-key>
+Example: dashbrr service jellyfin add http://localhost:8096 your-api-key
+
+# Remove a Jellyfin service
+dashbrr service jellyfin remove <url>
+Example: dashbrr service jellyfin remove http://localhost:8096
+
+# List Jellyfin services
+dashbrr service jellyfin list
+```
+
+### Lidarr
+
+```bash
+# Add a Lidarr service
+dashbrr service lidarr add <url> <api-key>
+Example: dashbrr service lidarr add http://localhost:8686 your-api-key
+
+# Remove a Lidarr service
+dashbrr service lidarr remove <url>
+Example: dashbrr service lidarr remove http://localhost:8686
+
+# List Lidarr services
+dashbrr service lidarr list
 ```
 
 ### Maintainerr
@@ -141,7 +207,7 @@ dashbrr service general list
 ```bash
 # Add a Maintainerr service
 dashbrr service maintainerr add <url> <api-key>
-Example: dashbrr service maintainerr add http://localhost:7476 your-api-key
+Example: dashbrr service maintainerr add http://localhost:6246 your-api-key
 
 # Remove a Maintainerr service
 dashbrr service maintainerr remove <url>
@@ -149,21 +215,6 @@ Example: dashbrr service maintainerr remove http://localhost:7476
 
 # List Maintainerr services
 dashbrr service maintainerr list
-```
-
-### Omegabrr
-
-```bash
-# Add an Omegabrr service
-dashbrr service omegabrr add <url> <api-key>
-Example: dashbrr service omegabrr add http://localhost:7477 your-api-key
-
-# Remove an Omegabrr service
-dashbrr service omegabrr remove <url>
-Example: dashbrr service omegabrr remove http://localhost:7477
-
-# List Omegabrr services
-dashbrr service omegabrr list
 ```
 
 ### Overseerr
@@ -211,6 +262,21 @@ Example: dashbrr service prowlarr remove http://localhost:9696
 dashbrr service prowlarr list
 ```
 
+### Qui
+
+```bash
+# Add a Qui service
+dashbrr service qui add <url> <api-key>
+Example: dashbrr service qui add http://localhost:7476 your-api-key
+
+# Remove a Qui service
+dashbrr service qui remove <url>
+Example: dashbrr service qui remove http://localhost:7476
+
+# List Qui services
+dashbrr service qui list
+```
+
 ### Radarr
 
 ```bash
@@ -224,6 +290,36 @@ Example: dashbrr service radarr remove http://localhost:7878
 
 # List Radarr services
 dashbrr service radarr list
+```
+
+### Readarr
+
+```bash
+# Add a Readarr service
+dashbrr service readarr add <url> <api-key>
+Example: dashbrr service readarr add http://localhost:8787 your-api-key
+
+# Remove a Readarr service
+dashbrr service readarr remove <url>
+Example: dashbrr service readarr remove http://localhost:8787
+
+# List Readarr services
+dashbrr service readarr list
+```
+
+### SABnzbd
+
+```bash
+# Add a SABnzbd service
+dashbrr service sabnzbd add <url> <api-key>
+Example: dashbrr service sabnzbd add http://localhost:8080 your-api-key
+
+# Remove a SABnzbd service
+dashbrr service sabnzbd remove <url>
+Example: dashbrr service sabnzbd remove http://localhost:8080
+
+# List SABnzbd services
+dashbrr service sabnzbd list
 ```
 
 ### Sonarr
@@ -241,19 +337,65 @@ Example: dashbrr service sonarr remove http://localhost:8989
 dashbrr service sonarr list
 ```
 
+### NZBGet
+
+```bash
+# Add an NZBGet service
+dashbrr service nzbget add <url> <control-password-or-user:pass>
+Example: dashbrr service nzbget add http://localhost:6789 your-control-password
+
+# Remove an NZBGet service
+dashbrr service nzbget remove <url>
+Example: dashbrr service nzbget remove http://localhost:6789
+
+# List NZBGet services
+dashbrr service nzbget list
+```
+
 ### Tailscale
 
 ```bash
 # Add a Tailscale service
-dashbrr service tailscale add <url> <api-key>
-Example: dashbrr service tailscale add http://localhost:8088 your-api-key
+dashbrr service tailscale add <api-key>
+Example: dashbrr service tailscale add tskey-api-xxxxxxxx
 
 # Remove a Tailscale service
 dashbrr service tailscale remove <url>
-Example: dashbrr service tailscale remove http://localhost:8088
+Example: dashbrr service tailscale remove https://api.tailscale.com
 
 # List Tailscale services
 dashbrr service tailscale list
+```
+
+### Traefik
+
+```bash
+# Add a Traefik service (auth token optional)
+dashbrr service traefik add <url> [auth-token]
+Example: dashbrr service traefik add http://localhost:8080
+Example: dashbrr service traefik add http://localhost:8080 your-auth-token
+
+# Remove a Traefik service
+dashbrr service traefik remove <url>
+Example: dashbrr service traefik remove http://localhost:8080
+
+# List Traefik services
+dashbrr service traefik list
+```
+
+### Uptime Kuma
+
+```bash
+# Add an Uptime Kuma service
+dashbrr service uptimekuma add <url> <api-key-or-user:pass>
+Example: dashbrr service uptimekuma add http://localhost:3001 your-api-key
+
+# Remove an Uptime Kuma service
+dashbrr service uptimekuma remove <url>
+Example: dashbrr service uptimekuma remove http://localhost:3001
+
+# List Uptime Kuma services
+dashbrr service uptimekuma list
 ```
 
 ## Common Parameters
@@ -262,6 +404,8 @@ dashbrr service tailscale list
 - `<api-key>`: API key for authentication with the service
 - `[name]`: Optional display name for the service (defaults to service type)
 - `[api-key]`: Optional API key for services that don't require authentication
+- `tailscale add`: does not accept a URL; it always targets `https://api.tailscale.com`
+- `generic`: command name is `generic` (service type shown in UI is `general`)
 
 ## Notes
 

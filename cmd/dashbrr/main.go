@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,7 +17,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
-	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 
 	"github.com/pkg/errors"
@@ -144,7 +142,7 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 		if listenAddr != origListenAddr {
 			cfg.Server.ListenAddr = listenAddr
 		}
-		if flag.Lookup("db") != nil && origDBPath != "" {
+		if origDBPath != "" {
 			cfg.Database.Path = origDBPath
 		}
 	}
@@ -161,26 +159,12 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 
 	// Initialize cache with database directory for session storage
 	cacheConfig := cache.Config{
-		DataDir: filepath.Dir(os.Getenv("DASHBRR__DB_PATH")), // Use same directory as database
-		Type:    cache.CacheTypeMemory,
+		DataDir: filepath.Dir(cfg.Database.Path),
 	}
-	// Determine cache type based on environment and Redis configuration
-	log.Debug().Str("type", string(cacheConfig.Type)).Msg("Cache initialized")
-
-	// Configure Redis if enabled
-	// TODO move into config
-	if os.Getenv("REDIS_HOST") != "" {
-		host := os.Getenv("REDIS_HOST")
-		port := os.Getenv("REDIS_PORT")
-		if port == "" {
-			port = "6379"
-		}
-		cacheConfig.RedisAddr = host + ":" + port
-
-		if os.Getenv("CACHE_TYPE") == "redis" && os.Getenv("REDIS_HOST") != "" {
-			cacheConfig.Type = cache.CacheTypeRedis
-		}
+	if cacheConfig.DataDir == "." || cacheConfig.DataDir == "" {
+		cacheConfig.DataDir = "./data"
 	}
+	log.Debug().Msg("Cache initialized")
 
 	store, err := cache.InitCache(ctx, cacheConfig)
 	if err != nil {
@@ -189,9 +173,7 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 		return err
 	}
 
-	healthService := services.NewHealthService()
-
-	srv := api.NewServer(cfg, db, store, healthService)
+	srv := api.NewServer(cfg, db, store)
 
 	errorChannel := make(chan error)
 	go func() {

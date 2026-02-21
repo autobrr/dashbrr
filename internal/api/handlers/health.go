@@ -13,7 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
-	"github.com/autobrr/dashbrr/internal/services"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -24,11 +23,10 @@ type DatabaseService interface {
 
 type HealthHandler struct {
 	db             DatabaseService
-	health         *services.HealthService
 	serviceCreator models.ServiceCreator
 }
 
-func NewHealthHandler(db DatabaseService, health *services.HealthService, creator ...models.ServiceCreator) *HealthHandler {
+func NewHealthHandler(db DatabaseService, creator ...models.ServiceCreator) *HealthHandler {
 	var sc models.ServiceCreator
 	if len(creator) > 0 {
 		sc = creator[0]
@@ -38,7 +36,6 @@ func NewHealthHandler(db DatabaseService, health *services.HealthService, creato
 
 	return &HealthHandler{
 		db:             db,
-		health:         health,
 		serviceCreator: sc,
 	}
 }
@@ -54,6 +51,14 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		return
 	}
 
+	// Validate service ID format and extract service type
+	parts := strings.Split(serviceID, "-")
+	if len(parts) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID format"})
+		return
+	}
+	serviceType := parts[0]
+
 	// Get URL and API key from query parameters for validation
 	url := c.Query("url")
 	apiKey := c.Query("apiKey")
@@ -66,6 +71,27 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 			InstanceID: serviceID,
 			URL:        url,
 			APIKey:     apiKey,
+		}
+
+		// API keys are write-only in settings payloads.
+		// If URL is provided without API key, reuse stored key for validation.
+		if serviceRequiresAPIKey(serviceType) && service.APIKey == "" {
+			existing, findErr := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
+			if findErr != nil {
+				// Check for context cancellation
+				if ctx.Err() != nil {
+					log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled while fetching service configuration")
+					c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+					return
+				}
+				log.Error().Err(findErr).Str("service", serviceID).Msg("Failed to fetch service configuration")
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service configuration"})
+				return
+			}
+
+			if existing != nil && existing.APIKey != "" {
+				service.APIKey = existing.APIKey
+			}
 		}
 	} else {
 		// Use context with timeout for database operation
@@ -99,14 +125,6 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		return
 	}
 
-	// Validate service ID format and extract service type
-	parts := strings.Split(serviceID, "-")
-	if len(parts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID format"})
-		return
-	}
-	serviceType := parts[0]
-
 	serviceChecker := h.serviceCreator.CreateService(serviceType)
 	if serviceChecker == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported service type: " + serviceType})
@@ -115,7 +133,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 
 	// For general service, API key is optional
 	// For other services, ensure API key is provided
-	if serviceType != "general" && service.APIKey == "" {
+	if serviceRequiresAPIKey(serviceType) && service.APIKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "API key is required for this service type",

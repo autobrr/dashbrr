@@ -4,12 +4,17 @@
 package autobrr
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
@@ -19,6 +24,11 @@ import (
 type AutobrrService struct {
 	core.ServiceCore
 }
+
+const (
+	autobrrRecentReleasesLimit = 5
+	autobrrReleasesTimeout     = 8 * time.Second
+)
 
 func init() {
 	models.NewAutobrrService = NewAutobrrService
@@ -46,12 +56,24 @@ func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (t
 	}
 
 	releasesURL := s.getEndpoint(url, "/api/release")
+	parsedURL, err := neturl.Parse(releasesURL)
+	if err != nil {
+		return types.ReleasesResponse{}, fmt.Errorf("invalid releases URL: %w", err)
+	}
+	query := parsedURL.Query()
+	query.Set("limit", strconv.Itoa(autobrrRecentReleasesLimit))
+	query.Set("offset", "0")
+	parsedURL.RawQuery = query.Encode()
+	releasesURL = parsedURL.String()
+
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, releasesURL, apiKey, headers)
+	releasesCtx, cancel := context.WithTimeout(ctx, autobrrReleasesTimeout)
+	defer cancel()
+
+	resp, err := s.DoRequest(releasesCtx, http.MethodGet, releasesURL, headers, nil)
 	if err != nil {
 		return types.ReleasesResponse{}, fmt.Errorf("request failed: %v", err)
 	}
@@ -81,11 +103,10 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 
 	statsURL := s.getEndpoint(url, "/api/release/stats")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, statsURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, statsURL, headers, nil)
 	if err != nil {
 		return types.AutobrrStats{}, fmt.Errorf("request failed: %v", err)
 	}
@@ -101,7 +122,7 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 	}
 
 	var stats types.AutobrrStats
-	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
 
 	if err := decoder.Decode(&stats); err != nil {
@@ -111,15 +132,15 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 	return stats, nil
 }
 
-func (s *AutobrrService) GetIRCStatusFromCache(url string) string {
-	if status := s.GetVersionFromCache(url + "_irc"); status != "" {
+func (s *AutobrrService) GetIRCStatusFromCache(ctx context.Context, url string) string {
+	if status := s.GetVersionFromCache(ctx, url+"_irc"); status != "" {
 		return status
 	}
 	return ""
 }
 
-func (s *AutobrrService) CacheIRCStatus(url, status string) error {
-	return s.CacheVersion(url+"_irc", status, 5*time.Minute)
+func (s *AutobrrService) CacheIRCStatus(ctx context.Context, url, status string) error {
+	return s.CacheVersion(ctx, url+"_irc", status, 5*time.Minute)
 }
 
 func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) ([]types.IRCStatus, error) {
@@ -128,7 +149,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 	}
 
 	// Check cache first
-	if cached := s.GetIRCStatusFromCache(url); cached != "" {
+	if cached := s.GetIRCStatusFromCache(ctx, url); cached != "" {
 		var status []types.IRCStatus
 		if err := json.Unmarshal([]byte(cached), &status); err == nil {
 			return status, nil
@@ -137,11 +158,10 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 
 	ircURL := s.getEndpoint(url, "/api/irc")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, ircURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, ircURL, headers, nil)
 	if err != nil {
 		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("request failed: %v", err)
 	}
@@ -167,8 +187,8 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		}
 		// Cache the result
 		if cached, err := json.Marshal(unhealthyStatus); err == nil {
-			if err := s.CacheIRCStatus(url, string(cached)); err != nil {
-				fmt.Printf("Failed to cache IRC status: %v\n", err)
+			if err := s.CacheIRCStatus(ctx, url, string(cached)); err != nil {
+				log.Debug().Err(err).Str("url", url).Msg("Failed to cache IRC status")
 			}
 		}
 		return unhealthyStatus, nil
@@ -182,15 +202,15 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 			status := []types.IRCStatus{singleStatus}
 			// Cache the result
 			if cached, err := json.Marshal(status); err == nil {
-				if err := s.CacheIRCStatus(url, string(cached)); err != nil {
-					fmt.Printf("Failed to cache IRC status: %v\n", err)
+				if err := s.CacheIRCStatus(ctx, url, string(cached)); err != nil {
+					log.Debug().Err(err).Str("url", url).Msg("Failed to cache IRC status")
 				}
 			}
 			return status, nil
 		}
 		// Cache empty result
-		if err := s.CacheIRCStatus(url, "[]"); err != nil {
-			fmt.Printf("Failed to cache IRC status: %v\n", err)
+		if err := s.CacheIRCStatus(ctx, url, "[]"); err != nil {
+			log.Debug().Err(err).Str("url", url).Msg("Failed to cache IRC status")
 		}
 		return []types.IRCStatus{}, nil
 	}
@@ -200,17 +220,16 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 
 func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
 	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
+	if version := s.GetVersionFromCache(ctx, url); version != "" && version != "true" {
 		return version, nil
 	}
 
 	versionURL := s.getEndpoint(url, "/api/config")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, versionURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, versionURL, headers, nil)
 	if err != nil {
 		return "", err
 	}
@@ -231,35 +250,33 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 	}
 
 	// Cache version for 2 hours to align with update check
-	if err := s.CacheVersion(url, versionData.Version, 2*time.Hour); err != nil {
-		// Log error but don't fail the request
-		fmt.Printf("Failed to cache version: %v\n", err)
+	if err := s.CacheVersion(ctx, url, versionData.Version, 2*time.Hour); err != nil {
+		log.Debug().Err(err).Str("url", url).Str("version", versionData.Version).Msg("Failed to cache Autobrr version")
 	}
 
 	return versionData.Version, nil
 }
 
-func (s *AutobrrService) GetUpdateFromCache(url string) string {
-	return s.GetVersionFromCache(fmt.Sprintf("%s:update", url))
+func (s *AutobrrService) GetUpdateFromCache(ctx context.Context, url string) string {
+	return s.GetVersionFromCache(ctx, fmt.Sprintf("%s:update", url))
 }
 
-func (s *AutobrrService) CacheUpdate(url, status string, ttl time.Duration) error {
-	return s.CacheVersion(fmt.Sprintf("%s:update", url), status, ttl)
+func (s *AutobrrService) CacheUpdate(ctx context.Context, url, status string, ttl time.Duration) error {
+	return s.CacheVersion(ctx, fmt.Sprintf("%s:update", url), status, ttl)
 }
 
 func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (bool, error) {
 	// Check cache first
-	if status := s.GetUpdateFromCache(url); status != "" {
+	if status := s.GetUpdateFromCache(ctx, url); status != "" {
 		return status == "true", nil
 	}
 
 	updateURL := s.getEndpoint(url, "/api/updates/latest")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, updateURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, updateURL, headers, nil)
 	if err != nil {
 		return false, err
 	}
@@ -273,9 +290,8 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 	}
 
 	// Cache result for 2 hours to match autobrr's check interval
-	if err := s.CacheUpdate(url, status, 2*time.Hour); err != nil {
-		// Log error but don't fail the request
-		fmt.Printf("Failed to cache update status: %v\n", err)
+	if err := s.CacheUpdate(ctx, url, status, 2*time.Hour); err != nil {
+		log.Debug().Err(err).Str("url", url).Str("status", status).Msg("Failed to cache Autobrr update status")
 	}
 
 	return hasUpdate, nil
@@ -323,18 +339,17 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 	// Get release stats
 	stats, err := s.GetReleaseStats(ctx, url, apiKey)
 	if err != nil {
-		fmt.Printf("Failed to get release stats: %v\n", err)
+		log.Debug().Err(err).Str("url", url).Msg("Failed to get Autobrr release stats")
 		// Continue without stats, don't fail the health check
 	}
 
 	// Perform health check
 	livenessURL := s.getEndpoint(url, "/api/healthz/liveness")
 	headers := map[string]string{
-		"auth_header": "X-Api-Token",
-		"auth_value":  apiKey,
+		"X-Api-Token": apiKey,
 	}
 
-	resp, err := s.MakeRequestWithContext(ctx, livenessURL, apiKey, headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, livenessURL, headers, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}
@@ -382,13 +397,15 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 	// Get IRC status
 	ircStatus, err := s.GetIRCStatus(ctx, url, apiKey)
 	if err != nil {
-		extras := map[string]interface{}{
+		extras := map[string]any{
 			"responseTime": responseTime,
-			"stats": map[string]interface{}{
-				"autobrr": stats,
+			"stats": map[string]any{
+				"autobrr": map[string]any{
+					"stats": stats,
+				},
 			},
-			"details": map[string]interface{}{
-				"autobrr": map[string]interface{}{
+			"details": map[string]any{
+				"autobrr": map[string]any{
 					"irc": ircStatus,
 				},
 			},
@@ -423,10 +440,12 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 		}
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime": responseTime,
-		"stats": map[string]interface{}{
-			"autobrr": stats,
+		"stats": map[string]any{
+			"autobrr": map[string]any{
+				"stats": stats,
+			},
 		},
 	}
 
@@ -444,8 +463,8 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 
 	// Only include IRC status in details if there are unhealthy connections
 	if !ircHealthy {
-		extras["details"] = map[string]interface{}{
-			"autobrr": map[string]interface{}{
+		extras["details"] = map[string]any{
+			"autobrr": map[string]any{
 				"irc": ircStatus,
 			},
 		}

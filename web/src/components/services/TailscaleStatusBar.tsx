@@ -3,177 +3,77 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Cog6ToothIcon } from "@heroicons/react/24/solid";
 import TailscaleDeviceModal from "./TailscaleDeviceModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
-import { useAuth } from "../../hooks/useAuth";
-import { api } from "../../utils/api";
 import tailscaleLogo from "../../assets/tailscale.svg";
 import { useServiceManagement } from "../../hooks/useServiceManagement";
 import AnimatedModal from "../ui/AnimatedModal";
-
-interface Device {
-  name: string;
-  id: string;
-  ipAddress: string;
-  lastSeen: string;
-  online: boolean;
-  deviceType: string;
-  clientVersion: string;
-  updateAvailable: boolean;
-  tags?: string[];
-}
-
-interface DevicesResponse {
-  devices: Device[];
-}
-
-interface ErrorResponse {
-  error: string;
-}
+import { useServiceData } from "../../hooks/useServiceData";
+import { TailscaleDevice } from "../../types/service";
 
 interface TailscaleStatusBarProps {
-  initialConfigOpen?: boolean;
   onConfigOpen?: () => void;
 }
 
-export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
+export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
+  onConfigOpen,
+}) => {
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [isOnline, setIsOnline] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const { configurations } = useConfiguration();
-  const { isAuthenticated, loading } = useAuth();
   const { removeServiceInstance } = useServiceManagement();
+  const { getService } = useServiceData();
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
-  const config = useMemo(() => {
-    const tailscaleConfig = Object.entries(configurations).find(([id]) =>
+  const instanceId = useMemo(() => {
+    const tailscale = Object.entries(configurations).find(([id]) =>
       id.startsWith("tailscale-")
     );
-    if (!tailscaleConfig) return null;
-    return {
-      id: tailscaleConfig[0],
-      url: tailscaleConfig[1].url,
-      apiKey: tailscaleConfig[1].apiKey,
-    };
+    return tailscale?.[0] ?? null;
   }, [configurations]);
 
-  const fetchDevices = useCallback(async () => {
-    if (!config?.url || !config?.apiKey) {
-      setError("Configuration missing");
-      return;
-    }
-
-    if (!isAuthenticated) {
-      setError("Not authenticated");
-      return;
-    }
-
-    try {
-      const params = new URLSearchParams({
-        url: config.url,
-        apiKey: config.apiKey,
-      });
-
-      const response = await api.get<DevicesResponse>(
-        `/tailscale/devices?${params.toString()}`
-      );
-
-      const deviceData = response.devices || [];
-      setDevices(deviceData);
-      const hasOnlineDevices = deviceData.some((device) => device.online);
-      setIsOnline(hasOnlineDevices);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to fetch Tailscale devices:", err);
-
-      if (err instanceof Error) {
-        if ("code" in err && err.code === "ECONNABORTED") {
-          setError("Connection timeout");
-        } else if ("code" in err && err.code === "ERR_NETWORK") {
-          setError("Network error - Is the backend running?");
-        } else {
-          const error = err as {
-            response?: { data?: ErrorResponse; status?: number };
-          };
-          if (error.response?.status === 401) {
-            setError("Not authenticated");
-          } else if (
-            error.response?.data?.error &&
-            error.response.data.error.includes("API token invalid")
-          ) {
-            setError("Invalid API token");
-          } else if (error.response?.data?.error) {
-            setError(error.response.data.error);
-          } else {
-            setError(err.message || "Failed to fetch devices");
-          }
-        }
-      } else {
-        setError("Unknown error occurred");
-      }
-
-      setIsOnline(false);
-      setDevices([]);
-    }
-  }, [config?.url, config?.apiKey, isAuthenticated]);
-
-  useEffect(() => {
-    if (!loading && isAuthenticated && config?.url && config?.apiKey) {
-      fetchDevices();
-      const interval = setInterval(fetchDevices, 60000);
-      return () => clearInterval(interval);
-    } else {
-      setDevices([]);
-      setIsOnline(null);
-      if (!isAuthenticated && !loading) {
-        setError("Not authenticated");
-      } else if (!config) {
-        setError("Not configured");
-      }
-    }
-  }, [config?.url, config?.apiKey, fetchDevices, isAuthenticated, loading]);
+  const service = instanceId ? getService(instanceId) : undefined;
+  const devices: TailscaleDevice[] = service?.stats?.tailscale?.devices || [];
+  const onlineCount =
+    service?.details?.tailscale?.online ??
+    devices.filter((device) => device.online).length;
+  const isOnline = onlineCount > 0;
+  const isLoading = service?.status === "loading" || service === undefined;
 
   const handleRemoveClick = () => {
     setIsRemoveModalOpen(true);
   };
 
   const handleConfirmRemove = async () => {
-    if (config?.id) {
-      await removeServiceInstance(config.id);
+    if (instanceId) {
+      await removeServiceInstance(instanceId);
       setIsRemoveModalOpen(false);
     }
   };
 
   const baseButtonClasses =
-    "flex items-center font-medium text-gray-300 dark:text-gray-300";
+    "flex items-center font-medium text-zinc-300";
 
   const getStatusDisplay = () => {
-    if (loading || isOnline === null) {
+    if (isLoading) {
       return <div className="w-16 h-4 bg-gray-700 rounded animate-pulse"></div>;
     }
 
-    if (error) {
+    if (service?.status === "error") {
       return (
         <div className="text-sm flex items-center justify-center">
-          <>
-            Tailscale:
-            <span className="text-red-500 ml-1">
-              {error === "Invalid API token"
-                ? "Invalid Token"
-                : error === "Not configured"
-                ? "Not Configured"
-                : error === "Not authenticated"
-                ? "Not Authenticated"
-                : error === "Connection timeout"
-                ? "Timeout"
-                : error === "Network error - Is the backend running?"
-                ? "Network Error"
-                : "Error"}
-            </span>
-          </>
+          Tailscale:
+          <span className="text-red-500 ml-1">Error</span>
+        </div>
+      );
+    }
+
+    if (service?.status === "pending") {
+      return (
+        <div className="text-sm flex items-center justify-center">
+          Tailscale:
+          <span className="text-yellow-500 ml-1">Not Configured</span>
         </div>
       );
     }
@@ -195,9 +95,39 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
     );
   };
 
-  // Only render if Tailscale is configured
-  if (!config) {
-    return null;
+  // Render a minimal "add/configure" affordance even when not configured.
+  if (!instanceId) {
+    return (
+      <button
+        onClick={onConfigOpen}
+        disabled={!onConfigOpen}
+        className="flex items-center gap-2 text-zinc-300 hover:text-blue-400 transition-colors disabled:opacity-50 disabled:hover:text-zinc-300"
+        title="Add Tailscale"
+      >
+        <div className="w-6 pb-1">
+          <img
+            src={tailscaleLogo}
+            alt="Tailscale"
+            className="w-full h-full"
+            draggable="false"
+            style={{
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              MozUserSelect: "none",
+              msUserSelect: "none",
+            }}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+        </div>
+        <div className="text-sm flex items-center justify-center">
+          <>
+            Tailscale:
+            <span className="text-yellow-500 ml-1">Add</span>
+          </>
+        </div>
+      </button>
+    );
   }
 
   return (
@@ -206,8 +136,8 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = () => {
         <button
           onClick={() => setIsDeviceModalOpen(true)}
           className={`${baseButtonClasses}`}
-          title={error || undefined}
-          disabled={!isAuthenticated || loading}
+          title={service?.message || undefined}
+          disabled={isLoading}
         >
           <div className="w-6 mr-1 pb-1">
             <img

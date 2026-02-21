@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/autobrr/dashbrr/internal/models"
 )
 
@@ -50,8 +52,8 @@ func (m *Manager) DiscoverAll(ctx context.Context) ([]models.ServiceConfiguratio
 	for _, discoverer := range m.discoverers {
 		services, err := discoverer.DiscoverServices(ctx)
 		if err != nil {
-			// Log error but continue with other discoverers
-			fmt.Printf("Warning: Service discovery error: %v\n", err)
+			// Log error but continue with other discoverers.
+			log.Warn().Err(err).Msg("Service discovery failed")
 			continue
 		}
 		allServices = append(allServices, services...)

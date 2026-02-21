@@ -8,16 +8,26 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/autobrr"
-	"github.com/autobrr/dashbrr/internal/services/general"
-	"github.com/autobrr/dashbrr/internal/services/maintainerr"
-	"github.com/autobrr/dashbrr/internal/services/omegabrr"
-	"github.com/autobrr/dashbrr/internal/services/overseerr"
-	"github.com/autobrr/dashbrr/internal/services/plex"
-	"github.com/autobrr/dashbrr/internal/services/prowlarr"
-	"github.com/autobrr/dashbrr/internal/services/radarr"
-	"github.com/autobrr/dashbrr/internal/services/sonarr"
-	"github.com/autobrr/dashbrr/internal/services/tailscale"
+	"github.com/autobrr/dashbrr/internal/models"
+
+	// Service registration (init side effects).
+	_ "github.com/autobrr/dashbrr/internal/services/autobrr"
+	_ "github.com/autobrr/dashbrr/internal/services/bazarr"
+	_ "github.com/autobrr/dashbrr/internal/services/general"
+	_ "github.com/autobrr/dashbrr/internal/services/jellyfin"
+	_ "github.com/autobrr/dashbrr/internal/services/lidarr"
+	_ "github.com/autobrr/dashbrr/internal/services/maintainerr"
+	_ "github.com/autobrr/dashbrr/internal/services/nzbget"
+	_ "github.com/autobrr/dashbrr/internal/services/overseerr"
+	_ "github.com/autobrr/dashbrr/internal/services/plex"
+	_ "github.com/autobrr/dashbrr/internal/services/prowlarr"
+	_ "github.com/autobrr/dashbrr/internal/services/qui"
+	_ "github.com/autobrr/dashbrr/internal/services/radarr"
+	_ "github.com/autobrr/dashbrr/internal/services/readarr"
+	_ "github.com/autobrr/dashbrr/internal/services/sabnzbd"
+	_ "github.com/autobrr/dashbrr/internal/services/sonarr"
+	_ "github.com/autobrr/dashbrr/internal/services/tailscale"
+	_ "github.com/autobrr/dashbrr/internal/services/uptimekuma"
 
 	"github.com/spf13/cobra"
 )
@@ -39,7 +49,7 @@ func HealthCommand() *cobra.Command {
 	)
 
 	command.Flags().BoolVar(&outputJson, "json", false, "output in JSON format")
-	command.Flags().BoolVar(&checkServices, "checkServices", false, "check checkServices")
+	command.Flags().BoolVar(&checkServices, "checkServices", false, "check services")
 	command.Flags().BoolVar(&checkSystem, "system", false, "check system")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
@@ -75,58 +85,32 @@ func HealthCommand() *cobra.Command {
 
 		// Service health checks
 		if checkServices {
+			registry := models.NewServiceRegistry()
+			checkers := make(map[string]models.ServiceHealthChecker)
+
 			// Get all configured services
 			services, err := db.GetAllServices(ctx)
 			if err != nil {
 				// Log error but continue with empty services map
 				fmt.Printf("Failed to retrieve checkServices: %v\n", err)
 			} else {
-				autobrrService := autobrr.NewAutobrrService()
-				omegabrrService := omegabrr.NewOmegabrrService()
-				radarrService := radarr.NewRadarrService()
-				sonarrService := sonarr.NewSonarrService()
-				prowlarrService := prowlarr.NewProwlarrService()
-				plexService := plex.NewPlexService()
-				overseerrService := overseerr.NewOverseerrService()
-				maintainerrService := maintainerr.NewMaintainerrService()
-				tailscaleService := tailscale.NewTailscaleService()
-				generalService := general.NewGeneralService()
-				// TODO: Add other services
-
 				for _, service := range services {
-					// Check all supported services
-					switch {
-					case strings.HasPrefix(service.InstanceID, "autobrr-"):
-						health, _ := autobrrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "omegabrr-"):
-						health, _ := omegabrrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "radarr-"):
-						health, _ := radarrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "sonarr-"):
-						health, _ := sonarrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "prowlarr-"):
-						health, _ := prowlarrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "plex-"):
-						health, _ := plexService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "overseerr-"):
-						health, _ := overseerrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "maintainerr-"):
-						health, _ := maintainerrService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "tailscale-"):
-						health, _ := tailscaleService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
-					case strings.HasPrefix(service.InstanceID, "general-"):
-						health, _ := generalService.CheckHealth(ctx, service.URL, service.APIKey)
-						status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
+					serviceType, _, _ := strings.Cut(service.InstanceID, "-")
+					if serviceType == "" {
+						continue
 					}
+
+					checker := checkers[serviceType]
+					if checker == nil {
+						checker = registry.CreateService(serviceType)
+						if checker == nil {
+							continue
+						}
+						checkers[serviceType] = checker
+					}
+
+					health, _ := checker.CheckHealth(ctx, service.URL, service.APIKey)
+					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				}
 			}
 		}

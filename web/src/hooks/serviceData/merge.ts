@@ -1,0 +1,303 @@
+/*
+ * Copyright (c) 2026, s0up and the autobrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+import {
+  Service,
+  ServiceConfig,
+  ServiceHealth,
+  ServiceStatus,
+  ServiceType,
+} from "../../types/service";
+import { serviceTemplates } from "../../config/serviceTemplates";
+
+const templateByType: Map<string, (typeof serviceTemplates)[number]> = new Map(
+  serviceTemplates.map((template) => [template.type, template] as const)
+);
+
+type HealthPatchPresence = {
+  hasVersion: boolean;
+  hasUpdateAvailable: boolean;
+  hasResponseTime: boolean;
+};
+
+export type ServicePatchSnapshot = {
+  patch: Partial<Service>;
+  internalStatus?: ServiceStatus;
+};
+
+const INTERNAL_EVENT_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)+$/;
+
+const hasOwnProperty = (value: unknown, key: string): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  Object.prototype.hasOwnProperty.call(value, key);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const mergeRecordDeep = (
+  current: Record<string, unknown>,
+  incoming: Record<string, unknown>
+): Record<string, unknown> => {
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, nextValue] of Object.entries(incoming)) {
+    const prevValue = current[key];
+    if (isRecord(prevValue) && isRecord(nextValue)) {
+      merged[key] = mergeRecordDeep(prevValue, nextValue);
+      continue;
+    }
+    merged[key] = nextValue;
+  }
+  return merged;
+};
+
+const parseDate = (value: unknown): Date | undefined => {
+  if (!value) return undefined;
+  if (value instanceof Date) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+  return undefined;
+};
+
+const isInternalEventMessage = (message: string): boolean =>
+  INTERNAL_EVENT_PATTERN.test(message.trim());
+
+const isInternalServiceEvent = (health: ServiceHealth): boolean =>
+  health.eventType === "internal"
+    ? true
+    : health.eventType === "health"
+      ? false
+      : isInternalEventMessage(health.message || "");
+
+export const mergeServicePayload = <T extends object>(
+  current: T | undefined,
+  incoming: T | undefined
+): T | undefined => {
+  if (!incoming) return current;
+  if (!current) return { ...incoming };
+  if (isRecord(current) && isRecord(incoming)) {
+    return mergeRecordDeep(current, incoming) as T;
+  }
+  return { ...current, ...incoming };
+};
+
+const buildServicePatchFromHealth = (
+  health: ServiceHealth,
+  presence: HealthPatchPresence
+): Partial<Service> => {
+  const shouldApplyHealthState = !isInternalServiceEvent(health);
+
+  const patch: Partial<Service> = {
+    lastChecked: health.lastChecked,
+    stats: health.stats,
+    details: health.details,
+  };
+
+  if (shouldApplyHealthState) {
+    patch.status = health.status;
+    patch.message = health.message;
+    patch.health = health;
+  }
+
+  if (shouldApplyHealthState && presence.hasUpdateAvailable) {
+    patch.updateAvailable = Boolean(health.updateAvailable);
+  }
+
+  if (shouldApplyHealthState && presence.hasResponseTime) {
+    patch.responseTime = health.responseTime;
+  }
+
+  if (presence.hasVersion) {
+    patch.version = health.version;
+  }
+
+  return patch;
+};
+
+const buildServiceFromConfig = (
+  instanceId: string,
+  config: ServiceConfig
+): Service => {
+  const [type] = instanceId.split("-");
+  const template = templateByType.get(type);
+  const hasRequiredConfig = Boolean(config.url);
+
+  return {
+    id: instanceId,
+    instanceId,
+    name: template?.name || "Unknown Service",
+    type: (template?.type || "other") as ServiceType,
+    status: (hasRequiredConfig ? "loading" : "pending") as ServiceStatus,
+    url: config.url,
+    accessUrl: config.accessUrl,
+    apiKey: config.apiKey,
+    displayName: config.displayName,
+    healthEndpoint: template?.healthEndpoint,
+    message: hasRequiredConfig ? undefined : "Service not configured",
+    stats: {},
+    details: {},
+  };
+};
+
+export const mergeServiceWithPatch = (
+  current: Service,
+  patch: Partial<Service>
+): Service => ({
+  ...current,
+  ...patch,
+  stats: mergeServicePayload(current.stats, patch.stats),
+  details: mergeServicePayload(current.details, patch.details),
+});
+
+export const mergePartialServicePatch = (
+  current: Partial<Service> | undefined,
+  patch: Partial<Service>
+): Partial<Service> => ({
+  ...(current ?? {}),
+  ...patch,
+  stats: mergeServicePayload(current?.stats, patch.stats),
+  details: mergeServicePayload(current?.details, patch.details),
+});
+
+export const mergeServicePatchSnapshot = (
+  current: ServicePatchSnapshot | undefined,
+  patch: Partial<Service>,
+  internalStatus?: ServiceStatus
+): ServicePatchSnapshot => ({
+  patch: mergePartialServicePatch(current?.patch, patch),
+  internalStatus: internalStatus ?? current?.internalStatus,
+});
+
+const applyInternalStatus = (
+  current: Service,
+  internalStatus?: ServiceStatus
+): Service => {
+  if (!internalStatus) {
+    return current;
+  }
+
+  if (
+    current.status === "loading" ||
+    current.status === "pending" ||
+    current.status === "unknown"
+  ) {
+    return {
+      ...current,
+      status: internalStatus,
+    };
+  }
+
+  return current;
+};
+
+const applyPatchToService = (
+  current: Service,
+  patch: Partial<Service>,
+  internalStatus?: ServiceStatus
+): Service => applyInternalStatus(mergeServiceWithPatch(current, patch), internalStatus);
+
+export const applyServicePatch = (
+  services: Map<string, Service>,
+  instanceId: string,
+  patch: Partial<Service>,
+  internalStatus?: ServiceStatus
+): Map<string, Service> => {
+  const current = services.get(instanceId);
+  if (!current) return services;
+
+  const next = new Map(services);
+  next.set(instanceId, applyPatchToService(current, patch, internalStatus));
+  return next;
+};
+
+export const deriveHealthUpdate = (
+  payload: unknown
+):
+  | {
+      instanceId: string;
+      patch: Partial<Service>;
+      internalStatus?: ServiceStatus;
+    }
+  | undefined => {
+  if (typeof payload !== "object" || payload === null) {
+    return undefined;
+  }
+
+  const raw = payload as ServiceHealth;
+  const instanceId = raw.serviceId;
+  if (!instanceId) {
+    return undefined;
+  }
+
+  const lastChecked = parseDate(
+    (raw as unknown as { lastChecked?: unknown }).lastChecked
+  );
+  const health: ServiceHealth = {
+    ...raw,
+    lastChecked: lastChecked || new Date(),
+  };
+
+  const patch = buildServicePatchFromHealth(health, {
+    hasVersion: hasOwnProperty(payload, "version"),
+    hasUpdateAvailable: hasOwnProperty(payload, "updateAvailable"),
+    hasResponseTime: hasOwnProperty(payload, "responseTime"),
+  });
+  const internalEvent = isInternalServiceEvent(health);
+
+  return {
+    instanceId,
+    patch,
+    internalStatus: internalEvent ? health.status : undefined,
+  };
+};
+
+export const hydrateServicesFromConfigurations = (
+  previous: Map<string, Service>,
+  configurations: Record<string, ServiceConfig>,
+  latestPatchByInstance: Map<string, ServicePatchSnapshot>
+): Map<string, Service> => {
+  const next = new Map(previous);
+  const configuredIds = new Set(Object.keys(configurations));
+
+  for (const [instanceId, config] of Object.entries(configurations)) {
+    const base = buildServiceFromConfig(instanceId, config);
+    const existing = next.get(instanceId);
+    let merged = existing
+      ? {
+          ...existing,
+          id: base.id,
+          instanceId: base.instanceId,
+          name: base.name,
+          type: base.type,
+          url: base.url,
+          accessUrl: base.accessUrl,
+          apiKey: base.apiKey,
+          displayName: base.displayName,
+          healthEndpoint: base.healthEndpoint,
+        }
+      : base;
+
+    const snapshot = latestPatchByInstance.get(instanceId);
+    if (snapshot) {
+      merged = applyPatchToService(
+        merged,
+        snapshot.patch,
+        snapshot.internalStatus
+      );
+    }
+
+    next.set(instanceId, merged);
+  }
+
+  for (const instanceId of next.keys()) {
+    if (!configuredIds.has(instanceId)) {
+      next.delete(instanceId);
+    }
+  }
+
+  return next;
+};

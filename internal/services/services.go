@@ -7,13 +7,21 @@ import (
 	// Import all services to register their init functions
 
 	_ "github.com/autobrr/dashbrr/internal/services/autobrr"
+	_ "github.com/autobrr/dashbrr/internal/services/bazarr"
 	_ "github.com/autobrr/dashbrr/internal/services/general"
+	_ "github.com/autobrr/dashbrr/internal/services/jellyfin"
+	_ "github.com/autobrr/dashbrr/internal/services/lidarr"
 	_ "github.com/autobrr/dashbrr/internal/services/maintainerr"
-	_ "github.com/autobrr/dashbrr/internal/services/omegabrr"
+	_ "github.com/autobrr/dashbrr/internal/services/nzbget"
 	_ "github.com/autobrr/dashbrr/internal/services/overseerr"
 	_ "github.com/autobrr/dashbrr/internal/services/plex"
 	_ "github.com/autobrr/dashbrr/internal/services/prowlarr"
+	_ "github.com/autobrr/dashbrr/internal/services/qui"
 	_ "github.com/autobrr/dashbrr/internal/services/radarr"
+	_ "github.com/autobrr/dashbrr/internal/services/readarr"
+	_ "github.com/autobrr/dashbrr/internal/services/sabnzbd"
 	_ "github.com/autobrr/dashbrr/internal/services/sonarr"
 	_ "github.com/autobrr/dashbrr/internal/services/tailscale"
+	_ "github.com/autobrr/dashbrr/internal/services/traefik"
+	_ "github.com/autobrr/dashbrr/internal/services/uptimekuma"
 )

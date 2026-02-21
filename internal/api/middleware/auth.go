@@ -24,6 +24,7 @@ const (
 	SessionContextKey contextKey = "session_data"
 	AuthTypeKey       contextKey = "auth_type"
 	UserIDKey         contextKey = "user_id"
+	authLookupTimeout            = 5 * time.Second
 )
 
 type AuthMiddleware struct {
@@ -36,17 +37,76 @@ func NewAuthMiddleware(cache cache.Store) *AuthMiddleware {
 	}
 }
 
+func attachAuthContext(c *gin.Context, baseCtx context.Context, sessionData types.SessionData) {
+	newCtx := context.WithValue(baseCtx, SessionContextKey, sessionData)
+	newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
+	if sessionData.UserID != 0 {
+		newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
+	}
+
+	c.Request = c.Request.WithContext(newCtx)
+
+	c.Set("session", sessionData)
+	c.Set("auth_type", sessionData.AuthType)
+	if sessionData.UserID != 0 {
+		c.Set("user_id", sessionData.UserID)
+	}
+}
+
+func bypassSessionData() types.SessionData {
+	return types.SessionData{
+		AuthType: "builtin",
+		UserID:   1,
+	}
+}
+
+func bearerTokenFromHeader(authHeader string) (string, bool) {
+	if authHeader == "" {
+		return "", false
+	}
+
+	parts := strings.Fields(authHeader)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
+		return "", false
+	}
+
+	return parts[1], true
+}
+
+func (m *AuthMiddleware) loadSession(ctx context.Context, sessionToken string) (types.SessionData, error) {
+	var sessionData types.SessionData
+
+	sessionKey := fmt.Sprintf("oidc:session:%s", sessionToken)
+	if err := m.cache.Get(ctx, sessionKey, &sessionData); err == nil {
+		return sessionData, nil
+	} else if err != cache.ErrKeyNotFound {
+		// Don't mask upstream/cache failures as anonymous misses.
+		return types.SessionData{}, err
+	}
+
+	sessionKey = fmt.Sprintf("session:%s", sessionToken)
+	if err := m.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+		return types.SessionData{}, err
+	}
+
+	return sessionData, nil
+}
+
 // RequireAuth middleware checks for valid authentication
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Create a context with timeout for auth operations
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		baseCtx := c.Request.Context()
+		if IsAuthBypassEnabled() {
+			attachAuthContext(c, baseCtx, bypassSessionData())
+			c.Next()
+			return
+		}
+		lookupCtx, cancel := context.WithTimeout(baseCtx, authLookupTimeout)
 		defer cancel()
 
-		// Get session cookie
+		// Get session cookie, fallback to Authorization header.
 		sessionToken, err := c.Cookie("session")
 		if err != nil {
-			// Check for Authorization header as fallback
 			authHeader := c.GetHeader("Authorization")
 			if authHeader == "" {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "No authentication provided"})
@@ -54,61 +114,37 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 				return
 			}
 
-			// Extract token from Authorization header
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			token, ok := bearerTokenFromHeader(authHeader)
+			if !ok {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header"})
 				c.Abort()
 				return
 			}
-			sessionToken = parts[1]
+			sessionToken = token
 		}
 
-		// Check session in Redis
-		var sessionKey string
-		var sessionData types.SessionData
-
-		// Try OIDC session format first
-		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)
-		err = m.cache.Get(ctx, sessionKey, &sessionData)
+		sessionData, err := m.loadSession(lookupCtx, sessionToken)
 		if err != nil {
-			// If not found, try built-in auth session format
-			sessionKey = fmt.Sprintf("session:%s", sessionToken)
-			err = m.cache.Get(ctx, sessionKey, &sessionData)
-			if err != nil {
-				// Check for context cancellation
-				if ctx.Err() != nil {
-					log.Error().Err(ctx.Err()).Msg("Context cancelled while checking session")
-					c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Authentication check timed out"})
-					c.Abort()
-					return
-				}
-				// Only log if it's not a "key not found" error, as that's expected
-				if err != cache.ErrKeyNotFound {
-					log.Error().Err(err).Msg("error checking session in cache")
-				}
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session"})
+			if lookupCtx.Err() != nil {
+				log.Error().Err(lookupCtx.Err()).Msg("Context cancelled while checking session")
+				c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Authentication check timed out"})
 				c.Abort()
 				return
 			}
+			if err != cache.ErrKeyNotFound {
+				log.Error().Err(err).Msg("error checking session in cache")
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service unavailable"})
+				c.Abort()
+				return
+			}
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session"})
+			c.Abort()
+			return
 		}
 
-		// Create new context with session data
-		newCtx := context.WithValue(ctx, SessionContextKey, sessionData)
-		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
-		}
-
-		// Update request context
-		c.Request = c.Request.WithContext(newCtx)
-
-		// Also set in gin context for backward compatibility
-		c.Set("session", sessionData)
-		c.Set("auth_type", sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			c.Set("user_id", sessionData.UserID)
-		}
+		// Attach auth metadata to the original request context.
+		// Do not propagate the short lookup timeout to downstream handlers (e.g. SSE streams).
+		attachAuthContext(c, baseCtx, sessionData)
 
 		c.Next()
 	}
@@ -117,55 +153,44 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 // OptionalAuth middleware checks for authentication but doesn't require it
 func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Create a context with timeout for auth operations
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		baseCtx := c.Request.Context()
+		if IsAuthBypassEnabled() {
+			attachAuthContext(c, baseCtx, bypassSessionData())
+			c.Next()
+			return
+		}
+		lookupCtx, cancel := context.WithTimeout(baseCtx, authLookupTimeout)
 		defer cancel()
 
 		sessionToken, err := c.Cookie("session")
 		if err != nil {
+			authHeader := c.GetHeader("Authorization")
+			token, ok := bearerTokenFromHeader(authHeader)
+			if !ok {
+				c.Next()
+				return
+			}
+			sessionToken = token
+		}
+
+		if sessionToken == "" {
 			c.Next()
 			return
 		}
 
-		var sessionKey string
-		var sessionData types.SessionData
-
-		// Try OIDC session format first
-		sessionKey = fmt.Sprintf("oidc:session:%s", sessionToken)
-		err = m.cache.Get(ctx, sessionKey, &sessionData)
+		sessionData, err := m.loadSession(lookupCtx, sessionToken)
 		if err != nil {
-			// If not found, try built-in auth session format
-			sessionKey = fmt.Sprintf("session:%s", sessionToken)
-			err = m.cache.Get(ctx, sessionKey, &sessionData)
-			if err != nil {
-				// Check for context cancellation
-				if ctx.Err() != nil {
-					log.Debug().Err(ctx.Err()).Msg("Context cancelled while checking optional session")
-					c.Next()
-					return
-				}
-				// Don't log anything for optional auth failures
+			if lookupCtx.Err() != nil {
+				log.Debug().Err(lookupCtx.Err()).Msg("Context cancelled while checking optional session")
 				c.Next()
 				return
 			}
+			c.Next()
+			return
 		}
 
-		// Create new context with session data
-		newCtx := context.WithValue(ctx, SessionContextKey, sessionData)
-		newCtx = context.WithValue(newCtx, AuthTypeKey, sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			newCtx = context.WithValue(newCtx, UserIDKey, sessionData.UserID)
-		}
-
-		// Update request context
-		c.Request = c.Request.WithContext(newCtx)
-
-		// Also set in gin context for backward compatibility
-		c.Set("session", sessionData)
-		c.Set("auth_type", sessionData.AuthType)
-		if sessionData.UserID != 0 {
-			c.Set("user_id", sessionData.UserID)
-		}
+		// Attach auth metadata to original request context; avoid leaking short lookup timeout.
+		attachAuthContext(c, baseCtx, sessionData)
 
 		c.Next()
 	}

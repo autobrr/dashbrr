@@ -4,13 +4,17 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,8 +27,13 @@ import (
 )
 
 var (
-	// Global HTTP client pool
-	httpClients sync.Map
+	httpClient = &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 
 	// Common errors
 	ErrServiceNotConfigured = errors.New("service is not configured")
@@ -58,30 +67,7 @@ func (s *ServiceCore) SetTimeout(timeout time.Duration) {
 	s.Timeout = timeout
 }
 
-// getHTTPClient returns a client with the specified timeout
-func getHTTPClient(timeout time.Duration) *http.Client {
-	// Use the timeout as the key
-	if client, ok := httpClients.Load(timeout); ok {
-		return client.(*http.Client)
-	}
-
-	// Create new client if not found
-	client := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        10,               // Reduced from 100
-			MaxIdleConnsPerHost: 2,                // Reduced from 10
-			IdleConnTimeout:     30 * time.Second, // Reduced from 90s
-			DisableKeepAlives:   false,
-		},
-		Timeout: timeout,
-	}
-
-	// Store in pool
-	httpClients.Store(timeout, client)
-	return client
-}
-
-func (s *ServiceCore) initCache() error {
+func (s *ServiceCore) initCache(ctx context.Context) error {
 	if s.cache != nil {
 		return nil
 	}
@@ -97,79 +83,70 @@ func (s *ServiceCore) initCache() error {
 		DataDir: dataDir,
 	}
 
-	// Add Redis configuration if available
-	if host := os.Getenv("REDIS_HOST"); host != "" {
-		port := os.Getenv("REDIS_PORT")
-		if port == "" {
-			port = "6379"
-		}
-		cfg.RedisAddr = host + ":" + port
-	}
-
 	// Use the global cache instance
-	store, err := cache.InitCache(context.Background(), cfg)
+	store, err := cache.InitCache(ctx, cfg)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize preferred cache, using memory cache")
+		return err
 	}
 	s.cache = store
-	return err
+	if s.cache == nil {
+		if err != nil {
+			return err
+		}
+		return errors.New("cache init returned nil store")
+	}
+	return nil
 }
 
-// MakeRequestWithContext makes an HTTP request with the provided context and timeout
-func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, apiKey string, headers map[string]string) (*http.Response, error) {
+// DoRequest makes an HTTP request with the provided context, method, and optional body.
+// Uses the shared HTTP client pool + service-specific timeout.
+func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, headers map[string]string, body []byte) (*http.Response, error) {
 	if url == "" {
 		log.Error().Msg("Service is not configured")
 		return nil, ErrServiceNotConfigured
 	}
 
-	// Use service-specific timeout if set, otherwise use context deadline or default
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Use service-specific timeout if set; otherwise default. If ctx already has a
+	// deadline, rely on ctx cancellation (don't derive http.Client timeouts from
+	// time.Until(deadline), which would create a new timeout key each request).
 	timeout := DefaultTimeout
 	if s.Timeout > 0 {
 		timeout = s.Timeout
 	}
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = time.Until(deadline)
+
+	reqCtx := ctx
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok && timeout > 0 {
+		reqCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 
-	// Get method from headers if provided, default to GET
-	method := http.MethodGet
-	if m, ok := headers["method"]; ok {
-		method = m
-		delete(headers, "method") // Remove method from headers after using it
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	req, err := http.NewRequestWithContext(reqCtx, method, url, bodyReader)
 	if err != nil {
 		log.Error().Err(err).Str("url", url).Msg("Failed to create request")
 		return nil, err
 	}
 
-	// Set default headers
+	// Default headers
 	buildinfo.AttachUserAgentHeader(req)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Connection", "keep-alive")
 
-	if headers != nil {
-		// Handle auth header first if present
-		if authHeader, ok := headers["auth_header"]; ok {
-			if authValue, ok := headers["auth_value"]; ok && authValue != "" {
-				req.Header.Set(authHeader, authValue)
-			}
-		}
-
-		// Set other headers
-		for headerKey, headerValue := range headers {
-			if headerKey != "auth_header" && headerKey != "auth_value" {
-				req.Header.Set(headerKey, headerValue)
-			}
-		}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	start := time.Now()
-
-	// Get client with appropriate timeout
-	client := getHTTPClient(timeout)
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Error().Err(err).
 			Str("url", url).
@@ -177,13 +154,12 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 			Msg("Request failed")
 		return nil, err
 	}
-
 	if resp == nil {
 		log.Error().Str("url", url).Msg("Received nil response from server")
 		return nil, ErrNilResponse
 	}
 
-	// Check if response is a redirect to a login page or similar
+	// Redirect often indicates auth issues.
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
 		resp.Body.Close()
 		err := errors.New("received redirect response, possible authentication issue")
@@ -191,22 +167,21 @@ func (s *ServiceCore) MakeRequestWithContext(ctx context.Context, url string, ap
 		return nil, err
 	}
 
-	// Store the response time in milliseconds
 	resp.Header.Set("X-Response-Time", fmt.Sprintf("%d", time.Since(start).Milliseconds()))
-
 	return resp, nil
 }
 
-func (s *ServiceCore) MakeRequest(url string, apiKey string, headers map[string]string) (*http.Response, error) {
-	// Use service-specific timeout if set, otherwise use default
-	timeout := DefaultTimeout
-	if s.Timeout > 0 {
-		timeout = s.Timeout
+func isJSONContentType(contentType string) bool {
+	// Common: "application/json; charset=utf-8"
+	if contentType == "" {
+		return false
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return s.MakeRequestWithContext(ctx, url, apiKey, headers)
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil {
+		return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+	}
+	// Fallback for invalid headers.
+	return strings.HasPrefix(contentType, "application/json") || strings.Contains(contentType, "+json")
 }
 
 // ReadBody reads and returns the response body
@@ -260,7 +235,7 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 			err = fmt.Errorf("endpoint not found (404): %s", errMsg)
 		default:
 			// Only create error if content type is not JSON
-			if contentType != "application/json" {
+			if !isJSONContentType(contentType) {
 				err = fmt.Errorf("service error: %s", errMsg)
 			}
 		}
@@ -279,15 +254,15 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 }
 
 // GetVersionFromCache retrieves the version from cache
-func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
-	if err := s.initCache(); err != nil {
+func (s *ServiceCore) GetVersionFromCache(ctx context.Context, baseURL string) string {
+	if err := s.initCache(ctx); err != nil {
 		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
 		return ""
 	}
 
 	var version string
 	cacheKey := "version:" + baseURL
-	err := s.cache.Get(context.Background(), cacheKey, &version)
+	err := s.cache.Get(ctx, cacheKey, &version)
 	if err != nil {
 		// Cache miss is normal operation, no need to log it
 		return ""
@@ -296,32 +271,63 @@ func (s *ServiceCore) GetVersionFromCache(baseURL string) string {
 	return version
 }
 
-// GetUpdateStatusFromCache retrieves the update status from cache
-func (s *ServiceCore) GetUpdateStatusFromCache(baseURL string) bool {
-	if err := s.initCache(); err != nil {
+// GetUpdateStatusFromCacheWithFound retrieves the update status from cache and
+// reports whether a value existed.
+func (s *ServiceCore) GetUpdateStatusFromCacheWithFound(ctx context.Context, baseURL string) (bool, bool) {
+	if err := s.initCache(ctx); err != nil {
 		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
-		return false
+		return false, false
 	}
 
 	var updateStatus string
 	cacheKey := fmt.Sprintf("%s:update", baseURL)
-	err := s.cache.Get(context.Background(), cacheKey, &updateStatus)
-	if err != nil {
-		return false
+	if err := s.cache.Get(ctx, cacheKey, &updateStatus); err == nil {
+		return updateStatus == "true", true
 	}
 
-	return updateStatus == "true"
+	// Legacy: older code incorrectly stored update status via CacheVersion(updateKey, ...),
+	// which prefixes keys with "version:".
+	var legacyStatus string
+	legacyKey := "version:" + cacheKey
+	if err := s.cache.Get(ctx, legacyKey, &legacyStatus); err == nil {
+		return legacyStatus == "true", true
+	}
+
+	return false, false
+}
+
+// GetUpdateStatusFromCache retrieves the update status from cache.
+func (s *ServiceCore) GetUpdateStatusFromCache(ctx context.Context, baseURL string) bool {
+	updateStatus, _ := s.GetUpdateStatusFromCacheWithFound(ctx, baseURL)
+	return updateStatus
+}
+
+// CacheUpdateStatus stores update availability in the dedicated update cache key.
+func (s *ServiceCore) CacheUpdateStatus(ctx context.Context, baseURL string, updateAvailable bool, ttl time.Duration) error {
+	if err := s.initCache(ctx); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		return err
+	}
+
+	cacheKey := fmt.Sprintf("%s:update", baseURL)
+	value := strconv.FormatBool(updateAvailable)
+	if err := s.cache.Set(ctx, cacheKey, value, ttl); err != nil {
+		log.Error().Err(err).Str("url", baseURL).Str("value", value).Msg("Failed to cache update status")
+		return err
+	}
+
+	return nil
 }
 
 // CacheVersion stores the version in cache with the specified TTL
-func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) error {
-	if err := s.initCache(); err != nil {
+func (s *ServiceCore) CacheVersion(ctx context.Context, baseURL, version string, ttl time.Duration) error {
+	if err := s.initCache(ctx); err != nil {
 		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
 		return err
 	}
 
 	cacheKey := "version:" + baseURL
-	if err := s.cache.Set(context.Background(), cacheKey, version, ttl); err != nil {
+	if err := s.cache.Set(ctx, cacheKey, version, ttl); err != nil {
 		log.Error().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache version")
 		return err
 	}
@@ -330,7 +336,7 @@ func (s *ServiceCore) CacheVersion(baseURL, version string, ttl time.Duration) e
 }
 
 // CreateHealthResponse creates a standardized health response
-func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) models.ServiceHealth {
+func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]any) models.ServiceHealth {
 	response := models.ServiceHealth{
 		Status:      status,
 		LastChecked: lastChecked,
@@ -347,10 +353,10 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 		if responseTime, ok := extras[0]["responseTime"].(int64); ok {
 			response.ResponseTime = responseTime
 		}
-		if stats, ok := extras[0]["stats"].(map[string]interface{}); ok {
+		if stats, ok := extras[0]["stats"].(map[string]any); ok {
 			response.Stats = stats
 		}
-		if details, ok := extras[0]["details"].(map[string]interface{}); ok {
+		if details, ok := extras[0]["details"].(map[string]any); ok {
 			response.Details = details
 		}
 	}
@@ -360,7 +366,7 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 
 // GetCachedVersion attempts to get version from cache or fetches it if not found
 func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
-	if err := s.initCache(); err != nil {
+	if err := s.initCache(ctx); err != nil {
 		log.Error().Err(err).Str("url", baseURL).Msg("Cache initialization failed")
 		return "", err
 	}
@@ -391,13 +397,13 @@ func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 }
 
 // ConcurrentRequest executes multiple requests concurrently and returns their results
-func (s *ServiceCore) ConcurrentRequest(requests []func() (interface{}, error)) []interface{} {
+func (s *ServiceCore) ConcurrentRequest(requests []func() (any, error)) []any {
 	var wg sync.WaitGroup
-	results := make([]interface{}, len(requests))
+	results := make([]any, len(requests))
 
 	for i, request := range requests {
 		wg.Add(1)
-		go func(index int, req func() (interface{}, error)) {
+		go func(index int, req func() (any, error)) {
 			defer wg.Done()
 			if result, err := req(); err == nil {
 				results[index] = result

@@ -7,17 +7,31 @@ on:
       - "develop"
     tags:
       - "v*"
+    paths-ignore:
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/images/**"
+      - "config.toml"
+      - "Makefile"
+      - "**.md"
+      - "docs/**"
   pull_request:
+    paths-ignore:
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/images/**"
+      - "config.toml"
+      - "Makefile"
+      - "**.md"
+      - "docs/**"
 
 env:
   REGISTRY: ghcr.io
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
-  GO_VERSION: "1.23"
-  NODE_VERSION: "20.17.0"
+  NODE_VERSION: "22.12.0"
 
 permissions:
   contents: write
   packages: write
+  pull-requests: read
 
 jobs:
   web:
@@ -58,6 +72,52 @@ jobs:
           name: web-dist
           path: web/dist
 
+  web-browser-regression:
+    name: Browser regression
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up corepack
+        run: npm install -g corepack@latest && corepack enable
+
+      # It can not be done before enable corepack
+      - name: Set up cache
+        uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Fetch web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser regression suite
+        working-directory: web
+        run: pnpm run test:browser
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          if-no-files-found: ignore
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -71,11 +131,6 @@ jobs:
           POSTGRES_PASSWORD: dashbrr
           POSTGRES_DB: dashbrr_test
         options: --health-cmd pg_isready --health-interval 1s --health-timeout 5s --health-retries 60
-      test_redis:
-        image: redis:7-alpine
-        ports:
-          - "6379:6379"
-        options: --health-cmd "redis-cli ping" --health-interval 1s --health-timeout 5s --health-retries 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,7 +141,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
 
       - name: Initialize test database
@@ -101,8 +156,6 @@ jobs:
           DASHBRR__DB_USER: dashbrr
           DASHBRR__DB_PASSWORD: dashbrr
           DASHBRR__DB_NAME: dashbrr_test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
         run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- ./... -tags=integration
 
       - name: Test Summary
@@ -131,7 +184,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
 
       - name: Run GoReleaser build
@@ -175,6 +228,7 @@ jobs:
             dist/*.apk
             dist/*.deb
             dist/*.rpm
+            dist/*.pkg.tar.zst
 
   docker:
     name: Build Docker images
@@ -220,6 +274,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             type=semver,pattern={{version}},prefix=v
@@ -298,6 +353,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             type=semver,pattern={{version}},prefix=v

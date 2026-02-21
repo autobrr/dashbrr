@@ -100,10 +100,7 @@ func (rl *RateLimiter) RateLimit() gin.HandlerFunc {
 		}
 
 		// Set rate limit headers
-		remaining := rl.limit - int(count) - 1
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(rl.limit-int(count)-1, 0)
 		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", rl.limit))
 		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
 		c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", windowStart+int64(rl.window.Seconds())))

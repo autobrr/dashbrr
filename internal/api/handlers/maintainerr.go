@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
@@ -35,6 +33,7 @@ const (
 type MaintainerrHandler struct {
 	db             *database.DB
 	cache          cache.Store
+	bc             *Broadcaster
 	sf             *singleflight.Group
 	circuitBreaker *resilience.CircuitBreaker
 
@@ -42,125 +41,15 @@ type MaintainerrHandler struct {
 	lastCollectionsHashMu sync.Mutex
 }
 
-func NewMaintainerrHandler(db *database.DB, cache cache.Store) *MaintainerrHandler {
+func NewMaintainerrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *MaintainerrHandler {
 	return &MaintainerrHandler{
 		db:                  db,
 		cache:               cache,
+		bc:                  bc,
 		sf:                  &singleflight.Group{},
 		circuitBreaker:      resilience.NewCircuitBreaker(5, 1*time.Minute),
 		lastCollectionsHash: make(map[string]string),
 	}
-}
-
-// convertCachedCollection converts a cached map to a maintainerr.Collection
-func convertCachedCollection(input map[string]interface{}) (maintainerr.Collection, error) {
-	// Marshal the map back to JSON
-	jsonData, err := json.Marshal(input)
-	if err != nil {
-		return maintainerr.Collection{}, fmt.Errorf("failed to marshal cached data: %w", err)
-	}
-
-	// Unmarshal into Collection struct
-	var collection maintainerr.Collection
-	if err := json.Unmarshal(jsonData, &collection); err != nil {
-		return maintainerr.Collection{}, fmt.Errorf("failed to unmarshal to Collection: %w", err)
-	}
-
-	return collection, nil
-}
-
-// fetchCollectionsWithCache is a type-safe wrapper around fetchDataWithCache for Collections
-func (h *MaintainerrHandler) fetchCollectionsWithCache(ctx context.Context, cacheKey string, fetchFn func() ([]maintainerr.Collection, error)) ([]maintainerr.Collection, error) {
-	data, err := h.fetchDataWithCache(ctx, cacheKey, func() (interface{}, error) {
-		return fetchFn()
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle the cached data based on its type
-	switch v := data.(type) {
-	case []maintainerr.Collection:
-		return v, nil
-	case []interface{}:
-		collections := make([]maintainerr.Collection, 0, len(v))
-		for i, item := range v {
-			if mapData, ok := item.(map[string]interface{}); ok {
-				collection, err := convertCachedCollection(mapData)
-				if err != nil {
-					log.Error().
-						Err(err).
-						Int("index", i).
-						Str("input_type", fmt.Sprintf("%T", item)).
-						Msg("Failed to convert cached collection")
-					continue
-				}
-				collections = append(collections, collection)
-			}
-		}
-		return collections, nil
-	default:
-		return nil, fmt.Errorf("unexpected data type in cache: %T", data)
-	}
-}
-
-// fetchDataWithCache implements a stale-while-revalidate pattern
-func (h *MaintainerrHandler) fetchDataWithCache(ctx context.Context, cacheKey string, fetchFn func() (interface{}, error)) (interface{}, error) {
-	var data interface{}
-
-	// Try to get from cache first
-	err := h.cache.Get(ctx, cacheKey, &data)
-	if err == nil {
-		// Data found in cache
-		go func() {
-			// Refresh cache in background if close to expiration
-			if time.Now().After(time.Now().Add(-middleware.CacheDurations.MaintainerrStatus + 5*time.Second)) {
-				if newData, err := fetchFn(); err == nil {
-					_ = h.cache.Set(ctx, cacheKey, newData, middleware.CacheDurations.MaintainerrStatus)
-				}
-			}
-		}()
-		return data, nil
-	}
-
-	// Check circuit breaker before making request
-	if h.circuitBreaker.IsOpen() {
-		// Try to get stale data when circuit is open
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			log.Warn().Msg("[Maintainerr] Circuit breaker open, serving stale data")
-			return staleData, nil
-		}
-		return nil, fmt.Errorf("circuit breaker is open")
-	}
-
-	// Cache miss or error, fetch fresh data with retry
-	var fetchErr error
-	err = resilience.RetryWithBackoff(ctx, func() error {
-		data, fetchErr = fetchFn()
-		return fetchErr
-	})
-
-	if err != nil {
-		h.circuitBreaker.RecordFailure()
-		// Try to get stale data
-		var staleData interface{}
-		if staleErr := h.cache.Get(ctx, cacheKey+":stale", &staleData); staleErr == nil {
-			log.Warn().Err(err).Msg("[Maintainerr] Failed to fetch fresh data, serving stale")
-			return staleData, nil
-		}
-		return nil, err
-	}
-
-	h.circuitBreaker.RecordSuccess()
-
-	// Cache the fresh data
-	if err := h.cache.Set(ctx, cacheKey, data, middleware.CacheDurations.MaintainerrStatus); err == nil {
-		// Also cache as stale data with longer duration
-		_ = h.cache.Set(ctx, cacheKey+":stale", data, maintainerrStaleDataDuration)
-	}
-
-	return data, nil
 }
 
 // handleHTTPStatusCode processes HTTP status codes from Maintainerr errors
@@ -173,11 +62,11 @@ func handleHTTPStatusCode(code int) (int, string) {
 	case http.StatusGatewayTimeout:
 		return code, "Service request timed out (504)"
 	case http.StatusUnauthorized:
-		return code, "Invalid API key"
+		return http.StatusBadGateway, "Invalid API key"
 	case http.StatusForbidden:
-		return code, "Access forbidden"
+		return http.StatusBadGateway, "Access forbidden"
 	case http.StatusNotFound:
-		return code, "Service endpoint not found"
+		return http.StatusBadGateway, "Service endpoint not found"
 	default:
 		return code, fmt.Sprintf("Service returned error: %s (%d)", http.StatusText(code), code)
 	}
@@ -191,9 +80,8 @@ func determineErrorResponse(err error) (int, string) {
 			return handleHTTPStatusCode(maintErr.HttpCode)
 		}
 
-		// Handle specific error messages
-		if maintErr.Op == "get_collections" && (maintErr.Error() == "maintainerr get_collections: URL is required" ||
-			maintErr.Error() == "maintainerr get_collections: API key is required") {
+		if maintErr.Op == "get_collections" && (errors.Is(maintErr, maintainerr.ErrURLRequired) ||
+			errors.Is(maintErr, maintainerr.ErrAPIKeyRequired)) {
 			return http.StatusBadRequest, maintErr.Error()
 		}
 
@@ -215,33 +103,37 @@ func determineErrorResponse(err error) (int, string) {
 }
 
 func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
-	instanceId := c.Query("instanceId")
-	if instanceId == "" {
-		log.Error().Msg("[Maintainerr] No instance ID provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Instance ID is required"})
-		return
-	}
-
-	// Verify this is a Maintainerr instance
-	if instanceId[:11] != "maintainerr" {
-		log.Error().Str("instanceId", instanceId).Msg("[Maintainerr] Invalid instance ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Maintainerr instance ID"})
+	instanceId, ok := requireInstanceIDWithMissingMessage(c, "maintainerr", "Maintainerr", "Instance ID is required")
+	if !ok {
 		return
 	}
 
 	cacheKey := maintainerrCachePrefix + instanceId
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
-	// Use singleflight to deduplicate concurrent requests
 	sfKey := fmt.Sprintf("collections:%s", instanceId)
-	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
-		return h.fetchCollectionsWithCache(ctx, cacheKey, func() ([]maintainerr.Collection, error) {
-			return h.fetchCollections(ctx, instanceId)
-		})
+	collections, err := FetchWithSWRCache(ctx, SWRCacheOptions[[]maintainerr.Collection]{
+		Store:           h.cache,
+		Key:             cacheKey,
+		FreshTTL:        middleware.CacheDurations.MaintainerrStatus,
+		StaleTTL:        maintainerrStaleDataDuration,
+		CircuitBreaker:  h.circuitBreaker,
+		Singleflight:    h.sf,
+		SingleflightKey: sfKey,
+		Fetch: func() ([]maintainerr.Collection, error) {
+			c, err := h.fetchCollections(ctx, instanceId)
+			if err != nil {
+				return nil, err
+			}
+			if c == nil {
+				c = make([]maintainerr.Collection, 0)
+			}
+			return c, nil
+		},
 	})
 
 	if err != nil {
-		if err.Error() == "service not configured" {
+		if errors.Is(err, ErrServiceNotConfigured) {
 			// Return empty response for unconfigured service
 			c.JSON(http.StatusOK, []maintainerr.Collection{})
 			return
@@ -261,8 +153,6 @@ func (h *MaintainerrHandler) GetMaintainerrCollections(c *gin.Context) {
 		})
 		return
 	}
-
-	collections := result.([]maintainerr.Collection)
 
 	// Add change detection logging
 	h.compareAndLogCollectionChanges(instanceId, collections)
@@ -284,7 +174,7 @@ func (h *MaintainerrHandler) fetchCollections(ctx context.Context, instanceId st
 	}
 
 	if maintainerrConfig == nil || maintainerrConfig.URL == "" {
-		return nil, fmt.Errorf("service not configured")
+		return nil, ErrServiceNotConfigured
 	}
 
 	service := &maintainerr.MaintainerrService{}
@@ -354,18 +244,5 @@ func (h *MaintainerrHandler) compareAndLogCollectionChanges(instanceId string, c
 
 // broadcastMaintainerrCollections broadcasts collections updates to all connected SSE clients
 func (h *MaintainerrHandler) broadcastMaintainerrCollections(instanceId string, collections []maintainerr.Collection) {
-	BroadcastHealth(models.ServiceHealth{
-		ServiceID:   instanceId,
-		Status:      "online",
-		Message:     "maintainerr_collections",
-		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"maintainerr": collections,
-		},
-		Details: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
-				"collectionCount": len(collections),
-			},
-		},
-	})
+	publishInternalServiceUpdate(h.bc, buildMaintainerrCollectionsServiceUpdate(instanceId, collections))
 }

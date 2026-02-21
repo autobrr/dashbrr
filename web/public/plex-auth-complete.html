@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plex Authentication Complete</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        background: #111318;
+        color: #d4d4d8;
+      }
+      p {
+        margin: 0;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="status">Authentication complete. Returning to Dashbrr...</p>
+    <script>
+      (() => {
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: "dashbrr:plex-auth-complete" }, window.location.origin);
+            window.opener.focus();
+          }
+        } catch {}
+
+        window.close();
+
+        window.setTimeout(() => {
+          const status = document.getElementById("status");
+          if (status) {
+            status.textContent = "Authentication complete. You can close this tab.";
+          }
+        }, 150);
+      })();
+    </script>
+  </body>
+</html>

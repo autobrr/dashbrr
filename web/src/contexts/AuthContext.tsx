@@ -12,13 +12,43 @@ import {
   RegisterCredentials,
 } from "../types/auth";
 import { AUTH_URLS, getAuthConfig, AuthConfig } from "../config/auth";
+import { readErrorMessage } from "../utils/http";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Utility function for exponential backoff
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const MAX_RETRIES = 5;
 
-// Debounce function with proper type handling
+const fetchWith429Retry = async (
+  url: string,
+  init: RequestInit,
+  maxRetries = MAX_RETRIES
+): Promise<Response> => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 || attempt === maxRetries - 1) {
+      return response;
+    }
+
+    const retryAfter = response.headers.get("Retry-After");
+    const parsedRetryAfter = retryAfter ? Number.parseInt(retryAfter, 10) : NaN;
+    const waitTime =
+      Number.isFinite(parsedRetryAfter) && parsedRetryAfter >= 0
+        ? parsedRetryAfter * 1000
+        : Math.min(1000 * Math.pow(2, attempt), 30000);
+    await wait(waitTime);
+  }
+
+  throw new Error("request retry loop exhausted");
+};
+
+const debug = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    // Keep auth chatter out of production logs.
+    console.debug(...args);
+  }
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -26,194 +56,125 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [isChecking, setIsChecking] = useState(false);
+  const [authType, setAuthType] = useState<"oidc" | "builtin" | null>(null);
+
+  const clearAuth = useCallback(() => {
+    debug("[AuthProvider] Clearing authentication state");
+    setUser(null);
+    setIsAuthenticated(false);
+    setAuthType(null);
+  }, []);
 
   const checkAuthStatus = useCallback(async () => {
-    // Prevent concurrent auth checks
-    if (isChecking) {
-      console.log("[AuthProvider] Auth check already in progress, skipping");
-      return;
-    }
+    debug("[AuthProvider] Checking auth status");
+    setLoading(true);
 
-    console.log("[AuthProvider] Checking auth status");
-    setIsChecking(true);
-    
+    const candidates: Array<"oidc" | "builtin"> = ["oidc", "builtin"];
+
+    const baseRequest: RequestInit = {
+      credentials: "include",
+    };
+
+    const verify = async (url: string): Promise<boolean> => {
+      const response = await fetchWith429Retry(url, baseRequest);
+      return response.ok;
+    };
+
     try {
-      const accessToken = localStorage.getItem("access_token");
-      const currentAuthType = localStorage.getItem("auth_type") as
-        | "oidc"
-        | "builtin"
-        | null;
-
-      if (!accessToken || !currentAuthType) {
-        console.log("[AuthProvider] No access token or auth type found");
-        clearAuth();
-        return;
-      }
-
-      // Skip check if we're already authenticated with matching token
-      if (isAuthenticated && user && accessToken === localStorage.getItem("access_token")) {
-        console.log("[AuthProvider] Already authenticated with same token, skipping check");
-        return;
-      }
-
-      console.log(
-        "[AuthProvider] Verifying token for auth type:",
-        currentAuthType
-      );
-
-      // First verify the token
-      const verifyUrl =
-        currentAuthType === "oidc"
-          ? AUTH_URLS.oidc.verify
-          : AUTH_URLS.builtin.verify;
-
-      console.log("[AuthProvider] Verifying token at:", verifyUrl);
-
-      const verifyResponse = await fetch(verifyUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: "include",
-      });
-
-      if (!verifyResponse.ok) {
-        if (verifyResponse.status === 429) {
-          // Rate limit hit - implement exponential backoff
-          const retryAfter = verifyResponse.headers.get("Retry-After");
-          const waitTime = retryAfter
-            ? parseInt(retryAfter) * 1000
-            : Math.min(1000 * Math.pow(2, retryCount), 30000);
-          console.log(
-            `[AuthProvider] Rate limited, waiting ${waitTime}ms before retry`
-          );
-          await wait(waitTime);
-          setRetryCount((prev) => prev + 1);
-          return checkAuthStatus(); // Retry after waiting
+      let detected: "oidc" | "builtin" | null = null;
+      for (const t of candidates) {
+        const verifyUrl = t === "oidc" ? AUTH_URLS.oidc.verify : AUTH_URLS.builtin.verify;
+        if (await verify(verifyUrl)) {
+          detected = t;
+          break;
         }
-        console.error(
-          "[AuthProvider] Token verification failed:",
-          verifyResponse.status
-        );
+      }
+
+      if (!detected) {
         clearAuth();
         return;
       }
 
-      // Reset retry count on successful verification
-      setRetryCount(0);
-      console.log("[AuthProvider] Token verified successfully");
+      setAuthType(detected);
 
-      // Then get user info using the appropriate endpoint
-      const isOIDC = currentAuthType === "oidc";
-      const userInfoUrl = isOIDC ? AUTH_URLS.oidc.userInfo : AUTH_URLS.userInfo;
-
-      console.log("[AuthProvider] Fetching user info from:", userInfoUrl);
-
-      // Only make one userinfo request
-      const userInfoResponse = await fetch(userInfoUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: "include",
-      });
-
+      const userInfoUrl = detected === "oidc" ? AUTH_URLS.oidc.userInfo : AUTH_URLS.userInfo;
+      const userInfoResponse = await fetchWith429Retry(userInfoUrl, baseRequest);
       if (!userInfoResponse.ok) {
-        if (userInfoResponse.status === 429) {
-          // Rate limit hit - implement exponential backoff
-          const retryAfter = userInfoResponse.headers.get("Retry-After");
-          const waitTime = retryAfter
-            ? parseInt(retryAfter) * 1000
-            : Math.min(1000 * Math.pow(2, retryCount), 30000);
-          console.log(
-            `[AuthProvider] Rate limited, waiting ${waitTime}ms before retry`
-          );
-          await wait(waitTime);
-          setRetryCount((prev) => prev + 1);
-          return checkAuthStatus(); // Retry after waiting
-        }
-        console.error(
-          "[AuthProvider] Failed to get user info:",
-          userInfoResponse.status
-        );
         clearAuth();
         return;
       }
 
-      // Reset retry count on successful user info fetch
-      setRetryCount(0);
       const userData = await userInfoResponse.json();
-      console.log("[AuthProvider] User info received:", {
-        ...userData,
-        auth_type: currentAuthType,
-      });
-
-      // Only set authenticated after BOTH verify and userinfo succeed
-      setUser({ ...userData, auth_type: currentAuthType });
+      setUser({ ...userData, auth_type: detected });
       setIsAuthenticated(true);
-      console.log("[AuthProvider] Authentication successful");
     } catch (error) {
       console.error("[AuthProvider] Auth check failed:", error);
       clearAuth();
     } finally {
-      setIsChecking(false);
       setLoading(false);
     }
-  }, [retryCount, isAuthenticated, user, isChecking]);
-
-  const clearAuth = useCallback(() => {
-    console.log("[AuthProvider] Clearing authentication state");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("id_token");
-    localStorage.removeItem("auth_type");
-    setUser(null);
-    setIsAuthenticated(false);
-    setRetryCount(0);
-  }, []);
+  }, [clearAuth]);
 
   useEffect(() => {
     let mounted = true;
-    console.log("[AuthProvider] Initializing auth provider");
+    debug("[AuthProvider] Initializing auth provider");
 
-    // Fetch auth configuration
-    getAuthConfig().then((config) => {
-      if (mounted) {
-        console.log("[AuthProvider] Received auth config:", config);
-        setAuthConfig(config);
+    const init = async () => {
+      const config = await getAuthConfig();
+      if (!mounted) return;
+
+      debug("[AuthProvider] Received auth config:", config);
+      setAuthConfig(config);
+
+      if (config.bypass) {
+        debug("[AuthProvider] Auth bypass enabled");
+        setAuthType("builtin");
+        setUser({
+          id: 1,
+          username: "auth-bypass",
+          email: "bypass@dashbrr.local",
+          auth_type: "builtin",
+        });
+        setIsAuthenticated(true);
+        setLoading(false);
+        return;
       }
-    });
 
-    // Check for OIDC auth tokens in URL (after callback)
-    const params = new URLSearchParams(window.location.search);
-    const accessToken = params.get("access_token");
-    const idToken = params.get("id_token");
+      // Always check once: supports cookie-only sessions.
+      await checkAuthStatus();
+    };
 
-    if (accessToken && idToken) {
-      console.log("[AuthProvider] Found OIDC tokens in URL");
-      // Store tokens and remove them from URL
-      localStorage.setItem("access_token", accessToken);
-      localStorage.setItem("id_token", idToken);
-      localStorage.setItem("auth_type", "oidc");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    // Only do one initial auth check
-    const storedAccessToken = localStorage.getItem("access_token");
-    const storedAuthType = localStorage.getItem("auth_type");
-
-    if (storedAccessToken && storedAuthType && !isAuthenticated) {
-      checkAuthStatus();
-    } else {
-      setLoading(false);
-    }
+    void init();
 
     return () => {
       mounted = false;
     };
-  }, []); // Empty deps array since we only want this to run once on mount
+  }, [checkAuthStatus]);
+
+  const submitAuthForm = async (
+    url: string,
+    payload: unknown,
+    fallbackMessage: string
+  ): Promise<Response> => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      throw new Error(message || fallbackMessage);
+    }
+
+    return response;
+  };
 
   const loginWithOIDC = () => {
-    console.log("[AuthProvider] Initiating OIDC login");
+    debug("[AuthProvider] Initiating OIDC login");
     if (!authConfig?.methods.oidc) {
       throw new Error("OIDC authentication is not configured");
     }
@@ -222,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (credentials?: LoginCredentials) => {
-    console.log(
+    debug(
       "[AuthProvider] Login attempt",
       credentials ? "with credentials" : "with OIDC"
     );
@@ -231,25 +192,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch(AUTH_URLS.builtin.login, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error("[AuthProvider] Login failed:", error);
-        throw new Error(error.message || "Login failed");
-      }
-
-      const data = await response.json();
-      console.log("[AuthProvider] Login successful");
-      localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("auth_type", "builtin");
+      const response = await submitAuthForm(
+        AUTH_URLS.builtin.login,
+        credentials,
+        "Login failed"
+      );
+      await response.json();
+      debug("[AuthProvider] Login successful");
       await checkAuthStatus();
     } catch (error) {
       console.error("[AuthProvider] Login error:", error);
@@ -258,24 +207,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (credentials: RegisterCredentials) => {
-    console.log("[AuthProvider] Registration attempt");
+    debug("[AuthProvider] Registration attempt");
     try {
-      const response = await fetch(AUTH_URLS.builtin.register, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
+      await submitAuthForm(
+        AUTH_URLS.builtin.register,
+        credentials,
+        "Registration failed"
+      );
 
-      if (!response.ok) {
-        const error = await response.json();
-        console.error("[AuthProvider] Registration failed:", error);
-        throw new Error(error.message || "Registration failed");
-      }
-
-      console.log(
+      debug(
         "[AuthProvider] Registration successful, proceeding to login"
       );
       // After successful registration, log in with the same credentials
@@ -290,29 +230,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    console.log("[AuthProvider] Initiating logout");
+    debug("[AuthProvider] Initiating logout");
     try {
-      const currentAuthType = localStorage.getItem("auth_type") as
-        | "oidc"
-        | "builtin";
+      const currentAuthType =
+        authType || user?.auth_type || "builtin";
       const logoutUrl =
         currentAuthType === "oidc"
           ? AUTH_URLS.oidc.logout
           : AUTH_URLS.builtin.logout;
-      const accessToken = localStorage.getItem("access_token");
 
-      console.log(
+      debug(
         "[AuthProvider] Logging out with auth type:",
         currentAuthType
       );
 
+      if (currentAuthType === "oidc") {
+        // Must be a navigation to follow provider redirects.
+        clearAuth();
+        window.location.href = logoutUrl;
+        return;
+      }
+
       const response = await fetch(logoutUrl, {
         method: "POST",
-        headers: accessToken
-          ? {
-              Authorization: `Bearer ${accessToken}`,
-            }
-          : undefined,
         credentials: "include",
       });
 
@@ -321,7 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Logout failed");
       }
 
-      console.log("[AuthProvider] Logout successful");
+      debug("[AuthProvider] Logout successful");
       clearAuth();
       navigate("/login", { replace: true });
     } catch (error) {

@@ -572,6 +572,54 @@ func (db *DB) DeleteService(ctx context.Context, instanceID string) error {
 	return nil
 }
 
+func (db *DB) GetUICollapsePreferences(ctx context.Context, userID int64) (map[string]bool, error) {
+	queryBuilder := db.squirrel.
+		Select("preference_key", "is_collapsed").
+		From("ui_collapse_preferences").
+		Where(sq.Eq{"user_id": userID})
+
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	preferences := make(map[string]bool)
+	for rows.Next() {
+		var key string
+		var collapsed bool
+		if err := rows.Scan(&key, &collapsed); err != nil {
+			return nil, err
+		}
+		preferences[key] = collapsed
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return preferences, nil
+}
+
+func (db *DB) UpsertUICollapsePreference(ctx context.Context, userID int64, key string, collapsed bool) error {
+	query := `
+		INSERT INTO ui_collapse_preferences (user_id, preference_key, is_collapsed, updated_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, preference_key)
+		DO UPDATE SET
+			is_collapsed = EXCLUDED.is_collapsed,
+			updated_at = EXCLUDED.updated_at
+	`
+
+	_, err := db.ExecContext(ctx, query, userID, key, collapsed, time.Now())
+	return err
+}
+
 // Close closes the database connection
 func (db *DB) Close() error {
 	return db.DB.Close()

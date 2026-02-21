@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
@@ -44,121 +42,41 @@ func (s *RadarrService) GetHealthEndpoint(baseURL string) string {
 
 // DeleteQueueItem deletes a queue item with the specified options
 func (s *RadarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.RadarrQueueDeleteOptions) error {
-	if baseURL == "" {
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("URL is required")}
-	}
-
-	if apiKey == "" {
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("API key is required")}
-	}
-
-	// Build delete URL with query parameters
-	deleteURL := fmt.Sprintf("%s/api/v3/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
-		strings.TrimRight(baseURL, "/"),
-		queueId,
-		options.RemoveFromClient,
-		options.Blocklist,
-		options.SkipRedownload)
-
-	// Add changeCategory parameter if needed
-	if options.ChangeCategory {
-		deleteURL += "&changeCategory=true"
-	}
-
-	// Log delete attempt with all parameters
-	log.Info().
-		Str("url", deleteURL).
-		Str("queueId", queueId).
-		Bool("removeFromClient", options.RemoveFromClient).
-		Bool("blocklist", options.Blocklist).
-		Bool("skipRedownload", options.SkipRedownload).
-		Bool("changeCategory", options.ChangeCategory).
-		Msg("Attempting to delete queue item")
-
-	// Execute DELETE request
-	resp, err := arr.MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("url", deleteURL).
-			Str("queueId", queueId).
-			Msg("Failed to execute delete request")
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := s.ReadBody(resp)
-		log.Error().
-			Int("statusCode", resp.StatusCode).
-			Str("url", deleteURL).
-			Str("queueId", queueId).
-			Str("response", string(body)).
-			Msg("Delete request failed")
-
-		var errorResponse struct {
-			Message string `json:"message"`
-		}
-		if err := json.Unmarshal(body, &errorResponse); err == nil && errorResponse.Message != "" {
-			return &arr.ErrArr{Service: "radarr", Op: "delete_queue", Err: fmt.Errorf(errorResponse.Message), HttpCode: resp.StatusCode}
-		}
-		return &arr.ErrArr{Service: "radarr", Op: "delete_queue", HttpCode: resp.StatusCode}
-	}
-
-	log.Info().
-		Str("queueId", queueId).
-		Msg("Successfully deleted queue item")
-
-	return nil
+	return arr.DeleteQueueItem(ctx, "radarr", baseURL, apiKey, queueId, arr.QueueDeleteOptions{
+		RemoveFromClient: options.RemoveFromClient,
+		Blocklist:        options.Blocklist,
+		SkipRedownload:   options.SkipRedownload,
+		ChangeCategory:   options.ChangeCategory,
+	}, s.ReadBody)
 }
 
-// GetQueue fetches the current queue from Radarr
-func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
-	if url == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("URL is required")}
-	}
-
-	if apiKey == "" {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("API key is required")}
-	}
-
-	// Build queue URL with query parameters
-	queueURL := fmt.Sprintf("%s/api/v3/queue?page=1&pageSize=10&includeUnknownMovieItems=false&includeMovie=false",
-		strings.TrimRight(url, "/"))
-
-	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
+func (s *RadarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
+	records, err := arr.FetchQueueRecords[types.RadarrQueueRecord](
+		ctx,
+		"radarr",
+		url,
+		apiKey,
+		"page=1&pageSize=10&includeUnknownMovieItems=false&includeMovie=false",
+		s.ReadBody,
+	)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
+		return nil, err
 	}
-	defer resp.Body.Close()
+	return records, nil
+}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", HttpCode: resp.StatusCode}
-	}
-
-	body, err := s.ReadBody(resp)
+// GetQueue fetches the current queue from Radarr.
+func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
+	records, err := s.getQueueRecords(ctx, url, apiKey)
 	if err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
+		return nil, err
 	}
-
-	var queue types.RadarrQueueResponse
-	if err := json.Unmarshal(body, &queue); err != nil {
-		return nil, &arr.ErrArr{Service: "radarr", Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
-	}
-
-	return queue.Records, nil
+	return records, nil
 }
 
 // GetQueueForHealth is a wrapper around GetQueue that returns []types.RadarrQueueRecord
 func (s *RadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.RadarrQueueRecord, error) {
-	records, err := s.GetQueue(ctx, url, apiKey)
-	if err != nil {
-		return nil, err
-	}
-	if records == nil {
-		return nil, nil
-	}
-	return records.([]types.RadarrQueueRecord), nil
+	return s.getQueueRecords(ctx, url, apiKey)
 }
 
 // LookupByTmdbId fetches movie details from Radarr by TMDB ID
@@ -232,15 +150,15 @@ func (s *RadarrService) GetMovie(ctx context.Context, baseURL, apiKey string, mo
 }
 
 // GetSystemStatus fetches the system status from Radarr
-func (s *RadarrService) GetSystemStatus(url, apiKey string) (string, error) {
-	return arr.GetArrSystemStatus("radarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
+func (s *RadarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {
+	return arr.GetArrSystemStatus(ctx, "radarr", url, apiKey, s.GetVersionFromCache, s.CacheVersion)
 }
 
 // CheckForUpdates checks if there are any updates available for Radarr
-func (s *RadarrService) CheckForUpdates(url, apiKey string) (bool, error) {
-	return arr.CheckArrForUpdates("radarr", url, apiKey)
+func (s *RadarrService) CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error) {
+	return arr.CheckArrForUpdates(ctx, "radarr", url, apiKey)
 }
 
 func (s *RadarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	return arr.ArrHealthCheck(&s.ServiceCore, url, apiKey, s)
+	return arr.ArrHealthCheck(ctx, &s.ServiceCore, url, apiKey, s)
 }

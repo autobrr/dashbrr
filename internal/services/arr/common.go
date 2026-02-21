@@ -8,16 +8,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
-
-// Global HTTP client pool
-var httpClients sync.Map
 
 // Custom error type for *arr services
 type ErrArr struct {
@@ -45,32 +44,25 @@ type SystemStatusResponse struct {
 	Version string `json:"version"`
 }
 
-// getHTTPClient returns a client with the specified timeout
-func getHTTPClient(timeout time.Duration) *http.Client {
-	// Use the timeout as the key
-	if client, ok := httpClients.Load(timeout); ok {
-		return client.(*http.Client)
-	}
-
-	// Create new client if not found
-	client := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
-			DisableKeepAlives:   false,
-		},
-		Timeout: timeout,
-	}
-
-	// Store in pool
-	httpClients.Store(timeout, client)
-	return client
+var arrHTTPClient = &http.Client{
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
 }
 
 // MakeArrRequest is a helper function to make requests with proper headers
 func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(body))
+	// If no deadline is set, apply a default to avoid hanging requests.
+	reqCtx := ctx
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok {
+		reqCtx, cancel = context.WithTimeout(ctx, core.DefaultTimeout)
+		defer cancel()
+	}
+
+	req, err := http.NewRequestWithContext(reqCtx, method, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err
 	}
@@ -80,18 +72,10 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Content-Type", "application/json")
 
-	// Get timeout from context or use default
-	timeout := core.DefaultTimeout
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = time.Until(deadline)
-	}
-
 	// Track request start time
 	startTime := time.Now()
 
-	// Get client with appropriate timeout
-	client := getHTTPClient(timeout)
-	resp, err := client.Do(req)
+	resp, err := arrHTTPClient.Do(req)
 	if err != nil {
 		if err == context.Canceled {
 			return nil, fmt.Errorf("request canceled: %w", err)
@@ -109,19 +93,28 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 	return resp, nil
 }
 
-// GetArrSystemStatus provides a common implementation for getting system status
-func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(string) string, cacheVersion func(string, string, time.Duration) error) (string, error) {
+// GetArrSystemStatus provides a common implementation for getting system status.
+func GetArrSystemStatusWithVersion(
+	ctx context.Context,
+	service, apiVersion, url, apiKey string,
+	getVersionFromCache func(context.Context, string) string,
+	cacheVersion func(context.Context, string, string, time.Duration) error,
+) (string, error) {
 	if url == "" {
 		return "", &ErrArr{Service: service, Op: "get_system_status", Err: fmt.Errorf("URL is required")}
 	}
 
 	// Check cache first using version-specific cache key
-	if version := getVersionFromCache(url); version != "" && version != "true" {
+	if version := getVersionFromCache(ctx, url); version != "" && version != "true" {
 		return version, nil
 	}
 
-	statusURL := fmt.Sprintf("%s/api/v3/system/status", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	if apiVersion == "" {
+		apiVersion = "v3"
+	}
+
+	statusURL := fmt.Sprintf("%s/api/%s/system/status", strings.TrimRight(url, "/"), apiVersion)
+	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, statusURL, apiKey, nil)
@@ -140,22 +133,35 @@ func GetArrSystemStatus(service, url, apiKey string, getVersionFromCache func(st
 	}
 
 	// Cache version for 1 hour
-	if err := cacheVersion(url, status.Version, time.Hour); err != nil {
-		// Log error but don't fail the request
-		fmt.Printf("Failed to cache version: %v\n", err)
+	if err := cacheVersion(ctx, url, status.Version, time.Hour); err != nil {
+		log.Debug().Err(err).Str("url", url).Str("service", service).Msg("Failed to cache version")
 	}
 
 	return status.Version, nil
 }
 
+// GetArrSystemStatus provides a common implementation for getting system status using v3 API.
+func GetArrSystemStatus(
+	ctx context.Context,
+	service, url, apiKey string,
+	getVersionFromCache func(context.Context, string) string,
+	cacheVersion func(context.Context, string, string, time.Duration) error,
+) (string, error) {
+	return GetArrSystemStatusWithVersion(ctx, service, "v3", url, apiKey, getVersionFromCache, cacheVersion)
+}
+
 // CheckArrForUpdates provides a common implementation for checking updates
-func CheckArrForUpdates(service, url, apiKey string) (bool, error) {
+func CheckArrForUpdatesWithVersion(ctx context.Context, service, apiVersion, url, apiKey string) (bool, error) {
 	if url == "" {
 		return false, &ErrArr{Service: service, Op: "check_for_updates", Err: fmt.Errorf("URL is required")}
 	}
 
-	updateURL := fmt.Sprintf("%s/api/v3/update", strings.TrimRight(url, "/"))
-	ctx, cancel := context.WithTimeout(context.Background(), core.DefaultTimeout)
+	if apiVersion == "" {
+		apiVersion = "v3"
+	}
+
+	updateURL := fmt.Sprintf("%s/api/%s/update", strings.TrimRight(url, "/"), apiVersion)
+	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
 	resp, err := MakeArrRequest(ctx, http.MethodGet, updateURL, apiKey, nil)
@@ -186,4 +192,94 @@ func CheckArrForUpdates(service, url, apiKey string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// CheckArrForUpdates provides a common implementation for checking updates using v3 API.
+func CheckArrForUpdates(ctx context.Context, service, url, apiKey string) (bool, error) {
+	return CheckArrForUpdatesWithVersion(ctx, service, "v3", url, apiKey)
+}
+
+func ExtractMessageField(body []byte) string {
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return ""
+	}
+	return payload.Message
+}
+
+func DeleteQueueItemWithVersion(
+	ctx context.Context,
+	service, apiVersion, baseURL, apiKey, queueID string,
+	options QueueDeleteOptions,
+	readBody func(*http.Response) ([]byte, error),
+) error {
+	if baseURL == "" {
+		return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("URL is required")}
+	}
+	if apiKey == "" {
+		return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("API key is required")}
+	}
+
+	deleteURL := BuildQueueDeleteURLWithVersion(baseURL, apiVersion, queueID, options)
+	log.Info().
+		Str("service", service).
+		Str("url", deleteURL).
+		Str("queueId", queueID).
+		Bool("removeFromClient", options.RemoveFromClient).
+		Bool("blocklist", options.Blocklist).
+		Bool("skipRedownload", options.SkipRedownload).
+		Bool("changeCategory", options.ChangeCategory).
+		Msg("Attempting to delete queue item")
+
+	resp, err := MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("service", service).
+			Str("url", deleteURL).
+			Str("queueId", queueID).
+			Msg("Failed to execute delete request")
+		return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var body []byte
+		if readBody != nil {
+			body, _ = readBody(resp)
+		} else {
+			body, _ = io.ReadAll(resp.Body)
+		}
+
+		log.Error().
+			Str("service", service).
+			Int("statusCode", resp.StatusCode).
+			Str("url", deleteURL).
+			Str("queueId", queueID).
+			Str("response", string(body)).
+			Msg("Delete request failed")
+
+		if msg := ExtractMessageField(body); msg != "" {
+			return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("%s", msg), HttpCode: resp.StatusCode}
+		}
+		return &ErrArr{Service: service, Op: "delete_queue", HttpCode: resp.StatusCode}
+	}
+
+	log.Info().
+		Str("service", service).
+		Str("queueId", queueID).
+		Msg("Successfully deleted queue item")
+
+	return nil
+}
+
+func DeleteQueueItem(
+	ctx context.Context,
+	service, baseURL, apiKey, queueID string,
+	options QueueDeleteOptions,
+	readBody func(*http.Response) ([]byte, error),
+) error {
+	return DeleteQueueItemWithVersion(ctx, service, "v3", baseURL, apiKey, queueID, options, readBody)
 }

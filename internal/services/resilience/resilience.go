@@ -72,7 +72,7 @@ func RetryWithBackoff(ctx context.Context, fn func() error) error {
 	var err error
 	backoff := InitialBackoff
 
-	for i := 0; i < MaxRetries; i++ {
+	for range MaxRetries {
 		if err = fn(); err == nil {
 			return nil
 		}
@@ -84,10 +84,7 @@ func RetryWithBackoff(ctx context.Context, fn func() error) error {
 		case <-time.After(backoff):
 			// Exponential backoff with jitter
 			jitter := time.Duration(float64(backoff) * (0.5 + rand.Float64())) // Add 50-150% jitter
-			backoff = time.Duration(float64(backoff) * 2)
-			if backoff > MaxBackoff {
-				backoff = MaxBackoff
-			}
+			backoff = min(time.Duration(float64(backoff)*2), MaxBackoff)
 			backoff += jitter
 		}
 	}

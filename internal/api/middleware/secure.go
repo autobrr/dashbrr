@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -119,11 +120,12 @@ func joinSources(sources []string) string {
 	if len(sources) == 0 {
 		return ""
 	}
-	result := sources[0]
+	var result strings.Builder
+	result.WriteString(sources[0])
 	for _, source := range sources[1:] {
-		result += " " + source
+		result.WriteString(" " + source)
 	}
-	return result
+	return result.String()
 }
 
 // Secure returns a middleware that adds security headers

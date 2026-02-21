@@ -10,10 +10,9 @@ import { Button } from "../ui/Button";
 import { FormInput } from "../ui/FormInput";
 import { toast } from "react-hot-toast";
 import { api } from "../../utils/api";
-import { useServiceHealth } from "../../hooks/useServiceHealth";
+import { usePlexPinAuth } from "../../hooks/usePlexPinAuth";
 
 interface ConfigurationFormProps {
-  serviceName: string;
   instanceId: string;
   displayName: string;
   onClose: () => void;
@@ -24,11 +23,13 @@ export const ConfigurationForm = ({
   displayName: initialDisplayName,
   onClose,
 }: ConfigurationFormProps) => {
-  const { configurations, updateConfiguration, fetchConfigurations } =
-    useConfiguration();
-  const { refreshServiceHealth } = useServiceHealth();
+  const { configurations, updateConfiguration } = useConfiguration();
   const currentConfig = configurations[instanceId];
+  const hasExistingConfig = Boolean(currentConfig);
   const serviceType = instanceId.split("-")[0];
+  const isPlexService = serviceType === "plex";
+  const requiresApiKey =
+    serviceType !== "general" && serviceType !== "traefik";
 
   const [url, setUrl] = useState(currentConfig?.url || "");
   const [accessUrl, setAccessUrl] = useState(currentConfig?.accessUrl || "");
@@ -38,6 +39,7 @@ export const ConfigurationForm = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { isAuthenticating, authenticate } = usePlexPinAuth();
 
   const validateConfiguration = async (config: ServiceConfig) => {
     try {
@@ -71,6 +73,10 @@ export const ConfigurationForm = ({
     setError(null);
 
     try {
+      if (isPlexService && !hasExistingConfig && apiKey.trim() === "") {
+        throw new Error("Authenticate with Plex first");
+      }
+
       const config: ServiceConfig = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
         accessUrl: accessUrl
@@ -89,12 +95,6 @@ export const ConfigurationForm = ({
 
       // Update the configuration
       await updateConfiguration(instanceId, config);
-
-      // Immediately refresh the health status
-      await refreshServiceHealth(instanceId);
-
-      // Force a refresh of all configurations to ensure UI is up to date
-      await fetchConfigurations();
 
       toast.success("Configuration saved successfully");
       onClose();
@@ -118,10 +118,21 @@ export const ConfigurationForm = ({
         return "X-Plex-Token";
       case "radarr":
       case "sonarr":
+      case "lidarr":
+      case "readarr":
+      case "bazarr":
+      case "sabnzbd":
       case "prowlarr":
         return "API Key";
       case "overseerr":
         return "API Key";
+      case "jellyfin":
+      case "uptimekuma":
+        return "API Key";
+      case "nzbget":
+        return "Control Password";
+      case "traefik":
+        return "Auth Token (Optional)";
       default:
         return "API Key";
     }
@@ -141,31 +152,64 @@ export const ConfigurationForm = ({
           text: "Settings > API",
           link: getSettingsUrl("/settings/api"),
         };
-      case "omegabrr":
-        return {
-          prefix: "Found in ",
-          text: "config.toml",
-          link: null,
-        };
       case "plex":
         return {
-          prefix: "Get your ",
-          text: "X-Plex-Token",
-          link: "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
+          prefix: "Authenticate via ",
+          text: "Plex PIN flow guide",
+          link: "https://forums.plex.tv/t/authenticating-with-plex/609370",
         };
       case "radarr":
       case "sonarr":
+      case "lidarr":
+      case "readarr":
+      case "bazarr":
+      case "sabnzbd":
+      case "nzbget":
       case "prowlarr":
         return {
           prefix: "Found in ",
-          text: "Settings > General",
-          link: getSettingsUrl("/settings/general"),
+          text:
+            serviceType === "sabnzbd"
+              ? "Config > General"
+              : serviceType === "nzbget"
+                ? "Config > Security"
+                : "Settings > General",
+          link:
+            serviceType === "sabnzbd"
+              ? getSettingsUrl("/config/general/")
+              : serviceType === "nzbget"
+                ? getSettingsUrl("/?tab=config#S_SECURITY")
+              : getSettingsUrl("/settings/general"),
+        };
+      case "jellyfin":
+        return {
+          prefix: "Found in ",
+          text: "Dashboard > API Keys",
+          link: getSettingsUrl("/web/index.html#!/apikeys.html"),
+        };
+      case "uptimekuma":
+        return {
+          prefix: "Found in ",
+          text: "Settings > API Keys",
+          link: getSettingsUrl("/settings/api-keys"),
         };
       case "overseerr":
         return {
           prefix: "Found in ",
           text: "Settings",
           link: getSettingsUrl("/settings/main"),
+        };
+      case "traefik":
+        return {
+          prefix: "Optional - ",
+          text: "Bearer token or user:password for protected dashboard APIs",
+          link: null,
+        };
+      case "qui":
+        return {
+          prefix: "Found in ",
+          text: "Settings > API Key",
+          link: getSettingsUrl("/settings"),
         };
       default:
         return {
@@ -180,6 +224,20 @@ export const ConfigurationForm = ({
     switch (serviceType) {
       case "plex":
         return "http://localhost:32400";
+      case "qui":
+        return "http://localhost:7476";
+      case "jellyfin":
+        return "http://localhost:8096";
+      case "uptimekuma":
+        return "http://localhost:3001";
+      case "bazarr":
+        return "http://localhost:6767";
+      case "traefik":
+        return "http://localhost:8080";
+      case "sabnzbd":
+        return "http://localhost:8080";
+      case "nzbget":
+        return "http://localhost:6789";
       case "general":
         return "Enter full URL including health endpoint";
       default:
@@ -232,19 +290,45 @@ export const ConfigurationForm = ({
         data-1p-ignore
       />
 
-      {serviceType !== "general" && (
-        <FormInput
-          id="apiKey"
-          label={getApiKeyLabel()}
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={`Enter ${getApiKeyLabel()}`}
-          helpText={apiKeyHelp}
-          required
-          data-1p-ignore
-        />
-      )}
+      {serviceType !== "general" &&
+        (isPlexService ? (
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await authenticate((token) => setApiKey(token));
+                } catch (err) {
+                  const message =
+                    err instanceof Error
+                      ? err.message
+                      : "Failed to start Plex authentication";
+                  toast.error(message);
+                  setError(message);
+                }
+              }}
+              disabled={isSubmitting || isAuthenticating}
+            >
+              {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
+            </Button>
+            {apiKey.trim() !== "" && (
+              <div className="text-xs text-emerald-400">Authenticated with Plex</div>
+            )}
+          </div>
+        ) : (
+          <FormInput
+            id="apiKey"
+            label={getApiKeyLabel()}
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={`Enter ${getApiKeyLabel()}`}
+            helpText={apiKeyHelp}
+            required={!hasExistingConfig && requiresApiKey}
+            data-1p-ignore
+          />
+        ))}
 
       {error && (
         <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>

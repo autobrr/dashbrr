@@ -3,23 +3,34 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState, useEffect } from "react";
-import { Service } from "../../types/service";
+import React, { useState } from "react";
+import { Service, ServiceType } from "../../types/service";
 import { ConfigurationForm } from "../configuration/ConfigurationForm";
 import { ServiceHeader } from "../ui/ServiceHeader";
 import { PlexStats } from "./plex/PlexStats";
-import { OmegabrrStats } from "./omegabrr/OmegabrrStats";
+import { JellyfinStats } from "./jellyfin/JellyfinStats";
+import { UptimeKumaStats } from "./uptimekuma/UptimeKumaStats";
 import { OverseerrStats } from "./overseerr/OverseerrStats";
 import { AutobrrStats } from "./autobrr/AutobrrStats";
 import { MaintainerrService } from "./maintainerr/MaintainerrService";
-import { SonarrStats } from "./sonarr/SonarrStats";
-import { RadarrStats } from "./radarr/RadarrStats";
+import { BazarrStats } from "./bazarr/BazarrStats";
+import { SabnzbdStats } from "./sabnzbd/SabnzbdStats";
+import { NzbgetStats } from "./nzbget/NzbgetStats";
 import { ProwlarrStats } from "./prowlarr/ProwlarrStats";
+import { TraefikStats } from "./traefik/TraefikStats";
+import { QuiStats } from "./qui/QuiStats";
 import { GeneralStats } from "./general/GeneralStats";
+import { ArrQueueStats } from "./common/ArrQueueStats";
 import AnimatedModal from "../ui/AnimatedModal";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useConfiguration } from "../../contexts/useConfiguration";
+import { useCollapsiblePreference } from "../../hooks/useCollapsiblePreference";
+import { serviceCardCollapseKey } from "../../utils/collapsePreferences";
+import {
+  getServiceCardLayoutClasses,
+  hasMeaningfulServiceContent,
+} from "../../utils/serviceCardContent";
 
 interface DragHandleProps {
   role?: string;
@@ -41,8 +52,57 @@ interface ServiceCardProps {
   isInitialLoad?: boolean;
 }
 
-const getStorageKey = (instanceId: string) =>
-  `dashbrr-service-${instanceId}-collapsed`;
+const formatLastChecked = (lastChecked: Date) => {
+  const date = new Date(lastChecked);
+  const today = new Date();
+  return date.toDateString() === today.toDateString()
+    ? date.toLocaleTimeString()
+    : date.toLocaleString();
+};
+
+type ServiceStatsRenderer = (
+  instanceId: string,
+  url: string
+) => React.ReactNode;
+
+const SERVICE_STATS_RENDERERS: Partial<
+  Record<ServiceType, ServiceStatsRenderer>
+> = {
+  autobrr: (instanceId) => (
+    <div className="bg-transparent">
+      <AutobrrStats instanceId={instanceId} />
+    </div>
+  ),
+  overseerr: (instanceId) => <OverseerrStats instanceId={instanceId} />,
+  plex: (instanceId) => <PlexStats instanceId={instanceId} />,
+  jellyfin: (instanceId) => <JellyfinStats instanceId={instanceId} />,
+  uptimekuma: (instanceId) => <UptimeKumaStats instanceId={instanceId} />,
+  maintainerr: (instanceId, url) =>
+    url ? (
+      <div className="bg-transparent">
+        <MaintainerrService instanceId={instanceId} />
+      </div>
+    ) : null,
+  sonarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="sonarr" />
+  ),
+  radarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="radarr" />
+  ),
+  lidarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="lidarr" />
+  ),
+  readarr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="readarr" />
+  ),
+  bazarr: (instanceId) => <BazarrStats instanceId={instanceId} />,
+  sabnzbd: (instanceId) => <SabnzbdStats instanceId={instanceId} />,
+  nzbget: (instanceId) => <NzbgetStats instanceId={instanceId} />,
+  prowlarr: (instanceId) => <ProwlarrStats instanceId={instanceId} />,
+  traefik: (instanceId) => <TraefikStats instanceId={instanceId} />,
+  qui: (instanceId) => <QuiStats instanceId={instanceId} />,
+  general: (instanceId) => <GeneralStats instanceId={instanceId} />,
+};
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({
   service,
@@ -53,33 +113,24 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   isInitialLoad,
 }) => {
   const [showConfig, setShowConfig] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(
-        getStorageKey(service.instanceId)
-      );
-      return stored ? JSON.parse(stored) : false;
-    } catch (error) {
-      console.error("Error reading collapse state:", error);
-      return false;
-    }
-  });
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceCardCollapseKey(service.instanceId),
+    true
+  );
+  const isCollapsed = !isExpanded;
 
   const { configurations } = useConfiguration();
   const currentConfig = configurations[service.instanceId];
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        getStorageKey(service.instanceId),
-        JSON.stringify(isCollapsed)
-      );
-    } catch (error) {
-      console.error("Error saving collapse state:", error);
-    }
-  }, [isCollapsed, service.instanceId]);
-
   const needsConfiguration = !service.url;
+  const shouldCompactContentLayout =
+    !needsConfiguration &&
+    isConnected &&
+    !isInitialLoad &&
+    !hasMeaningfulServiceContent(service);
+  const layoutClasses = getServiceCardLayoutClasses(
+    shouldCompactContentLayout ? "compact" : "regular"
+  );
 
   const renderServiceSpecificControls = () => {
     if (needsConfiguration) return null;
@@ -88,70 +139,43 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
     if (!isConnected || isInitialLoad) {
       return (
         <div className="flex items-center justify-center p-6 text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 px-4 py-2 rounded-lg">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/20 px-4 py-2 rounded-lg">
             {isInitialLoad ? "Loading..." : "Disconnected from backend"}
           </p>
         </div>
       );
     }
 
-    switch (service.type) {
-      case "autobrr":
-        return (
-          <div className="bg-transparent">
-            <AutobrrStats instanceId={service.instanceId} />
-          </div>
-        );
-      case "omegabrr":
-        return <OmegabrrStats instanceId={service.instanceId} />;
-      case "overseerr":
-        return <OverseerrStats instanceId={service.instanceId} />;
-      case "plex":
-        return <PlexStats instanceId={service.instanceId} />;
-      case "maintainerr":
-        return service.url ? (
-          <div className="bg-transparent">
-            <MaintainerrService instanceId={service.instanceId} />
-          </div>
-        ) : null;
-      case "sonarr":
-        return <SonarrStats instanceId={service.instanceId} />;
-      case "radarr":
-        return <RadarrStats instanceId={service.instanceId} />;
-      case "prowlarr":
-        return <ProwlarrStats instanceId={service.instanceId} />;
-      case "general":
-        return <GeneralStats instanceId={service.instanceId} />;
-      default:
-        return null;
-    }
+    const renderer = SERVICE_STATS_RENDERERS[service.type];
+    return renderer ? renderer(service.instanceId, service.url) : null;
   };
+  const serviceSpecificControls = renderServiceSpecificControls();
 
   return (
     <>
       <div
-        className={`group relative bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-all duration-200 ease-in-out ${
-          !isDragging && "hover:scale-[1.01]"
+        className={`@container group relative bg-white dark:bg-zinc-800 rounded-lg shadow-lg transition-all duration-200 ease-in-out motion-reduce:transition-none ${
+          !isDragging && "motion-safe:hover:scale-[1.01]"
         } ${
           needsConfiguration
-            ? "border-2 border-dashed dark:border-gray-600"
-            : "border border-gray-200 dark:border-gray-700"
+            ? "border-2 border-dashed dark:border-zinc-600"
+            : "border border-zinc-200 dark:border-zinc-700"
         } ${!isConnected && "opacity-75"}`}
       >
-        <div className="p-4">
+        <div className="p-3 @md:p-4">
           <div
-            className="relative cursor-pointer select-none transition-colors -mx-4 px-4 py-0 rounded-t-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="relative cursor-pointer select-none transition-colors -mx-3 px-3 @md:-mx-4 @md:px-4 py-0 rounded-t-lg text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
+            onClick={toggle}
           >
             <div className="absolute right-4 top-1/2 -translate-y-1/2 transition-transform duration-200">
               <div
                 {...dragHandleProps}
-                className="opacity-30 text-gray-500 group-hover:opacity-60 transition-opacity duration-200 cursor-grab active:cursor-grabbing"
+                className="opacity-30 text-zinc-500 group-hover:opacity-60 transition-opacity duration-200 cursor-grab active:cursor-grabbing"
               >
                 <Bars3Icon className="h-5 w-5 rotate-90" />
               </div>
             </div>
-            <div className="pr-8">
+            <div className="pr-8 @md:pr-10">
               <ServiceHeader
                 displayName={currentConfig?.displayName || service.displayName}
                 url={currentConfig?.url || service.url}
@@ -185,33 +209,28 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="mt-2">{renderServiceSpecificControls()}</div>
+              serviceSpecificControls && (
+                <div className={layoutClasses.bodyMarginClass}>
+                  {serviceSpecificControls}
+                </div>
+              )
             )}
           </div>
 
           {/* Response time and Last checked */}
-          <div className="mt-4 space-y-1 pointer-events-none border-gray-100 dark:border-gray-700 pt-4 select-none">
+          <div
+            className={`space-y-1 pointer-events-none border-zinc-100 dark:border-zinc-700 select-none ${layoutClasses.footerSpacingClass}`}
+          >
             {service.responseTime !== undefined && (
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
                 Response time:{" "}
                 <span className="font-normal">{service.responseTime}ms</span>
               </p>
             )}
             {service.lastChecked && (
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
                 Last checked:{" "}
-                <span className="font-normal">
-                  {(() => {
-                    const date = new Date(service.lastChecked);
-                    const today = new Date();
-
-                    if (date.toDateString() === today.toDateString()) {
-                      return date.toLocaleTimeString();
-                    } else {
-                      return date.toLocaleString();
-                    }
-                  })()}
-                </span>
+                <span className="font-normal">{formatLastChecked(service.lastChecked)}</span>
               </p>
             )}
           </div>
@@ -220,9 +239,9 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
           <div
             onClick={(e) => {
               e.stopPropagation();
-              setIsCollapsed(!isCollapsed);
+              toggle();
             }}
-            className="absolute bottom-4 right-4 opacity-30 text-gray-300 group-hover:opacity-60 transition-opacity duration-200 cursor-pointer"
+            className="absolute bottom-4 right-4 opacity-30 text-zinc-300 group-hover:opacity-60 transition-opacity duration-200 cursor-pointer"
           >
             <div
               className={`transform transition-transform duration-200 ${
@@ -241,7 +260,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
         title={`Configure ${service.displayName}`}
       >
         <ConfigurationForm
-          serviceName={service.name}
           instanceId={service.instanceId}
           displayName={service.displayName}
           onClose={() => setShowConfig(false)}

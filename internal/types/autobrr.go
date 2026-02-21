@@ -22,7 +22,7 @@ type AutobrrServiceHealth struct {
 	Message     string         `json:"message"`
 	LastChecked time.Time      `json:"lastChecked"`
 	Stats       *AutobrrStats  `json:"stats,omitempty"`
-	Details     AutobrrDetails `json:"details,omitempty"`
+	Details     AutobrrDetails `json:"details"`
 }
 
 type AutobrrDetails struct {

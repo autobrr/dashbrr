@@ -70,7 +70,7 @@ func TestMemoryStore(t *testing.T) {
 		now := time.Now().Unix()
 
 		// Add some timestamps
-		for i := int64(0); i < 5; i++ {
+		for i := range int64(5) {
 			err := store.Increment(ctx, key, now+i)
 			if err != nil {
 				t.Errorf("Failed to increment: %v", err)
@@ -130,7 +130,7 @@ func TestMemoryStore(t *testing.T) {
 		done := make(chan bool)
 
 		go func() {
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				store.Set(ctx, key, i, time.Minute)
 			}
 			done <- true
@@ -138,7 +138,7 @@ func TestMemoryStore(t *testing.T) {
 
 		go func() {
 			var result int
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				store.Get(ctx, key, &result)
 			}
 			done <- true

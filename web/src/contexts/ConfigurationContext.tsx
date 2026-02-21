@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState, useEffect, ReactNode, useCallback } from "react";
-import { API_BASE_URL, API_PREFIX } from "../config/api";
+import { useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { ServiceConfig } from "../types/service";
 import { useAuth } from "../hooks/useAuth";
 import { ConfigurationContext } from "./context";
 import { ConfigurationContextType } from "./types";
+import { api } from "../utils/api";
 
 export function ConfigurationProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -17,30 +17,22 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const configurationsRef = useRef(configurations);
 
-  const buildUrl = useCallback((path: string) => {
-    const apiPath = path.startsWith("/api") ? path : `${API_PREFIX}${path}`;
-    return `${API_BASE_URL}${apiPath}`;
-  }, []);
-
-  const getAuthHeaders = useCallback(() => {
-    const accessToken = localStorage.getItem("access_token");
-    return {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    };
-  }, []);
+  useEffect(() => {
+    configurationsRef.current = configurations;
+  }, [configurations]);
 
   const fetchConfigurations = useCallback(async () => {
-    if (!isAuthenticated || !localStorage.getItem("access_token")) {
-      setConfigurations({});
+    if (!isAuthenticated) {
+      // Avoid an update loop: only clear if we actually had config.
+      setConfigurations((prev) => (Object.keys(prev).length > 0 ? {} : prev));
       setIsLoading(false);
       return;
     }
 
-    // Skip fetch if we already have configurations
-    if (Object.keys(configurations).length > 0) {
-      console.log("[ConfigurationProvider] Already have configurations, skipping fetch");
+    // Skip fetch if we already have configurations.
+    if (Object.keys(configurationsRef.current).length > 0) {
       return;
     }
 
@@ -48,20 +40,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const response = await fetch(buildUrl("/settings"), {
-        headers: getAuthHeaders(),
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setConfigurations({});
-          return;
-        }
-        throw new Error(`Failed to fetch configurations: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await api.get<Record<string, ServiceConfig>>("/settings");
       setConfigurations(data);
     } catch (err) {
       const errorMessage =
@@ -71,7 +50,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, buildUrl, getAuthHeaders, configurations]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     fetchConfigurations();
@@ -83,19 +62,10 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   ) => {
     try {
       setError(null);
-
-      const response = await fetch(buildUrl(`/settings/${instanceId}`), {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(config),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update configuration");
-      }
-
-      const updatedConfig = await response.json();
+      const updatedConfig = await api.post<ServiceConfig>(
+        `/settings/${instanceId}`,
+        config
+      );
 
       // Update local state with the server response
       setConfigurations((prev) => ({
@@ -115,15 +85,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   const deleteConfiguration = async (instanceId: string) => {
     try {
       setError(null);
-      const response = await fetch(buildUrl(`/settings/${instanceId}`), {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete configuration");
-      }
+      await api.delete(`/settings/${instanceId}`);
 
       // Remove from local state
       setConfigurations((prev) => {

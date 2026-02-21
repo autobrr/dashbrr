@@ -26,7 +26,27 @@ func TestCreateService(t *testing.T) {
 	// Test case insensitivity
 	// Mock a service creator for testing
 	originalAutobrrService := NewAutobrrService
-	defer func() { NewAutobrrService = originalAutobrrService }()
+	originalBazarrService := NewBazarrService
+	originalQuiService := NewQuiService
+	originalLidarrService := NewLidarrService
+	originalReadarrService := NewReadarrService
+	originalSabnzbdService := NewSabnzbdService
+	originalNzbgetService := NewNzbgetService
+	originalJellyfinService := NewJellyfinService
+	originalUptimeKumaService := NewUptimeKumaService
+	originalTraefikService := NewTraefikService
+	defer func() {
+		NewAutobrrService = originalAutobrrService
+		NewBazarrService = originalBazarrService
+		NewQuiService = originalQuiService
+		NewLidarrService = originalLidarrService
+		NewReadarrService = originalReadarrService
+		NewSabnzbdService = originalSabnzbdService
+		NewNzbgetService = originalNzbgetService
+		NewJellyfinService = originalJellyfinService
+		NewUptimeKumaService = originalUptimeKumaService
+		NewTraefikService = originalTraefikService
+	}()
 
 	called := false
 	NewAutobrrService = func() ServiceHealthChecker {
@@ -44,5 +64,95 @@ func TestCreateService(t *testing.T) {
 	registry.CreateService("autobrr")
 	if !called {
 		t.Error("Service creator not called for lowercase service type")
+	}
+
+	called = false
+	NewBazarrService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("bazarr")
+	if !called {
+		t.Error("Service creator not called for bazarr service type")
+	}
+
+	called = false
+	NewQuiService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("qui")
+	if !called {
+		t.Error("Service creator not called for qui service type")
+	}
+
+	called = false
+	NewLidarrService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("lidarr")
+	if !called {
+		t.Error("Service creator not called for lidarr service type")
+	}
+
+	called = false
+	NewReadarrService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("readarr")
+	if !called {
+		t.Error("Service creator not called for readarr service type")
+	}
+
+	called = false
+	NewSabnzbdService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("sabnzbd")
+	if !called {
+		t.Error("Service creator not called for sabnzbd service type")
+	}
+
+	called = false
+	NewNzbgetService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("nzbget")
+	if !called {
+		t.Error("Service creator not called for nzbget service type")
+	}
+
+	called = false
+	NewJellyfinService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("jellyfin")
+	if !called {
+		t.Error("Service creator not called for jellyfin service type")
+	}
+
+	called = false
+	NewUptimeKumaService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("uptimekuma")
+	if !called {
+		t.Error("Service creator not called for uptimekuma service type")
+	}
+
+	called = false
+	NewTraefikService = func() ServiceHealthChecker {
+		called = true
+		return nil
+	}
+	registry.CreateService("traefik")
+	if !called {
+		t.Error("Service creator not called for traefik service type")
 	}
 }

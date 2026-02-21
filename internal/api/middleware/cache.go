@@ -35,8 +35,15 @@ var CacheDurations = struct {
 	MaintainerrStatus time.Duration
 	SonarrStatus      time.Duration
 	RadarrStatus      time.Duration
+	LidarrStatus      time.Duration
+	ReadarrStatus     time.Duration
 	ProwlarrStatus    time.Duration
-	OmegabrrStatus    time.Duration
+	TraefikStatus     time.Duration
+	BazarrStatus      time.Duration
+	SabnzbdStatus     time.Duration
+	NzbgetStatus      time.Duration
+	JellyfinStatus    time.Duration
+	UptimeKumaStatus  time.Duration
 }{
 	Default:           30 * time.Second,
 	HealthCheck:       10 * time.Minute,
@@ -49,8 +56,15 @@ var CacheDurations = struct {
 	MaintainerrStatus: 10 * time.Minute,
 	SonarrStatus:      1 * time.Minute,
 	RadarrStatus:      1 * time.Minute,
+	LidarrStatus:      1 * time.Minute,
+	ReadarrStatus:     1 * time.Minute,
 	ProwlarrStatus:    1 * time.Minute,
-	OmegabrrStatus:    1 * time.Minute,
+	TraefikStatus:     30 * time.Second,
+	BazarrStatus:      1 * time.Minute,
+	SabnzbdStatus:     1 * time.Minute,
+	NzbgetStatus:      1 * time.Minute,
+	JellyfinStatus:    15 * time.Second,
+	UptimeKumaStatus:  30 * time.Second,
 }
 
 type CacheMiddleware struct {
@@ -168,8 +182,24 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 		return CacheDurations.SonarrStatus
 	case strings.Contains(path, "/radarr"):
 		return CacheDurations.RadarrStatus
+	case strings.Contains(path, "/lidarr"):
+		return CacheDurations.LidarrStatus
+	case strings.Contains(path, "/readarr"):
+		return CacheDurations.ReadarrStatus
 	case strings.Contains(path, "/prowlarr"):
 		return CacheDurations.ProwlarrStatus
+	case strings.Contains(path, "/traefik"):
+		return CacheDurations.TraefikStatus
+	case strings.Contains(path, "/bazarr"):
+		return CacheDurations.BazarrStatus
+	case strings.Contains(path, "/sabnzbd"):
+		return CacheDurations.SabnzbdStatus
+	case strings.Contains(path, "/nzbget"):
+		return CacheDurations.NzbgetStatus
+	case strings.Contains(path, "/jellyfin"):
+		return CacheDurations.JellyfinStatus
+	case strings.Contains(path, "/uptimekuma"):
+		return CacheDurations.UptimeKumaStatus
 	default:
 		return CacheDurations.Default
 	}

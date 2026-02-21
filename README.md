@@ -53,24 +53,31 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 ### Media Management
 
 - **Plex**: Active streams monitoring, version check
-- **Sonarr & Radarr**:
-  - Comprehensive queue management:
-    - Monitor active downloads
-    - Stuck downloads detection and resolution
-  - Error reporting for indexers and download clients
+- **Jellyfin**: Active sessions monitoring, play/transcode state, version check
+- **Sonarr, Radarr, Lidarr, Readarr**:
+  - Queue visibility and download state
   - Version check and update notifications
+- **Bazarr**: Subtitle backlog, provider status, health issue visibility
+- **Prowlarr**: Indexer health, stats, active indexers
 - **Overseerr**: Request management, pending requests monitoring
+- **Maintainerr**: Collection and deletion-rule monitoring
 
 ### Download Management
 
-- **Autobrr**: IRC network health, release statistics
-- **Prowlarr**: Indexer health monitoring
-- **Maintainerr**: Rule matching, scheduled deletion monitoring
-- **Omegabrr**: Service health, manual ARR triggers
+- **Autobrr**: IRC network health, release statistics, recent releases
+- **SABnzbd**: Queue and failure summary
+- **NZBGet**: Queue and failure summary
+- **Qui**: qBittorrent instance connectivity and transfer telemetry
 
 ### Network
 
 - **Tailscale**: Device status, information tracking, tag overview
+
+### Monitoring / Infrastructure
+
+- **Uptime Kuma**: Monitor status summary via metrics
+- **Traefik**: Router/service/middleware overview and issue routers
+- **General Service**: Generic health endpoint checks
 
 ## Installation
 
@@ -148,6 +155,9 @@ Dashbrr uses a simple TOML configuration file. Default location: `./config.toml`
 ```toml
 [server]
 listen_addr = ":8080"
+# Optional: if UI is served from a different origin than the API
+# cors_origins = ["http://localhost:3000", "https://dash.example.com"]
+# cors_allow_credentials = true
 
 [database]
 type = "sqlite"
@@ -178,12 +188,17 @@ Key configuration options include:
 
 ### Service Discovery
 
-Dashbrr supports automatic service discovery and configuration through Docker labels, Kubernetes labels, and external configuration files. For detailed information about service discovery and configuration management, see our [Service Discovery Documentation](docs/config_management.md).
+Dashbrr supports automatic service discovery and configuration through Docker labels, Kubernetes annotations, and external configuration files. For detailed information about service discovery and configuration management, see our [Service Discovery Documentation](docs/config_management.md).
+
+Quick references:
+
+- [Supported Services Matrix](docs/services_matrix.md)
+- [Kubernetes Discovery Manifest Example](docs/k8s_discovery_example.yaml)
 
 Key features include:
 
 - Docker container label-based discovery
-- Kubernetes service label-based discovery
+- Kubernetes service annotation-based discovery
 - YAML/JSON configuration file import/export
 - Environment variable substitution for API keys
 - Secure configuration management
@@ -223,7 +238,7 @@ Required OIDC environment variables:
 OIDC_ISSUER=https://your-provider.com
 OIDC_CLIENT_ID=your-client-id
 OIDC_CLIENT_SECRET=your-client-secret
-OIDC_REDIRECT_URL=http://localhost:3000/api/auth/callback
+OIDC_REDIRECT_URL=http://localhost:3000/api/auth/oidc/callback
 ```
 
 ## Tech Stack

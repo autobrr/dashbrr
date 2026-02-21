@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -56,6 +57,83 @@ func (s *PlexService) getPlexHeaders(apiKey string) map[string]string {
 	}
 }
 
+func (s *PlexService) getPlexAuthHeaders(clientIdentifier, product string) map[string]string {
+	if strings.TrimSpace(product) == "" {
+		product = "Dashbrr"
+	}
+
+	return map[string]string{
+		"Accept":                   "application/json",
+		"X-Plex-Client-Identifier": clientIdentifier,
+		"X-Plex-Product":           product,
+		"X-Plex-Version":           "1.0.0",
+		"X-Plex-Platform":          "Web",
+		"X-Plex-Device":            "Browser",
+	}
+}
+
+func (s *PlexService) CreateAuthPIN(ctx context.Context, clientIdentifier, product string) (*types.PlexPIN, error) {
+	if strings.TrimSpace(clientIdentifier) == "" {
+		return nil, fmt.Errorf("client identifier is required")
+	}
+
+	endpoint := "https://plex.tv/api/v2/pins?strong=true"
+	resp, err := s.DoRequest(ctx, http.MethodPost, endpoint, s.getPlexAuthHeaders(clientIdentifier, product), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plex auth pin: %w", err)
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read plex auth pin response: %w", err)
+	}
+
+	var pin types.PlexPIN
+	if err := json.Unmarshal(body, &pin); err != nil {
+		return nil, fmt.Errorf("failed to parse plex auth pin response: %w", err)
+	}
+
+	if pin.ID == 0 || strings.TrimSpace(pin.Code) == "" {
+		return nil, fmt.Errorf("plex auth pin response missing required fields")
+	}
+
+	return &pin, nil
+}
+
+func (s *PlexService) CheckAuthPIN(ctx context.Context, pinID int, code, clientIdentifier, product string) (*types.PlexPIN, error) {
+	if pinID <= 0 {
+		return nil, fmt.Errorf("pin id is required")
+	}
+	if strings.TrimSpace(code) == "" {
+		return nil, fmt.Errorf("pin code is required")
+	}
+	if strings.TrimSpace(clientIdentifier) == "" {
+		return nil, fmt.Errorf("client identifier is required")
+	}
+
+	endpoint := fmt.Sprintf(
+		"https://plex.tv/api/v2/pins/%d?code=%s",
+		pinID,
+		url.QueryEscape(code),
+	)
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, s.getPlexAuthHeaders(clientIdentifier, product), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query plex auth pin: %w", err)
+	}
+
+	body, err := s.ReadBody(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read plex auth pin status response: %w", err)
+	}
+
+	var pin types.PlexPIN
+	if err := json.Unmarshal(body, &pin); err != nil {
+		return nil, fmt.Errorf("failed to parse plex auth pin status response: %w", err)
+	}
+
+	return &pin, nil
+}
+
 func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*types.PlexSessionsResponse, error) {
 	if url == "" {
 		return nil, fmt.Errorf("URL is required")
@@ -68,11 +146,10 @@ func (s *PlexService) GetSessions(ctx context.Context, url, apiKey string) (*typ
 	baseURL := strings.TrimRight(url, "/")
 	sessionsEndpoint := fmt.Sprintf("%s/status/sessions", baseURL)
 
-	resp, err := s.MakeRequestWithContext(ctx, sessionsEndpoint, "", s.getPlexHeaders(apiKey))
+	resp, err := s.DoRequest(ctx, http.MethodGet, sessionsEndpoint, s.getPlexHeaders(apiKey), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -118,11 +195,10 @@ func (s *PlexService) getVersion(ctx context.Context, url, apiKey string) (strin
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := s.getPlexHeaders(apiKey)
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to connect: %v", err)
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -156,7 +232,7 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 	healthEndpoint := s.GetHealthEndpoint(url)
 	headers := s.getPlexHeaders(apiKey)
 
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", headers)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, headers, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}
@@ -191,10 +267,10 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 		plexResponse.MediaContainer = mediaContainer
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"version":         version,
 		"responseTime":    responseTime,
-		"updateAvailable": s.GetUpdateStatusFromCache(url), // Add update status from cache
+		"updateAvailable": s.GetUpdateStatusFromCache(ctx, url), // Add update status from cache
 	}
 
 	// Always set status to "online" when healthy and include a message

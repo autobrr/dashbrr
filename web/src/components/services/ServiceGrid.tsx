@@ -6,7 +6,7 @@
 import { ServiceCard } from "./ServiceCard";
 import { Service } from "../../types/service";
 import LoadingSkeleton from "../shared/LoadingSkeleton";
-import { useState, useEffect, useRef, CSSProperties } from "react";
+import { useState, useEffect, CSSProperties } from "react";
 import {
   DndContext,
   closestCenter,
@@ -21,7 +21,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 
@@ -31,6 +31,47 @@ interface ServiceGridProps {
   isConnected?: boolean;
   isLoading?: boolean;
 }
+
+const SERVICE_ORDER_STORAGE_KEY = "dashbrr-service-order";
+
+const readSavedOrder = (): Map<string, number> => {
+  try {
+    const raw = window.localStorage.getItem(SERVICE_ORDER_STORAGE_KEY);
+    if (!raw) {
+      return new Map();
+    }
+    const entries = JSON.parse(raw) as Array<[string, number]>;
+    return new Map(entries);
+  } catch (error) {
+    console.error("Error reading service order:", error);
+    return new Map();
+  }
+};
+
+const sortBySavedOrder = (
+  services: Service[],
+  savedOrder: Map<string, number>
+): Service[] => {
+  return [...services].sort((a, b) => {
+    const orderA = savedOrder.get(a.instanceId) ?? Number.MAX_SAFE_INTEGER;
+    const orderB = savedOrder.get(b.instanceId) ?? Number.MAX_SAFE_INTEGER;
+    return orderA - orderB;
+  });
+};
+
+const persistOrder = (services: Service[]) => {
+  try {
+    const orderMap = new Map(
+      services.map((service, index) => [service.instanceId, index])
+    );
+    window.localStorage.setItem(
+      SERVICE_ORDER_STORAGE_KEY,
+      JSON.stringify([...orderMap])
+    );
+  } catch (error) {
+    console.error("Error saving service order:", error);
+  }
+};
 
 // Wrapper component to make ServiceCard draggable
 const DraggableServiceCard = ({
@@ -64,7 +105,7 @@ const DraggableServiceCard = ({
     : undefined;
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-4 break-inside-avoid">
+    <div ref={setNodeRef} style={style} className="mb-4 break-inside-avoid sm:mb-6">
       <ServiceCard
         service={service}
         onRemove={onRemove}
@@ -84,73 +125,38 @@ export const ServiceGrid = ({
   isLoading = false,
 }: ServiceGridProps) => {
   const [items, setItems] = useState<Service[]>([]);
-  const prevServicesRef = useRef<Service[]>([]);
-
-  // Sort services based on saved order
-  const sortServices = (services: Service[]) => {
-    try {
-      const savedOrder = window.localStorage.getItem("dashbrr-service-order");
-      if (!savedOrder) return services;
-
-      const orderMap = new Map<string, number>(JSON.parse(savedOrder));
-      return [...services].sort((a, b) => {
-        const orderA = orderMap.get(a.instanceId) ?? Number.MAX_SAFE_INTEGER;
-        const orderB = orderMap.get(b.instanceId) ?? Number.MAX_SAFE_INTEGER;
-        return orderA - orderB;
-      });
-    } catch (error) {
-      console.error("Error sorting services:", error);
-      return services;
-    }
-  };
-
-  // Helper function to check if two services have different content
-  const hasServiceContentChanged = (a: Service, b: Service): boolean => {
-    return (
-      a.url !== b.url ||
-      a.accessUrl !== b.accessUrl ||
-      a.displayName !== b.displayName ||
-      a.version !== b.version ||
-      a.updateAvailable !== b.updateAvailable ||
-      a.status !== b.status
-    );
-  };
+  const masonryClasses =
+    "columns-1 gap-4 sm:gap-6 md:columns-2 2xl:columns-3 [@media(min-width:2200px)]:columns-4";
 
   // Initialize and update items
   useEffect(() => {
-    if (services.length === 0) {
-      setItems([]);
-      return;
-    }
+    setItems((prev) => {
+      if (services.length === 0) {
+        return [];
+      }
 
-    // Check if services have changed (either order or content)
-    const servicesChanged = services.some((service, index) => {
-      const prevService = prevServicesRef.current[index];
-      return (
-        !prevService ||
-        prevService.instanceId !== service.instanceId ||
-        hasServiceContentChanged(service, prevService)
+      const byInstanceID = new Map(
+        services.map((service) => [service.instanceId, service])
       );
+      const savedOrder = readSavedOrder();
+
+      if (prev.length === 0) {
+        return sortBySavedOrder(services, savedOrder);
+      }
+
+      const existing = prev
+        .map((service) => byInstanceID.get(service.instanceId))
+        .filter((service): service is Service => Boolean(service));
+
+      const existingIDs = new Set(existing.map((service) => service.instanceId));
+      const additions = sortBySavedOrder(
+        services.filter((service) => !existingIDs.has(service.instanceId)),
+        savedOrder
+      );
+
+      return [...existing, ...additions];
     });
-
-    if (!servicesChanged && items.length > 0) {
-      // Update service data while maintaining current order
-      setItems((prev) =>
-        prev.map((item) => {
-          const updatedService = services.find(
-            (s) => s.instanceId === item.instanceId
-          );
-          return updatedService || item;
-        })
-      );
-    } else {
-      // Sort and set new services
-      const sortedServices = sortServices(services);
-      setItems(sortedServices);
-    }
-
-    prevServicesRef.current = services;
-  }, [services, items.length]);
+  }, [services]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -162,20 +168,7 @@ export const ServiceGrid = ({
         );
         const newIndex = items.findIndex((item) => item.instanceId === over.id);
         const newItems = arrayMove(items, oldIndex, newIndex);
-
-        try {
-          // Save the new order to localStorage
-          const orderMap = new Map(
-            newItems.map((item, index) => [item.instanceId, index])
-          );
-          window.localStorage.setItem(
-            "dashbrr-service-order",
-            JSON.stringify([...orderMap])
-          );
-        } catch (error) {
-          console.error("Error saving service order:", error);
-        }
-
+        persistOrder(newItems);
         return newItems;
       });
     }
@@ -189,29 +182,30 @@ export const ServiceGrid = ({
     await onRemoveService(instanceId);
   };
 
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: {
-      delay: 200,
-      tolerance: 8,
+      delay: 180,
+      tolerance: 6,
     },
   });
-  const pointerSensor = useSensor(PointerSensor);
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  });
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
   });
 
-  const sensors = useSensors(
-    ...(isMobile ? [touchSensor] : [pointerSensor]),
-    keyboardSensor
-  );
+  const sensors = useSensors(pointerSensor, touchSensor, keyboardSensor);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] hover:cursor-pointer gap-6 px-0 py-6 animate-fadeIn">
-        {[...Array(4)].map((_, i) => (
-          <LoadingSkeleton key={i} />
+      <div className={`${masonryClasses} animate-fadeIn px-0 py-4 sm:py-6`}>
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="mb-4 break-inside-avoid sm:mb-6">
+            <LoadingSkeleton />
+          </div>
         ))}
       </div>
     );
@@ -220,11 +214,11 @@ export const ServiceGrid = ({
   if (!services || services.length === 0) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-12rem)] w-full">
-        <div className="text-center p-8 rounded-lg bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm">
-          <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-3">
+        <div className="text-center p-8 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 backdrop-blur-sm">
+          <h3 className="text-xl font-medium text-zinc-900 dark:text-white mb-3">
             No Services Configured
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Click the "Add Service" button to get started.
           </p>
         </div>
@@ -241,12 +235,9 @@ export const ServiceGrid = ({
       >
         <SortableContext
           items={items.map((item) => item.instanceId)}
-          strategy={horizontalListSortingStrategy}
+          strategy={rectSortingStrategy}
         >
-          <div
-            className="columns-1 sm:columns-1 md:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 3xl:columns-6 gap-6"
-            style={{ columnFill: "balance", width: "100%" }}
-          >
+          <div className={masonryClasses}>
             {items.map((service) => (
               <DraggableServiceCard
                 key={service.instanceId}

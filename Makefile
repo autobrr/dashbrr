@@ -32,7 +32,7 @@ LDFLAGS=-s -w \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview
+.PHONY: all clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build help docker-clean test-integration test-integration-db test-integration-db-stop run lint lint-backend type-check preview check-air fmt gofix-changed gofix-check-changed precommit
 
 # Default target
 all: clean deps-frontend deps-go frontend backend
@@ -55,7 +55,7 @@ deps-frontend:
 	cd web && $(PNPM) install
 
 # Build frontend
-frontend: deps-frontend type-check lint
+frontend: deps-frontend lint
 	@echo "Building frontend..."
 	cd web && $(PNPM) build
 
@@ -65,41 +65,102 @@ backend: deps-go
 	mkdir -p $(BIN_DIR)
 	$(GOBUILD) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(MAIN_GO)
 
+# Format changed code only (fast, for iteration)
+fmt:
+	@echo "Formatting changed Go code..."
+	@gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+		if [ -n "$$gofiles" ]; then echo "$$gofiles" | xargs gofmt -w; fi
+	@echo "Formatting changed frontend code..."
+	@webfiles=$$({ git diff --name-only --diff-filter=d -- 'web/'; git diff --name-only --cached --diff-filter=d -- 'web/'; } | sort -u | sed 's|^web/||' | grep -E '\.(ts|tsx|js|jsx)$$' || true); \
+		if [ -n "$$webfiles" ]; then cd web && echo "$$webfiles" | xargs pnpm eslint --fix; fi
+
 # Lint frontend code
 lint:
 	@echo "Linting frontend code..."
 	cd web && $(PNPM) lint
 
+# Lint changed backend code
+lint-backend:
+	@echo "Linting changed backend code..."
+	golangci-lint run --new-from-merge-base=develop --timeout=5m
+
+# Apply go fix to changed Go files only
+gofix-changed:
+	@echo "Running go fix on changed Go files..."
+	@gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+		if [ -z "$$gofiles" ]; then \
+			echo "No changed Go files for go fix."; \
+			exit 0; \
+		fi; \
+		gopkgs=$$(printf '%s\n' "$$gofiles" | xargs -n 1 dirname | sort -u); \
+		printf '%s\n' "$$gopkgs" | while IFS= read -r pkg; do \
+			[ -n "$$pkg" ] || continue; \
+			go fix "./$$pkg" || true; \
+		done; \
+		tmp=$$(mktemp); \
+		printf '%s\n' "$$gopkgs" | while IFS= read -r pkg; do \
+			[ -n "$$pkg" ] || continue; \
+			go fix -diff "./$$pkg" >> "$$tmp" || true; \
+		done; \
+		if [ -s "$$tmp" ]; then \
+			echo "go fix left pending changes for changed Go files:"; \
+			cat "$$tmp"; \
+			rm -f "$$tmp"; \
+			echo "Re-run 'make gofix-changed'."; \
+			exit 1; \
+		fi; \
+		rm -f "$$tmp"; \
+		echo "go fix applied."
+
+# Check go fix drift on changed Go files only (for CI/pre-commit)
+gofix-check-changed:
+	@echo "Checking go fix drift on changed Go files..."
+	@tmp=$$(mktemp); \
+		gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+		if [ -z "$$gofiles" ]; then \
+			rm -f "$$tmp"; \
+			echo "No changed Go files for go fix check."; \
+			exit 0; \
+		fi; \
+		gopkgs=$$(printf '%s\n' "$$gofiles" | xargs -n 1 dirname | sort -u); \
+		printf '%s\n' "$$gopkgs" | while IFS= read -r pkg; do \
+			[ -n "$$pkg" ] || continue; \
+			go fix -diff "./$$pkg" >> "$$tmp" || true; \
+		done; \
+		if [ -s "$$tmp" ]; then \
+			echo "go fix changes required for changed Go files:"; \
+			cat "$$tmp"; \
+			rm -f "$$tmp"; \
+			echo "Run 'make gofix-changed'."; \
+			exit 1; \
+		fi; \
+		rm -f "$$tmp"; \
+		echo "go fix check clean."
+
+# Local pre-commit gate (changed files only)
+precommit: fmt gofix-changed lint-backend lint type-check
+	@echo "Pre-commit checks passed."
+
 # Type check frontend code
 type-check:
 	@echo "Type checking frontend code..."
-	cd web && $(PNPM) run build --mode=typecheck
+	cd web && $(PNPM) typecheck
 
 # Preview frontend build
 preview:
 	@echo "Starting frontend preview server..."
 	cd web && $(PNPM) preview
 
-# Start Redis for development
-redis-dev:
-	@if ! command -v redis-server > /dev/null; then \
-		echo "Redis is not installed. Please install Redis first."; \
+# Ensure air is installed for backend hot reload in dev commands
+check-air:
+	@if ! command -v air > /dev/null 2>&1; then \
+		echo ""; \
+		echo "============================================================"; \
+		echo " ERROR: 'air' is required for make dev"; \
+		echo "============================================================"; \
+		echo "Install: go install github.com/air-verse/air@latest"; \
+		echo ""; \
 		exit 1; \
-	fi
-	@if ! pgrep redis-server > /dev/null; then \
-		redis-server --daemonize yes; \
-		echo "Redis server started"; \
-	else \
-		echo "Redis server is already running"; \
-	fi
-
-# Stop Redis development server
-redis-stop:
-	@if pgrep redis-server > /dev/null; then \
-		redis-cli shutdown; \
-		echo "Redis server stopped"; \
-	else \
-		echo "Redis server is not running"; \
 	fi
 
 # Wait for backend to be ready
@@ -116,26 +177,12 @@ wait-backend:
 	echo "Backend failed to start within 30 seconds"; \
 	exit 1
 
-# Development mode - run frontend and backend with SQLite and Redis
-dev: redis-dev
-	@echo "Starting development servers with Redis cache..."
-	@echo "Redis is running on localhost:6379"
+# Development mode - run frontend and backend with SQLite and in-memory cache
+dev: check-air
+	@echo "Starting development servers with in-memory cache..."
 	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db-file ./data/dashbrr.db & \
-	backend_pid=$$!; \
-	echo "Waiting for backend to be ready..."; \
-	$(MAKE) wait-backend; \
-	echo "Starting frontend server..."; \
-	cd web && $(PNPM) dev --host & \
-	frontend_pid=$$!; \
-	trap 'kill $$backend_pid $$frontend_pid 2>/dev/null; make redis-stop' EXIT; \
-	wait
-
-# Development mode - run frontend and backend with SQLite and memory cache
-dev-memory:
-	@echo "Starting development servers with memory cache..."
-	@echo "Starting backend server with SQLite in debug mode..."
-	@env GIN_MODE=debug CACHE_TYPE=memory DASHBRR__DB_TYPE=sqlite $(GOCMD) run -ldflags="$(LDFLAGS)" $(MAIN_GO) --db-file ./data/dashbrr.db & \
+	@echo "Using air for backend hot reload..."
+	@env GIN_MODE=debug DASHBRR__DB_TYPE=sqlite DASHBRR_WEB_DEV_SERVER=http://localhost:3000 DASHBRR_AUTH_BYPASS=true air -c .air.toml & \
 	backend_pid=$$!; \
 	echo "Waiting for backend to be ready..."; \
 	$(MAKE) wait-backend; \
@@ -152,13 +199,6 @@ docker-dev:
 	$(DOCKER_COMPOSE) build
 	$(DOCKER_COMPOSE) up --force-recreate
 
-# Docker development mode - run with PostgreSQL and Redis
-docker-dev-redis:
-	@echo "Starting Docker development environment with PostgreSQL and Redis..."
-	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml down
-	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml build
-	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml up --force-recreate
-
 # Docker development mode - quick start with current cache configuration
 docker-dev-quick:
 	@echo "Starting Docker development environment (quick start)..."
@@ -168,7 +208,6 @@ docker-dev-quick:
 docker-clean:
 	@echo "Cleaning Docker development environment (including volumes)..."
 	$(DOCKER_COMPOSE) down -v
-	$(DOCKER_COMPOSE) -f docker-compose/docker-compose.redis.yml down -v
 
 # Docker commands
 docker-build:
@@ -222,13 +261,16 @@ help:
 	@echo "  deps-frontend            - Install frontend dependencies using pnpm"
 	@echo "  frontend                 - Build the frontend application"
 	@echo "  backend                  - Build the backend Go binary"
+	@echo "  fmt                      - Format changed files only (fast, for iteration)"
 	@echo "  lint                     - Run ESLint on frontend code"
+	@echo "  lint-backend             - Lint changed backend files only"
+	@echo "  gofix-changed            - Apply go fix to changed Go files only"
+	@echo "  gofix-check-changed      - Check go fix drift on changed Go files only"
+	@echo "  precommit                - Run local pre-commit gate (fmt + gofix + lint)"
 	@echo "  type-check              - Run TypeScript type checking"
 	@echo "  preview                  - Start frontend preview server"
-	@echo "  dev                      - Start development environment with SQLite and Redis"
-	@echo "  dev-memory               - Start development environment with SQLite and memory cache"
+	@echo "  dev                      - Start development environment with SQLite and in-memory cache (requires air)"
 	@echo "  docker-dev               - Start Docker development environment with memory cache"
-	@echo "  docker-dev-redis         - Start Docker development environment with Redis cache"
 	@echo "  docker-dev-quick         - Start Docker development environment without rebuilding"
 	@echo "  docker-clean             - Clean Docker environment including volumes"
 	@echo "  docker-build             - Build Docker image"

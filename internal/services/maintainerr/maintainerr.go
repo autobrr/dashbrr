@@ -6,10 +6,13 @@ package maintainerr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
@@ -21,6 +24,11 @@ type ErrMaintainerr struct {
 	Err      error  // Underlying error
 	HttpCode int    // HTTP status code if applicable
 }
+
+var (
+	ErrURLRequired    = errors.New("URL is required")
+	ErrAPIKeyRequired = errors.New("API key is required")
+)
 
 func (e *ErrMaintainerr) Error() string {
 	if e.HttpCode > 0 {
@@ -96,16 +104,15 @@ func (s *MaintainerrService) GetHealthEndpoint(baseURL string) string {
 
 func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string, error) {
 	// Check cache first, ensuring we don't return "true" as a version
-	if version := s.GetVersionFromCache(url); version != "" && version != "true" {
+	if version := s.GetVersionFromCache(ctx, url); version != "" && version != "true" {
 		return version, nil
 	}
 
 	healthEndpoint := s.GetHealthEndpoint(url)
-	resp, err := s.MakeRequestWithContext(ctx, healthEndpoint, "", nil)
+	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, nil, nil)
 	if err != nil {
 		return "", &ErrMaintainerr{Op: "get_version", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
-	defer resp.Body.Close()
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
@@ -118,17 +125,12 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 	}
 
 	// Cache version for 1 hour
-	if err := s.CacheVersion(url, statusResponse.Version, time.Hour); err != nil {
-		// Log but don't fail if caching fails
-		fmt.Printf("Failed to cache version: %v\n", err)
+	if err := s.CacheVersion(ctx, url, statusResponse.Version, time.Hour); err != nil {
+		log.Debug().Err(err).Str("url", url).Str("version", statusResponse.Version).Msg("Failed to cache Maintainerr version")
 	}
 
-	// Cache update status separately
-	if statusResponse.UpdateAvailable {
-		updateKey := fmt.Sprintf("%s:update", url)
-		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
-			fmt.Printf("Failed to cache update status: %v\n", err)
-		}
+	if err := s.CacheUpdateStatus(ctx, url, statusResponse.UpdateAvailable, time.Hour); err != nil {
+		log.Debug().Err(err).Str("url", url).Bool("updateAvailable", statusResponse.UpdateAvailable).Msg("Failed to cache Maintainerr update status")
 	}
 
 	return statusResponse.Version, nil
@@ -160,7 +162,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 	}()
 
 	healthEndpoint := s.GetHealthEndpoint(url)
-	resp, err := s.MakeRequestWithContext(healthCtx, healthEndpoint, "", nil)
+	resp, err := s.DoRequest(healthCtx, http.MethodGet, healthEndpoint, nil, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
 	}
@@ -208,15 +210,11 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 		versionErr = healthCtx.Err()
 	}
 
-	// Cache update status
-	if statusResponse.UpdateAvailable {
-		updateKey := fmt.Sprintf("%s:update", url)
-		if err := s.CacheVersion(updateKey, "true", time.Hour); err != nil {
-			fmt.Printf("Failed to cache update status: %v\n", err)
-		}
+	if err := s.CacheUpdateStatus(ctx, url, statusResponse.UpdateAvailable, time.Hour); err != nil {
+		log.Debug().Err(err).Str("url", url).Bool("updateAvailable", statusResponse.UpdateAvailable).Msg("Failed to cache Maintainerr update status")
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"updateAvailable": statusResponse.UpdateAvailable,
 		"responseTime":    responseTime,
 	}
@@ -233,17 +231,17 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 
 func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey string) ([]Collection, error) {
 	if url == "" {
-		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("URL is required")}
+		return nil, &ErrMaintainerr{Op: "get_collections", Err: ErrURLRequired}
 	}
 
 	if apiKey == "" {
-		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("API key is required")}
+		return nil, &ErrMaintainerr{Op: "get_collections", Err: ErrAPIKeyRequired}
 	}
 
 	baseURL := strings.TrimRight(url, "/")
 	endpoint := fmt.Sprintf("%s/api/collections", baseURL)
 
-	resp, err := s.MakeRequestWithContext(ctx, endpoint, apiKey, nil)
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, nil, nil)
 	if err != nil {
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("failed to connect: %w", err)}
 	}

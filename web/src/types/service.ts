@@ -5,12 +5,32 @@
 
 export type ServiceStatus = 'online' | 'offline' | 'warning' | 'error' | 'loading' | 'pending' | 'unknown';
 
-export type ServiceType = 'autobrr' | 'omegabrr' | 'radarr' | 'sonarr' | 'prowlarr'| 'overseerr' | 'plex' | 'tailscale' | 'maintainerr' | 'general' | 'other';
+export type ServiceType =
+  | 'autobrr'
+  | 'radarr'
+  | 'sonarr'
+  | 'lidarr'
+  | 'readarr'
+  | 'bazarr'
+  | 'sabnzbd'
+  | 'nzbget'
+  | 'prowlarr'
+  | 'traefik'
+  | 'overseerr'
+  | 'plex'
+  | 'jellyfin'
+  | 'uptimekuma'
+  | 'tailscale'
+  | 'maintainerr'
+  | 'qui'
+  | 'general'
+  | 'other';
 
 export interface ServiceHealth {
   status: ServiceStatus;
   message: string;
   serviceId: string;
+  eventType?: "health" | "internal";
   lastChecked?: Date;
   responseTime?: number;
   version?: string;
@@ -41,7 +61,6 @@ export interface Service {
   stats?: ServiceStats;
   details?: ServiceDetails;
   health?: ServiceHealth;
-  releases?: AutobrrReleases;
 }
 
 export interface ServiceConfig {
@@ -265,6 +284,83 @@ export interface PlexSession {
   TranscodeSession?: PlexTranscodeSession;
 }
 
+// Jellyfin Types
+export interface JellyfinSystemInfo {
+  ServerName: string;
+  Version: string;
+  ProductName: string;
+  Id: string;
+}
+
+export interface JellyfinNowPlayingItem {
+  Name: string;
+  SeriesName?: string;
+  Type?: string;
+  RunTimeTicks?: number;
+  MediaStreams?: JellyfinMediaStream[];
+}
+
+export interface JellyfinMediaStream {
+  Codec?: string;
+  BitRate?: number;
+  Channels?: number;
+  Index?: number;
+  Width?: number;
+  Height?: number;
+}
+
+export interface JellyfinPlayerState {
+  PositionTicks?: number;
+  IsPaused?: boolean;
+  PlayMethod?: string;
+  AudioStreamIndex?: number;
+}
+
+export interface JellyfinTranscodingInfo {
+  AudioCodec?: string;
+  VideoCodec?: string;
+  Container?: string;
+  IsVideoDirect?: boolean;
+  IsAudioDirect?: boolean;
+  Bitrate?: number;
+  CompletionPercentage?: number;
+  Width?: number;
+  Height?: number;
+  AudioChannels?: number;
+}
+
+export interface JellyfinSession {
+  Id: string;
+  UserName?: string;
+  Client?: string;
+  DeviceName?: string;
+  DeviceType?: string;
+  ApplicationVersion?: string;
+  IsActive?: boolean;
+  PlayState?: JellyfinPlayerState;
+  NowPlayingItem?: JellyfinNowPlayingItem;
+  TranscodingInfo?: JellyfinTranscodingInfo;
+}
+
+export interface JellyfinSummary {
+  system: JellyfinSystemInfo;
+  sessions: JellyfinSession[];
+}
+
+// Uptime Kuma Types
+export interface UptimeKumaMonitor {
+  id: string;
+  name: string;
+  type?: string;
+  url?: string;
+  status: "up" | "down" | "pending" | "maintenance" | "unknown";
+  responseTimeMs?: number;
+}
+
+export interface UptimeKumaSummary {
+  monitors: UptimeKumaMonitor[];
+}
+
 // Overseerr Types
 export interface OverseerrMediaRequest {
   id: number;
@@ -405,6 +501,88 @@ export interface RadarrQueue {
   records: RadarrQueueItem[];
 }
 
+// Lidarr Types
+export interface LidarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
+export interface LidarrQueueItem {
+  id: number;
+  title: string;
+  status: string;
+  protocol: string; // "usenet" or "torrent"
+  indexer?: string;
+  customFormatScore: number;
+  downloadClient: string;
+  timeLeft?: string;
+  trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  statusMessages?: LidarrStatusMessage[];
+  size: number;
+}
+
+export interface LidarrQueue {
+  totalRecords: number;
+  records: LidarrQueueItem[];
+}
+
+// Readarr Types
+export interface ReadarrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
+export interface ReadarrQueueItem {
+  id: number;
+  title: string;
+  status: string;
+  protocol: string; // "usenet" or "torrent"
+  indexer?: string;
+  customFormatScore: number;
+  downloadClient: string;
+  timeLeft?: string;
+  trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  statusMessages?: ReadarrStatusMessage[];
+  size: number;
+}
+
+export interface ReadarrQueue {
+  totalRecords: number;
+  records: ReadarrQueueItem[];
+}
+
+// Bazarr Types
+export interface BazarrBadges {
+  episodes: number;
+  movies: number;
+  providers: number;
+  status: number;
+  sonarr_signalr: string;
+  radarr_signalr: string;
+  announcements: number;
+}
+
+export interface BazarrProviderStatus {
+  name: string;
+  status: string;
+  retry: string;
+}
+
+export interface BazarrHealthIssue {
+  object: string;
+  issue: string;
+}
+
+export interface BazarrSummary {
+  badges: BazarrBadges;
+  providers: BazarrProviderStatus[];
+  healthIssues: BazarrHealthIssue[];
+}
+
 // Prowlarr Types
 export interface ProwlarrIndexer {
   id: number;
@@ -440,20 +618,268 @@ export interface ProwlarrIndexerStats {
   numberOfFailedAuthQueries: number;
 }
 
-// Omegabrr Types
-export interface OmegabrrWebhookStatus {
-  arrs: boolean;
-  lists: boolean;
+export interface TraefikSection {
+  total: number;
+  warnings: number;
+  errors: number;
+}
+
+export interface TraefikSchemeOverview {
+  routers?: TraefikSection;
+  services?: TraefikSection;
+  middlewares?: TraefikSection;
+}
+
+export interface TraefikFeatures {
+  tracing: string;
+  metrics: string;
+  accessLog: boolean;
+}
+
+export interface TraefikOverview {
+  http: TraefikSchemeOverview;
+  tcp: TraefikSchemeOverview;
+  udp: TraefikSchemeOverview;
+  features?: TraefikFeatures;
+  providers?: string[];
+}
+
+export interface TraefikRouter {
+  name: string;
+  provider: string;
+  status: string;
+  rule: string;
+  service: string;
+  entryPoints?: string[];
+  middlewares?: string[];
+  using?: string[];
+}
+
+export interface TraefikSummary {
+  overview: TraefikOverview;
+  issueRouters: TraefikRouter[];
+  certificates?: TraefikCertificateSummary;
+}
+
+export interface TraefikCertificate {
+  commonName?: string;
+  serial?: string;
+  sans?: string[];
+  notAfter: string;
+  notAfterUnix: number;
+  expiresInSeconds: number;
+  status: "valid" | "expiring" | "expired";
+}
+
+export interface TraefikCertificateSummary {
+  total: number;
+  expired: number;
+  expiringSoon: number;
+  nextExpiry?: string;
+  nextExpiryUnix?: number;
+  nextExpiryInSeconds?: number;
+  metricsUrl?: string;
+  metricName?: string;
+  certificates?: TraefikCertificate[];
+}
+
+export interface SabnzbdQueueSlot {
+  nzo_id: string;
+  filename: string;
+  status: string;
+  size: string;
+  sizeleft: string;
+  percentage: string;
+  timeleft: string;
+  cat: string;
+  priority: string;
+}
+
+export interface SabnzbdQueue {
+  version: string;
+  status: string;
+  paused: boolean;
+  speed: string;
+  kbpersec: string;
+  timeleft: string;
+  sizeleft: string;
+  size: string;
+  mbleft: string;
+  mb: string;
+  noofslots: string;
+  noofslots_total: string;
+  diskspace1: string;
+  diskspace2: string;
+  diskspacetotal1: string;
+  diskspacetotal2: string;
+  diskspace1_norm: string;
+  diskspace2_norm: string;
+  have_warnings: string;
+  speedlimit_abs: string;
+  slots: SabnzbdQueueSlot[];
+}
+
+export interface SabnzbdHistorySlot {
+  nzo_id: string;
+  name: string;
+  status: string;
+  fail_message: string;
+  category: string;
+  size: string;
+  completed: number;
+}
+
+export interface SabnzbdSummary {
+  queue: SabnzbdQueue;
+  failedCount: number;
+  recentFailures: SabnzbdHistorySlot[];
+}
+
+export interface NzbgetStatus {
+  RemainingSizeLo: number;
+  RemainingSizeHi: number;
+  RemainingSizeMB: number;
+  DownloadRate: number;
+  DownloadRateLo: number;
+  DownloadRateHi: number;
+  DownloadPaused: boolean;
+  PostPaused: boolean;
+  ScanPaused: boolean;
+  ServerStandBy: boolean;
+  QuotaReached: boolean;
+  ServerTime: number;
+  ResumeTime: number;
+  FreeDiskSpaceLo: number;
+  FreeDiskSpaceHi: number;
+  FreeDiskSpaceMB: number;
+  TotalDiskSpaceLo: number;
+  TotalDiskSpaceHi: number;
+  TotalDiskSpaceMB: number;
+}
+
+export interface NzbgetQueueItem {
+  NZBID: number;
+  NZBName: string;
+  Category: string;
+  Status: string;
+  RemainingSizeLo: number;
+  RemainingSizeHi: number;
+  RemainingSizeMB: number;
+  DownloadedSizeMB: number;
+  DownloadTimeSec: number;
+  Health: number;
+  CriticalHealth: number;
+}
+
+export interface NzbgetHistoryItem {
+  NZBID: number;
+  Kind: string;
+  Name: string;
+  NZBName: string;
+  Category: string;
+  Status: string;
+  HistoryTime: number;
+  FileSizeMB: number;
+  DownloadedSizeMB: number;
+  DownloadTimeSec: number;
+}
+
+export interface NzbgetSummary {
+  status: NzbgetStatus;
+  queue: NzbgetQueueItem[];
+  failedCount: number;
+  recentFailures: NzbgetHistoryItem[];
+}
+
+export interface TailscaleDevice {
+  id: string;
+  name: string;
+  ipAddress: string;
+  lastSeen: string;
+  online: boolean;
+  deviceType: string;
+  clientVersion: string;
+  updateAvailable: boolean;
+  tags?: string[];
+}
+
+export interface QuiInstance {
+  id: number;
+  name: string;
+  connected: boolean;
+  isActive: boolean;
+  connectionStatus?: string;
+  hasDecryptionError?: boolean;
+}
+
+export interface QuiInstanceTransfer {
+  instanceId: number;
+  name: string;
+  connected: boolean;
+  active: boolean;
+  connectionStatus?: string;
+  downloaded: number;
+  uploaded: number;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  dhtNodes: number;
+}
+
+export interface QuiTransferSummary {
+  totalInstances: number;
+  activeInstances: number;
+  connectedInstances: number;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  downloaded: number;
+  uploaded: number;
+  dhtNodes: number;
+}
+
+export interface QuiCrossSeedSettings {
+  enabled: boolean;
+  runIntervalMinutes: number;
+}
+
+export interface QuiCrossSeedRun {
+  id: number;
+  status: string;
+  mode: string;
+  triggeredBy: string;
+  startedAt: string;
+  completedAt?: string;
+  candidatesFound: number;
+  torrentsAdded: number;
+  torrentsFailed: number;
+  torrentsSkipped: number;
+  message?: string;
+  errorMessage?: string;
+}
+
+export interface QuiCrossSeedStatus {
+  settings?: QuiCrossSeedSettings;
+  lastRun?: QuiCrossSeedRun;
+  nextRunAt?: string;
+  running: boolean;
 }
 
 // Service Stats Union Type
 export interface ServiceStats {
-  autobrr?: AutobrrStats;
+  autobrr?: {
+    stats?: AutobrrStats;
+    releases?: AutobrrReleases;
+  };
   maintainerr?: {
     collections: MaintainerrCollection[];
   };
   plex?: {
     sessions: PlexSession[];
+  };
+  jellyfin?: {
+    summary: JellyfinSummary;
+  };
+  uptimekuma?: {
+    summary: UptimeKumaSummary;
   };
   overseerr?: OverseerrStats;
   sonarr?: {
@@ -464,6 +890,21 @@ export interface ServiceStats {
   radarr?: {
     queue: RadarrQueue;
   };
+  lidarr?: {
+    queue: LidarrQueue;
+  };
+  readarr?: {
+    queue: ReadarrQueue;
+  };
+  bazarr?: {
+    summary: BazarrSummary;
+  };
+  sabnzbd?: {
+    summary: SabnzbdSummary;
+  };
+  nzbget?: {
+    summary: NzbgetSummary;
+  };
   prowlarr?: {
     stats: ProwlarrStats;
     indexers: ProwlarrIndexer[];
@@ -471,9 +912,17 @@ export interface ServiceStats {
       id: number;
       indexers: ProwlarrIndexerStats[];
     };
-  }
-  omegabrr?: {
-    webhookStatus: OmegabrrWebhookStatus;
+  };
+  traefik?: {
+    summary: TraefikSummary;
+  };
+  tailscale?: {
+    devices: TailscaleDevice[];
+  };
+  qui?: {
+    instances?: QuiInstance[];
+    transfers?: QuiInstanceTransfer[];
+    crossSeed?: QuiCrossSeedStatus;
   };
 }
 
@@ -483,12 +932,23 @@ export interface ServiceDetails {
     irc: AutobrrIRC[];
     base_url: string;
   };
-  omegabrr?: {
-    webhookStatus: OmegabrrWebhookStatus;
-  };
   plex?: {
     activeStreams: number;
     transcoding: number;
+  };
+  jellyfin?: {
+    activeStreams: number;
+    transcoding: number;
+    paused: number;
+    serverName?: string;
+  };
+  uptimekuma?: {
+    total: number;
+    up: number;
+    down: number;
+    pending: number;
+    maintenance: number;
+    issues: number;
   };
   maintainerr?: {
     activeCollections: number;
@@ -514,8 +974,84 @@ export interface ServiceDetails {
     downloadingCount?: number;
     totalSize?: number;
   };
+  lidarr?: {
+    queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    totalSize?: number;
+  };
+  readarr?: {
+    queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    totalSize?: number;
+  };
+  bazarr?: {
+    episodeBacklog: number;
+    movieBacklog: number;
+    providersWithIssues: number;
+    healthIssues: number;
+    sonarrSignalR?: string;
+    radarrSignalR?: string;
+  };
+  sabnzbd?: {
+    queueCount: number;
+    totalQueueCount: number;
+    failedCount: number;
+    warningsCount: number;
+    status: string;
+    speed: string;
+    timeLeft: string;
+    sizeLeft: string;
+    incompleteFree: string;
+    completeFree: string;
+    recentFailureLen: number;
+  };
+  nzbget?: {
+    queueCount: number;
+    failedCount: number;
+    downloadPaused: boolean;
+    quotaReached: boolean;
+    speedBps: number;
+    remainingBytes: number;
+    freeDiskBytes: number;
+    recentFailureLen: number;
+  };
   prowlarr?: {
     activeIndexers: number;
     totalGrabs: number;
+  };
+  traefik?: {
+    routerTotal: number;
+    routerWarnings: number;
+    routerErrors: number;
+    serviceTotal: number;
+    serviceWarnings: number;
+    serviceErrors: number;
+    middlewareTotal: number;
+    middlewareWarnings: number;
+    middlewareErrors: number;
+    providers: number;
+    issueRouters: number;
+    metrics?: string;
+    tracing?: string;
+    accessLog?: boolean;
+    certificateTotal?: number;
+    certificateExpired?: number;
+    certificateExpiringSoon?: number;
+    certificateNextExpiry?: string;
+    certificateNextExpiryInSeconds?: number;
+  };
+  tailscale?: {
+    total: number;
+    online: number;
+  };
+  qui?: {
+    summary?: QuiTransferSummary;
+    crossSeed?: {
+      enabled: boolean;
+      running: boolean;
+      nextRunAt?: string;
+    };
   };
 }

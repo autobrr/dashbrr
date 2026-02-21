@@ -6,17 +6,21 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -28,52 +32,86 @@ type AuthHandler struct {
 	oauth2Config *oauth2.Config
 	httpClient   *http.Client
 	userinfoURL  string
+	mu           sync.RWMutex
+	discoverySF  singleflight.Group
 }
+
+const oidcSessionLookupTimeout = 5 * time.Second
 
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	httpClient := &http.Client{Timeout: 1 * time.Second}
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
 
 	log.Debug().
 		Str("issuer", config.Issuer).
 		Msg("initializing auth handler")
 
-	// Get provider endpoints through OIDC discovery
-	endpoints, userinfoURL, err := getProviderEndpoints(ctx, httpClient, config.Issuer)
-	if err != nil {
-		log.Error().Err(err).
-			Msg("OIDC discovery failed. Please ensure your provider supports OpenID Connect discovery as specified in https://openid.net/specs/openid-connect-discovery-1_0.html")
-		return nil
-	}
-
-	log.Debug().
-		Str("auth_url", endpoints.AuthURL).
-		Str("token_url", endpoints.TokenURL).
-		Msg("using discovered endpoints")
-
-	oauth2Config := &oauth2.Config{
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
-		RedirectURL:  config.RedirectURL,
-		Endpoint:     endpoints,
-		Scopes:       []string{"openid", "profile", "email"},
-	}
-
 	return &AuthHandler{
-		config:       config,
-		cache:        store,
-		oauth2Config: oauth2Config,
-		httpClient:   httpClient,
-		userinfoURL:  userinfoURL,
+		config:     config,
+		cache:      store,
+		httpClient: httpClient,
 	}
 }
 
-type providerConfig struct {
-	Issuer                string `json:"issuer"`
-	AuthorizationEndpoint string `json:"authorization_endpoint"`
-	TokenEndpoint         string `json:"token_endpoint"`
-	UserinfoEndpoint      string `json:"userinfo_endpoint"`
+func (h *AuthHandler) loadOIDCSession(ctx context.Context, sessionID string) (types.SessionData, error) {
+	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
+	var sessionData types.SessionData
+	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+		return types.SessionData{}, err
+	}
+
+	return sessionData, nil
+}
+
+func (h *AuthHandler) getOAuthConfig() *oauth2.Config {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.oauth2Config
+}
+
+func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
+	h.mu.RLock()
+	if h.oauth2Config != nil {
+		h.mu.RUnlock()
+		return nil
+	}
+	h.mu.RUnlock()
+
+	_, err, _ := h.discoverySF.Do("oidc-provider-config", func() (any, error) {
+		h.mu.RLock()
+		if h.oauth2Config != nil {
+			h.mu.RUnlock()
+			return nil, nil
+		}
+		h.mu.RUnlock()
+
+		endpoints, userinfoURL, discoverErr := getProviderEndpoints(ctx, h.httpClient, h.config.Issuer)
+		if discoverErr != nil {
+			return nil, discoverErr
+		}
+
+		oauth2Config := &oauth2.Config{
+			ClientID:     h.config.ClientID,
+			ClientSecret: h.config.ClientSecret,
+			RedirectURL:  h.config.RedirectURL,
+			Endpoint:     endpoints,
+			Scopes:       []string{"openid", "profile", "email"},
+		}
+
+		h.mu.Lock()
+		if h.oauth2Config == nil {
+			log.Debug().
+				Str("auth_url", endpoints.AuthURL).
+				Str("token_url", endpoints.TokenURL).
+				Msg("using discovered endpoints")
+			h.oauth2Config = oauth2Config
+			h.userinfoURL = userinfoURL
+		}
+		h.mu.Unlock()
+
+		return nil, nil
+	})
+
+	return err
 }
 
 // getProviderEndpoints fetches provider configuration and returns oauth2.Endpoint
@@ -98,7 +136,7 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 		wellKnown = issuer + "/.well-known/openid-configuration"
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", wellKnown, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnown, nil)
 	if err != nil {
 		return oauth2.Endpoint{}, "", fmt.Errorf("creating discovery request: %w", err)
 	}
@@ -109,9 +147,18 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return oauth2.Endpoint{}, "", fmt.Errorf("reading discovery document: %w", err)
+	if resp.StatusCode != http.StatusOK {
+		snippet, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		if readErr != nil {
+			return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d", resp.StatusCode)
+		}
+
+		msg := strings.TrimSpace(string(snippet))
+		if msg == "" {
+			return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d", resp.StatusCode)
+		}
+
+		return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d: %s", resp.StatusCode, msg)
 	}
 
 	log.Debug().
@@ -125,8 +172,11 @@ func getProviderEndpoints(ctx context.Context, client *http.Client, issuer strin
 		UserinfoURL string `json:"userinfo_endpoint"`
 	}
 
-	if err := json.Unmarshal(body, &discovery); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
 		return oauth2.Endpoint{}, "", fmt.Errorf("parsing discovery document: %w", err)
+	}
+	if discovery.AuthURL == "" || discovery.TokenURL == "" {
+		return oauth2.Endpoint{}, "", fmt.Errorf("discovery document missing required endpoints")
 	}
 
 	return oauth2.Endpoint{
@@ -143,6 +193,50 @@ func generateSecureRandomString(length int) (string, error) {
 	return hex.EncodeToString(bytes)[:length], nil
 }
 
+func extractJWTNonce(rawIDToken string) (string, error) {
+	parts := strings.Split(rawIDToken, ".")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid id_token format")
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("decode id_token payload: %w", err)
+	}
+
+	var claims struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", fmt.Errorf("parse id_token payload: %w", err)
+	}
+	if claims.Nonce == "" {
+		return "", fmt.Errorf("id_token missing nonce")
+	}
+	return claims.Nonce, nil
+}
+
+func buildLogoutURL(issuer string, clientID string, frontendURL string) string {
+	logoutBase := strings.TrimRight(issuer, "/") + "/v2/logout"
+	logoutURL, err := url.Parse(logoutBase)
+	if err != nil {
+		return fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s", strings.TrimRight(issuer, "/"), clientID, frontendURL)
+	}
+
+	query := logoutURL.Query()
+	query.Set("client_id", clientID)
+	query.Set("returnTo", frontendURL)
+	logoutURL.RawQuery = query.Encode()
+
+	return logoutURL.String()
+}
+
+type oidcStateData struct {
+	Timestamp   int64  `json:"timestamp"`
+	FrontendURL string `json:"frontendUrl"`
+	Nonce       string `json:"nonce"`
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	// Create context with timeout for login flow
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -154,6 +248,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if frontendUrl == "" {
 		log.Error().Msg("no frontend URL provided")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Frontend URL is required"})
+		return
+	}
+
+	if err := h.ensureProviderConfig(ctx); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("OIDC discovery canceled during login")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
+		log.Error().Err(err).
+			Msg("OIDC discovery failed. Please ensure your provider supports OpenID Connect discovery as specified in https://openid.net/specs/openid-connect-discovery-1_0.html")
+		c.JSON(http.StatusBadGateway, gin.H{"error": "OIDC provider discovery failed"})
 		return
 	}
 
@@ -172,11 +278,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
-	nonceKey := fmt.Sprintf("oidc:nonce:%s", nonce)
 
-	stateData := map[string]interface{}{
-		"timestamp":   time.Now().Unix(),
-		"frontendUrl": frontendUrl,
+	stateData := oidcStateData{
+		Timestamp:   time.Now().Unix(),
+		FrontendURL: frontendUrl,
+		Nonce:       nonce,
 	}
 
 	if err := h.cache.Set(ctx, stateKey, stateData, 5*time.Minute); err != nil {
@@ -190,20 +296,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	if err := h.cache.Set(ctx, nonceKey, time.Now().Unix(), 5*time.Minute); err != nil {
-		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context canceled while storing nonce")
-			_ = h.cache.Delete(ctx, stateKey)
-			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-			return
-		}
-		log.Error().Err(err).Msg("failed to store nonce in cache")
-		_ = h.cache.Delete(ctx, stateKey)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
-	authURL := h.oauth2Config.AuthCodeURL(
+	authURL := h.getOAuthConfig().AuthCodeURL(
 		state,
 		oauth2.SetAuthURLParam("nonce", nonce),
 		oauth2.SetAuthURLParam("response_type", "code"),
@@ -226,8 +319,19 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	if err := h.ensureProviderConfig(ctx); err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("OIDC discovery canceled during callback")
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
+			return
+		}
+		log.Error().Err(err).Msg("OIDC discovery failed during callback")
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=oidc_discovery_failed")
+		return
+	}
+
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
-	var stateData map[string]interface{}
+	var stateData oidcStateData
 	if err := h.cache.Get(ctx, stateKey, &stateData); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while retrieving state")
@@ -243,9 +347,10 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	frontendUrl, ok := stateData["frontendUrl"].(string)
-	if !ok {
-		log.Error().Msg("no frontend URL in state data")
+	frontendUrl := stateData.FrontendURL
+	expectedNonce := stateData.Nonce
+	if frontendUrl == "" || expectedNonce == "" {
+		log.Error().Msg("invalid state data")
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_state")
 		return
 	}
@@ -257,7 +362,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// Exchange code for token using context
-	token, err := h.oauth2Config.Exchange(ctx, code)
+	token, err := h.getOAuthConfig().Exchange(ctx, code)
 	if err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled during token exchange")
@@ -276,16 +381,33 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	sessionData := types.SessionData{
-		AccessToken:  token.AccessToken,
-		TokenType:    token.TokenType,
-		RefreshToken: token.RefreshToken,
-		IDToken:      rawIDToken,
-		ExpiresAt:    token.Expiry,
-		AuthType:     "oidc",
+	gotNonce, err := extractJWTNonce(rawIDToken)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to extract nonce from id_token")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_nonce", frontendUrl))
+		return
+	}
+	if gotNonce != expectedNonce {
+		log.Error().Msg("id_token nonce mismatch")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_nonce", frontendUrl))
+		return
 	}
 
-	sessionKey := fmt.Sprintf("oidc:session:%s", token.AccessToken)
+	sessionData := types.SessionData{
+		ExpiresAt: token.Expiry,
+		AuthType:  "oidc",
+	}
+
+	// Use a server-generated session ID. Provider access tokens can rotate and should
+	// not be used as stable session identifiers.
+	sessionID, err := generateSecureRandomString(32)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to generate session id")
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
+		return
+	}
+
+	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
 	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
@@ -301,7 +423,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	c.SetCookie(
 		"session",
-		token.AccessToken,
+		sessionID,
 		int(time.Until(token.Expiry).Seconds()),
 		"/",
 		"",
@@ -309,11 +431,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		true,
 	)
 
-	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s?access_token=%s&id_token=%s",
-		frontendUrl,
-		token.AccessToken,
-		rawIDToken,
-	))
+	// Cookie carries the session; avoid leaking tokens in URLs.
+	c.Redirect(http.StatusTemporaryRedirect, frontendUrl)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -328,7 +447,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	sessionID, err := c.Cookie("session")
+	sessionID, err := getSessionToken(c)
 	if err != nil {
 		log.Error().Err(err).Msg("no session cookie found")
 		c.JSON(http.StatusOK, gin.H{"message": "Already logged out"})
@@ -359,16 +478,12 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		true,
 	)
 
-	logoutURL := fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s",
-		strings.TrimRight(h.config.Issuer, "/"),
-		h.config.ClientID,
-		frontendUrl,
-	)
+	logoutURL := buildLogoutURL(h.config.Issuer, h.config.ClientID, frontendUrl)
 	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
 }
 
 func (h *AuthHandler) VerifyToken(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
+	sessionID, err := getSessionToken(c)
 	if err != nil {
 		log.Trace().Msg("no session cookie found")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
@@ -376,12 +491,10 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	}
 
 	// Create context with timeout for token verification
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), oidcSessionLookupTimeout)
 	defer cancel()
 
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
-	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
+	if _, err := h.loadOIDCSession(ctx, sessionID); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while verifying token")
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
@@ -401,77 +514,28 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	})
 }
 
-func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
-	if err != nil {
-		log.Error().Err(err).Msg("no session cookie found")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
-		return
-	}
-
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
-	if err := h.cache.Get(c.Request.Context(), sessionKey, &sessionData); err != nil {
-		if err == cache.ErrKeyNotFound {
-			log.Debug().Msg("session not found or expired")
-		} else {
-			log.Error().Err(err).Msg("failed to get session from cache")
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
-		return
-	}
-
-	token := &oauth2.Token{
-		AccessToken:  sessionData.AccessToken,
-		TokenType:    "Bearer",
-		RefreshToken: sessionData.RefreshToken,
-		Expiry:       sessionData.ExpiresAt,
-	}
-
-	// Create token source with context
-	tokenSource := h.oauth2Config.TokenSource(c.Request.Context(), token)
-
-	// Refresh the token
-	newToken, err := tokenSource.Token()
-	if err != nil {
-		log.Error().Err(err).Msg("token refresh failed")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh token"})
-		return
-	}
-
-	// Update session data with new token
-	sessionData.AccessToken = newToken.AccessToken
-	sessionData.RefreshToken = newToken.RefreshToken
-	sessionData.ExpiresAt = newToken.Expiry
-	if rawIDToken, ok := newToken.Extra("id_token").(string); ok {
-		sessionData.IDToken = rawIDToken
-	}
-
-	// Store updated session
-	if err := h.cache.Set(c.Request.Context(), sessionKey, sessionData, time.Until(newToken.Expiry)); err != nil {
-		log.Error().Err(err).Msg("failed to update session in cache")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update session"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  newToken.AccessToken,
-		"token_type":    newToken.TokenType,
-		"expires_in":    int(time.Until(newToken.Expiry).Seconds()),
-		"refresh_token": newToken.RefreshToken,
-	})
-}
-
 func (h *AuthHandler) UserInfo(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
+	sessionID, err := getSessionToken(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
 		return
 	}
 
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
-	if err := h.cache.Get(c.Request.Context(), sessionKey, &sessionData); err != nil {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), oidcSessionLookupTimeout)
+	defer cancel()
+
+	sessionData, err := h.loadOIDCSession(ctx, sessionID)
+	if err != nil {
+		if ctx.Err() != nil {
+			log.Error().Err(ctx.Err()).Msg("Context canceled while loading user info session")
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+			return
+		}
+		if err == cache.ErrKeyNotFound {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
+			return
+		}
+		log.Error().Err(err).Msg("failed to get session from cache")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
 		return
 	}

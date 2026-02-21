@@ -6,93 +6,24 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { PlexSession } from "../../../types/service";
-import { PlexMessage } from "./PlexMessage";
+import { ArrMessage } from "../common/ArrMessage";
+import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { FaUser, FaExchangeAlt } from "react-icons/fa";
+import { combineServiceMessage } from "../../../utils/serviceMessage";
+import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
+import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import {
-  FaUser,
-  FaPlay,
-  FaPause,
-  FaMusic,
-  FaFilm,
-  FaTv,
-  FaDesktop,
-  FaMobile,
-  FaTablet,
-  FaExchangeAlt,
-  FaPlayCircle,
-} from "react-icons/fa";
-import { ChevronUpIcon } from "@heroicons/react/24/outline";
+  formatBitrateKbps,
+  formatDurationMs,
+  getDeviceIcon,
+  getMediaTypeIcon,
+  getProgressPercentage,
+} from "../common/playbackUi";
 
 interface PlexStatsProps {
   instanceId: string;
 }
-
-const formatDuration = (duration: number): string => {
-  const hours = Math.floor(duration / 3600000);
-  const minutes = Math.floor((duration % 3600000) / 60000);
-  const seconds = Math.floor((duration % 60000) / 1000);
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}`;
-  }
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
-const getMediaTypeIcon = (
-  type: string | undefined,
-  playerState: string | undefined
-) => {
-
-  if (playerState?.toLowerCase() === "paused") {
-    return <FaPause className="text-gray-500 dark:text-gray-400 h-4 w-4" />;
-  }
-
-  switch (type?.toLowerCase()) {
-    case "track":
-      return <FaMusic className="text-blue-600 dark:text-blue-400 h-4 w-4" />;
-    case "movie":
-      return <FaFilm className="text-amber-500 dark:text-amber-300 h-4 w-4" />;
-    case "episode":
-      return <FaTv className="text-green-600 dark:text-green-400 h-4 w-4" />;
-    case "clip":
-      return <FaPlayCircle className="text-purple-500 dark:text-purple-400 h-4 w-4" />;
-    default:
-      return <FaPlay className="text-gray-500 h-4 w-4" />;
-  }
-};
-
-const getDeviceIcon = (platform: string) => {
-  switch (platform.toLowerCase()) {
-    case "windows":
-    case "macos":
-    case "linux":
-      return <FaDesktop className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
-    case "ios":
-    case "android":
-      return <FaMobile className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
-    case "tvos":
-    case "roku":
-    case "androidtv":
-      return <FaTv className="text-gray-600 dark:text-gray-400 w-4 h-4" />;
-    default:
-      return <FaTablet className="text-gray-600 dark:text-gray-400 w-4" />;
-  }
-};
-
-const getProgressPercentage = (
-  viewOffset: number,
-  duration: number
-): number => {
-  return Math.round((viewOffset / duration) * 100);
-};
-
-const formatBitrate = (bitrate: number): string => {
-  if (bitrate > 1000) {
-    return `${(bitrate / 1000).toFixed(1)} Mbps`;
-  }
-  return `${bitrate} Kbps`;
-};
 
 const isTranscoding = (session: PlexSession): boolean => {
   return (
@@ -108,13 +39,25 @@ interface TimerState {
   state: string;
 }
 
+const getPlaybackKey = (session: PlexSession): string => {
+  return (
+    session.sessionKey ||
+    session.Session?.id ||
+    session.key ||
+    `${session.User?.title || "unknown"}:${session.guid}`
+  );
+};
+
 export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
-  const { services } = useServiceData();
+  const { getService } = useServiceData();
   const [playbackStates, setPlaybackStates] = useState<{
     [key: string]: TimerState;
   }>({});
-  const [isExpanded, setIsExpanded] = useState(true);
-  const service = services.find((s) => s.instanceId === instanceId);
+  const { isExpanded, toggle } = useCollapsiblePreference(
+    serviceSectionCollapseKey(instanceId, "plex:active_streams"),
+    true
+  );
+  const service = getService(instanceId);
   const isLoading = service?.status === "loading";
   const sessions = useMemo(
     () => service?.stats?.plex?.sessions || [],
@@ -127,36 +70,39 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   );
 
   useEffect(() => {
-    const newStates: { [key: string]: TimerState } = {};
-    sessions.forEach((session) => {
-      const sessionKey = `${session.User?.title}-${session.title}`;
+    // Derive next timer state from previous state + latest sessions without
+    // re-subscribing the effect on every tick/state update.
+    setPlaybackStates((prev) => {
       const currentTime = Date.now();
-      const existingState = playbackStates[sessionKey];
+      const next: { [key: string]: TimerState } = {};
 
-      if (existingState) {
-        if (existingState.state === "playing") {
-          const timeDiff = currentTime - existingState.lastUpdated;
-          newStates[sessionKey] = {
-            offset: existingState.offset + timeDiff,
+      for (const session of sessions) {
+        const sessionKey = getPlaybackKey(session);
+        const existing = prev[sessionKey];
+        const state = session.Player?.state || "stopped";
+
+        if (existing) {
+          const offset =
+            existing.state === "playing"
+              ? existing.offset + (currentTime - existing.lastUpdated)
+              : existing.offset;
+
+          next[sessionKey] = {
+            offset,
             lastUpdated: currentTime,
-            state: session.Player?.state || "stopped",
+            state,
           };
         } else {
-          newStates[sessionKey] = {
-            ...existingState,
-            state: session.Player?.state || "stopped",
+          next[sessionKey] = {
+            offset: session.viewOffset || 0,
+            lastUpdated: currentTime,
+            state,
           };
         }
-      } else {
-        newStates[sessionKey] = {
-          offset: session.viewOffset || 0,
-          lastUpdated: currentTime,
-          state: session.Player?.state || "stopped",
-        };
       }
-    });
 
-    setPlaybackStates(newStates);
+      return next;
+    });
 
     const timer = setInterval(() => {
       setPlaybackStates((prev) => {
@@ -180,11 +126,10 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions]); // Removed playbackStates from dependencies
+  }, [sessions]);
 
   const getCurrentOffset = (session: PlexSession): number => {
-    const sessionKey = `${session.User?.title}-${session.title}`;
+    const sessionKey = getPlaybackKey(session);
     const state = playbackStates[sessionKey];
 
     if (!state) return session.viewOffset || 0;
@@ -198,27 +143,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
   };
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="flex items-center space-x-3 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg animate-pulse"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2" />
-              <div className="flex space-x-2">
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20" />
-                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24" />
-              </div>
-            </div>
-            <div className="flex-shrink-0">
-              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-16" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+    return <StatsSkeleton rows={3} />;
   }
 
   if (!service) {
@@ -227,61 +152,56 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
 
   const activeStreams = service.details?.plex?.activeStreams || 0;
 
-  const message = service.health?.message
-    ? service.message
-      ? `${service.message}\n${service.health.message}`
-      : service.health.message
-    : service.message;
+  const message = combineServiceMessage(service);
 
   return (
     <div className="space-y-4">
-      <PlexMessage status={service.status} message={message} />
+      <ArrMessage status={service.status} message={message} />
 
       {activeStreams > 0 && (
-        <div className="space-y-3">
-          <div
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="relative cursor-pointer select-none w-full flex items-center justify-between"
-          >
-            <div className="flex items-center justify-between flex-1">
-              <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                Active Streams:
-              </div>
-              <div className="flex items-center gap-4 pr-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Total:</span>
-                  <span className="text-xs font-medium text-blue-500 dark:text-blue-400">{activeStreams}</span>
+        <div>
+          <CollapsibleSection
+            title={
+              <div className="flex w-full items-center justify-between pr-6">
+                <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Active Streams:
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Transcoding:</span>
-                  <span className="text-xs font-medium text-amber-500 dark:text-amber-400">{transcodingCount}</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Total:
+                    </span>
+                    <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
+                      {activeStreams}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Transcoding:
+                    </span>
+                    <span className="text-xs font-medium text-amber-500 dark:text-amber-400">
+                      {transcodingCount}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="absolute pr-0.5 right-0 top-1/2 -translate-y-1/2 transition-transform duration-200 text-gray-500">
-              <ChevronUpIcon
-                className={`h-3.5 w-3.5 transform transition-transform duration-200 ${
-                  isExpanded ? "rotate-180" : ""
-                } group-hover:text-gray-400`}
-              />
-            </div>
-          </div>
-
-          <div
-            className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-              isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-            }`}
+            }
+            isExpanded={isExpanded}
+            onToggle={toggle}
           >
             <div className="space-y-2">
-              {sessions.map((session: PlexSession, index: number) => (
+              {sessions.map((session: PlexSession) => (
                 <div
-                  key={index}
+                  key={getPlaybackKey(session)}
                   className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors"
                 >
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-center gap-2">
                       <span className={session.Player?.state?.toLowerCase() === "paused" ? "text-yellow-500" : "text-blue-500"}>
-                        {getMediaTypeIcon(session.type || "", session.Player?.state)}
+                        {getMediaTypeIcon(
+                          session.type || "",
+                          session.Player?.state?.toLowerCase() === "paused"
+                        )}
                       </span>
                       <div className="flex items-center justify-between flex-1">
                         <span className="text-xs font-medium text-gray-200 truncate" title={session.title}>
@@ -319,8 +239,8 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                           />
                         </div>
                         <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                          <span>{formatDuration(getCurrentOffset(session))}</span>
-                          <span>{formatDuration(session.duration)}</span>
+                          <span>{formatDurationMs(getCurrentOffset(session))}</span>
+                          <span>{formatDurationMs(session.duration)}</span>
                         </div>
                       </div>
                     )}
@@ -343,7 +263,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                       {session.Media && session.Media[0] && (
                         <div className="flex items-center gap-2 text-[10px]">
                           <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-                            {formatBitrate(session.Media[0].bitrate)}
+                            {formatBitrateKbps(session.Media[0].bitrate)}
                           </span>
                           <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
                             {session.Media[0].audioCodec.toUpperCase()} {session.Media[0].audioChannels}ch
@@ -355,7 +275,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                 </div>
               ))}
             </div>
-          </div>
+          </CollapsibleSection>
         </div>
       )}
     </div>

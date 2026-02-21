@@ -5,7 +5,6 @@ package manager
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -13,6 +12,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 )
@@ -34,7 +34,13 @@ func NewServiceManager(db *database.DB, cache cache.Store) *ServiceManager {
 // InitializeService handles initial data fetching for a newly configured service
 func (m *ServiceManager) InitializeService(ctx context.Context, config *models.ServiceConfiguration) {
 	// Extract service type from instance ID (e.g., "overseerr-1" -> "overseerr")
-	serviceType := strings.Split(config.InstanceID, "-")[0]
+	serviceType, ok := models.ServiceTypeFromInstanceID(config.InstanceID)
+	if !ok {
+		log.Debug().
+			Str("instance", config.InstanceID).
+			Msg("Skipping initialization - invalid instance id")
+		return
+	}
 
 	// Skip initialization if URL or API key is missing
 	if config.URL == "" || config.APIKey == "" {
@@ -67,7 +73,7 @@ func (m *ServiceManager) InitializeService(ctx context.Context, config *models.S
 func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models.ServiceConfiguration) {
 	// Check if we already have fresh data in cache
 	cacheKey := "overseerr:requests:" + config.InstanceID
-	var cachedData interface{}
+	var cachedData any
 	if err := m.cache.Get(ctx, cacheKey, &cachedData); err == nil {
 		log.Debug().
 			Str("instance", config.InstanceID).
@@ -81,7 +87,11 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 
 	// Fetch requests in a goroutine
 	go func() {
-		stats, err := service.GetRequests(ctx, config.URL, config.APIKey)
+		// Detach from the request lifecycle, but keep values/deadlines if any.
+		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), core.DefaultTimeout)
+		defer cancel()
+
+		stats, err := service.GetRequests(bgCtx, config.URL, config.APIKey)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -91,7 +101,7 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 		}
 
 		// Cache the results
-		if err := m.cache.Set(ctx, cacheKey, stats, 5*time.Minute); err != nil {
+		if err := m.cache.Set(bgCtx, cacheKey, stats, 5*time.Minute); err != nil {
 			log.Warn().
 				Err(err).
 				Str("instance", config.InstanceID).
@@ -109,7 +119,7 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 func (m *ServiceManager) initializePlex(ctx context.Context, config *models.ServiceConfiguration) {
 	// Check if we already have fresh data in cache
 	cacheKey := "plex:sessions:" + config.InstanceID
-	var cachedData interface{}
+	var cachedData any
 	if err := m.cache.Get(ctx, cacheKey, &cachedData); err == nil {
 		log.Debug().
 			Str("instance", config.InstanceID).
@@ -123,7 +133,11 @@ func (m *ServiceManager) initializePlex(ctx context.Context, config *models.Serv
 
 	// Fetch sessions in a goroutine
 	go func() {
-		sessions, err := service.GetSessions(ctx, config.URL, config.APIKey)
+		// Detach from the request lifecycle, but keep values/deadlines if any.
+		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), core.DefaultTimeout)
+		defer cancel()
+
+		sessions, err := service.GetSessions(bgCtx, config.URL, config.APIKey)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -133,7 +147,7 @@ func (m *ServiceManager) initializePlex(ctx context.Context, config *models.Serv
 		}
 
 		// Cache the results with a shorter TTL since sessions are more real-time
-		if err := m.cache.Set(ctx, cacheKey, sessions, 30*time.Second); err != nil {
+		if err := m.cache.Set(bgCtx, cacheKey, sessions, 30*time.Second); err != nil {
 			log.Warn().
 				Err(err).
 				Str("instance", config.InstanceID).

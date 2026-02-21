@@ -5,11 +5,7 @@
 
 // Get the current frontend URL
 const getFrontendUrl = () => {
-  // In development, use localhost:3000
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3000';
-  }
-  // In production, use the current origin
+  // Always use current origin (works for Vite dev server and backend proxy mode).
   return window.location.origin;
 };
 
@@ -22,9 +18,7 @@ const COMMON_ENDPOINTS = {
 // OIDC-specific endpoints
 const OIDC_ENDPOINTS = {
   login: `/api/auth/oidc/login?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
-  callback: `/api/auth/oidc/callback?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
   logout: `/api/auth/oidc/logout?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
-  refresh: '/api/auth/oidc/refresh',
   verify: '/api/auth/oidc/verify',
   userInfo: '/api/auth/oidc/userinfo',
 };
@@ -49,6 +43,7 @@ export interface AuthConfig {
     oidc: boolean;
   };
   default: 'builtin' | 'oidc';
+  bypass?: boolean;
 }
 
 export async function getAuthConfig(): Promise<AuthConfig> {
@@ -67,6 +62,7 @@ export async function getAuthConfig(): Promise<AuthConfig> {
         oidc: false,
       },
       default: 'builtin',
+      bypass: false,
     };
   }
 }

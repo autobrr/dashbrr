@@ -1,7 +1,7 @@
 package discovery
 
 const (
-	// labelPrefix is the common prefix for all dashbrr service labels
+	// labelPrefix is the common prefix for all dashbrr service discovery metadata keys.
 	labelPrefix = "com.dashbrr.service"
 
 	// Common label suffixes

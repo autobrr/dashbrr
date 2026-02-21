@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { RegisterCredentials } from "../../types/auth";
@@ -14,6 +14,28 @@ import { faCheck, faTimes } from "@fortawesome/free-solid-svg-icons";
 import Toast from "../Toast";
 import logo from "../../assets/logo.svg";
 import { Footer } from "../shared/Footer";
+import { api } from "../../utils/api";
+
+type PasswordValidation = {
+  minLength: boolean;
+  hasUppercase: boolean;
+  hasLowercase: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+  passwordsMatch: boolean;
+};
+
+const PASSWORD_REQUIREMENTS: Array<{
+  key: keyof PasswordValidation;
+  label: string;
+}> = [
+  { key: "minLength", label: "Minimum 8 characters" },
+  { key: "hasUppercase", label: "At least one uppercase letter" },
+  { key: "hasLowercase", label: "At least one lowercase letter" },
+  { key: "hasNumber", label: "At least one number" },
+  { key: "hasSpecial", label: "At least one special character" },
+  { key: "passwordsMatch", label: "Passwords match" },
+];
 
 export function LoginPage() {
   const {
@@ -42,46 +64,65 @@ export function LoginPage() {
     email: "", // Will be set during registration
   });
 
-  // Password validation state
-  const [passwordValidation, setPasswordValidation] = useState({
-    minLength: false,
-    hasUppercase: false,
-    hasLowercase: false,
-    hasNumber: false,
-    passwordsMatch: false,
-  });
-
   // Get the return URL from location state, or default to '/'
   const from =
     (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
 
+  const passwordValidation = useMemo<PasswordValidation>(() => {
+    const password = formData.password;
+    return {
+      minLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecial: /[^A-Za-z0-9]/.test(password),
+      passwordsMatch: password === formData.confirmPassword && password !== "",
+    };
+  }, [formData.password, formData.confirmPassword]);
+
   useEffect(() => {
+    let cancelled = false;
+
     // Only check registration status if built-in auth is enabled
     const checkRegistrationStatus = async () => {
       if (!authConfig?.methods.builtin) {
-        setCheckingRegistration(false);
+        if (!cancelled) {
+          setCheckingRegistration(false);
+        }
         return;
       }
 
       try {
-        const response = await fetch("/api/auth/registration-status");
-        const data = await response.json();
-        setRegistrationEnabled(data.registrationEnabled);
-        if (data.registrationEnabled && !data.hasUsers) {
+        const data = await api.get<{
+          registrationEnabled: boolean;
+          hasUsers: boolean;
+        }>("/auth/registration-status");
+        if (!cancelled) {
+          setRegistrationEnabled(data.registrationEnabled);
+        }
+        if (!cancelled && data.registrationEnabled && !data.hasUsers) {
           // Automatically switch to registration if no users exist
           setIsRegistering(true);
         }
       } catch (err) {
         console.error("Failed to check registration status:", err);
-        setRegistrationEnabled(false);
+        if (!cancelled) {
+          setRegistrationEnabled(false);
+        }
       } finally {
-        setCheckingRegistration(false);
+        if (!cancelled) {
+          setCheckingRegistration(false);
+        }
       }
     };
 
     if (authConfig) {
       checkRegistrationStatus();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [authConfig]);
 
   useEffect(() => {
@@ -90,21 +131,6 @@ export function LoginPage() {
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, loading, navigate, from]);
-
-  // Password validation effect
-  useEffect(() => {
-    if (isRegistering) {
-      const password = formData.password;
-      setPasswordValidation({
-        minLength: password.length >= 8,
-        hasUppercase: /[A-Z]/.test(password),
-        hasLowercase: /[a-z]/.test(password),
-        hasNumber: /[0-9]/.test(password),
-        passwordsMatch:
-          password === formData.confirmPassword && password !== "",
-      });
-    }
-  }, [formData.password, formData.confirmPassword, isRegistering]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -148,7 +174,7 @@ export function LoginPage() {
 
         try {
           // Generate a default email using the username
-          const defaultEmail = `${formData.username}@dashbrr.local`;
+          const defaultEmail = `${formData.username}@dashbrr.invalid`;
 
           await register({
             username: formData.username,
@@ -222,15 +248,15 @@ export function LoginPage() {
     (authConfig.methods.builtin && checkingRegistration)
   ) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 pattern">
+      <div className="flex items-center justify-center min-h-screen bg-zinc-900 pattern">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 pattern">
-      <div className="max-w-md w-full space-y-8 p-8 bg-gray-850/40 border border-black/40 rounded-lg shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-900 pattern">
+      <div className="max-w-md w-full space-y-8 p-8 bg-zinc-900 border border-black/40 rounded-lg shadow-lg">
         <div className="flex flex-col items-center">
           <img
             src={logo}
@@ -240,7 +266,7 @@ export function LoginPage() {
           <h2 className="text-3xl font-bold text-white pointer-events-none select-none">
             Dashbrr
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-zinc-400">
             {authConfig.methods.builtin
               ? isRegistering
                 ? "Create your account"
@@ -268,7 +294,7 @@ export function LoginPage() {
                   type="text"
                   autoComplete="username"
                   required
-                  className="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-700 dark:border-gray-900 bg-gray-700 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  className="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-zinc-700 dark:border-zinc-900 bg-zinc-800 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                   placeholder="Username"
                   value={formData.username}
                   onChange={handleInputChange}
@@ -284,7 +310,7 @@ export function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   required
-                  className={`appearance-none relative block w-full px-3 py-2 border border-gray-700 dark:border-gray-900 bg-gray-700 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm ${
+                  className={`appearance-none relative block w-full px-3 py-2 border border-zinc-700 dark:border-zinc-900 bg-zinc-800 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm ${
                     !isRegistering ? "rounded-b-md" : ""
                   }`}
                   placeholder="Password"
@@ -301,8 +327,9 @@ export function LoginPage() {
                     id="confirmPassword"
                     name="confirmPassword"
                     type="password"
+                    autoComplete="new-password"
                     required
-                    className="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-700 dark:border-gray-900 bg-gray-700 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                    className="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-zinc-700 dark:border-zinc-900 bg-zinc-800 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                     placeholder="Confirm Password"
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
@@ -318,77 +345,23 @@ export function LoginPage() {
                     Password Requirements:
                   </h4>
                   <ul className="space-y-1">
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.minLength
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={passwordValidation.minLength ? faCheck : faTimes}
-                        className="w-4 h-4 mr-2"
-                      />
-                      Minimum 8 characters
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.hasUppercase
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          passwordValidation.hasUppercase ? faCheck : faTimes
-                        }
-                        className="w-4 h-4 mr-2"
-                      />
-                      At least one uppercase letter
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.hasLowercase
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          passwordValidation.hasLowercase ? faCheck : faTimes
-                        }
-                        className="w-4 h-4 mr-2"
-                      />
-                      At least one lowercase letter
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.hasNumber
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={passwordValidation.hasNumber ? faCheck : faTimes}
-                        className="w-4 h-4 mr-2"
-                      />
-                      At least one number
-                    </li>
-                    <li
-                      className={`flex items-center ${
-                        passwordValidation.passwordsMatch
-                          ? "text-green-400"
-                          : "text-blue-400"
-                      }`}
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          passwordValidation.passwordsMatch ? faCheck : faTimes
-                        }
-                        className="w-4 h-4 mr-2"
-                      />
-                      Passwords match
-                    </li>
+                    {PASSWORD_REQUIREMENTS.map((requirement) => {
+                      const met = passwordValidation[requirement.key];
+                      return (
+                        <li
+                          key={requirement.key}
+                          className={`flex items-center ${
+                            met ? "text-green-400" : "text-blue-400"
+                          }`}
+                        >
+                          <FontAwesomeIcon
+                            icon={met ? faCheck : faTimes}
+                            className="w-4 h-4 mr-2"
+                          />
+                          {requirement.label}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>
@@ -410,10 +383,10 @@ export function LoginPage() {
             {authConfig.methods.builtin && (
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-700"></div>
+                  <div className="w-full border-t border-zinc-700"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-gray-800 text-gray-400">
+                  <span className="px-2 bg-zinc-900 text-zinc-400">
                     Or continue with
                   </span>
                 </div>
@@ -423,7 +396,7 @@ export function LoginPage() {
             <div className={authConfig.methods.builtin ? "mt-6 " : ""}>
               <button
                 onClick={() => loginWithOIDC()}
-                className="w-full flex justify-center items-center py-2 px-4 border border-gray-750 rounded-md shadow-sm bg-gray-800 hover:bg-gray-825 text-sm font-medium text-white hover:text-blue-450 focus:outline-none focus:ring-1  focus:ring-gray-700"
+                className="w-full flex justify-center items-center py-2 px-4 border border-zinc-700 rounded-md shadow-sm bg-zinc-900 hover:bg-zinc-800 text-sm font-medium text-white hover:text-blue-400 focus:outline-none focus:ring-1 focus:ring-zinc-700"
               >
                 <span
                   className="group relative inline-block"

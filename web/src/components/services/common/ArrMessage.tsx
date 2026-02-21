@@ -8,19 +8,17 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
+import { ServiceStatus } from "../../../types/service";
 
 interface Props {
   message?: string;
-  status:
-    | "online"
-    | "offline"
-    | "warning"
-    | "error"
-    | "loading"
-    | "unknown"
-    | "healthy"
-    | "pending";
+  status: ServiceStatus | "healthy";
 }
+
+const INTERNAL_EVENT_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)+$/;
+
+const isActionableStatus = (status: ServiceStatus | "healthy"): boolean =>
+  status === "warning" || status === "error" || status === "offline";
 
 export const ArrMessage: React.FC<Props> = ({ message, status }) => {
   const getMessageStyle = () => {
@@ -125,7 +123,8 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
         trimmedLine === "Healthy" ||
         trimmedLine === "healthy" ||
         trimmedLine === "Status: Healthy" ||
-        trimmedLine === "Prowlarr is running"
+        trimmedLine === "Prowlarr is running" ||
+        INTERNAL_EVENT_PATTERN.test(trimmedLine)
       )
         return;
 
@@ -163,10 +162,13 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
 
   const statusDisplay = getStatusDisplay();
   const formattedMessage = formatMessage();
+  const showMessageBox = isActionableStatus(status) && Boolean(formattedMessage);
+  const messageSpacing = showMessageBox ? "space-y-2" : "space-y-0";
+  const statusPadding = showMessageBox ? "pb-2" : "pb-0";
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 select-none pb-2">
+    <div className={`arr-message-root ${messageSpacing}`}>
+      <div className={`arr-message-status flex items-center gap-1.5 select-none ${statusPadding}`}>
         <div className="flex items-center gap-1">
           <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
             Status:
@@ -178,7 +180,7 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
         </div>
       </div>
 
-      {formattedMessage && (
+      {showMessageBox && (
         <div className={getMessageStyle()}>
           <div className="flex items-start space-x-2">
             <div className="space-y-1">{formattedMessage}</div>

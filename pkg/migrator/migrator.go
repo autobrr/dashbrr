@@ -59,14 +59,14 @@ func WithEmbedFS(embedFS embed.FS) Option {
 
 // Logger interface
 type Logger interface {
-	Printf(string, ...interface{})
+	Printf(string, ...any)
 }
 
 // LoggerFunc adapts Logger and any third party logger
-type LoggerFunc func(string, ...interface{})
+type LoggerFunc func(string, ...any)
 
 // Printf implements Logger interface
-func (f LoggerFunc) Printf(msg string, args ...interface{}) {
+func (f LoggerFunc) Printf(msg string, args ...any) {
 	f(msg, args...)
 }
 

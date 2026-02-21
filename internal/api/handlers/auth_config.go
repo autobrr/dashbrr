@@ -7,11 +7,24 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // GetAuthConfig returns the available authentication methods
 func GetAuthConfig(c *gin.Context) {
+	if middleware.IsAuthBypassEnabled() {
+		c.JSON(http.StatusOK, gin.H{
+			"methods": map[string]bool{
+				"builtin": true,
+				"oidc":    false,
+			},
+			"default": "builtin",
+			"bypass":  true,
+		})
+		return
+	}
+
 	hasOIDC := os.Getenv("OIDC_ISSUER") != "" &&
 		os.Getenv("OIDC_CLIENT_ID") != "" &&
 		os.Getenv("OIDC_CLIENT_SECRET") != ""
@@ -27,5 +40,6 @@ func GetAuthConfig(c *gin.Context) {
 			"oidc":    hasOIDC,
 		},
 		"default": defaultMethod,
+		"bypass":  false,
 	})
 }

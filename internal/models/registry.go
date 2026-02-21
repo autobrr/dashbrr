@@ -22,6 +22,30 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewAutobrrService != nil {
 			return NewAutobrrService()
 		}
+	case "bazarr":
+		if NewBazarrService != nil {
+			return NewBazarrService()
+		}
+	case "sabnzbd":
+		if NewSabnzbdService != nil {
+			return NewSabnzbdService()
+		}
+	case "nzbget":
+		if NewNzbgetService != nil {
+			return NewNzbgetService()
+		}
+	case "jellyfin":
+		if NewJellyfinService != nil {
+			return NewJellyfinService()
+		}
+	case "uptimekuma":
+		if NewUptimeKumaService != nil {
+			return NewUptimeKumaService()
+		}
+	case "traefik":
+		if NewTraefikService != nil {
+			return NewTraefikService()
+		}
 	case "radarr":
 		if NewRadarrService != nil {
 			return NewRadarrService()
@@ -29,6 +53,14 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 	case "sonarr":
 		if NewSonarrService != nil {
 			return NewSonarrService()
+		}
+	case "lidarr":
+		if NewLidarrService != nil {
+			return NewLidarrService()
+		}
+	case "readarr":
+		if NewReadarrService != nil {
+			return NewReadarrService()
 		}
 	case "prowlarr":
 		if NewProwlarrService != nil {
@@ -42,10 +74,6 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewPlexService != nil {
 			return NewPlexService()
 		}
-	case "omegabrr":
-		if NewOmegabrrService != nil {
-			return NewOmegabrrService()
-		}
 	case "tailscale":
 		if NewTailscaleService != nil {
 			return NewTailscaleService()
@@ -53,6 +81,10 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 	case "maintainerr":
 		if NewMaintainerrService != nil {
 			return NewMaintainerrService()
+		}
+	case "qui":
+		if NewQuiService != nil {
+			return NewQuiService()
 		}
 	case "general":
 		if NewGeneralService != nil {

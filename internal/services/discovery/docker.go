@@ -3,8 +3,8 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -49,7 +49,7 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]models.Servic
 	for _, container := range containers {
 		service, err := d.parseContainerLabels(container.Labels)
 		if err != nil {
-			fmt.Printf("Warning: Failed to parse labels for container %s: %v\n", container.ID[:12], err)
+			log.Warn().Err(err).Str("container", container.ID[:12]).Msg("Failed to parse discovery labels")
 			continue
 		}
 		if service != nil {
@@ -62,45 +62,22 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]models.Servic
 
 // parseContainerLabels extracts service configuration from container labels
 func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*models.ServiceConfiguration, error) {
-	serviceType := labels[GetLabelKey(labelTypeKey)]
-	if serviceType == "" {
-		return nil, fmt.Errorf("service type label not found")
+	parsed, err := parseDiscoveryLabels(labels)
+	if err != nil {
+		return nil, err
 	}
-
-	url := labels[GetLabelKey(labelURLKey)]
-	if url == "" {
-		return nil, fmt.Errorf("service URL label not found")
-	}
-
-	// Handle environment variable substitution in API key
-	apiKey := labels[GetLabelKey(labelAPIKeyKey)]
-	if strings.HasPrefix(apiKey, "${") && strings.HasSuffix(apiKey, "}") {
-		envVar := strings.TrimSuffix(strings.TrimPrefix(apiKey, "${"), "}")
-		apiKey = os.Getenv(envVar)
-		if apiKey == "" {
-			return nil, fmt.Errorf("environment variable %s not set for API key", envVar)
-		}
-	}
-
-	// Get optional display name or use service type
-	displayName := labels[GetLabelKey(labelNameKey)]
-	if displayName == "" {
-		displayName = strings.Title(serviceType)
-	}
-
-	// Check if service is explicitly disabled
-	if enabled := labels[GetLabelKey(labelEnabledKey)]; enabled == "false" {
+	if !parsed.enabled {
 		return nil, nil
 	}
 
 	// Generate instance ID based on service type
-	instanceID := fmt.Sprintf("%s-docker", serviceType)
+	instanceID := fmt.Sprintf("%s-docker", parsed.serviceType)
 
 	return &models.ServiceConfiguration{
 		InstanceID:  instanceID,
-		DisplayName: displayName,
-		URL:         url,
-		APIKey:      apiKey,
+		DisplayName: parsed.displayName,
+		URL:         parsed.url,
+		APIKey:      parsed.apiKey,
 	}, nil
 }
 
