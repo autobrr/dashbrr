@@ -9,12 +9,13 @@ Owner: soup (s0up4200@pm.me)
 
 ### 2026-02-21
 - CI lint stabilization for oversized PR diff (`#82`)
-  - issue: `golangci-lint-action` `only-new-issues: true` requests PR patch; GitHub returns `406` when diff > `20000` lines; action falls back to full-repo lint
-  - fix: `.github/workflows/lint.yml` backend lint step now uses:
+  - synced `lint.yml` with qui baseline, then validated failure mode on this PR
+  - issue confirmed: `golangci-lint-action` `only-new-issues: true` requests PR patch; GitHub returns `406` when diff > `20000` lines; action falls back to full-repo lint
+  - applied oversized-PR fallback in backend lint step:
+    - checkout pinned to `pull_request.head.sha`
     - `only-new-issues: false`
     - `args: --new-from-rev=HEAD~1`
-    - backend checkout pinned to `pull_request.head.sha` so `HEAD~1` references prior branch commit (not synthetic merge parent)
-  - result: CI lint gates incremental commit delta; avoids PR diff API limit fallback
+  - result: backend lint remains incremental per pushed commit and avoids diff-API hard limit
 
 ### 2026-02-20
 - Dependency + security sweep (items #1 + #2)
