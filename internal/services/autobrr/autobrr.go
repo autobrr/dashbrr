@@ -397,15 +397,15 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 	// Get IRC status
 	ircStatus, err := s.GetIRCStatus(ctx, url, apiKey)
 	if err != nil {
-		extras := map[string]interface{}{
+		extras := map[string]any{
 			"responseTime": responseTime,
-			"stats": map[string]interface{}{
-				"autobrr": map[string]interface{}{
+			"stats": map[string]any{
+				"autobrr": map[string]any{
 					"stats": stats,
 				},
 			},
-			"details": map[string]interface{}{
-				"autobrr": map[string]interface{}{
+			"details": map[string]any{
+				"autobrr": map[string]any{
 					"irc": ircStatus,
 				},
 			},
@@ -440,10 +440,10 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 		}
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime": responseTime,
-		"stats": map[string]interface{}{
-			"autobrr": map[string]interface{}{
+		"stats": map[string]any{
+			"autobrr": map[string]any{
 				"stats": stats,
 			},
 		},
@@ -463,8 +463,8 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 
 	// Only include IRC status in details if there are unhealthy connections
 	if !ircHealthy {
-		extras["details"] = map[string]interface{}{
-			"autobrr": map[string]interface{}{
+		extras["details"] = map[string]any{
+			"autobrr": map[string]any{
 				"irc": ircStatus,
 			},
 		}

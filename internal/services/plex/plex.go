@@ -267,7 +267,7 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 		plexResponse.MediaContainer = mediaContainer
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"version":         version,
 		"responseTime":    responseTime,
 		"updateAvailable": s.GetUpdateStatusFromCache(ctx, url), // Add update status from cache

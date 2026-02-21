@@ -4,7 +4,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -119,9 +118,9 @@ func TestBroadcasterSnapshotPreservesVersionAcrossPartialUpdates(t *testing.T) {
 		Status:      "online",
 		Message:     "radarr_queue",
 		LastChecked: now.Add(time.Second),
-		Stats: map[string]interface{}{
-			"radarr": map[string]interface{}{
-				"queue": map[string]interface{}{"totalRecords": float64(2)},
+		Stats: map[string]any{
+			"radarr": map[string]any{
+				"queue": map[string]any{"totalRecords": float64(2)},
 			},
 		},
 	})
@@ -164,9 +163,9 @@ func TestBroadcasterSnapshotKeepsWarningStateAcrossInternalEvents(t *testing.T) 
 		Status:      "online",
 		Message:     "prowlarr_indexers",
 		LastChecked: now.Add(time.Second),
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"indexers": []interface{}{"a"},
+		Stats: map[string]any{
+			"prowlarr": map[string]any{
+				"indexers": []any{"a"},
 			},
 		},
 	})
@@ -201,9 +200,9 @@ func TestBroadcasterSnapshotKeepsHealthResponseTimeAcrossInternalEvents(t *testi
 		LastChecked:     now.Add(time.Second),
 		ResponseTime:    0,
 		UpdateAvailable: false,
-		Stats: map[string]interface{}{
-			"radarr": map[string]interface{}{
-				"queue": map[string]interface{}{"totalRecords": float64(2)},
+		Stats: map[string]any{
+			"radarr": map[string]any{
+				"queue": map[string]any{"totalRecords": float64(2)},
 			},
 		},
 	})
@@ -239,9 +238,9 @@ func TestBroadcasterSnapshotKeepsWarningVersionAndResponseTimeAcrossInternalEven
 		Status:      "online",
 		Message:     "prowlarr_indexers",
 		LastChecked: now.Add(time.Second),
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"indexers": []interface{}{"a"},
+		Stats: map[string]any{
+			"prowlarr": map[string]any{
+				"indexers": []any{"a"},
 			},
 		},
 	})
@@ -340,8 +339,8 @@ func TestBroadcasterSnapshotTreatsExplicitInternalEventTypeAsInternal(t *testing
 		Message:     "Queue refresh completed",
 		EventType:   models.ServiceEventInternal,
 		LastChecked: now.Add(time.Second),
-		Stats: map[string]interface{}{
-			"sonarr": map[string]interface{}{"queue": map[string]interface{}{"totalRecords": float64(2)}},
+		Stats: map[string]any{
+			"sonarr": map[string]any{"queue": map[string]any{"totalRecords": float64(2)}},
 		},
 	})
 
@@ -420,9 +419,9 @@ func TestBroadcasterSnapshotMergesNestedStatsPayloads(t *testing.T) {
 		Status:      "online",
 		Message:     "prowlarr_stats",
 		LastChecked: now,
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"stats": map[string]interface{}{"grabCount": float64(12)},
+		Stats: map[string]any{
+			"prowlarr": map[string]any{
+				"stats": map[string]any{"grabCount": float64(12)},
 			},
 		},
 	})
@@ -432,16 +431,16 @@ func TestBroadcasterSnapshotMergesNestedStatsPayloads(t *testing.T) {
 		Status:      "online",
 		Message:     "prowlarr_indexers",
 		LastChecked: now.Add(time.Second),
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
-				"indexers": []interface{}{"a", "b"},
+		Stats: map[string]any{
+			"prowlarr": map[string]any{
+				"indexers": []any{"a", "b"},
 			},
 		},
 	})
 
 	decoded := decodeSingleSnapshotHealth(t, bc)
 
-	prowlarrStats, ok := decoded.Stats["prowlarr"].(map[string]interface{})
+	prowlarrStats, ok := decoded.Stats["prowlarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected prowlarr stats map, got %T", decoded.Stats["prowlarr"])
 	}
@@ -462,10 +461,10 @@ func TestBroadcasterSnapshotKeepsAutobrrStatsAndReleases(t *testing.T) {
 		Status:      "online",
 		Message:     "autobrr_releases",
 		LastChecked: now,
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"releases": map[string]interface{}{
-					"data":        []interface{}{"r1"},
+		Stats: map[string]any{
+			"autobrr": map[string]any{
+				"releases": map[string]any{
+					"data":        []any{"r1"},
 					"count":       float64(1),
 					"next_cursor": float64(2),
 				},
@@ -478,9 +477,9 @@ func TestBroadcasterSnapshotKeepsAutobrrStatsAndReleases(t *testing.T) {
 		Status:      "online",
 		Message:     "autobrr_stats",
 		LastChecked: now.Add(time.Second),
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"stats": map[string]interface{}{
+		Stats: map[string]any{
+			"autobrr": map[string]any{
+				"stats": map[string]any{
 					"total_count": float64(42),
 				},
 			},
@@ -489,7 +488,7 @@ func TestBroadcasterSnapshotKeepsAutobrrStatsAndReleases(t *testing.T) {
 
 	decoded := decodeSingleSnapshotHealth(t, bc)
 
-	autobrrStats, ok := decoded.Stats["autobrr"].(map[string]interface{})
+	autobrrStats, ok := decoded.Stats["autobrr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected autobrr stats map, got %T", decoded.Stats["autobrr"])
 	}
@@ -510,10 +509,10 @@ func TestBroadcasterSnapshotKeepsAutobrrReleasesAfterHealthUpdate(t *testing.T) 
 		Status:      "online",
 		Message:     "autobrr_releases",
 		LastChecked: now,
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"releases": map[string]interface{}{
-					"data":        []interface{}{"r1"},
+		Stats: map[string]any{
+			"autobrr": map[string]any{
+				"releases": map[string]any{
+					"data":        []any{"r1"},
 					"count":       float64(1),
 					"next_cursor": float64(2),
 				},
@@ -526,9 +525,9 @@ func TestBroadcasterSnapshotKeepsAutobrrReleasesAfterHealthUpdate(t *testing.T) 
 		Status:      "online",
 		Message:     "Autobrr is running",
 		LastChecked: now.Add(time.Second),
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
-				"stats": map[string]interface{}{
+		Stats: map[string]any{
+			"autobrr": map[string]any{
+				"stats": map[string]any{
 					"total_count": float64(42),
 				},
 			},
@@ -537,7 +536,7 @@ func TestBroadcasterSnapshotKeepsAutobrrReleasesAfterHealthUpdate(t *testing.T) 
 
 	decoded := decodeSingleSnapshotHealth(t, bc)
 
-	autobrrStats, ok := decoded.Stats["autobrr"].(map[string]interface{})
+	autobrrStats, ok := decoded.Stats["autobrr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected autobrr stats map, got %T", decoded.Stats["autobrr"])
 	}
@@ -600,8 +599,7 @@ func TestBroadcasterPublishLatestRepublishesCachedPayload(t *testing.T) {
 	bc := NewBroadcaster(hub)
 	now := time.Unix(1700000000, 0)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	sub, _ := hub.Subscribe(ctx, 4)
 

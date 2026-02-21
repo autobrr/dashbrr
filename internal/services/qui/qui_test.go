@@ -288,7 +288,7 @@ func TestCheckHealth_SummarizesInstanceState(t *testing.T) {
 		t.Fatal("health.Details.qui should be set")
 	}
 
-	quiDetails, ok := health.Details["qui"].(map[string]interface{})
+	quiDetails, ok := health.Details["qui"].(map[string]any)
 	if !ok {
 		t.Fatalf("health.Details[\"qui\"] type = %T, want map[string]interface{}", health.Details["qui"])
 	}

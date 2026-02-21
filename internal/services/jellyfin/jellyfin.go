@@ -245,7 +245,7 @@ func (s *JellyfinService) CheckHealth(ctx context.Context, baseURL, apiKey strin
 
 	info, err := s.GetSystemInfo(healthCtx, baseURL, apiKey)
 	if err != nil {
-		return s.CreateHealthResponse(start, "offline", fmt.Sprintf("Failed to connect: %v", err), map[string]interface{}{
+		return s.CreateHealthResponse(start, "offline", fmt.Sprintf("Failed to connect: %v", err), map[string]any{
 			"responseTime": time.Since(start).Milliseconds(),
 		}), http.StatusOK
 	}
@@ -260,7 +260,7 @@ func (s *JellyfinService) CheckHealth(ctx context.Context, baseURL, apiKey strin
 		message = fmt.Sprintf("Healthy - %s", strings.TrimSpace(info.ServerName))
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime":    time.Since(start).Milliseconds(),
 		"updateAvailable": s.GetUpdateStatusFromCache(ctx, baseURL),
 	}

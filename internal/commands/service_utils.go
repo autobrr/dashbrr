@@ -29,8 +29,8 @@ func getNextInstanceID(ctx context.Context, db *database.DB, prefix string) (str
 
 	maxNum := 0
 	for _, service := range services {
-		if strings.HasPrefix(service.InstanceID, prefix) {
-			numStr := strings.TrimPrefix(service.InstanceID, prefix)
+		if after, ok := strings.CutPrefix(service.InstanceID, prefix); ok {
+			numStr := after
 			if num, err := strconv.Atoi(numStr); err == nil && num > maxNum {
 				maxNum = num
 			}

@@ -133,7 +133,7 @@ func buildIndexerStatsURL(baseURL string, now time.Time) string {
 }
 
 // GetQueue gets the current queue status
-func (s *ProwlarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+func (s *ProwlarrService) GetQueue(_ context.Context, _ string, _ string) (any, error) {
 	// Prowlarr doesn't have a queue system
 	return nil, nil
 }

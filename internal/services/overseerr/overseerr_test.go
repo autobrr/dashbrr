@@ -239,7 +239,7 @@ func TestGetRequests_UsesTitleCacheForRepeatedLookups(t *testing.T) {
 	defer server.Close()
 
 	svc := &OverseerrService{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		stats, err := svc.GetRequests(context.Background(), server.URL, "key")
 		if err != nil {
 			t.Fatalf("GetRequests() error = %v", err)

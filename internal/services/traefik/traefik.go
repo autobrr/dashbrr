@@ -328,7 +328,7 @@ func parseTraefikCertificateMetrics(metricsBody string, now time.Time) (types.Tr
 
 		sans := make([]string, 0)
 		if sansRaw := strings.TrimSpace(labels["sans"]); sansRaw != "" {
-			for _, san := range strings.Split(sansRaw, ",") {
+			for san := range strings.SplitSeq(sansRaw, ",") {
 				san = strings.TrimSpace(san)
 				if san != "" {
 					sans = append(sans, san)
@@ -538,12 +538,12 @@ func (s *TraefikService) CheckHealth(ctx context.Context, baseURL, apiKey string
 
 	version, err := s.GetVersion(healthCtx, baseURL, apiKey)
 	if err != nil {
-		return s.CreateHealthResponse(start, "offline", fmt.Sprintf("Failed to connect: %v", err), map[string]interface{}{
+		return s.CreateHealthResponse(start, "offline", fmt.Sprintf("Failed to connect: %v", err), map[string]any{
 			"responseTime": time.Since(start).Milliseconds(),
 		}), http.StatusOK
 	}
 
-	return s.CreateHealthResponse(start, "online", "Healthy", map[string]interface{}{
+	return s.CreateHealthResponse(start, "online", "Healthy", map[string]any{
 		"responseTime": time.Since(start).Milliseconds(),
 		"version":      version,
 	}), http.StatusOK

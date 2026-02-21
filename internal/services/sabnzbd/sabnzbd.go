@@ -291,7 +291,7 @@ func (s *SabnzbdService) CheckHealth(ctx context.Context, baseURL, apiKey string
 
 	wg.Wait()
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime": time.Since(start).Milliseconds(),
 	}
 	if versionErr == nil && version != "" {

@@ -116,7 +116,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 		return
 	}
 
-	_, err, _ = h.sf.Do(sfKey, func() (interface{}, error) {
+	_, err, _ = h.sf.Do(sfKey, func() (any, error) {
 		return nil, resilience.RetryWithBackoff(ctx, func() error {
 			return service.UpdateRequestStatus(ctx, overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve)
 		})
@@ -143,7 +143,7 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 
 	// Fetch fresh data and broadcast update using singleflight
 	sfKey = fmt.Sprintf("requests:%s", instanceId)
-	result, err, _ := h.sf.Do(sfKey, func() (interface{}, error) {
+	result, err, _ := h.sf.Do(sfKey, func() (any, error) {
 		return h.fetchRequests(ctx, instanceId)
 	})
 

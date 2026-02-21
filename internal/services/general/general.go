@@ -64,7 +64,7 @@ func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (m
 	}
 
 	// Try to parse as JSON first
-	var jsonResponse map[string]interface{}
+	var jsonResponse map[string]any
 	if err := json.Unmarshal(body, &jsonResponse); err == nil {
 		// Handle JSON response
 		status := "online"
@@ -87,7 +87,7 @@ func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (m
 			message = messageVal
 		}
 
-		extras := map[string]interface{}{
+		extras := map[string]any{
 			"responseTime": responseTime,
 		}
 
@@ -96,7 +96,7 @@ func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (m
 
 	// If JSON parsing fails, treat as plain text
 	textResponse := strings.TrimSpace(string(body))
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime": responseTime,
 	}
 

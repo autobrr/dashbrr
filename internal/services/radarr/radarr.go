@@ -66,7 +66,7 @@ func (s *RadarrService) getQueueRecords(ctx context.Context, url, apiKey string)
 }
 
 // GetQueue fetches the current queue from Radarr.
-func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+func (s *RadarrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
 	records, err := s.getQueueRecords(ctx, url, apiKey)
 	if err != nil {
 		return nil, err

@@ -62,7 +62,7 @@ type localCacheItem struct {
 }
 
 // Get retrieves a value from cache with local cache first
-func (s *RedisStore) Get(ctx context.Context, key string, value interface{}) error {
+func (s *RedisStore) Get(ctx context.Context, key string, value any) error {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
@@ -80,7 +80,7 @@ func (s *RedisStore) Get(ctx context.Context, key string, value interface{}) err
 	}
 
 	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
+	for i := range RetryAttempts {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -125,7 +125,7 @@ func (s *RedisStore) Get(ctx context.Context, key string, value interface{}) err
 }
 
 // Set stores a value in both Redis and local cache
-func (s *RedisStore) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (s *RedisStore) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
@@ -152,7 +152,7 @@ func (s *RedisStore) Set(ctx context.Context, key string, value interface{}, exp
 	}
 
 	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
+	for i := range RetryAttempts {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -191,7 +191,7 @@ func (s *RedisStore) Delete(ctx context.Context, key string) error {
 	s.local.Unlock()
 
 	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
+	for i := range RetryAttempts {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -224,7 +224,7 @@ func (s *RedisStore) Increment(ctx context.Context, key string, timestamp int64)
 	s.mu.RUnlock()
 
 	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
+	for i := range RetryAttempts {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -259,7 +259,7 @@ func (s *RedisStore) CleanAndCount(ctx context.Context, key string, windowStart 
 	s.mu.RUnlock()
 
 	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
+	for i := range RetryAttempts {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -290,7 +290,7 @@ func (s *RedisStore) GetCount(ctx context.Context, key string) (int64, error) {
 	s.mu.RUnlock()
 
 	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
+	for i := range RetryAttempts {
 		select {
 		case <-ctx.Done():
 			return 0, ctx.Err()
@@ -325,7 +325,7 @@ func (s *RedisStore) Expire(ctx context.Context, key string, expiration time.Dur
 	}
 
 	var lastErr error
-	for i := 0; i < RetryAttempts; i++ {
+	for i := range RetryAttempts {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

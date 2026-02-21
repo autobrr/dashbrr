@@ -1912,6 +1912,38 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
 
+### 2026-02-21 (adopted `qui` PR #1480 pattern in `dashbrr`)
+- Ported workflow strategy from `autobrr/qui#1480`:
+  - replace `modernize` lint flow with `go fix` drift checks
+  - align toolchain bump to Go 1.26
+  - keep incremental lint signal for changed code paths
+- CI updates:
+  - `.github/workflows/lint.yml`
+    - added `go fix` drift check for changed Go packages in PR diff
+    - bumped `golangci-lint-action` version from `v2.6` to `v2.10.1`
+- Lint config:
+  - `.golangci.yml`
+    - removed `modernize` linter (now handled by go toolchain migration/fix flow)
+- Makefile updates:
+  - added `fmt` (changed files only)
+  - added `lint-backend` (changed backend lint)
+  - added `gofix-changed`
+  - added `gofix-check-changed`
+  - added `precommit` gate (`fmt + gofix + lint`)
+- Toolchain/runtime refs:
+  - `go.mod`: `go 1.26`
+  - `Dockerfile`: `golang:1.26-alpine3.23`
+  - `ci.Dockerfile`: `golang:1.26-alpine3.23`
+- One-time migration:
+  - ran `go fix ./...` and kept resulting repository-wide modernization edits.
+- Verification:
+  - `actionlint .github/workflows/lint.yml`
+  - `make gofix-check-changed`
+  - `golangci-lint run --new-from-rev=HEAD~1 --timeout=10m`
+  - `go test ./...`
+  - `pnpm -C web lint`
+  - `pnpm -C web typecheck`
+
 ### 2026-02-21 (CI/GoReleaser parity pass vs `qui`)
 - Goal: reduce cross-repo drift with `~/github/autobrr/qui` while keeping stronger dashbrr checks.
 - Updated `.github/workflows/release.yml`:

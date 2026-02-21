@@ -11,8 +11,8 @@ import (
 // Store defines the caching operations.
 // Implementations must be safe for concurrent use.
 type Store interface {
-	Get(ctx context.Context, key string, value interface{}) error
-	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
+	Get(ctx context.Context, key string, value any) error
+	Set(ctx context.Context, key string, value any, expiration time.Duration) error
 	Delete(ctx context.Context, key string) error
 	Increment(ctx context.Context, key string, timestamp int64) error
 	CleanAndCount(ctx context.Context, key string, windowStart int64) error

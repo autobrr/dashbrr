@@ -32,7 +32,7 @@ LDFLAGS=-s -w \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint type-check preview check-air
+.PHONY: all clean frontend backend deps-go deps-frontend dev dev-memory docker-dev docker-dev-redis docker-dev-quick docker-build help redis-dev redis-stop docker-clean test-integration test-integration-db test-integration-db-stop run lint lint-backend type-check preview check-air fmt gofix-changed gofix-check-changed precommit
 
 # Default target
 all: clean deps-frontend deps-go frontend backend
@@ -65,10 +65,81 @@ backend: deps-go
 	mkdir -p $(BIN_DIR)
 	$(GOBUILD) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(MAIN_GO)
 
+# Format changed code only (fast, for iteration)
+fmt:
+	@echo "Formatting changed Go code..."
+	@gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+		if [ -n "$$gofiles" ]; then echo "$$gofiles" | xargs gofmt -w; fi
+	@echo "Formatting changed frontend code..."
+	@webfiles=$$({ git diff --name-only --diff-filter=d -- 'web/'; git diff --name-only --cached --diff-filter=d -- 'web/'; } | sort -u | sed 's|^web/||' | grep -E '\.(ts|tsx|js|jsx)$$' || true); \
+		if [ -n "$$webfiles" ]; then cd web && echo "$$webfiles" | xargs pnpm eslint --fix; fi
+
 # Lint frontend code
 lint:
 	@echo "Linting frontend code..."
 	cd web && $(PNPM) lint
+
+# Lint changed backend code
+lint-backend:
+	@echo "Linting changed backend code..."
+	golangci-lint run --new-from-merge-base=develop --timeout=5m
+
+# Apply go fix to changed Go files only
+gofix-changed:
+	@echo "Running go fix on changed Go files..."
+	@gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+		if [ -z "$$gofiles" ]; then \
+			echo "No changed Go files for go fix."; \
+			exit 0; \
+		fi; \
+		gopkgs=$$(printf '%s\n' "$$gofiles" | xargs -n 1 dirname | sort -u); \
+		printf '%s\n' "$$gopkgs" | while IFS= read -r pkg; do \
+			[ -n "$$pkg" ] || continue; \
+			go fix "./$$pkg" || true; \
+		done; \
+		tmp=$$(mktemp); \
+		printf '%s\n' "$$gopkgs" | while IFS= read -r pkg; do \
+			[ -n "$$pkg" ] || continue; \
+			go fix -diff "./$$pkg" >> "$$tmp" || true; \
+		done; \
+		if [ -s "$$tmp" ]; then \
+			echo "go fix left pending changes for changed Go files:"; \
+			cat "$$tmp"; \
+			rm -f "$$tmp"; \
+			echo "Re-run 'make gofix-changed'."; \
+			exit 1; \
+		fi; \
+		rm -f "$$tmp"; \
+		echo "go fix applied."
+
+# Check go fix drift on changed Go files only (for CI/pre-commit)
+gofix-check-changed:
+	@echo "Checking go fix drift on changed Go files..."
+	@tmp=$$(mktemp); \
+		gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+		if [ -z "$$gofiles" ]; then \
+			rm -f "$$tmp"; \
+			echo "No changed Go files for go fix check."; \
+			exit 0; \
+		fi; \
+		gopkgs=$$(printf '%s\n' "$$gofiles" | xargs -n 1 dirname | sort -u); \
+		printf '%s\n' "$$gopkgs" | while IFS= read -r pkg; do \
+			[ -n "$$pkg" ] || continue; \
+			go fix -diff "./$$pkg" >> "$$tmp" || true; \
+		done; \
+		if [ -s "$$tmp" ]; then \
+			echo "go fix changes required for changed Go files:"; \
+			cat "$$tmp"; \
+			rm -f "$$tmp"; \
+			echo "Run 'make gofix-changed'."; \
+			exit 1; \
+		fi; \
+		rm -f "$$tmp"; \
+		echo "go fix check clean."
+
+# Local pre-commit gate (changed files only)
+precommit: fmt gofix-changed lint-backend lint type-check
+	@echo "Pre-commit checks passed."
 
 # Type check frontend code
 type-check:
@@ -236,7 +307,12 @@ help:
 	@echo "  deps-frontend            - Install frontend dependencies using pnpm"
 	@echo "  frontend                 - Build the frontend application"
 	@echo "  backend                  - Build the backend Go binary"
+	@echo "  fmt                      - Format changed files only (fast, for iteration)"
 	@echo "  lint                     - Run ESLint on frontend code"
+	@echo "  lint-backend             - Lint changed backend files only"
+	@echo "  gofix-changed            - Apply go fix to changed Go files only"
+	@echo "  gofix-check-changed      - Check go fix drift on changed Go files only"
+	@echo "  precommit                - Run local pre-commit gate (fmt + gofix + lint)"
 	@echo "  type-check              - Run TypeScript type checking"
 	@echo "  preview                  - Start frontend preview server"
 	@echo "  dev                      - Start development environment with SQLite and Redis (requires air)"

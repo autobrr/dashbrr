@@ -214,7 +214,7 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 		log.Debug().Err(err).Str("url", url).Bool("updateAvailable", statusResponse.UpdateAvailable).Msg("Failed to cache Maintainerr update status")
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"updateAvailable": statusResponse.UpdateAvailable,
 		"responseTime":    responseTime,
 	}

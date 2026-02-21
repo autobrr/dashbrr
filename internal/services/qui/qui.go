@@ -367,15 +367,15 @@ func (s *QuiService) CheckHealth(ctx context.Context, url, apiKey string) (model
 		startTime,
 		status,
 		message,
-		map[string]interface{}{
+		map[string]any{
 			"responseTime": time.Since(startTime).Milliseconds(),
-			"stats": map[string]interface{}{
-				"qui": map[string]interface{}{
+			"stats": map[string]any{
+				"qui": map[string]any{
 					"instances": instances,
 				},
 			},
-			"details": map[string]interface{}{
-				"qui": map[string]interface{}{
+			"details": map[string]any{
+				"qui": map[string]any{
 					"totalInstances":     len(instances),
 					"activeInstances":    active,
 					"connectedInstances": connected,

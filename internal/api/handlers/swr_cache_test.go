@@ -156,7 +156,7 @@ func TestFetchWithSWRCache_SingleflightDedupesFetch(t *testing.T) {
 	wg.Add(n)
 
 	errCh := make(chan error, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		go func() {
 			defer wg.Done()
 			got, err := FetchWithSWRCache(ctx, SWRCacheOptions[swrTestValue]{

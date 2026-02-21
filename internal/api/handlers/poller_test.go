@@ -334,8 +334,7 @@ func TestPollerMaybeRun_FailureRepublishesLastKnownDetails(t *testing.T) {
 	bc := NewBroadcaster(hub)
 	p := NewPoller(nil, bc)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sub, _ := hub.Subscribe(ctx, 8)
 
 	bc.Publish(models.ServiceHealth{
@@ -344,8 +343,8 @@ func TestPollerMaybeRun_FailureRepublishesLastKnownDetails(t *testing.T) {
 		Message:     "radarr_queue",
 		EventType:   models.ServiceEventInternal,
 		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"radarr": map[string]interface{}{"queue": map[string]interface{}{"totalRecords": float64(2)}},
+		Stats: map[string]any{
+			"radarr": map[string]any{"queue": map[string]any{"totalRecords": float64(2)}},
 		},
 	})
 

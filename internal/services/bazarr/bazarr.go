@@ -244,7 +244,7 @@ func (s *BazarrService) CheckHealth(ctx context.Context, baseURL, apiKey string)
 		return s.CreateHealthResponse(start, "error", fmt.Sprintf("Health check failed: %v", issuesErr)), http.StatusOK
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime": time.Since(start).Milliseconds(),
 	}
 	if versionErr == nil && version != "" {

@@ -303,10 +303,7 @@ func applyPollerJobJitter(key string, interval time.Duration) time.Duration {
 		return interval
 	}
 
-	maxJitter := interval / 10
-	if maxJitter > pollerMaxJobJitter {
-		maxJitter = pollerMaxJobJitter
-	}
+	maxJitter := min(interval/10, pollerMaxJobJitter)
 	if maxJitter <= 0 {
 		return interval
 	}

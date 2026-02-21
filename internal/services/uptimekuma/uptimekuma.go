@@ -397,16 +397,16 @@ func (s *UptimeKumaService) CheckHealth(ctx context.Context, baseURL, apiKey str
 
 	summary, err := s.GetSummary(healthCtx, baseURL, apiKey)
 	if err != nil {
-		return s.CreateHealthResponse(start, "offline", fmt.Sprintf("Failed to connect: %v", err), map[string]interface{}{
+		return s.CreateHealthResponse(start, "offline", fmt.Sprintf("Failed to connect: %v", err), map[string]any{
 			"responseTime": time.Since(start).Milliseconds(),
 		}), http.StatusOK
 	}
 
 	total, up, down, pending, maintenance := summarizeMonitorStates(summary.Monitors)
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime": time.Since(start).Milliseconds(),
-		"details": map[string]interface{}{
-			"uptimekuma": map[string]interface{}{
+		"details": map[string]any{
+			"uptimekuma": map[string]any{
 				"total":       total,
 				"up":          up,
 				"down":        down,

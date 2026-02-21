@@ -19,10 +19,10 @@ import (
 
 type fakeAuthStore struct {
 	sessions map[string]types.SessionData
-	getFn    func(ctx context.Context, key string, value interface{}) error
+	getFn    func(ctx context.Context, key string, value any) error
 }
 
-func (s *fakeAuthStore) Get(ctx context.Context, key string, value interface{}) error {
+func (s *fakeAuthStore) Get(ctx context.Context, key string, value any) error {
 	if s.getFn != nil {
 		return s.getFn(ctx, key, value)
 	}
@@ -40,13 +40,13 @@ func (s *fakeAuthStore) Get(ctx context.Context, key string, value interface{}) 
 	return nil
 }
 
-func (s *fakeAuthStore) Set(context.Context, string, interface{}, time.Duration) error { return nil }
-func (s *fakeAuthStore) Delete(context.Context, string) error                          { return nil }
-func (s *fakeAuthStore) Increment(context.Context, string, int64) error                { return nil }
-func (s *fakeAuthStore) CleanAndCount(context.Context, string, int64) error            { return nil }
-func (s *fakeAuthStore) GetCount(context.Context, string) (int64, error)               { return 0, nil }
-func (s *fakeAuthStore) Expire(context.Context, string, time.Duration) error           { return nil }
-func (s *fakeAuthStore) Close() error                                                  { return nil }
+func (s *fakeAuthStore) Set(context.Context, string, any, time.Duration) error { return nil }
+func (s *fakeAuthStore) Delete(context.Context, string) error                  { return nil }
+func (s *fakeAuthStore) Increment(context.Context, string, int64) error        { return nil }
+func (s *fakeAuthStore) CleanAndCount(context.Context, string, int64) error    { return nil }
+func (s *fakeAuthStore) GetCount(context.Context, string) (int64, error)       { return 0, nil }
+func (s *fakeAuthStore) Expire(context.Context, string, time.Duration) error   { return nil }
+func (s *fakeAuthStore) Close() error                                          { return nil }
 
 func TestRequireAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T) {
 	t.Parallel()
@@ -147,7 +147,7 @@ func TestRequireAuth_DoesNotMaskSessionLookupErrorsAsUnauthorized(t *testing.T) 
 	gin.SetMode(gin.TestMode)
 
 	store := &fakeAuthStore{
-		getFn: func(ctx context.Context, key string, value interface{}) error {
+		getFn: func(_ context.Context, key string, _ any) error {
 			if key == "oidc:session:test-token" {
 				return errors.New("cache unavailable")
 			}

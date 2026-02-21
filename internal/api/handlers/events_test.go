@@ -111,8 +111,8 @@ func TestEncodeHealthAsSSE(t *testing.T) {
 		Status:      "online",
 		Message:     "Healthy",
 		LastChecked: time.Now(),
-		Stats: map[string]interface{}{
-			"plex": map[string]interface{}{"sessions": []interface{}{}},
+		Stats: map[string]any{
+			"plex": map[string]any{"sessions": []any{}},
 		},
 	}
 

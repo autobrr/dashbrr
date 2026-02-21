@@ -152,7 +152,7 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	}
 
 	// Build response
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime":    responseTimeMs,
 		"updateAvailable": updateAvailable,
 	}

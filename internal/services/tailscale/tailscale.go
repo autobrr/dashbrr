@@ -161,7 +161,7 @@ func (s *TailscaleService) CheckHealth(ctx context.Context, url string, apiKey s
 		}
 	}
 
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"responseTime":    responseTime.Milliseconds(),
 		"version":         version,
 		"updateAvailable": s.GetUpdateStatusFromCache(healthCtx, url),

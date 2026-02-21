@@ -63,7 +63,7 @@ func (s *LidarrService) getQueueRecords(ctx context.Context, url, apiKey string)
 	)
 }
 
-func (s *LidarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+func (s *LidarrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
 	records, err := s.getQueueRecords(ctx, url, apiKey)
 	if err != nil {
 		return nil, err

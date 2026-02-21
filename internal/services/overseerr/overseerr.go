@@ -290,7 +290,6 @@ func (s *OverseerrService) enrichMissingRequestTitles(ctx context.Context, baseU
 	group.SetLimit(overseerrTitleLookupParallel)
 
 	for _, lookup := range lookups {
-		lookup := lookup
 		group.Go(func() error {
 			lookupCtx, cancel := context.WithTimeout(groupCtx, overseerrTitleLookupTimeout)
 			defer cancel()
@@ -365,7 +364,7 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 	}
 
 	// Create response with version, update information, and response time
-	extras := map[string]interface{}{
+	extras := map[string]any{
 		"version":         statusResponse.Version,
 		"updateAvailable": statusResponse.UpdateAvailable,
 		"responseTime":    responseTime,

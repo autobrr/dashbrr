@@ -28,12 +28,12 @@ type MockStore struct {
 	mock.Mock
 }
 
-func (m *MockStore) Get(ctx context.Context, key string, value interface{}) error {
+func (m *MockStore) Get(ctx context.Context, key string, value any) error {
 	args := m.Called(ctx, key, value)
 	return args.Error(0)
 }
 
-func (m *MockStore) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (m *MockStore) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	args := m.Called(ctx, key, value, ttl)
 	return args.Error(0)
 }
@@ -73,17 +73,17 @@ func (m *MockStore) Expire(ctx context.Context, key string, expiration time.Dura
 
 type blockingStore struct{}
 
-func (blockingStore) Get(ctx context.Context, _ string, _ interface{}) error {
+func (blockingStore) Get(ctx context.Context, _ string, _ any) error {
 	<-ctx.Done()
 	return ctx.Err()
 }
-func (blockingStore) Set(context.Context, string, interface{}, time.Duration) error { return nil }
-func (blockingStore) Delete(context.Context, string) error                          { return nil }
-func (blockingStore) Close() error                                                  { return nil }
-func (blockingStore) Increment(context.Context, string, int64) error                { return nil }
-func (blockingStore) CleanAndCount(context.Context, string, int64) error            { return nil }
-func (blockingStore) GetCount(context.Context, string) (int64, error)               { return 0, nil }
-func (blockingStore) Expire(context.Context, string, time.Duration) error           { return nil }
+func (blockingStore) Set(context.Context, string, any, time.Duration) error { return nil }
+func (blockingStore) Delete(context.Context, string) error                  { return nil }
+func (blockingStore) Close() error                                          { return nil }
+func (blockingStore) Increment(context.Context, string, int64) error        { return nil }
+func (blockingStore) CleanAndCount(context.Context, string, int64) error    { return nil }
+func (blockingStore) GetCount(context.Context, string) (int64, error)       { return 0, nil }
+func (blockingStore) Expire(context.Context, string, time.Duration) error   { return nil }
 
 func TestNewAuthHandler(t *testing.T) {
 	config := &types.AuthConfig{
@@ -209,11 +209,9 @@ func TestAuthHandlerEnsureProviderConfig_ConcurrentDiscoverySingleflight(t *test
 	var wg sync.WaitGroup
 	errs := make(chan error, workers)
 	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			errs <- handler.ensureProviderConfig(context.Background())
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)

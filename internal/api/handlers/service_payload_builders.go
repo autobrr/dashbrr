@@ -19,13 +19,13 @@ func buildPlexSessionsServiceUpdate(instanceID string, sessions []types.PlexSess
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "plex_sessions",
-		Stats: map[string]interface{}{
-			"plex": map[string]interface{}{
+		Stats: map[string]any{
+			"plex": map[string]any{
 				"sessions": sessions,
 			},
 		},
-		Details: map[string]interface{}{
-			"plex": map[string]interface{}{
+		Details: map[string]any{
+			"plex": map[string]any{
 				"activeStreams": len(sessions),
 				"transcoding":   countTranscodingSessions(sessions),
 			},
@@ -51,13 +51,13 @@ func buildJellyfinSummaryServiceUpdate(instanceID string, summary *types.Jellyfi
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "jellyfin_summary",
-		Stats: map[string]interface{}{
-			"jellyfin": map[string]interface{}{
+		Stats: map[string]any{
+			"jellyfin": map[string]any{
 				"summary": summary,
 			},
 		},
-		Details: map[string]interface{}{
-			"jellyfin": map[string]interface{}{
+		Details: map[string]any{
+			"jellyfin": map[string]any{
 				"activeStreams": activeStreams,
 				"transcoding":   transcoding,
 				"paused":        paused,
@@ -87,13 +87,13 @@ func buildUptimeKumaSummaryServiceUpdate(instanceID string, summary *types.Uptim
 		ServiceID: instanceID,
 		Status:    status,
 		Message:   "uptimekuma_summary",
-		Stats: map[string]interface{}{
-			"uptimekuma": map[string]interface{}{
+		Stats: map[string]any{
+			"uptimekuma": map[string]any{
 				"summary": summary,
 			},
 		},
-		Details: map[string]interface{}{
-			"uptimekuma": map[string]interface{}{
+		Details: map[string]any{
+			"uptimekuma": map[string]any{
 				"total":       total,
 				"up":          up,
 				"down":        down,
@@ -149,13 +149,13 @@ func buildTraefikSummaryServiceUpdate(instanceID string, summary *types.TraefikS
 		ServiceID: instanceID,
 		Status:    status,
 		Message:   "traefik_summary",
-		Stats: map[string]interface{}{
-			"traefik": map[string]interface{}{
+		Stats: map[string]any{
+			"traefik": map[string]any{
 				"summary": summary,
 			},
 		},
-		Details: map[string]interface{}{
-			"traefik": map[string]interface{}{
+		Details: map[string]any{
+			"traefik": map[string]any{
 				"routerTotal":                    routerTotal,
 				"routerWarnings":                 routerWarnings,
 				"routerErrors":                   routerErrors,
@@ -190,13 +190,13 @@ func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.Request
 		ServiceID: instanceID,
 		Status:    serviceStatus,
 		Message:   "overseerr_requests",
-		Stats: map[string]interface{}{
+		Stats: map[string]any{
 			"overseerr": types.OverseerrStats{
 				Requests:     stats.Requests,
 				PendingCount: stats.PendingCount,
 			},
 		},
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"overseerr": types.OverseerrDetails{
 				PendingCount:  stats.PendingCount,
 				TotalRequests: len(stats.Requests),
@@ -270,13 +270,13 @@ func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQue
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "radarr_queue",
-		Stats: map[string]interface{}{
-			"radarr": map[string]interface{}{
+		Stats: map[string]any{
+			"radarr": map[string]any{
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]interface{}{
-			"radarr": map[string]interface{}{
+		Details: map[string]any{
+			"radarr": map[string]any{
 				"queueCount":       queueResp.TotalRecords,
 				"totalRecords":     queueResp.TotalRecords,
 				"downloadingCount": downloading,
@@ -293,13 +293,13 @@ func buildLidarrQueueServiceUpdate(instanceID string, queueResp *types.LidarrQue
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "lidarr_queue",
-		Stats: map[string]interface{}{
-			"lidarr": map[string]interface{}{
+		Stats: map[string]any{
+			"lidarr": map[string]any{
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]interface{}{
-			"lidarr": map[string]interface{}{
+		Details: map[string]any{
+			"lidarr": map[string]any{
 				"queueCount":       queueResp.TotalRecords,
 				"totalRecords":     queueResp.TotalRecords,
 				"downloadingCount": downloading,
@@ -316,13 +316,13 @@ func buildReadarrQueueServiceUpdate(instanceID string, queueResp *types.ReadarrQ
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "readarr_queue",
-		Stats: map[string]interface{}{
-			"readarr": map[string]interface{}{
+		Stats: map[string]any{
+			"readarr": map[string]any{
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]interface{}{
-			"readarr": map[string]interface{}{
+		Details: map[string]any{
+			"readarr": map[string]any{
 				"queueCount":       queueResp.TotalRecords,
 				"totalRecords":     queueResp.TotalRecords,
 				"downloadingCount": downloading,
@@ -339,13 +339,13 @@ func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQue
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "sonarr_queue",
-		Stats: map[string]interface{}{
-			"sonarr": map[string]interface{}{
+		Stats: map[string]any{
+			"sonarr": map[string]any{
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]interface{}{
-			"sonarr": map[string]interface{}{
+		Details: map[string]any{
+			"sonarr": map[string]any{
 				"queueCount":       queueResp.TotalRecords,
 				"totalRecords":     queueResp.TotalRecords,
 				"downloadingCount": downloading,
@@ -361,14 +361,14 @@ func buildSonarrStatsServiceUpdate(instanceID string, statsResp *types.SonarrSta
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "sonarr_stats",
-		Stats: map[string]interface{}{
-			"sonarr": map[string]interface{}{
+		Stats: map[string]any{
+			"sonarr": map[string]any{
 				"stats":   statsResp,
 				"version": version,
 			},
 		},
-		Details: map[string]interface{}{
-			"sonarr": map[string]interface{}{
+		Details: map[string]any{
+			"sonarr": map[string]any{
 				"monitored":  statsResp.Monitored,
 				"version":    version,
 				"queueCount": statsResp.QueuedCount,
@@ -382,8 +382,8 @@ func buildProwlarrStatsServiceUpdate(instanceID string, stats types.ProwlarrStat
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "prowlarr_stats",
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
+		Stats: map[string]any{
+			"prowlarr": map[string]any{
 				"stats": stats,
 			},
 		},
@@ -395,8 +395,8 @@ func buildProwlarrIndexersServiceUpdate(instanceID string, indexers []types.Prow
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "prowlarr_indexers",
-		Stats: map[string]interface{}{
-			"prowlarr": map[string]interface{}{
+		Stats: map[string]any{
+			"prowlarr": map[string]any{
 				"indexers": indexers,
 			},
 		},
@@ -420,13 +420,13 @@ func buildBazarrSummaryServiceUpdate(instanceID string, summary *types.BazarrSum
 		ServiceID: instanceID,
 		Status:    status,
 		Message:   "bazarr_summary",
-		Stats: map[string]interface{}{
-			"bazarr": map[string]interface{}{
+		Stats: map[string]any{
+			"bazarr": map[string]any{
 				"summary": summary,
 			},
 		},
-		Details: map[string]interface{}{
-			"bazarr": map[string]interface{}{
+		Details: map[string]any{
+			"bazarr": map[string]any{
 				"episodeBacklog":      summary.Badges.Episodes,
 				"movieBacklog":        summary.Badges.Movies,
 				"providersWithIssues": len(summary.Providers),
@@ -470,13 +470,13 @@ func buildSabnzbdSummaryServiceUpdate(instanceID string, summary *types.SabnzbdS
 		ServiceID: instanceID,
 		Status:    status,
 		Message:   "sabnzbd_summary",
-		Stats: map[string]interface{}{
-			"sabnzbd": map[string]interface{}{
+		Stats: map[string]any{
+			"sabnzbd": map[string]any{
 				"summary": summary,
 			},
 		},
-		Details: map[string]interface{}{
-			"sabnzbd": map[string]interface{}{
+		Details: map[string]any{
+			"sabnzbd": map[string]any{
 				"queueCount":       queueCount,
 				"totalQueueCount":  totalQueueCount,
 				"failedCount":      summary.FailedCount,
@@ -525,13 +525,13 @@ func buildNzbgetSummaryServiceUpdate(instanceID string, summary *types.NzbgetSum
 		ServiceID: instanceID,
 		Status:    status,
 		Message:   "nzbget_summary",
-		Stats: map[string]interface{}{
-			"nzbget": map[string]interface{}{
+		Stats: map[string]any{
+			"nzbget": map[string]any{
 				"summary": summary,
 			},
 		},
-		Details: map[string]interface{}{
-			"nzbget": map[string]interface{}{
+		Details: map[string]any{
+			"nzbget": map[string]any{
 				"queueCount":       queueCount,
 				"failedCount":      summary.FailedCount,
 				"downloadPaused":   paused,
@@ -550,8 +550,8 @@ func buildAutobrrStatsServiceUpdate(instanceID string, stats types.AutobrrStats)
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "autobrr_stats",
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
+		Stats: map[string]any{
+			"autobrr": map[string]any{
 				"stats": stats,
 			},
 		},
@@ -563,8 +563,8 @@ func buildAutobrrReleasesServiceUpdate(instanceID string, releases types.Release
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "autobrr_releases",
-		Stats: map[string]interface{}{
-			"autobrr": map[string]interface{}{
+		Stats: map[string]any{
+			"autobrr": map[string]any{
 				"releases": releases,
 			},
 		},
@@ -576,7 +576,7 @@ func buildAutobrrIRCServiceUpdate(instanceID string, status []types.IRCStatus) (
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "autobrr_irc_status",
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"autobrr": types.AutobrrDetails{
 				IRC: status,
 			},
@@ -599,13 +599,13 @@ func buildMaintainerrCollectionsServiceUpdate(instanceID string, collections []m
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "maintainerr_collections",
-		Stats: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
+		Stats: map[string]any{
+			"maintainerr": map[string]any{
 				"collections": collections,
 			},
 		},
-		Details: map[string]interface{}{
-			"maintainerr": map[string]interface{}{
+		Details: map[string]any{
+			"maintainerr": map[string]any{
 				"collectionCount": len(collections),
 			},
 		},
@@ -617,13 +617,13 @@ func buildTailscaleDevicesServiceUpdate(instanceID string, devices []tailscale.D
 		ServiceID: instanceID,
 		Status:    "online",
 		Message:   "tailscale_devices",
-		Stats: map[string]interface{}{
-			"tailscale": map[string]interface{}{
+		Stats: map[string]any{
+			"tailscale": map[string]any{
 				"devices": devices,
 			},
 		},
-		Details: map[string]interface{}{
-			"tailscale": map[string]interface{}{
+		Details: map[string]any{
+			"tailscale": map[string]any{
 				"total":  len(devices),
 				"online": countOnlineDevices(devices),
 			},
@@ -636,14 +636,14 @@ func buildQuiOverviewServiceUpdate(instanceID string, instances []types.QuiInsta
 		ServiceID: instanceID,
 		Status:    summarizeQuiCardStatus(summary),
 		Message:   "qui_overview",
-		Stats: map[string]interface{}{
-			"qui": map[string]interface{}{
+		Stats: map[string]any{
+			"qui": map[string]any{
 				"instances": instances,
 				"transfers": transfers,
 			},
 		},
-		Details: map[string]interface{}{
-			"qui": map[string]interface{}{
+		Details: map[string]any{
+			"qui": map[string]any{
 				"summary": summary,
 			},
 		},

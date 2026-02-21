@@ -55,7 +55,7 @@ func TestBuildJellyfinSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("message = %q, want jellyfin_summary", health.Message)
 	}
 
-	stats, ok := health.Stats["jellyfin"].(map[string]interface{})
+	stats, ok := health.Stats["jellyfin"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected jellyfin stats object")
 	}
@@ -67,7 +67,7 @@ func TestBuildJellyfinSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("version = %q, want 10.10.7", gotSummary.System.Version)
 	}
 
-	details, ok := health.Details["jellyfin"].(map[string]interface{})
+	details, ok := health.Details["jellyfin"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected jellyfin details object")
 	}
@@ -99,7 +99,7 @@ func TestBuildUptimeKumaSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("status = %q, want warning", health.Status)
 	}
 
-	stats, ok := health.Stats["uptimekuma"].(map[string]interface{})
+	stats, ok := health.Stats["uptimekuma"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected uptimekuma stats object")
 	}
@@ -111,7 +111,7 @@ func TestBuildUptimeKumaSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("summary monitor count = %d, want 3", len(gotSummary.Monitors))
 	}
 
-	details, ok := health.Details["uptimekuma"].(map[string]interface{})
+	details, ok := health.Details["uptimekuma"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected uptimekuma details object")
 	}
@@ -169,7 +169,7 @@ func TestBuildTraefikSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("status = %q, want warning", health.Status)
 	}
 
-	stats, ok := health.Stats["traefik"].(map[string]interface{})
+	stats, ok := health.Stats["traefik"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected traefik stats object")
 	}
@@ -181,7 +181,7 @@ func TestBuildTraefikSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("issue routers = %d, want 2", len(gotSummary.IssueRouters))
 	}
 
-	details, ok := health.Details["traefik"].(map[string]interface{})
+	details, ok := health.Details["traefik"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected traefik details object")
 	}
@@ -245,7 +245,7 @@ func TestBuildRadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("message = %q, want radarr_queue", health.Message)
 	}
 
-	stats, ok := health.Stats["radarr"].(map[string]interface{})
+	stats, ok := health.Stats["radarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected radarr stats object")
 	}
@@ -257,7 +257,7 @@ func TestBuildRadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("queue.TotalRecords = %d, want 2", queue.TotalRecords)
 	}
 
-	details, ok := health.Details["radarr"].(map[string]interface{})
+	details, ok := health.Details["radarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected radarr details object")
 	}
@@ -284,7 +284,7 @@ func TestBuildLidarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("message = %q, want lidarr_queue", health.Message)
 	}
 
-	stats, ok := health.Stats["lidarr"].(map[string]interface{})
+	stats, ok := health.Stats["lidarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected lidarr stats object")
 	}
@@ -296,7 +296,7 @@ func TestBuildLidarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("queue.TotalRecords = %d, want 2", queue.TotalRecords)
 	}
 
-	details, ok := health.Details["lidarr"].(map[string]interface{})
+	details, ok := health.Details["lidarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected lidarr details object")
 	}
@@ -323,7 +323,7 @@ func TestBuildReadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("message = %q, want readarr_queue", health.Message)
 	}
 
-	stats, ok := health.Stats["readarr"].(map[string]interface{})
+	stats, ok := health.Stats["readarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected readarr stats object")
 	}
@@ -335,7 +335,7 @@ func TestBuildReadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("queue.TotalRecords = %d, want 2", queue.TotalRecords)
 	}
 
-	details, ok := health.Details["readarr"].(map[string]interface{})
+	details, ok := health.Details["readarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected readarr details object")
 	}
@@ -373,7 +373,7 @@ func TestBuildBazarrSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("status = %q, want warning", health.Status)
 	}
 
-	stats, ok := health.Stats["bazarr"].(map[string]interface{})
+	stats, ok := health.Stats["bazarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected bazarr stats object")
 	}
@@ -385,7 +385,7 @@ func TestBuildBazarrSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("badges.episodes = %d, want 5", gotSummary.Badges.Episodes)
 	}
 
-	details, ok := health.Details["bazarr"].(map[string]interface{})
+	details, ok := health.Details["bazarr"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected bazarr details object")
 	}
@@ -426,7 +426,7 @@ func TestBuildSabnzbdSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("status = %q, want warning", health.Status)
 	}
 
-	stats, ok := health.Stats["sabnzbd"].(map[string]interface{})
+	stats, ok := health.Stats["sabnzbd"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected sabnzbd stats object")
 	}
@@ -438,7 +438,7 @@ func TestBuildSabnzbdSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("failedCount = %d, want 4", gotSummary.FailedCount)
 	}
 
-	details, ok := health.Details["sabnzbd"].(map[string]interface{})
+	details, ok := health.Details["sabnzbd"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected sabnzbd details object")
 	}
@@ -483,7 +483,7 @@ func TestBuildNzbgetSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("status = %q, want warning", health.Status)
 	}
 
-	stats, ok := health.Stats["nzbget"].(map[string]interface{})
+	stats, ok := health.Stats["nzbget"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected nzbget stats object")
 	}
@@ -495,7 +495,7 @@ func TestBuildNzbgetSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("failedCount = %d, want 3", gotSummary.FailedCount)
 	}
 
-	details, ok := health.Details["nzbget"].(map[string]interface{})
+	details, ok := health.Details["nzbget"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected nzbget details object")
 	}

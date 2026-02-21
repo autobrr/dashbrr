@@ -141,11 +141,9 @@ func createCache(ctx context.Context, cfg Config) (Store, error) {
 			cancel: storeCancel,
 		}
 
-		store.wg.Add(1)
-		go func() {
-			defer store.wg.Done()
+		store.wg.Go(func() {
 			store.localCacheCleanup()
-		}()
+		})
 
 		return store, nil
 

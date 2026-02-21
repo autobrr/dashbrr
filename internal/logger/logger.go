@@ -26,7 +26,7 @@ func Init() {
 	output := zerolog.ConsoleWriter{
 		Out:     os.Stdout,
 		NoColor: false,
-		FormatLevel: func(i interface{}) string {
+		FormatLevel: func(i any) string {
 			level, ok := i.(string)
 			if !ok {
 				return "???"

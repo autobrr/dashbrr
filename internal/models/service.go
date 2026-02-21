@@ -22,16 +22,16 @@ type Service struct {
 
 // ServiceHealth represents the health status of a service
 type ServiceHealth struct {
-	Status          string                 `json:"status"`
-	ResponseTime    int64                  `json:"responseTime"`
-	LastChecked     time.Time              `json:"lastChecked"`
-	Message         string                 `json:"message,omitempty"`
-	EventType       ServiceEventType       `json:"eventType,omitempty"`
-	Version         string                 `json:"version,omitempty"`
-	UpdateAvailable bool                   `json:"updateAvailable,omitempty"`
-	ServiceID       string                 `json:"serviceId"`
-	Stats           map[string]interface{} `json:"stats,omitempty"`
-	Details         map[string]interface{} `json:"details,omitempty"`
+	Status          string           `json:"status"`
+	ResponseTime    int64            `json:"responseTime"`
+	LastChecked     time.Time        `json:"lastChecked"`
+	Message         string           `json:"message,omitempty"`
+	EventType       ServiceEventType `json:"eventType,omitempty"`
+	Version         string           `json:"version,omitempty"`
+	UpdateAvailable bool             `json:"updateAvailable,omitempty"`
+	ServiceID       string           `json:"serviceId"`
+	Stats           map[string]any   `json:"stats,omitempty"`
+	Details         map[string]any   `json:"details,omitempty"`
 }
 
 type ServiceEventType string

@@ -101,7 +101,7 @@ func FetchWithSWRCache[T any](ctx context.Context, opts SWRCacheOptions[T]) (T, 
 			key = opts.Key
 		}
 
-		v, err, _ := opts.Singleflight.Do(key, func() (interface{}, error) {
+		v, err, _ := opts.Singleflight.Do(key, func() (any, error) {
 			// Another request may have filled the cache while we were waiting.
 			var rechecked T
 			if err := opts.Store.Get(ctx, opts.Key, &rechecked); err == nil {

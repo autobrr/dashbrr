@@ -38,10 +38,8 @@ func TestHubCloseClearsSubscribers(t *testing.T) {
 	t.Parallel()
 
 	hub := NewHub()
-	ctx1, cancel1 := context.WithCancel(context.Background())
-	defer cancel1()
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	defer cancel2()
+	ctx1 := t.Context()
+	ctx2 := t.Context()
 
 	_, _ = hub.Subscribe(ctx1, 1)
 	_, _ = hub.Subscribe(ctx2, 1)

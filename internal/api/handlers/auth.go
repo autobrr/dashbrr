@@ -76,7 +76,7 @@ func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
 	}
 	h.mu.RUnlock()
 
-	_, err, _ := h.discoverySF.Do("oidc-provider-config", func() (interface{}, error) {
+	_, err, _ := h.discoverySF.Do("oidc-provider-config", func() (any, error) {
 		h.mu.RLock()
 		if h.oauth2Config != nil {
 			h.mu.RUnlock()

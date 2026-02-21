@@ -66,7 +66,7 @@ func (s *SonarrService) getQueueRecords(ctx context.Context, url, apiKey string)
 }
 
 // GetQueue fetches the current queue from Sonarr.
-func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (interface{}, error) {
+func (s *SonarrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
 	records, err := s.getQueueRecords(ctx, url, apiKey)
 	if err != nil {
 		return nil, err

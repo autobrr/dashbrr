@@ -73,7 +73,7 @@ func (m *ServiceManager) InitializeService(ctx context.Context, config *models.S
 func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models.ServiceConfiguration) {
 	// Check if we already have fresh data in cache
 	cacheKey := "overseerr:requests:" + config.InstanceID
-	var cachedData interface{}
+	var cachedData any
 	if err := m.cache.Get(ctx, cacheKey, &cachedData); err == nil {
 		log.Debug().
 			Str("instance", config.InstanceID).
@@ -119,7 +119,7 @@ func (m *ServiceManager) initializeOverseerr(ctx context.Context, config *models
 func (m *ServiceManager) initializePlex(ctx context.Context, config *models.ServiceConfiguration) {
 	// Check if we already have fresh data in cache
 	cacheKey := "plex:sessions:" + config.InstanceID
-	var cachedData interface{}
+	var cachedData any
 	if err := m.cache.Get(ctx, cacheKey, &cachedData); err == nil {
 		log.Debug().
 			Str("instance", config.InstanceID).

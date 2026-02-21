@@ -126,7 +126,7 @@ func mergeHealthSnapshot(prev, next models.ServiceHealth) models.ServiceHealth {
 	return merged
 }
 
-func mergeHealthPayload(current, incoming map[string]interface{}) map[string]interface{} {
+func mergeHealthPayload(current, incoming map[string]any) map[string]any {
 	if incoming == nil {
 		return current
 	}
@@ -138,8 +138,8 @@ func mergeHealthPayload(current, incoming map[string]interface{}) map[string]int
 	for key, nextValue := range incoming {
 		prevValue, ok := current[key]
 		if ok {
-			prevMap, prevOK := prevValue.(map[string]interface{})
-			nextMap, nextOK := nextValue.(map[string]interface{})
+			prevMap, prevOK := prevValue.(map[string]any)
+			nextMap, nextOK := nextValue.(map[string]any)
 			if prevOK && nextOK {
 				merged[key] = mergeHealthPayload(prevMap, nextMap)
 				continue
@@ -151,14 +151,14 @@ func mergeHealthPayload(current, incoming map[string]interface{}) map[string]int
 	return merged
 }
 
-func cloneMap(value map[string]interface{}) map[string]interface{} {
+func cloneMap(value map[string]any) map[string]any {
 	if value == nil {
 		return nil
 	}
 
-	cloned := make(map[string]interface{}, len(value))
+	cloned := make(map[string]any, len(value))
 	for key, v := range value {
-		if nested, ok := v.(map[string]interface{}); ok {
+		if nested, ok := v.(map[string]any); ok {
 			cloned[key] = cloneMap(nested)
 			continue
 		}

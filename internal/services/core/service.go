@@ -347,7 +347,7 @@ func (s *ServiceCore) CacheVersion(ctx context.Context, baseURL, version string,
 }
 
 // CreateHealthResponse creates a standardized health response
-func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]interface{}) models.ServiceHealth {
+func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string, message string, extras ...map[string]any) models.ServiceHealth {
 	response := models.ServiceHealth{
 		Status:      status,
 		LastChecked: lastChecked,
@@ -364,10 +364,10 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 		if responseTime, ok := extras[0]["responseTime"].(int64); ok {
 			response.ResponseTime = responseTime
 		}
-		if stats, ok := extras[0]["stats"].(map[string]interface{}); ok {
+		if stats, ok := extras[0]["stats"].(map[string]any); ok {
 			response.Stats = stats
 		}
-		if details, ok := extras[0]["details"].(map[string]interface{}); ok {
+		if details, ok := extras[0]["details"].(map[string]any); ok {
 			response.Details = details
 		}
 	}
@@ -408,13 +408,13 @@ func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 }
 
 // ConcurrentRequest executes multiple requests concurrently and returns their results
-func (s *ServiceCore) ConcurrentRequest(requests []func() (interface{}, error)) []interface{} {
+func (s *ServiceCore) ConcurrentRequest(requests []func() (any, error)) []any {
 	var wg sync.WaitGroup
-	results := make([]interface{}, len(requests))
+	results := make([]any, len(requests))
 
 	for i, request := range requests {
 		wg.Add(1)
-		go func(index int, req func() (interface{}, error)) {
+		go func(index int, req func() (any, error)) {
 			defer wg.Done()
 			if result, err := req(); err == nil {
 				results[index] = result

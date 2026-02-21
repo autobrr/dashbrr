@@ -25,7 +25,7 @@ type TraefikOverviewResponse struct {
 	HTTP      TraefikSchemeOverview `json:"http"`
 	TCP       TraefikSchemeOverview `json:"tcp"`
 	UDP       TraefikSchemeOverview `json:"udp"`
-	Features  TraefikFeatures       `json:"features,omitempty"`
+	Features  TraefikFeatures       `json:"features"`
 	Providers []string              `json:"providers,omitempty"`
 }
 
