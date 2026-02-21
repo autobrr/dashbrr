@@ -8,6 +8,22 @@ Owner: soup (s0up4200@pm.me)
 ## Progress Log
 
 ### 2026-02-20
+- Dependency + security sweep (items #1 + #2)
+  - upgraded backend direct dep:
+    - `modernc.org/sqlite` `v1.46.0 -> v1.46.1`
+  - upgraded frontend deps:
+    - `tailwindcss` `4.1.18 -> 4.2.0`
+    - `@tailwindcss/postcss` `4.1.18 -> 4.2.0`
+    - `@types/node` `25.2.3 -> 25.3.0`
+  - dependency classification fix:
+    - moved `vite-plugin-pwa` from `dependencies` to `devDependencies` (build-time only)
+  - security results:
+    - `govulncheck ./...`: no vulnerabilities found
+    - `pnpm -C web audit --prod`: no known vulnerabilities found
+    - remaining `pnpm -C web audit` findings are dev-only and trace to ESLint 9 transitive chain (`minimatch@3`, `ajv@6`)
+  - triage:
+    - open GH dependabot alerts include stale/default-branch lockfile issues (e.g. axios) no longer present on this branch
+    - next security step: dedicated ESLint 10 migration slice to clear remaining dev-only advisories
 - ARR DRY pass (backend + frontend)
   - frontend:
     - added shared `ArrQueueStats` wrapper (`web/src/components/services/common/ArrQueueStats.tsx`)
