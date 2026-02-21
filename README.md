@@ -1,6 +1,3 @@
-> [!TIP]
-> Dashbrr is under active development again. Use the `develop` branch for the latest work.
-
 <h1 align="center">
   <img alt="autobrr logo" src=".github/assets/logo.png" width="160px"/><br/>
   Dashbrr
