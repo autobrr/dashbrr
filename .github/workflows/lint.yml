@@ -63,3 +63,4 @@ jobs:
         with:
           version: v2.6
           only-new-issues: true
+          args: --new-from-rev=HEAD~1

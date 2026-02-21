@@ -1927,6 +1927,16 @@ Owner: soup (s0up4200@pm.me)
   - no workflow renames/check-name churn (avoid branch-protection impact)
   - kept dashbrr-specific stronger lanes (browser regression + integration services + wider docker matrix).
 
+### 2026-02-21 (golangci parity follow-up)
+- Added repo-tracked `.golangci.yml` in `v2` schema, aligned to `qui` lint structure and linter set.
+- Local prefix updated for this repo:
+  - `goimports.local-prefixes: github.com/autobrr/dashbrr`
+- Backend lint lane tuned for long-lived refactor branch:
+  - `.github/workflows/lint.yml` uses `new-from-rev: HEAD~1` + `only-new-issues: true`
+  - keeps CI signal incremental while avoiding historical backlog flood.
+- Local verification:
+  - `golangci-lint run --new-from-rev=HEAD~1 --timeout=10m` => `0 issues`.
+
 ### 2026-02-20 (Readarr integration: backend + frontend + poller + tests)
 - Added full `Readarr` service support using Readarr API `v1`:
   - service implementation: `internal/services/readarr/readarr.go`
