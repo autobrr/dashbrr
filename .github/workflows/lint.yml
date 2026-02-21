@@ -104,4 +104,3 @@ jobs:
         with:
           version: v2.10.1
           only-new-issues: true
-          args: --new-from-rev=HEAD~1

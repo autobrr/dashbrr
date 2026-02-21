@@ -1944,6 +1944,12 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web lint`
   - `pnpm -C web typecheck`
 
+### 2026-02-21 (CI lint follow-up fix)
+- Fixed backend lint workflow incompatibility:
+  - `golangci/golangci-lint-action@v9` rejects manual `--new*` args when `only-new-issues: true`.
+  - removed `args: --new-from-rev=HEAD~1` from `.github/workflows/lint.yml`.
+- `go fix` drift gate remains as separate explicit step, so changed-file hygiene still enforced.
+
 ### 2026-02-21 (CI/GoReleaser parity pass vs `qui`)
 - Goal: reduce cross-repo drift with `~/github/autobrr/qui` while keeping stronger dashbrr checks.
 - Updated `.github/workflows/release.yml`:
