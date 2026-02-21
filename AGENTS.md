@@ -1912,6 +1912,21 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
 
+### 2026-02-21 (CI/GoReleaser parity pass vs `qui`)
+- Goal: reduce cross-repo drift with `~/github/autobrr/qui` while keeping stronger dashbrr checks.
+- Updated `.github/workflows/release.yml`:
+  - added `paths-ignore` for docs/config-only churn on `push` + `pull_request`
+  - switched Go setup from pinned env var to `go-version-file: go.mod` (both test + goreleaser jobs)
+  - included Arch package uploads: `dist/*.pkg.tar.zst`
+- Added `.github/workflows/lint.yml` (new PR lint lane):
+  - frontend: Node + pnpm cache + `pnpm lint`
+  - backend: `golangci/golangci-lint-action@v9` with `version: v2.6`, `only-new-issues: true`
+- Updated `.goreleaser.yml`:
+  - added build flag `-trimpath` for cleaner/reproducible binaries.
+- Deferred intentionally:
+  - no workflow renames/check-name churn (avoid branch-protection impact)
+  - kept dashbrr-specific stronger lanes (browser regression + integration services + wider docker matrix).
+
 ### 2026-02-20 (Readarr integration: backend + frontend + poller + tests)
 - Added full `Readarr` service support using Readarr API `v1`:
   - service implementation: `internal/services/readarr/readarr.go`

@@ -1,0 +1,65 @@
+name: Lint
+
+on:
+  pull_request:
+    paths-ignore:
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/images/**"
+      - "config.toml"
+      - "Makefile"
+      - "**.md"
+      - "docs/**"
+
+env:
+  NODE_VERSION: "22.12.0"
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up corepack
+        run: npm install -g corepack@latest && corepack enable
+
+      - name: Set up cache
+        uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        working-directory: web
+        run: pnpm lint
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Lint backend
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.6
+          only-new-issues: true
