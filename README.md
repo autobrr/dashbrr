@@ -143,7 +143,7 @@ WantedBy=multi-user.target
 Enable and start the service:
 
 ```bash
-systemctl enable -q --now --user dashbrr@$USER
+sudo systemctl enable -q --now dashbrr@$USER
 ```
 
 ## Configuration
@@ -182,7 +182,6 @@ For a complete list of available environment variables and their configurations,
 Key configuration options include:
 
 - Server settings (listen address, ports)
-- Cache configuration
 - Database settings (SQLite/PostgreSQL)
 - Authentication (Built-in/OIDC)
 
