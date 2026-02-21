@@ -83,21 +83,10 @@ func (s *ServiceCore) initCache(ctx context.Context) error {
 		DataDir: dataDir,
 	}
 
-	// Add Redis configuration if available
-	if host := os.Getenv("REDIS_HOST"); host != "" {
-		port := os.Getenv("REDIS_PORT")
-		if port == "" {
-			port = "6379"
-		}
-		cfg.RedisAddr = host + ":" + port
-	}
-
 	// Use the global cache instance
 	store, err := cache.InitCache(ctx, cfg)
 	if err != nil {
-		// cache.InitCache guarantees a usable store even if it returns an error
-		// (it falls back to memory cache on Redis failures).
-		log.Warn().Err(err).Msg("Cache init failed; falling back to memory cache")
+		return err
 	}
 	s.cache = store
 	if s.cache == nil {

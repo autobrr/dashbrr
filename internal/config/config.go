@@ -21,7 +21,6 @@ const (
 // Config represents the main configuration structure
 type Config struct {
 	Server   ServerConfig   `toml:"server"`
-	Cache    CacheConfig    `toml:"cache"`
 	Database DatabaseConfig `toml:"database"`
 	Auth     AuthConfig     `toml:"auth"`
 }
@@ -34,18 +33,6 @@ type ServerConfig struct {
 	CORSMethods []string `toml:"cors_methods" env:"DASHBRR__CORS_METHODS"`
 	CORSMaxAgeH int      `toml:"cors_max_age_hours" env:"DASHBRR__CORS_MAX_AGE_HOURS"`
 	CORSCreds   *bool    `toml:"cors_allow_credentials" env:"DASHBRR__CORS_ALLOW_CREDENTIALS"`
-}
-
-// CacheConfig holds cache-related configuration
-type CacheConfig struct {
-	Type  string      `toml:"type" env:"CACHE_TYPE"`
-	Redis RedisConfig `toml:"redis"`
-}
-
-// RedisConfig holds Redis-specific configuration
-type RedisConfig struct {
-	Host string `toml:"host" env:"REDIS_HOST"`
-	Port int    `toml:"port" env:"REDIS_PORT"`
 }
 
 // DatabaseConfig holds database-related configuration
@@ -248,19 +235,6 @@ func LoadEnvOverrides(config *Config) error {
 	if env := os.Getenv("DASHBRR__CORS_ALLOW_CREDENTIALS"); env != "" {
 		if b, err := strconv.ParseBool(strings.TrimSpace(env)); err == nil {
 			config.Server.CORSCreds = &b
-		}
-	}
-
-	// Cache
-	if env := os.Getenv("CACHE_TYPE"); env != "" {
-		config.Cache.Type = env
-	}
-	if env := os.Getenv("REDIS_HOST"); env != "" {
-		config.Cache.Redis.Host = env
-	}
-	if env := os.Getenv("REDIS_PORT"); env != "" {
-		if port, err := strconv.Atoi(env); err == nil {
-			config.Cache.Redis.Port = port
 		}
 	}
 

@@ -159,26 +159,12 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 
 	// Initialize cache with database directory for session storage
 	cacheConfig := cache.Config{
-		DataDir: filepath.Dir(os.Getenv("DASHBRR__DB_PATH")), // Use same directory as database
-		Type:    cache.CacheTypeMemory,
+		DataDir: filepath.Dir(cfg.Database.Path),
 	}
-	// Determine cache type based on environment and Redis configuration
-	log.Debug().Str("type", string(cacheConfig.Type)).Msg("Cache initialized")
-
-	// Configure Redis if enabled
-	// TODO move into config
-	if os.Getenv("REDIS_HOST") != "" {
-		host := os.Getenv("REDIS_HOST")
-		port := os.Getenv("REDIS_PORT")
-		if port == "" {
-			port = "6379"
-		}
-		cacheConfig.RedisAddr = host + ":" + port
-
-		if os.Getenv("CACHE_TYPE") == "redis" && os.Getenv("REDIS_HOST") != "" {
-			cacheConfig.Type = cache.CacheTypeRedis
-		}
+	if cacheConfig.DataDir == "." || cacheConfig.DataDir == "" {
+		cacheConfig.DataDir = "./data"
 	}
+	log.Debug().Msg("Cache initialized")
 
 	store, err := cache.InitCache(ctx, cacheConfig)
 	if err != nil {

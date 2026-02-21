@@ -45,26 +45,6 @@ Only needed if you serve the web UI from a different origin than the API (differ
     3. The current working directory for `config.toml`, `config.yaml`, or `config.yml`.
     4. The `--config` command line flag can also be used to specify a different path.
 
-## Cache Configuration
-
-- `CACHE_TYPE`
-  - Purpose: Cache implementation to use
-  - Values: `"redis"` or `"memory"`
-  - Default: `"memory"` (if Redis settings not configured)
-
-### Redis Settings
-
-(Only applicable when `CACHE_TYPE="redis"`)
-
-- `REDIS_HOST`
-
-  - Purpose: Redis host address
-  - Default: `localhost`
-
-- `REDIS_PORT`
-  - Purpose: Redis port number
-  - Default: `6379`
-
 ## Database Configuration
 
 ### SQLite Configuration

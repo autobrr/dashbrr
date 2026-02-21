@@ -1925,6 +1925,37 @@ Owner: soup (s0up4200@pm.me)
   - `pnpm -C web test:browser`
   - `pnpm -C web build`
 
+### 2026-02-21 (Cache simplification: remove Redis end-to-end)
+- Removed Redis runtime support; cache now memory-only + persisted sessions on disk.
+  - `internal/services/cache/init.go`: memory-only `InitCache`; removed cache-type/env branching.
+  - `internal/services/cache/cache.go`: removed Redis store implementation; kept shared cache constants/errors.
+  - `internal/services/cache/cache_test.go`: integration tests now validate memory-backed cache (no external Redis).
+- Runtime wiring cleanup:
+  - `cmd/dashbrr/main.go`: removed Redis env parsing; cache data dir now derived from `cfg.Database.Path`.
+  - `internal/services/core/service.go`: removed Redis env-derived cache config.
+  - `internal/config/config.go`: removed dead cache/redis config structs + env override parsing.
+- Dev + Docker cleanup:
+  - `Makefile`: removed `redis-dev`, `redis-stop`, `dev-memory`, `docker-dev-redis`; `make dev` now in-memory by default.
+  - removed compose variant `docker-compose/docker-compose.redis.yml`.
+- CI/docs cleanup:
+  - `.github/workflows/release.yml`: removed Redis test service + env vars.
+  - `docs/env_vars.md`: removed `CACHE_TYPE`/`REDIS_*` documentation.
+- Dependency cleanup:
+  - removed `github.com/go-redis/redis/v8` via `go mod tidy`.
+- Verification run:
+  - `go test ./...` ✅
+  - `go test ./... -tags=integration` ✅
+  - `pnpm -C web lint` ✅
+  - `pnpm -C web typecheck` ✅
+  - `pnpm -C web test` ✅
+  - `pnpm -C web test:browser` ✅
+  - `pnpm -C web build` ✅
+  - `make lint-backend` currently fails on broad pre-existing repo lint debt (not introduced by this Redis removal).
+
+## Next (updated)
+- Validate all gates after Redis removal (`go test`, integration tag tests, web lint/typecheck/tests/build).
+- If green: commit as single `refactor:` change.
+
 ### 2026-02-21 (adopted `qui` PR #1480 pattern in `dashbrr`)
 - Ported workflow strategy from `autobrr/qui#1480`:
   - replace `modernize` lint flow with `go fix` drift checks
