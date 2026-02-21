@@ -103,4 +103,5 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.10.1
-          only-new-issues: true
+          only-new-issues: false
+          args: --new-from-rev=HEAD~1

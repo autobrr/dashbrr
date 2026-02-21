@@ -7,6 +7,14 @@ Owner: soup (s0up4200@pm.me)
 
 ## Progress Log
 
+### 2026-02-21
+- CI lint stabilization for oversized PR diff (`#82`)
+  - issue: `golangci-lint-action` `only-new-issues: true` requests PR patch; GitHub returns `406` when diff > `20000` lines; action falls back to full-repo lint
+  - fix: `.github/workflows/lint.yml` backend lint step now uses:
+    - `only-new-issues: false`
+    - `args: --new-from-rev=HEAD~1`
+  - result: CI lint gates incremental commit delta; avoids PR diff API limit fallback
+
 ### 2026-02-20
 - Dependency + security sweep (items #1 + #2)
   - upgraded backend direct dep:
