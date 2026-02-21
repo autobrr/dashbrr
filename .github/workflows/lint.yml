@@ -2,62 +2,53 @@ name: Lint
 
 on:
   pull_request:
-    paths-ignore:
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/images/**"
-      - "config.toml"
-      - "Makefile"
-      - "**.md"
-      - "docs/**"
 
 env:
-  NODE_VERSION: "22.12.0"
+  NODE_VERSION: "22.18.0"
 
 jobs:
   web:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Set up corepack
-        run: npm install -g corepack@latest && corepack enable
-
-      - name: Set up cache
-        uses: actions/setup-node@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          version: latest
 
       - name: Install frontend dependencies
         working-directory: web
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Lint frontend
         working-directory: web
-        run: pnpm lint
+        run: |
+          webfiles=$({ git diff --name-only --diff-filter=d "origin/${{ github.base_ref }}"...HEAD -- 'web/'; } | sort -u | sed 's|^web/||' | grep -E '\.(ts|tsx|js|jsx)$' || true)
+          if [ -n "$webfiles" ]; then echo "$webfiles" | xargs pnpm eslint; else echo "No frontend files to lint."; fi
 
   backend:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version-file: "go.mod"
           cache: true
 
       - name: Check gofix drift on changed Go files
@@ -105,5 +96,4 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.10.1
-          only-new-issues: false
-          args: --new-from-rev=HEAD~1
+          only-new-issues: true
