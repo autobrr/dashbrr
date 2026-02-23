@@ -172,13 +172,13 @@ export const ConfigurationForm = ({
             serviceType === "sabnzbd"
               ? "Config > General"
               : serviceType === "nzbget"
-                ? "Config > Security"
+                ? "Settings > Security"
                 : "Settings > General",
           link:
             serviceType === "sabnzbd"
               ? getSettingsUrl("/config/general/")
               : serviceType === "nzbget"
-                ? getSettingsUrl("/?tab=config#S_SECURITY")
+                ? getSettingsUrl("/#settings")
               : getSettingsUrl("/settings/general"),
         };
       case "jellyfin":
