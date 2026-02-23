@@ -165,10 +165,16 @@ func (s *MemoryStore) Get(_ context.Context, key string, value any) error {
 		s.local.RUnlock()
 		return json.Unmarshal(item.value, value)
 	}
-	if exists {
-		delete(s.local.items, key)
-	}
 	s.local.RUnlock()
+
+	// Expired entries must be deleted under write lock.
+	if exists {
+		s.local.Lock()
+		if current, ok := s.local.items[key]; ok && !time.Now().Before(current.expiration) {
+			delete(s.local.items, key)
+		}
+		s.local.Unlock()
+	}
 
 	return ErrKeyNotFound
 }

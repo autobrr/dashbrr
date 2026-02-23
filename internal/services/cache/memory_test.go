@@ -5,6 +5,7 @@ package cache
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -212,5 +213,41 @@ func TestMemoryStorePersistence(t *testing.T) {
 	}
 	if result != "test_value" {
 		t.Errorf("Expected 'test_value', got '%v'", result)
+	}
+}
+
+func TestMemoryStoreGetExpiredKeyConcurrentDoesNotPanic(t *testing.T) {
+	tempDir := t.TempDir()
+	store := NewMemoryStore(context.Background(), tempDir)
+	defer store.Close()
+
+	ctx := context.Background()
+	const key = "expired-key"
+
+	if err := store.Set(ctx, key, "value", 10*time.Millisecond); err != nil {
+		t.Fatalf("set failed: %v", err)
+	}
+
+	time.Sleep(25 * time.Millisecond)
+
+	const workers = 32
+	const iterations = 200
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			var out string
+			for range iterations {
+				_ = store.Get(ctx, key, &out)
+			}
+		}()
+	}
+	wg.Wait()
+
+	var out string
+	if err := store.Get(ctx, key, &out); err != ErrKeyNotFound {
+		t.Fatalf("expected ErrKeyNotFound, got %v", err)
 	}
 }
