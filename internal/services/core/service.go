@@ -45,6 +45,20 @@ var (
 	DefaultLongTimeout = 60 * time.Second // Added for services that need longer timeouts
 )
 
+type cancelOnCloseReadCloser struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (r *cancelOnCloseReadCloser) Close() error {
+	err := r.ReadCloser.Close()
+	if r.cancel != nil {
+		r.once.Do(r.cancel)
+	}
+	return err
+}
+
 type ServiceCore struct {
 	Type           string
 	DisplayName    string
@@ -122,7 +136,6 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 	var cancel context.CancelFunc
 	if _, ok := ctx.Deadline(); !ok && timeout > 0 {
 		reqCtx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
 	}
 
 	var bodyReader io.Reader
@@ -148,6 +161,9 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 	start := time.Now()
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		if cancel != nil {
+			cancel()
+		}
 		log.Error().Err(err).
 			Str("url", url).
 			Dur("timeout", timeout).
@@ -155,8 +171,17 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		return nil, err
 	}
 	if resp == nil {
+		if cancel != nil {
+			cancel()
+		}
 		log.Error().Str("url", url).Msg("Received nil response from server")
 		return nil, ErrNilResponse
+	}
+	if cancel != nil {
+		resp.Body = &cancelOnCloseReadCloser{
+			ReadCloser: resp.Body,
+			cancel:     cancel,
+		}
 	}
 
 	// Redirect often indicates auth issues.
@@ -194,13 +219,11 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	// Read the entire body at once
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			if len(body) > 0 {
-				log.Debug().
-					Str("body", string(body)).
-					Msg("Context canceled but partial response received")
-				return body, nil
-			}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			log.Debug().
+				Err(err).
+				Int("partial_bytes", len(body)).
+				Msg("Response body read interrupted by context cancellation")
 			return nil, ErrContextCanceled
 		}
 

@@ -34,10 +34,6 @@ export default function AppContent() {
   const { logout } = useAuth();
   const { services } = useServiceHealth();
 
-  const handleTailscaleConfig = () => {
-    addServiceInstance("tailscale", "Tailscale");
-  };
-
   return (
     <div
       className="min-h-screen bg-color pattern flex flex-col"
@@ -79,7 +75,7 @@ export default function AppContent() {
                 </span>
               </div>
               <div className="hidden sm:flex items-center gap-4">
-                <TailscaleStatusBar onConfigOpen={handleTailscaleConfig} />
+                <TailscaleStatusBar />
                 <button
                   onClick={logout}
                   className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
@@ -99,7 +95,7 @@ export default function AppContent() {
               </button>
             </div>
             <div className="sm:hidden flex justify-center w-full mt-2">
-              <TailscaleStatusBar onConfigOpen={handleTailscaleConfig} />
+              <TailscaleStatusBar />
             </div>
           </div>
         </header>

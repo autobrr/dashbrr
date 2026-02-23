@@ -13,13 +13,7 @@ import AnimatedModal from "../ui/AnimatedModal";
 import { useServiceData } from "../../hooks/useServiceData";
 import { TailscaleDevice } from "../../types/service";
 
-interface TailscaleStatusBarProps {
-  onConfigOpen?: () => void;
-}
-
-export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
-  onConfigOpen,
-}) => {
+export const TailscaleStatusBar: React.FC = () => {
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const { configurations } = useConfiguration();
   const { removeServiceInstance } = useServiceManagement();
@@ -95,39 +89,8 @@ export const TailscaleStatusBar: React.FC<TailscaleStatusBarProps> = ({
     );
   };
 
-  // Render a minimal "add/configure" affordance even when not configured.
   if (!instanceId) {
-    return (
-      <button
-        onClick={onConfigOpen}
-        disabled={!onConfigOpen}
-        className="flex items-center gap-2 text-zinc-300 hover:text-blue-400 transition-colors disabled:opacity-50 disabled:hover:text-zinc-300"
-        title="Add Tailscale"
-      >
-        <div className="w-6 pb-1">
-          <img
-            src={tailscaleLogo}
-            alt="Tailscale"
-            className="w-full h-full"
-            draggable="false"
-            style={{
-              pointerEvents: "none",
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              MozUserSelect: "none",
-              msUserSelect: "none",
-            }}
-            onContextMenu={(e) => e.preventDefault()}
-          />
-        </div>
-        <div className="text-sm flex items-center justify-center">
-          <>
-            Tailscale:
-            <span className="text-yellow-500 ml-1">Add</span>
-          </>
-        </div>
-      </button>
-    );
+    return null;
   }
 
   return (
