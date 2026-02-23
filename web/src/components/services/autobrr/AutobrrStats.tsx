@@ -64,7 +64,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
 
   const showMessage = service.message || service.status !== "online";
 
-  const baseUrl = service?.url || "";
+  const baseUrl = service?.accessUrl || service?.url || "";
 
   // Function to construct the full URL for releases
   const getReleasesUrl = (actionStatus?: string) => {
