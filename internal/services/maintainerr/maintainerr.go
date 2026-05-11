@@ -54,19 +54,18 @@ type StatusResponse struct {
 }
 
 type Media struct {
-	ID           int       `json:"id"`
-	CollectionID int       `json:"collectionId"`
-	PlexID       int       `json:"plexId"`
-	TmdbID       int       `json:"tmdbId"`
-	AddDate      time.Time `json:"addDate"`
-	ImagePath    string    `json:"image_path"`
-	IsManual     bool      `json:"isManual"`
+	ID             int    `json:"id"`
+	CollectionID   int    `json:"collectionId"`
+	MediaServerID  string `json:"mediaServerId"`
+	TmdbID         int    `json:"tmdbId"`
+	AddDate        string `json:"addDate"`
+	ImagePath      string `json:"image_path"`
+	IsManual       bool   `json:"isManual"`
 }
 
 type Collection struct {
 	ID                int     `json:"id"`
-	PlexID            int     `json:"plexId"`
-	LibraryID         int     `json:"libraryId"`
+	LibraryID         string  `json:"libraryId"`
 	Title             string  `json:"title"`
 	Description       string  `json:"description"`
 	IsActive          bool    `json:"isActive"`
@@ -75,11 +74,12 @@ type Collection struct {
 	DeleteAfterDays   int     `json:"deleteAfterDays"`
 	ManualCollection  bool    `json:"manualCollection"`
 	ListExclusions    bool    `json:"listExclusions"`
-	ForceOverseerr    bool    `json:"forceOverseerr"`
-	Type              int     `json:"type"`
+	ForceSeerr        bool    `json:"forceSeerr"`
+	Type              string  `json:"type"`
 	KeepLogsForMonths int     `json:"keepLogsForMonths"`
 	AddDate           string  `json:"addDate"`
 	Media             []Media `json:"media"`
+	MediaCount        int     `json:"mediaCount"`
 }
 
 func init() {
