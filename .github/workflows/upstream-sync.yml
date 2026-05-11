@@ -27,8 +27,8 @@ jobs:
       - name: Add upstream remote
         run: git remote add upstream https://github.com/autobrr/dashbrr.git || true
 
-      - name: Fetch upstream
-        run: git fetch upstream develop
+      - name: Fetch upstream (branches and tags)
+        run: git fetch upstream develop --tags
 
       - name: Check if behind upstream
         id: check
@@ -51,6 +51,24 @@ jobs:
         if: steps.check.outputs.behind != '0' && steps.merge.outputs.merged == 'true'
         run: git push origin develop
 
+      - name: Sync upstream tags
+        if: steps.merge.outputs.merged == 'true' || steps.check.outputs.behind == '0'
+        run: |
+          NEW_TAGS=$(comm -23 \
+            <(git ls-remote --tags upstream | grep -v '\^{}' | sed 's|.*refs/tags/||' | sort) \
+            <(git ls-remote --tags origin  | grep -v '\^{}' | sed 's|.*refs/tags/||' | sort))
+
+          if [ -z "$NEW_TAGS" ]; then
+            echo "No new upstream tags to sync"
+            exit 0
+          fi
+
+          echo "Syncing new tags: $(echo "$NEW_TAGS" | tr '\n' ' ')"
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            git push origin "refs/tags/$tag"
+          done <<< "$NEW_TAGS"
+
       - name: Create sync PR on conflicts
         if: steps.check.outputs.behind != '0' && steps.merge.outputs.merged == 'false'
         run: |
@@ -64,3 +82,4 @@ jobs:
             --head "$BRANCH"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
