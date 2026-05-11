@@ -41,7 +41,11 @@ var (
 
 func (fs defaultFS) Open(name string) (fs.File, error) {
 	if fs.fs == nil {
-		return os.Open(name)
+		clean := filepath.Clean(name)
+		if strings.Contains(clean, "..") || filepath.IsAbs(clean) {
+			return nil, os.ErrInvalid
+		}
+		return os.Open(clean)
 	}
 	return fs.fs.Open(name)
 }
@@ -189,7 +193,8 @@ func ServeStatic(r *gin.Engine) {
 
 	// Serve workbox files
 	r.GET("/workbox-:hash.js", func(c *gin.Context) {
-		serveStaticFile(c, c.Request.URL.Path[1:], "text/javascript; charset=utf-8")
+		filename := "workbox-" + c.Param("hash") + ".js"
+		serveStaticFile(c, filename, "text/javascript; charset=utf-8")
 	})
 
 	// Serve assets directory

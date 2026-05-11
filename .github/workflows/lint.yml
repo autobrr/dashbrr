@@ -9,6 +9,8 @@ env:
 jobs:
   web:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -39,6 +41,8 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -100,3 +104,4 @@ jobs:
           version: v2.10.1
           only-new-issues: false
           args: --new-from-rev=HEAD~1
+
