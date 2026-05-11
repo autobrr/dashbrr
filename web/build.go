@@ -194,7 +194,12 @@ func ServeStatic(r *gin.Engine) {
 
 	// Serve assets directory
 	r.GET("/assets/*filepath", func(c *gin.Context) {
-		filepath := strings.TrimPrefix(c.Param("filepath"), "/")
+		rawPath := strings.TrimPrefix(c.Param("filepath"), "/")
+		if strings.Contains(rawPath, "..") {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		filepath := rawPath
 		fullPath := path.Join("assets", filepath)
 
 		// Set content type based on file extension

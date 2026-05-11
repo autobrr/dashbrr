@@ -1,0 +1,66 @@
+name: Sync with upstream
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/autobrr/dashbrr.git || true
+
+      - name: Fetch upstream
+        run: git fetch upstream develop
+
+      - name: Check if behind upstream
+        id: check
+        run: |
+          BEHIND=$(git rev-list HEAD..upstream/develop --count)
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "Commits behind upstream: $BEHIND"
+
+      - name: Attempt fast-forward merge
+        if: steps.check.outputs.behind != '0'
+        id: merge
+        run: |
+          if git merge --ff-only upstream/develop 2>/dev/null; then
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push fast-forward merge
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.merged == 'true'
+        run: git push origin develop
+
+      - name: Create sync PR on conflicts
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.merged == 'false'
+        run: |
+          BRANCH="claude/upstream-sync-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH" upstream/develop
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: upstream sync — manual conflict resolution needed" \
+            --body "Automatic weekly sync detected commits in autobrr/dashbrr:develop that cannot be fast-forwarded into develop. Please resolve conflicts and merge this PR." \
+            --base develop \
+            --head "$BRANCH"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
