@@ -20,7 +20,7 @@ type DockerDiscovery struct {
 
 // NewDockerDiscovery creates a new Docker discovery instance
 func NewDockerDiscovery() (*DockerDiscovery, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Docker client: %w", err)
 	}
