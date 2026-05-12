@@ -8,7 +8,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  workflows: write
 
 jobs:
   sync:
@@ -18,7 +17,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${ secrets.GITHUB_TOKEN }
 
       - name: Configure git
         run: |
@@ -28,8 +27,8 @@ jobs:
       - name: Add upstream remote
         run: git remote add upstream https://github.com/autobrr/dashbrr.git || true
 
-      - name: Fetch upstream (branches and tags)
-        run: git fetch upstream develop --tags
+      - name: Fetch upstream
+        run: git fetch upstream develop
 
       - name: Check if behind upstream
         id: check
@@ -52,12 +51,15 @@ jobs:
         if: steps.check.outputs.behind != '0' && steps.merge.outputs.merged == 'true'
         run: git push origin develop
 
-      - name: Sync upstream tags
+      - name: Sync upstream tags via API
         if: steps.merge.outputs.merged == 'true' || steps.check.outputs.behind == '0'
         run: |
-          NEW_TAGS=$(comm -23 \
-            <(git ls-remote --tags upstream | grep -v '\^{}' | sed 's|.*refs/tags/||' | sort) \
-            <(git ls-remote --tags origin  | grep -v '\^{}' | sed 's|.*refs/tags/||' | sort))
+          UPSTREAM_TAGS=$(gh api repos/autobrr/dashbrr/git/refs/tags \
+            --jq '[.[].ref | ltrimstr("refs/tags/")] | sort | .[]' 2>/dev/null || true)
+          FORK_TAGS=$(gh api "repos/${{ github.repository }}/git/refs/tags" \
+            --jq '[.[].ref | ltrimstr("refs/tags/")] | sort | .[]' 2>/dev/null || true)
+
+          NEW_TAGS=$(comm -23 <(echo "$UPSTREAM_TAGS") <(echo "$FORK_TAGS"))
 
           if [ -z "$NEW_TAGS" ]; then
             echo "No new upstream tags to sync"
@@ -67,8 +69,21 @@ jobs:
           echo "Syncing new tags: $(echo "$NEW_TAGS" | tr '\n' ' ')"
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
-            git push origin "refs/tags/$tag"
+            REF_DATA=$(gh api "repos/autobrr/dashbrr/git/refs/tags/$tag")
+            SHA=$(echo "$REF_DATA" | jq -r '.object.sha')
+            TYPE=$(echo "$REF_DATA" | jq -r '.object.type')
+            if [ "$TYPE" = "tag" ]; then
+              SHA=$(gh api "repos/autobrr/dashbrr/git/tags/$SHA" --jq '.object.sha')
+            fi
+            gh api "repos/${{ github.repository }}/git/refs" \
+              --method POST \
+              -f ref="refs/tags/$tag" \
+              -f sha="$SHA" \
+              && echo "Created tag: $tag" \
+              || echo "Skipped tag: $tag (may already exist)"
           done <<< "$NEW_TAGS"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Create sync PR on conflicts
         if: steps.check.outputs.behind != '0' && steps.merge.outputs.merged == 'false'
@@ -78,9 +93,8 @@ jobs:
           git push origin "$BRANCH"
           gh pr create \
             --title "chore: upstream sync — manual conflict resolution needed" \
-            --body "Automatic weekly sync detected commits in autobrr/dashbrr:develop that cannot be fast-forwarded into develop. Please resolve conflicts and merge this PR." \
+            --body "Automatic sync detected commits in autobrr/dashbrr:develop that cannot be fast-forwarded. Please resolve conflicts and merge this PR." \
             --base develop \
             --head "$BRANCH"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
