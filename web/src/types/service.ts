@@ -160,7 +160,7 @@ export interface AutobrrActionStatus {
 export interface MaintainerrMedia {
   id: number;
   collectionId: number;
-  plexId: number;
+  mediaServerId: string;
   tmdbId: number;
   addDate: string;
   image_path: string;
