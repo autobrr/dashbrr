@@ -2,12 +2,13 @@ name: Sync with upstream
 
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
+  workflows: write
 
 jobs:
   sync:
