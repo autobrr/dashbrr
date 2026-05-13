@@ -1,0 +1,64 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  "extends": [
+    "config:best-practices",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases",
+    ":combinePatchMinorReleases",
+    ":prConcurrentLimit10",
+    ":rebaseStalePrs",
+    "group:allNonMajor"
+  ],
+
+  "timezone": "Europe/Stockholm",
+
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+
+  "rangeStrategy": "bump",
+
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 5am on monday"
+    ]
+  },
+
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security"
+    ]
+  },
+
+  "packageRules": [
+    {
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "automerge": false
+    },
+
+    {
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "groupName": "dev-dependencies"
+    },
+
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions"
+    }
+  ],
+
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 10
+}
