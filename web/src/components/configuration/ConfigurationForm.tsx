@@ -63,7 +63,7 @@ export const ConfigurationForm = ({
       if (err instanceof Error) {
         throw err;
       }
-      throw new Error("Failed to validate configuration");
+      throw new Error("Failed to validate configuration", { cause: err });
     }
   };
 
