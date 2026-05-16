@@ -37,7 +37,7 @@ export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
             <div>
               <span className="font-medium text-gray-200 truncate">
                 <a
-                  href={`${service?.url}/collections`}
+                  href={`${service?.accessUrl || service?.url}/collections`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-white hover:text-blue-400 flex items-center group"

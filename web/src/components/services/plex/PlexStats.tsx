@@ -204,16 +204,18 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                         )}
                       </span>
                       <div className="flex items-center justify-between flex-1">
-                        <span className="text-xs font-medium text-gray-200 truncate" title={session.title}>
-                          {session.type?.toLowerCase() === "movie"
-                            ? session.grandparentTitle
+                        <span className="text-xs font-medium text-gray-200 flex items-center min-w-0 flex-1">
+                          <span className="truncate max-w-[95%]" title={session.title}>
+                            {session.type?.toLowerCase() === "movie"
+                              ? session.grandparentTitle
+                                ? `${session.grandparentTitle} - ${session.title}`
+                                : session.title
+                              : session.grandparentTitle
                               ? `${session.grandparentTitle} - ${session.title}`
-                              : session.title
-                            : session.grandparentTitle
-                            ? `${session.grandparentTitle} - ${session.title}`
-                            : session.title ?? ""} 
+                              : session.title ?? ""}
+                          </span>
                           {session.type?.toLowerCase() === "clip" && (
-                            <span className="text-purple-400 ml-1">(Trailer)</span>
+                            <span className="text-purple-400 ml-1 shrink-0">(Trailer)</span>
                           )}
                         </span>
                         {isTranscoding(session) && (
