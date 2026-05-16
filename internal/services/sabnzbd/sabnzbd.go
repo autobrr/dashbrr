@@ -307,7 +307,7 @@ func (s *SabnzbdService) CheckHealth(ctx context.Context, baseURL, apiKey string
 		issues = append(issues, "Paused")
 	}
 
-	warnings := parseSabnzbdInt(queue.HaveWarnings)
+	warnings := parseSabnzbdInt(string(queue.HaveWarnings))
 	if warnings > 0 {
 		issues = append(issues, fmt.Sprintf("%d warning(s)", warnings))
 	}

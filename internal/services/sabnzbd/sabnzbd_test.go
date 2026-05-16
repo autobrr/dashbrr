@@ -128,6 +128,43 @@ func TestGetSummary_CombinesQueueAndFailedHistory(t *testing.T) {
 	}
 }
 
+// TestGetQueue_NumericCountFields exercises the Sabnzbd >=4.5.5 response
+// format where noofslots and noofslots_total are bare JSON numbers instead
+// of quoted strings (issue #90).
+func TestGetQueue_NumericCountFields(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"queue": {
+				"status": "Downloading",
+				"speed": "5.00 MB",
+				"noofslots": 3,
+				"noofslots_total": 10,
+				"have_warnings": 0,
+				"slots": []
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	service := &SabnzbdService{}
+	queue, err := service.GetQueue(context.Background(), server.URL, "key")
+	if err != nil {
+		t.Fatalf("GetQueue error: %v", err)
+	}
+	if queue.NoOfSlots != "3" {
+		t.Fatalf("noofslots = %q, want 3", queue.NoOfSlots)
+	}
+	if queue.NoOfSlotsTotal != "10" {
+		t.Fatalf("noofslots_total = %q, want 10", queue.NoOfSlotsTotal)
+	}
+	if queue.HaveWarnings != "0" {
+		t.Fatalf("have_warnings = %q, want 0", queue.HaveWarnings)
+	}
+}
+
 func TestCheckHealth_WarnsWhenPausedWithWarnings(t *testing.T) {
 	t.Parallel()
 

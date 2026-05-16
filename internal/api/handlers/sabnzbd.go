@@ -110,9 +110,9 @@ func (h *SabnzbdHandler) compareAndLogSummaryChanges(instanceID string, summary 
 	log.Debug().
 		Str("instanceId", instanceID).
 		Str("status", summary.Queue.Status).
-		Str("queue", summary.Queue.NoOfSlots).
+		Str("queue", string(summary.Queue.NoOfSlots)).
 		Int("failed", summary.FailedCount).
-		Str("warnings", summary.Queue.HaveWarnings).
+		Str("warnings", string(summary.Queue.HaveWarnings)).
 		Str("change", change).
 		Msg("[SABnzbd] Summary changed")
 
