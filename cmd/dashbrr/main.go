@@ -164,7 +164,6 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 	if cacheConfig.DataDir == "." || cacheConfig.DataDir == "" {
 		cacheConfig.DataDir = "./data"
 	}
-	log.Debug().Msg("Cache initialized")
 
 	store, err := cache.InitCache(ctx, cacheConfig)
 	if err != nil {
@@ -172,6 +171,7 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 		log.Error().Err(err).Msg("Failed to initialize cache")
 		return err
 	}
+	log.Debug().Msg("Cache initialized")
 
 	srv := api.NewServer(cfg, db, store)
 

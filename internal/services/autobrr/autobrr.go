@@ -167,6 +167,11 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 	}
 	defer resp.Body.Close()
 
+	// 401/403 means the IRC endpoint is inaccessible (e.g. older autobrr, no networks
+	// configured, or separate auth). Treat as no IRC networks rather than a warning.
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return []types.IRCStatus{}, nil
+	}
 	if resp.StatusCode != http.StatusOK {
 		return []types.IRCStatus{{Name: "IRC", Healthy: false}}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
