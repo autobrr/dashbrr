@@ -139,7 +139,9 @@ const handleRequest = async <T>(
   } catch (error) {
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
-        throw new Error(`Request timed out after ${timeout}ms`);
+        throw new Error(`Request timed out after ${timeout}ms`, {
+          cause: error,
+        });
       }
       throw error;
     }

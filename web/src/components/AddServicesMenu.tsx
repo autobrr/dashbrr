@@ -270,7 +270,7 @@ export function AddServicesMenu({
       if (err instanceof Error) {
         throw err;
       }
-      throw new Error("Failed to validate API token");
+      throw new Error("Failed to validate API token", { cause: err });
     }
   };
 
