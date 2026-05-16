@@ -1,12 +1,10 @@
 ## Summary
+-
 
-- [ ] Security fix
-- [ ] Dependency update
-- [ ] Bug fix
-- [ ] Documentation
+## Testing
+- [ ] Tests pass locally
 
-## Validation
-
-- [ ] Tests pass
-- [ ] Lint passes
-- [ ] No breaking changes
+## Checklist
+- [ ] PR is focused and isolated
+- [ ] No unrelated changes are included
+- [ ] No credentials or secrets are committed
