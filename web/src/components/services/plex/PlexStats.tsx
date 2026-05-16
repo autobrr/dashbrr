@@ -205,12 +205,11 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                       </span>
                       <div className="flex items-center justify-between flex-1">
                         <span className="text-xs font-medium text-gray-200 flex items-center min-w-0 flex-1">
-                          <span className="truncate max-w-[95%]" title={session.title}>
-                            {session.type?.toLowerCase() === "movie"
-                              ? session.grandparentTitle
-                                ? `${session.grandparentTitle} - ${session.title}`
-                                : session.title
-                              : session.grandparentTitle
+                          <span
+                            className="truncate flex-1 min-w-0"
+                            title={session.grandparentTitle ? `${session.grandparentTitle} - ${session.title}` : session.title ?? ""}
+                          >
+                            {session.grandparentTitle
                               ? `${session.grandparentTitle} - ${session.title}`
                               : session.title ?? ""}
                           </span>
