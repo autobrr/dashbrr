@@ -5,6 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@10.4.0",
   "pnpm": {
+    "overrides": {
+      "yaml@>=1.0.0 <2.0.0": "^1.10.3",
+      "yaml@>=2.0.0": "^2.8.3"
+    },
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp"
