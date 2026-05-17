@@ -11,7 +11,7 @@ COPY web/ ./
 RUN pnpm run build
 
 # build app
-FROM golang:1.26-alpine3.23 AS app-builder
+FROM golang:1.26.3-alpine3.23 AS app-builder
 
 ARG VERSION=dev
 ARG REVISION=dev
