@@ -22,8 +22,8 @@ type SabnzbdQueue struct {
 	Size            string             `json:"size"`
 	MBLeft          string             `json:"mbleft"`
 	MB              string             `json:"mb"`
-	NoOfSlots       string             `json:"noofslots"`
-	NoOfSlotsTotal  string             `json:"noofslots_total"`
+	NoOfSlots       FlexString         `json:"noofslots"`
+	NoOfSlotsTotal  FlexString         `json:"noofslots_total"`
 	Diskspace1      string             `json:"diskspace1"`
 	Diskspace2      string             `json:"diskspace2"`
 	DiskspaceTotal1 string             `json:"diskspacetotal1"`

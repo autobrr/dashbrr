@@ -454,8 +454,8 @@ func buildSabnzbdSummaryServiceUpdate(instanceID string, summary *types.SabnzbdS
 		summary.RecentFailures = []types.SabnzbdHistorySlot{}
 	}
 
-	queueCount := parseSummaryCount(summary.Queue.NoOfSlots)
-	totalQueueCount := parseSummaryCount(summary.Queue.NoOfSlotsTotal)
+	queueCount := parseSummaryCount(string(summary.Queue.NoOfSlots))
+	totalQueueCount := parseSummaryCount(string(summary.Queue.NoOfSlotsTotal))
 	if totalQueueCount <= 0 {
 		totalQueueCount = queueCount
 	}
