@@ -83,6 +83,13 @@ func (h *UIPreferencesHandler) UpsertCollapsePreference(c *gin.Context) {
 func getContextUserID(c *gin.Context) (int64, bool) {
 	value, exists := c.Get("user_id")
 	if !exists {
+		// OIDC sessions have no local DB user; RequireAuth has already
+		// validated the session, so treat them as a shared user (0)
+		// instead of failing with a 401 the frontend mistakes for an
+		// expired session (login loop).
+		if authType, ok := c.Get("auth_type"); ok && authType == "oidc" {
+			return 0, true
+		}
 		return 0, false
 	}
 
