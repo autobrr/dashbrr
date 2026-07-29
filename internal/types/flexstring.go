@@ -9,7 +9,8 @@ import (
 )
 
 // FlexString unmarshals from either a JSON string or a JSON number and stores
-// the value as a string, always marshalling back out as a string.
+// the value as a string. Marshalling needs no custom hook: as a named string
+// type it always encodes back out as a JSON string.
 //
 // SABnzbd changed several queue fields (e.g. noofslots, noofslots_total) from
 // JSON strings to JSON numbers in newer releases; dashbrr and its web frontend
@@ -38,8 +39,4 @@ func (f *FlexString) UnmarshalJSON(b []byte) error {
 	}
 	*f = FlexString(n)
 	return nil
-}
-
-func (f FlexString) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(f))
 }

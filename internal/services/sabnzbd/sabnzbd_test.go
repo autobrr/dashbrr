@@ -29,11 +29,13 @@ func TestGetQueue_UsesExpectedQueryParams(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		// Slot counts are bare JSON numbers here, matching SABnzbd >=4.5.5.
 		_, _ = w.Write([]byte(`{
 			"queue": {
 				"status": "Downloading",
 				"speed": "12.34 MB",
-				"noofslots": "1",
+				"noofslots": 1,
+				"noofslots_total": 4,
 				"have_warnings": "0",
 				"slots": [
 					{
@@ -64,6 +66,58 @@ func TestGetQueue_UsesExpectedQueryParams(t *testing.T) {
 	}
 	if queue.Slots[0].NzoID != "SABnzbd_nzo_123" {
 		t.Fatalf("nzo_id = %q, want SABnzbd_nzo_123", queue.Slots[0].NzoID)
+	}
+	if queue.NoOfSlots != "1" || queue.NoOfSlotsTotal != "4" {
+		t.Fatalf(
+			"noofslots/noofslots_total = %q/%q, want 1/4",
+			queue.NoOfSlots,
+			queue.NoOfSlotsTotal,
+		)
+	}
+}
+
+func TestCheckHealth_ToleratesNumericSlotCounts(t *testing.T) {
+	t.Parallel()
+
+	// Reproduces #90: SABnzbd >=4.5.5 returns noofslots/noofslots_total as JSON
+	// numbers, which made get_queue fail to parse and surfaced the whole tile as
+	// "Health check failed: sabnzbd get_queue: failed to parse response".
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mode := r.URL.Query().Get("mode")
+		w.Header().Set("Content-Type", "application/json")
+
+		switch mode {
+		case "version":
+			_, _ = w.Write([]byte(`{"version":"4.5.5"}`))
+		case "queue":
+			_, _ = w.Write([]byte(`{
+				"queue": {
+					"version": "4.5.5",
+					"status": "Downloading",
+					"paused": false,
+					"noofslots": 3,
+					"noofslots_total": 7,
+					"have_warnings": "0",
+					"diskspace1": "500.00",
+					"diskspacetotal1": "900.00",
+					"diskspace2": "400.00",
+					"diskspacetotal2": "900.00",
+					"slots": []
+				}
+			}`))
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+
+	service := &SabnzbdService{}
+	health, statusCode := service.CheckHealth(context.Background(), server.URL, "abc123")
+	if statusCode != http.StatusOK {
+		t.Fatalf("statusCode = %d, want %d", statusCode, http.StatusOK)
+	}
+	if health.Status != "online" {
+		t.Fatalf("health.Status = %q (message %q), want online", health.Status, health.Message)
 	}
 }
 

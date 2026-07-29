@@ -51,29 +51,56 @@ func TestFlexStringMarshal(t *testing.T) {
 	}
 }
 
-func TestFlexStringQueueRoundTrip(t *testing.T) {
-	// SABnzbd >=4.5.5 sends these as bare numbers; older versions as strings.
-	type queue struct {
-		NoOfSlots      FlexString `json:"noofslots"`
-		NoOfSlotsTotal FlexString `json:"noofslots_total"`
+func TestSabnzbdQueueEnvelopeSlotCounts(t *testing.T) {
+	// Regression test for the parse failure in #90. SABnzbd >=4.5.5 emits
+	// noofslots/noofslots_total as bare JSON numbers, older releases as strings;
+	// both must decode into SabnzbdQueue, and both must re-encode as JSON strings
+	// because web/src/types/service.ts declares them string and SabnzbdStats.tsx
+	// calls .trim() on the value.
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"numeric counts (SABnzbd >=4.5.5)",
+			`{"queue":{"status":"Downloading","noofslots":3,"noofslots_total":7,"have_warnings":"0","slots":[]}}`,
+		},
+		{
+			"string counts (legacy SABnzbd)",
+			`{"queue":{"status":"Downloading","noofslots":"3","noofslots_total":"7","have_warnings":"0","slots":[]}}`,
+		},
 	}
-	for _, input := range []string{
-		`{"noofslots":3,"noofslots_total":7}`,
-		`{"noofslots":"3","noofslots_total":"7"}`,
-	} {
-		var q queue
-		if err := json.Unmarshal([]byte(input), &q); err != nil {
-			t.Fatalf("Unmarshal(%s) error: %v", input, err)
-		}
-		if q.NoOfSlots != "3" || q.NoOfSlotsTotal != "7" {
-			t.Errorf("Unmarshal(%s) = %+v, want 3/7", input, q)
-		}
-		out, err := json.Marshal(q)
-		if err != nil {
-			t.Fatalf("Marshal error: %v", err)
-		}
-		if string(out) != `{"noofslots":"3","noofslots_total":"7"}` {
-			t.Errorf("Marshal = %s, want string-typed fields", out)
-		}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var envelope SabnzbdQueueEnvelope
+			if err := json.Unmarshal([]byte(tt.input), &envelope); err != nil {
+				t.Fatalf("Unmarshal error: %v", err)
+			}
+			if envelope.Queue.NoOfSlots != "3" || envelope.Queue.NoOfSlotsTotal != "7" {
+				t.Errorf(
+					"noofslots/noofslots_total = %q/%q, want 3/7",
+					envelope.Queue.NoOfSlots,
+					envelope.Queue.NoOfSlotsTotal,
+				)
+			}
+
+			// Decoding the re-encoded queue into plain string fields fails if the
+			// counts ever serialize back out as JSON numbers.
+			out, err := json.Marshal(envelope.Queue)
+			if err != nil {
+				t.Fatalf("Marshal error: %v", err)
+			}
+			var wire struct {
+				NoOfSlots      string `json:"noofslots"`
+				NoOfSlotsTotal string `json:"noofslots_total"`
+			}
+			if err := json.Unmarshal(out, &wire); err != nil {
+				t.Fatalf("re-encoded queue is not string-typed for the frontend: %v", err)
+			}
+			if wire.NoOfSlots != "3" || wire.NoOfSlotsTotal != "7" {
+				t.Errorf("re-encoded = %q/%q, want 3/7", wire.NoOfSlots, wire.NoOfSlotsTotal)
+			}
+		})
 	}
 }
