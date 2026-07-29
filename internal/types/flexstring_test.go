@@ -104,3 +104,33 @@ func TestSabnzbdQueueEnvelopeSlotCounts(t *testing.T) {
 		})
 	}
 }
+
+func TestSabnzbdQueueSlotPriority(t *testing.T) {
+	// SABnzbd builds slot["priority"] as INTERFACE_PRIORITIES.get(nzo.priority,
+	// NORMAL_PRIORITY). The mapped values are strings but the fallback is the
+	// integer 0, so a queued job holding DEFAULT (-100) or PAUSED (-2) priority --
+	// both settable via mode=queue&name=priority -- emits a bare number here.
+	tests := []struct {
+		name  string
+		input string
+		want  FlexString
+	}{
+		{"mapped priority (string)", `{"queue":{"slots":[{"nzo_id":"a","priority":"Normal"}]}}`, "Normal"},
+		{"unmapped priority (numeric fallback)", `{"queue":{"slots":[{"nzo_id":"a","priority":0}]}}`, "0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var envelope SabnzbdQueueEnvelope
+			if err := json.Unmarshal([]byte(tt.input), &envelope); err != nil {
+				t.Fatalf("Unmarshal error: %v", err)
+			}
+			if len(envelope.Queue.Slots) != 1 {
+				t.Fatalf("slots len = %d, want 1", len(envelope.Queue.Slots))
+			}
+			if got := envelope.Queue.Slots[0].Priority; got != tt.want {
+				t.Errorf("priority = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

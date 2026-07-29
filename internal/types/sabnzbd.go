@@ -44,7 +44,11 @@ type SabnzbdQueueSlot struct {
 	Percentage string `json:"percentage"`
 	TimeLeft   string `json:"timeleft"`
 	Category   string `json:"cat"`
-	Priority   string `json:"priority"`
+	// SABnzbd builds this as INTERFACE_PRIORITIES.get(nzo.priority, NORMAL_PRIORITY),
+	// and NORMAL_PRIORITY is the integer 0 while the mapped values are strings. A
+	// queued job holding DEFAULT (-100) or PAUSED (-2) priority misses the map and
+	// serializes as a bare number, so this needs the same tolerance as the slot counts.
+	Priority FlexString `json:"priority"`
 }
 
 type SabnzbdHistoryEnvelope struct {
