@@ -110,7 +110,7 @@ func (h *SabnzbdHandler) compareAndLogSummaryChanges(instanceID string, summary 
 	log.Debug().
 		Str("instanceId", instanceID).
 		Str("status", summary.Queue.Status).
-		Str("queue", summary.Queue.NoOfSlots).
+		Str("queue", string(summary.Queue.NoOfSlots)).
 		Int("failed", summary.FailedCount).
 		Str("warnings", summary.Queue.HaveWarnings).
 		Str("change", change).
@@ -134,7 +134,7 @@ func createSabnzbdSummaryHash(summary *types.SabnzbdSummaryResponse) string {
 		"%s:%s:%s:%s:%d|",
 		summary.Queue.Status,
 		summary.Queue.Speed,
-		summary.Queue.NoOfSlots,
+		string(summary.Queue.NoOfSlots),
 		summary.Queue.HaveWarnings,
 		summary.FailedCount,
 	)
