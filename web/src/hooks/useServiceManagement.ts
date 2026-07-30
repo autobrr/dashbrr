@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useCallback, useState } from 'react';
-import { ServiceType } from '../types/service';
-import { useConfiguration } from '../contexts/useConfiguration';
-import { toast } from 'react-hot-toast';
+import { useCallback, useState } from "react";
+import { ServiceType } from "../types/service";
+import { useConfiguration } from "../contexts/useConfiguration";
+import { toast } from "react-hot-toast";
 
 interface PendingService {
   type: ServiceType;
@@ -33,17 +33,17 @@ export const useServiceManagement = () => {
       .length;
     const instanceNumber = existingInstances + 1;
     const instanceId = `${templateType}-${instanceNumber}`;
-    
+
     // For general service, don't set an initial display name
-    const displayName = templateType === 'general' 
-      ? '' 
-      : `${templateName}${instanceNumber > 1 ? ` ${instanceNumber}` : ''}`;
+    const displayName = templateType === "general"
+      ? ""
+      : `${templateName}${instanceNumber > 1 ? ` ${instanceNumber}` : ""}`;
 
     setPendingService({
       type: templateType,
       name: templateName,
       instanceId,
-      displayName
+      displayName,
     });
     setShowServiceConfig(true);
   }, [configurations]);
@@ -56,15 +56,15 @@ export const useServiceManagement = () => {
         url,
         apiKey,
         displayName: displayName || pendingService.displayName,
-        accessUrl
+        accessUrl,
       } as ServiceConfig);
-      
-      toast.success(`Added new service instance`);
+
+      toast.success("Added new service instance");
       setShowServiceConfig(false);
       setPendingService(null);
     } catch (err) {
-      toast.error('Failed to add service instance');
-      console.error('Error adding service:', err);
+      toast.error("Failed to add service instance");
+      console.error("Error adding service:", err);
     }
   }, [pendingService, updateConfiguration]);
 
@@ -76,10 +76,10 @@ export const useServiceManagement = () => {
   const removeServiceInstance = useCallback(async (instanceId: string) => {
     try {
       await deleteConfiguration(instanceId);
-      toast.success('Service instance removed');
+      toast.success("Service instance removed");
     } catch (err) {
-      toast.error('Failed to remove service instance');
-      console.error('Error removing service:', err);
+      toast.error("Failed to remove service instance");
+      console.error("Error removing service:", err);
     }
   }, [deleteConfiguration]);
 
@@ -89,6 +89,6 @@ export const useServiceManagement = () => {
     showServiceConfig,
     pendingService,
     confirmServiceAddition,
-    cancelServiceAddition
+    cancelServiceAddition,
   };
 };

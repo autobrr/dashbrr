@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useMemo } from 'react';
-import { useServiceData } from './useServiceData';
-import { ServiceStatus } from '../types/service';
+import { useMemo } from "react";
+import { useServiceData } from "./useServiceData";
+import { ServiceStatus } from "../types/service";
 
 type StatusCount = Record<ServiceStatus, number>;
 
@@ -25,7 +25,7 @@ export const useServiceHealth = () => {
   // Memoize status counts to prevent unnecessary recalculations
   const statusCounts = useMemo((): StatusCount => {
     return (services || []).reduce((acc, service) => {
-      const status = service.status || 'unknown';
+      const status = service.status || "unknown";
       acc[status] += 1;
       return acc;
     }, { ...initialStatusCount });

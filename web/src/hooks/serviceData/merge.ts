@@ -8,7 +8,7 @@ import {
   ServiceConfig,
   ServiceHealth,
   ServiceStatus,
-  ServiceType,
+  ServiceType
 } from "../../types/service";
 import { serviceTemplates } from "../../config/serviceTemplates";
 
@@ -218,10 +218,10 @@ export const deriveHealthUpdate = (
   payload: unknown
 ):
   | {
-      instanceId: string;
-      patch: Partial<Service>;
-      internalStatus?: ServiceStatus;
-    }
+    instanceId: string;
+    patch: Partial<Service>;
+    internalStatus?: ServiceStatus;
+  }
   | undefined => {
   if (typeof payload !== "object" || payload === null) {
     return undefined;
@@ -268,17 +268,17 @@ export const hydrateServicesFromConfigurations = (
     const existing = next.get(instanceId);
     let merged = existing
       ? {
-          ...existing,
-          id: base.id,
-          instanceId: base.instanceId,
-          name: base.name,
-          type: base.type,
-          url: base.url,
-          accessUrl: base.accessUrl,
-          apiKey: base.apiKey,
-          displayName: base.displayName,
-          healthEndpoint: base.healthEndpoint,
-        }
+        ...existing,
+        id: base.id,
+        instanceId: base.instanceId,
+        name: base.name,
+        type: base.type,
+        url: base.url,
+        accessUrl: base.accessUrl,
+        apiKey: base.apiKey,
+        displayName: base.displayName,
+        healthEndpoint: base.healthEndpoint,
+      }
       : base;
 
     const snapshot = latestPatchByInstance.get(instanceId);

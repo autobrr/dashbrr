@@ -119,18 +119,18 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   const statusDisplay: StatusDisplay = isInitialLoad
     ? { text: "Loading", color: "text-blue-500 dark:text-blue-400", icon: "⟳" }
     : !isConnected
-    ? {
+      ? {
         text: "Disconnected",
         color: "text-amber-500 dark:text-amber-300",
         icon: "⚠",
       }
-    : STATUS_DISPLAY_MAP[status] || UNKNOWN_STATUS_DISPLAY;
+      : STATUS_DISPLAY_MAP[status] || UNKNOWN_STATUS_DISPLAY;
   const shouldShowMessage = message && (status !== "online" || !isConnected);
   const displayMessage = isInitialLoad
     ? "Initializing service..."
     : !isConnected
-    ? "Connection to server lost"
-    : message || "";
+      ? "Connection to server lost"
+      : message || "";
 
   const formatMessage = (msg: string) => {
     const sections: Record<string, React.ReactNode[]> = {};

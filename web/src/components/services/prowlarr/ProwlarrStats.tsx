@@ -15,7 +15,7 @@ import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import {
   ClockIcon,
   ArrowDownTrayIcon,
-  MagnifyingGlassIcon,
+  MagnifyingGlassIcon
 } from "@heroicons/react/24/outline";
 
 interface ProwlarrStatsProps {
@@ -116,14 +116,14 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
                         indexer.priority === 1
                           ? "bg-green-500/10 text-green-400/80"
                           : indexer.priority <= 3
-                          ? "bg-blue-500/10 text-blue-400/80"
-                          : indexer.priority <= 5
-                          ? "bg-indigo-500/10 text-indigo-400/80"
-                          : indexer.priority <= 7
-                          ? "bg-purple-500/10 text-purple-400/80"
-                          : indexer.priority <= 10
-                          ? "bg-yellow-500/10 text-yellow-400/80"
-                          : "bg-red-500/10 text-red-400/80"
+                            ? "bg-blue-500/10 text-blue-400/80"
+                            : indexer.priority <= 5
+                              ? "bg-indigo-500/10 text-indigo-400/80"
+                              : indexer.priority <= 7
+                                ? "bg-purple-500/10 text-purple-400/80"
+                                : indexer.priority <= 10
+                                  ? "bg-yellow-500/10 text-yellow-400/80"
+                                  : "bg-red-500/10 text-red-400/80"
                       }`}
                     >
                       P{indexer.priority}

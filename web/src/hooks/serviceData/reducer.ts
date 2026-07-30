@@ -6,7 +6,7 @@
 import { Service, ServiceConfig, ServiceStatus } from "../../types/service";
 import {
   applyServicePatch,
-  hydrateServicesFromConfigurations,
+  hydrateServicesFromConfigurations
 } from "./merge";
 import type { ServicePatchSnapshot } from "./merge";
 
@@ -19,16 +19,16 @@ export type ServiceDataAction =
   | { type: "set_loading"; isLoading: boolean }
   | { type: "reset" }
   | {
-      type: "hydrate_configurations";
-      configurations: Record<string, ServiceConfig>;
-      latestPatchByInstance: Map<string, ServicePatchSnapshot>;
-    }
+    type: "hydrate_configurations";
+    configurations: Record<string, ServiceConfig>;
+    latestPatchByInstance: Map<string, ServicePatchSnapshot>;
+  }
   | {
-      type: "apply_patch";
-      instanceId: string;
-      patch: Partial<Service>;
-      internalStatus?: ServiceStatus;
-    };
+    type: "apply_patch";
+    instanceId: string;
+    patch: Partial<Service>;
+    internalStatus?: ServiceStatus;
+  };
 
 export const initialServiceDataState: ServiceDataState = {
   services: new Map(),

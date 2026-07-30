@@ -16,7 +16,7 @@ const createRequest = (method: string, data?: unknown): RequestInit => {
   const options: RequestInit = {
     method,
     headers: getDefaultHeaders(),
-    credentials: 'include',
+    credentials: "include",
   };
 
   if (data) {
@@ -36,7 +36,7 @@ const getTimeoutForPath = (path: string): number => {
 
 // Utility to unregister service worker
 const unregisterServiceWorker = async (): Promise<void> => {
-  if ('serviceWorker' in navigator) {
+  if ("serviceWorker" in navigator) {
     const registrations = await navigator.serviceWorker.getRegistrations();
     for (const registration of registrations) {
       await registration.unregister();
@@ -49,12 +49,12 @@ const isNoRedirectOn401Endpoint = (path: string): boolean => {
   // Endpoints where a 401 should be surfaced to the caller (bad creds, etc),
   // not treated as "session expired, redirect to /login".
   const paths = [
-    '/api/auth/login',
-    '/api/auth/register',
-    '/api/auth/registration-status',
-    '/api/auth/config',
-    '/api/auth/oidc/login',
-    '/api/auth/oidc/logout',
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/registration-status",
+    "/api/auth/config",
+    "/api/auth/oidc/login",
+    "/api/auth/oidc/logout",
   ];
   return paths.some((p) => path.includes(p));
 };
@@ -69,9 +69,9 @@ const handleRequest = async <T>(
   customTimeout?: number
 ): Promise<T> => {
   const timeout = customTimeout ?? getTimeoutForPath(path);
-  
+
   try {
-    const apiPath = path.startsWith('/api') ? path : `/api${path}`;
+    const apiPath = path.startsWith("/api") ? path : `/api${path}`;
     const url = apiPath;
 
     const controller = new AbortController();
@@ -92,7 +92,7 @@ const handleRequest = async <T>(
     if (response.status === 401) {
       // Prevent multiple auth handlers from running simultaneously
       if (isHandlingAuth) {
-        throw new Error('Authentication in progress');
+        throw new Error("Authentication in progress");
       }
 
       if (isNoRedirectOn401Endpoint(apiPath)) {
@@ -100,20 +100,20 @@ const handleRequest = async <T>(
       }
 
       isHandlingAuth = true;
-      localStorage.removeItem('auth_type');
+      localStorage.removeItem("auth_type");
 
       // Dev-only: stale Workbox caches can cause "unstyled Tailwind" reload loops.
       if (import.meta.env.DEV) {
         await unregisterServiceWorker();
       }
 
-      window.location.href = '/login';
-      throw new Error('Authentication required');
+      window.location.href = "/login";
+      throw new Error("Authentication required");
     }
 
     if (!response.ok) {
       if (response.status === 429 && retryCount < 3) {
-        const retryAfter = parseInt(response.headers.get('Retry-After') || '0');
+        const retryAfter = parseInt(response.headers.get("Retry-After") || "0");
         const waitTime = retryAfter ? retryAfter * 1000 : Math.min(1000 * Math.pow(2, retryCount), 30000);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         return handleRequest<T>(path, options, retryCount + 1, customTimeout);
@@ -128,8 +128,8 @@ const handleRequest = async <T>(
       return {} as T;
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
       return (await response.json()) as T;
     }
 
@@ -138,7 +138,7 @@ const handleRequest = async <T>(
     return text as unknown as T;
   } catch (error) {
     if (error instanceof Error) {
-      if (error.name === 'AbortError') {
+      if (error.name === "AbortError") {
         throw new Error(`Request timed out after ${timeout}ms`, { cause: error });
       }
       throw error;
@@ -149,18 +149,18 @@ const handleRequest = async <T>(
 
 export const api = {
   get: async <T>(path: string, timeout?: number): Promise<T> => {
-    return handleRequest<T>(path, createRequest('GET'), 0, timeout);
+    return handleRequest<T>(path, createRequest("GET"), 0, timeout);
   },
 
   post: async <T>(path: string, data?: unknown, timeout?: number): Promise<T> => {
-    return handleRequest<T>(path, createRequest('POST', data), 0, timeout);
+    return handleRequest<T>(path, createRequest("POST", data), 0, timeout);
   },
 
   put: async <T>(path: string, data: unknown, timeout?: number): Promise<T> => {
-    return handleRequest<T>(path, createRequest('PUT', data), 0, timeout);
+    return handleRequest<T>(path, createRequest("PUT", data), 0, timeout);
   },
 
   delete: async <T>(path: string, timeout?: number): Promise<T> => {
-    return handleRequest<T>(path, createRequest('DELETE'), 0, timeout);
+    return handleRequest<T>(path, createRequest("DELETE"), 0, timeout);
   },
 };

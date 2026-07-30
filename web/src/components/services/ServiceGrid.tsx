@@ -15,14 +15,14 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
+  DragEndEvent
 } from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   rectSortingStrategy,
-  useSortable,
+  useSortable
 } from "@dnd-kit/sortable";
 
 interface ServiceGridProps {
@@ -96,12 +96,12 @@ const DraggableServiceCard = ({
 
   const style: CSSProperties | undefined = transform
     ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        transition,
-        zIndex: isDragging ? 2 : undefined,
-        position: isDragging ? ("relative" as const) : undefined,
-        opacity: isDragging ? 0.8 : undefined,
-      }
+      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+      transition,
+      zIndex: isDragging ? 2 : undefined,
+      position: isDragging ? ("relative" as const) : undefined,
+      opacity: isDragging ? 0.8 : undefined,
+    }
     : undefined;
 
   return (

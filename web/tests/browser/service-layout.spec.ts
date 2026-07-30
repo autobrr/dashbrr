@@ -37,8 +37,8 @@ test("compact card density stays tighter than regular", async ({ page }) => {
 test("collapse shell removes idle header gap until expanded", async ({ page }) => {
   await mountHarness(page);
 
-  const shellHeader = page.locator('[data-testid="shell-card"] > div > div').first();
-  const shellContent = page.locator('[data-testid="shell-card"] > div > div').nth(1);
+  const shellHeader = page.locator("[data-testid=\"shell-card\"] > div > div").first();
+  const shellContent = page.locator("[data-testid=\"shell-card\"] > div > div").nth(1);
 
   await expect(shellHeader).toHaveClass(/mb-0/);
   await expect(shellContent).toHaveClass(/max-h-0/);
@@ -52,10 +52,10 @@ test("collapse shell removes idle header gap until expanded", async ({ page }) =
 test("section collapse preference persists and stays key-isolated", async ({ page }) => {
   await mountHarness(page);
 
-  const quiHeader = page.locator('[data-testid="prefs-qui"] > div > div').first();
-  const quiContent = page.locator('[data-testid="prefs-qui"] > div > div').nth(1);
+  const quiHeader = page.locator("[data-testid=\"prefs-qui\"] > div > div").first();
+  const quiContent = page.locator("[data-testid=\"prefs-qui\"] > div > div").nth(1);
   const radarrContent = page
-    .locator('[data-testid="prefs-radarr"] > div > div')
+    .locator("[data-testid=\"prefs-radarr\"] > div > div")
     .nth(1);
 
   await expect(quiContent).toHaveClass(/max-h-\[1000px\]/);

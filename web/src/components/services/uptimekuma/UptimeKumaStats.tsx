@@ -147,8 +147,8 @@ export const UptimeKumaStats: React.FC<UptimeKumaStatsProps> = ({ instanceId }) 
                   <span className="truncate">{monitor.type || "monitor"}</span>
                   {typeof monitor.responseTimeMs === "number" &&
                     monitor.responseTimeMs > 0 && (
-                      <span>{monitor.responseTimeMs}ms</span>
-                    )}
+                    <span>{monitor.responseTimeMs}ms</span>
+                  )}
                 </div>
               </div>
             ))}

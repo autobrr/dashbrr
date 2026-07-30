@@ -9,7 +9,7 @@ import {
   AuthContextType,
   User,
   LoginCredentials,
-  RegisterCredentials,
+  RegisterCredentials
 } from "../types/auth";
 import { AUTH_URLS, getAuthConfig, AuthConfig } from "../config/auth";
 import { readErrorMessage } from "../utils/http";

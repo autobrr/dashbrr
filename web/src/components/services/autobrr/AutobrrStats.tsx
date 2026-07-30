@@ -15,11 +15,11 @@ import {
   XCircleIcon,
   ExclamationCircleIcon,
   NoSymbolIcon,
-  ClockIcon,
+  ClockIcon
 } from "@heroicons/react/24/outline";
 import {
   AutobrrRelease,
-  AutobrrStats as AutobrrStatsPayload,
+  AutobrrStats as AutobrrStatsPayload
 } from "../../../types/service";
 import { getMediaType, getMediaTypeIcon } from "../../../utils/mediaTypes";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
@@ -182,114 +182,114 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
           isExpanded={isExpanded}
           onToggle={toggle}
         >
-            {releases.length > 0 ? (
-              <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-                {releases.slice(0, 5).map((release: AutobrrRelease) => (
-                  <div
-                    key={release.id}
-                    className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/70 transition-colors"
-                  >
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        {release.filter_status === "FILTER_REJECTED" ? (
-                          <span className="text-red-500">
-                            <NoSymbolIcon className="h-4 w-4" />
-                          </span>
-                        ) : release.action_status?.[0]?.status === "PUSH_APPROVED" ? (
-                          <span className="text-green-500">
-                            <CheckCircleIcon className="h-4 w-4" />
-                          </span>
-                        ) : release.action_status?.[0]?.status === "PUSH_REJECTED" ? (
-                          <span className="text-blue-400">
-                            <XCircleIcon className="h-4 w-4" />
-                          </span>
-                        ) : release.action_status?.[0]?.status === "PUSH_ERROR" ? (
-                          <span className="text-red-500">
-                            <ExclamationCircleIcon className="h-4 w-4" />
-                          </span>
-                        ) : (
-                          <span className="text-yellow-500">
-                            <ClockIcon className="h-4 w-4" />
-                          </span>
-                        )}
-                        <span className="text-xs font-medium text-gray-200 truncate flex-1" title={release.name}>
-                          {release.name}
+          {releases.length > 0 ? (
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+              {releases.slice(0, 5).map((release: AutobrrRelease) => (
+                <div
+                  key={release.id}
+                  className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/70 transition-colors"
+                >
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      {release.filter_status === "FILTER_REJECTED" ? (
+                        <span className="text-red-500">
+                          <NoSymbolIcon className="h-4 w-4" />
                         </span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {release.download_url && (
-                            <a
-                              href={release.download_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-300 p-1 hover:bg-gray-700/50 rounded transition-colors"
-                              title={`Download torrentfile`}
-                            >
-                              <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                          {release.info_url && (
-                            <a
-                              href={release.info_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-300 p-1 hover:bg-gray-700/50 rounded transition-colors"
-                              title={`View this release on ${release.indexer.name}`}
-                            >
-                              <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-y-1 text-xs text-gray-400">
-                        <div className="flex flex-wrap items-center gap-x-2">
-                          {release.source && (
-                            <span className="flex items-center gap-1 bg-gray-800/50 py-0.5 rounded">
-                              {(() => {
-                                const mediaType = getMediaType(release.category);
-                                const IconComponent = getMediaTypeIcon(mediaType);
-                                return (
-                                  <>
-                                    <IconComponent className="h-4 w-4 text-gray-400" />
-                                    {mediaType}
-                                  </>
-                                );
-                              })()}
-                            </span>
-                          )}
-                          <span className="flex items-center gap-1 bg-gray-800/50 px-1.5 py-0.5 rounded">
-                            {release.indexer.name}
-                          </span>
-                          {release.filter && (
-                            <span className="bg-gray-800/50 px-1.5 py-0.5 rounded">
-                              {release.filter}
-                            </span>
-                          )}
-                        </div>
-                        {release.action_status?.[0]?.status && (
-                          <span className={`bg-gray-800/50 px-1.5 py-0.5 rounded ${
-                            release.action_status[0].status === "PUSH_APPROVED"
-                              ? "text-green-500"
-                              : release.action_status[0].status === "PUSH_REJECTED"
-                              ? "text-blue-400"
-                              : release.action_status[0].status === "PUSH_ERROR"
-                              ? "text-red-500"
-                              : "text-yellow-500"
-                          }`}>
-                            {release.action_status[0].status.replace("PUSH_", "")
-                              .toLowerCase()
-                              .replace(/^\w/, (c) => c.toUpperCase())}
-                          </span>
+                      ) : release.action_status?.[0]?.status === "PUSH_APPROVED" ? (
+                        <span className="text-green-500">
+                          <CheckCircleIcon className="h-4 w-4" />
+                        </span>
+                      ) : release.action_status?.[0]?.status === "PUSH_REJECTED" ? (
+                        <span className="text-blue-400">
+                          <XCircleIcon className="h-4 w-4" />
+                        </span>
+                      ) : release.action_status?.[0]?.status === "PUSH_ERROR" ? (
+                        <span className="text-red-500">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                        </span>
+                      ) : (
+                        <span className="text-yellow-500">
+                          <ClockIcon className="h-4 w-4" />
+                        </span>
+                      )}
+                      <span className="text-xs font-medium text-gray-200 truncate flex-1" title={release.name}>
+                        {release.name}
+                      </span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {release.download_url && (
+                          <a
+                            href={release.download_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 p-1 hover:bg-gray-700/50 rounded transition-colors"
+                            title={"Download torrentfile"}
+                          >
+                            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        {release.info_url && (
+                          <a
+                            href={release.info_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 p-1 hover:bg-gray-700/50 rounded transition-colors"
+                            title={`View this release on ${release.indexer.name}`}
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                          </a>
                         )}
                       </div>
                     </div>
+                    <div className="flex flex-wrap items-center justify-between gap-y-1 text-xs text-gray-400">
+                      <div className="flex flex-wrap items-center gap-x-2">
+                        {release.source && (
+                          <span className="flex items-center gap-1 bg-gray-800/50 py-0.5 rounded">
+                            {(() => {
+                              const mediaType = getMediaType(release.category);
+                              const IconComponent = getMediaTypeIcon(mediaType);
+                              return (
+                                <>
+                                  <IconComponent className="h-4 w-4 text-gray-400" />
+                                  {mediaType}
+                                </>
+                              );
+                            })()}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 bg-gray-800/50 px-1.5 py-0.5 rounded">
+                          {release.indexer.name}
+                        </span>
+                        {release.filter && (
+                          <span className="bg-gray-800/50 px-1.5 py-0.5 rounded">
+                            {release.filter}
+                          </span>
+                        )}
+                      </div>
+                      {release.action_status?.[0]?.status && (
+                        <span className={`bg-gray-800/50 px-1.5 py-0.5 rounded ${
+                          release.action_status[0].status === "PUSH_APPROVED"
+                            ? "text-green-500"
+                            : release.action_status[0].status === "PUSH_REJECTED"
+                              ? "text-blue-400"
+                              : release.action_status[0].status === "PUSH_ERROR"
+                                ? "text-red-500"
+                                : "text-yellow-500"
+                        }`}>
+                          {release.action_status[0].status.replace("PUSH_", "")
+                            .toLowerCase()
+                            .replace(/^\w/, (c) => c.toUpperCase())}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5">
-                No recent releases
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5">
+              No recent releases
+            </div>
+          )}
         </CollapsibleSection>
       )}
     </div>

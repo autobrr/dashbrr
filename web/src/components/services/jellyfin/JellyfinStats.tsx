@@ -16,14 +16,14 @@ import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import type {
   JellyfinMediaStream,
   JellyfinSession,
-  JellyfinSummary,
+  JellyfinSummary
 } from "../../../types/service";
 import {
   formatBitrateBps,
   formatDurationTicks,
   getDeviceIcon,
   getMediaTypeIcon,
-  getProgressPercentage,
+  getProgressPercentage
 } from "../common/playbackUi";
 
 interface JellyfinStatsProps {

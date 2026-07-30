@@ -8,7 +8,7 @@ import { Listbox, Transition } from "@headlessui/react";
 import {
   ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
-  Cog6ToothIcon,
+  Cog6ToothIcon
 } from "@heroicons/react/24/solid";
 import { toast } from "react-hot-toast";
 
@@ -25,7 +25,7 @@ import {
   ArrQueueDeleteOptions,
   buildArrQueueDeleteQueryParams,
   getBlocklistText,
-  getRemovalMethodText,
+  getRemovalMethodText
 } from "./ArrQueueDelete";
 
 export type ArrQueueRecord = {

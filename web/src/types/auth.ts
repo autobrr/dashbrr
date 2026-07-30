@@ -16,7 +16,7 @@ export interface User {
   preferred_username?: string;
   email_verified?: boolean;
   username?: string;
-  auth_type?: 'oidc' | 'builtin';
+  auth_type?: "oidc" | "builtin";
 }
 
 export interface LoginCredentials {

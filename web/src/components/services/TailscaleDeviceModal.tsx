@@ -151,7 +151,7 @@ const TailscaleDeviceModal: React.FC<Props> = ({
                               className="font-medium text-gray-300 hover:text-blue-400 transition-colors text-left inline-flex items-center cursor-pointer group"
                               title={`Click to copy: ${device.name}`}
                             >
-                             <span className="text-base">{device.name}</span>
+                              <span className="text-base">{device.name}</span>
                               <CopyIcon />
                             </button>
                           </div>
