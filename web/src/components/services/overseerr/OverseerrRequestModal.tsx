@@ -10,7 +10,7 @@ import { FaFilm, FaTv } from "react-icons/fa";
 import {
   ClockIcon,
   UserIcon,
-  ArrowTopRightOnSquareIcon,
+  ArrowTopRightOnSquareIcon
 } from "@heroicons/react/24/outline";
 
 interface OverseerrRequestModalProps {
@@ -76,7 +76,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
                 <div>
                   <div className="flex items-center gap-3">
                     <div
-                      className={`p-2 rounded-lg bg-gray-700/50 border border-gray-600/50 shadow-inner h-fit`}
+                      className={"p-2 rounded-lg bg-gray-700/50 border border-gray-600/50 shadow-inner h-fit"}
                     >
                       {request.media.tvdbId ? (
                         <FaTv className="h-5 w-5 text-blue-400" />

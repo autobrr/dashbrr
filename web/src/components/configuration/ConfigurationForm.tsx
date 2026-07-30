@@ -179,7 +179,7 @@ export const ConfigurationForm = ({
               ? getSettingsUrl("/config/general/")
               : serviceType === "nzbget"
                 ? getSettingsUrl("/#settings")
-              : getSettingsUrl("/settings/general"),
+                : getSettingsUrl("/settings/general"),
         };
       case "jellyfin":
         return {

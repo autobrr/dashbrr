@@ -29,7 +29,7 @@ import { useCollapsiblePreference } from "../../hooks/useCollapsiblePreference";
 import { serviceCardCollapseKey } from "../../utils/collapsePreferences";
 import {
   getServiceCardLayoutClasses,
-  hasMeaningfulServiceContent,
+  hasMeaningfulServiceContent
 } from "../../utils/serviceCardContent";
 
 interface DragHandleProps {

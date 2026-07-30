@@ -13,7 +13,7 @@ import {
   FaPlay,
   FaPlayCircle,
   FaTablet,
-  FaTv,
+  FaTv
 } from "react-icons/fa";
 
 export const formatDurationMs = (durationMs: number): string => {

@@ -10,57 +10,57 @@ import {
   SparklesIcon
 } from "@heroicons/react/24/outline";
 
-export type MediaType = 'Movie' | 'Show' | 'Anime' | 'Game' | 'Book' | 'Audio' | 'Application' | 'Adult' | 'Other';
+export type MediaType = "Movie" | "Show" | "Anime" | "Game" | "Book" | "Audio" | "Application" | "Adult" | "Other";
 
 export function getMediaType(category: string): MediaType {
   const lowercase = category.toLowerCase();
-  
+
   // Anime specific detection
-  if (lowercase.includes('anime') || lowercase.includes('ona') || lowercase.includes('ova')) {
-    return 'Anime';
+  if (lowercase.includes("anime") || lowercase.includes("ona") || lowercase.includes("ova")) {
+    return "Anime";
   }
-  
+
   // Movies
-  if (lowercase.includes('movie') || lowercase.includes('3d') || lowercase.includes('bluray')) {
-    return 'Movie';
+  if (lowercase.includes("movie") || lowercase.includes("3d") || lowercase.includes("bluray")) {
+    return "Movie";
   }
-  
+
   // TV Shows
-  if (lowercase.includes('tv') || lowercase.includes('show') || 
-      lowercase.includes('episode') || lowercase.includes('season')) {
-    return 'Show';
+  if (lowercase.includes("tv") || lowercase.includes("show") ||
+      lowercase.includes("episode") || lowercase.includes("season")) {
+    return "Show";
   }
-  
+
   // Games
-  if (lowercase.includes('game') || lowercase.includes('nintendo') || 
-      lowercase.includes('playstation') || lowercase.includes('visual novel')) {
-    return 'Game';
+  if (lowercase.includes("game") || lowercase.includes("nintendo") ||
+      lowercase.includes("playstation") || lowercase.includes("visual novel")) {
+    return "Game";
   }
-  
+
   // Books and Reading Material
-  if (lowercase.includes('book') || lowercase.includes('manga') || 
-      lowercase.includes('comic') || lowercase.includes('magazine') ||
-      lowercase.includes('novel')) {
-    return 'Book';
+  if (lowercase.includes("book") || lowercase.includes("manga") ||
+      lowercase.includes("comic") || lowercase.includes("magazine") ||
+      lowercase.includes("novel")) {
+    return "Book";
   }
-  
+
   // Audio content
-  if (lowercase.includes('audio') || lowercase.includes('music') || 
-      lowercase.includes('flac')) {
-    return 'Audio';
+  if (lowercase.includes("audio") || lowercase.includes("music") ||
+      lowercase.includes("flac")) {
+    return "Audio";
   }
-  
+
   // Applications and Software
-  if (lowercase.includes('app') || lowercase.includes('software')) {
-    return 'Application';
+  if (lowercase.includes("app") || lowercase.includes("software")) {
+    return "Application";
   }
-  
+
   // Adult content
-  if (lowercase.includes('xxx') || lowercase.includes('adult')) {
-    return 'Adult';
+  if (lowercase.includes("xxx") || lowercase.includes("adult")) {
+    return "Adult";
   }
-  
-  return 'Other';
+
+  return "Other";
 }
 
 export const mediaTypeIcons = {

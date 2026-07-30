@@ -413,7 +413,7 @@ export function AddServicesMenu({
                                 onClick={() =>
                                   onAddService(template.type, template.name)
                                 }
-                                  className={`block w-full px-4 py-2 text-left text-sm ${
+                                className={`block w-full px-4 py-2 text-left text-sm ${
                                   active
                                     ? "bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-300"
                                     : "text-zinc-700 dark:text-zinc-300"

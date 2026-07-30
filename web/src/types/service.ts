@@ -3,28 +3,28 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-export type ServiceStatus = 'online' | 'offline' | 'warning' | 'error' | 'loading' | 'pending' | 'unknown';
+export type ServiceStatus = "online" | "offline" | "warning" | "error" | "loading" | "pending" | "unknown";
 
 export type ServiceType =
-  | 'autobrr'
-  | 'radarr'
-  | 'sonarr'
-  | 'lidarr'
-  | 'readarr'
-  | 'bazarr'
-  | 'sabnzbd'
-  | 'nzbget'
-  | 'prowlarr'
-  | 'traefik'
-  | 'overseerr'
-  | 'plex'
-  | 'jellyfin'
-  | 'uptimekuma'
-  | 'tailscale'
-  | 'maintainerr'
-  | 'qui'
-  | 'general'
-  | 'other';
+  | "autobrr"
+  | "radarr"
+  | "sonarr"
+  | "lidarr"
+  | "readarr"
+  | "bazarr"
+  | "sabnzbd"
+  | "nzbget"
+  | "prowlarr"
+  | "traefik"
+  | "overseerr"
+  | "plex"
+  | "jellyfin"
+  | "uptimekuma"
+  | "tailscale"
+  | "maintainerr"
+  | "qui"
+  | "general"
+  | "other";
 
 export interface ServiceHealth {
   status: ServiceStatus;
@@ -244,8 +244,8 @@ export interface PlexTranscodeSession {
   progress: number;
   speed: number;
   size: number;
-  videoDecision: 'transcode' | 'copy' | 'direct play';
-  audioDecision: 'transcode' | 'copy' | 'direct play';
+  videoDecision: "transcode" | "copy" | "direct play";
+  audioDecision: "transcode" | "copy" | "direct play";
   protocol: string;
   container: string;
   videoCodec: string;

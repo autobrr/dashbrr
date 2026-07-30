@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   getServiceCardLayoutClasses,
   SERVICE_CARD_LAYOUT,
-  hasMeaningfulServiceContent,
+  hasMeaningfulServiceContent
 } from "../src/utils/serviceCardContent.ts";
 import type { Service } from "../src/types/service.ts";
 

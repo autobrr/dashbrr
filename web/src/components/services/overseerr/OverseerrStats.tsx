@@ -11,7 +11,7 @@ import { OverseerrRequestModal } from "./OverseerrRequestModal";
 import {
   CheckCircleIcon,
   XCircleIcon,
-  ClockIcon,
+  ClockIcon
 } from "@heroicons/react/24/outline";
 import { api } from "../../../utils/api";
 import { toast } from "react-hot-toast";
@@ -25,7 +25,7 @@ import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import {
   getRequestStatus,
   OVERSEERR_REQUEST_STATUS,
-  resolveRequestStatus,
+  resolveRequestStatus
 } from "./status";
 
 interface OverseerrStatsProps {
@@ -350,13 +350,13 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           isExpanded={isExpanded}
           onToggle={toggle}
         >
-            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              {recentNonPendingRequests
-                .slice(0, 5)
-                .map((request) => (
-                  <RequestItem key={request.id} request={request} />
-                ))}
-            </div>
+          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            {recentNonPendingRequests
+              .slice(0, 5)
+              .map((request) => (
+                <RequestItem key={request.id} request={request} />
+              ))}
+          </div>
         </CollapsibleSection>
       ) : (
         <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">

@@ -4,7 +4,7 @@ import {
   deriveHealthUpdate,
   hydrateServicesFromConfigurations,
   mergeServicePatchSnapshot,
-  type ServicePatchSnapshot,
+  type ServicePatchSnapshot
 } from "../src/hooks/serviceData/merge.ts";
 import type { Service } from "../src/types/service.ts";
 

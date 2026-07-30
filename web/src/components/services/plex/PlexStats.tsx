@@ -18,7 +18,7 @@ import {
   formatDurationMs,
   getDeviceIcon,
   getMediaTypeIcon,
-  getProgressPercentage,
+  getProgressPercentage
 } from "../common/playbackUi";
 
 interface PlexStatsProps {
@@ -210,8 +210,8 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                               ? `${session.grandparentTitle} - ${session.title}`
                               : session.title
                             : session.grandparentTitle
-                            ? `${session.grandparentTitle} - ${session.title}`
-                            : session.title ?? ""} 
+                              ? `${session.grandparentTitle} - ${session.title}`
+                              : session.title ?? ""}
                           {session.type?.toLowerCase() === "clip" && (
                             <span className="text-purple-400 ml-1">(Trailer)</span>
                           )}

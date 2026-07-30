@@ -5,7 +5,7 @@ import {
   getRequestStatus,
   OVERSEERR_MEDIA_STATUS,
   OVERSEERR_REQUEST_STATUS,
-  resolveRequestStatus,
+  resolveRequestStatus
 } from "../src/components/services/overseerr/status.ts";
 import type { OverseerrMediaRequest } from "../src/types/service.ts";
 

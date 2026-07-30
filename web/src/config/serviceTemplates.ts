@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { Service } from '../types/service';
+import { Service } from "../types/service";
 
 export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   {

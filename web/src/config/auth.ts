@@ -11,24 +11,24 @@ const getFrontendUrl = () => {
 
 // Common auth endpoints
 const COMMON_ENDPOINTS = {
-  config: '/api/auth/config',
-  userInfo: '/api/auth/userinfo',
+  config: "/api/auth/config",
+  userInfo: "/api/auth/userinfo",
 };
 
 // OIDC-specific endpoints
 const OIDC_ENDPOINTS = {
   login: `/api/auth/oidc/login?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
   logout: `/api/auth/oidc/logout?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
-  verify: '/api/auth/oidc/verify',
-  userInfo: '/api/auth/oidc/userinfo',
+  verify: "/api/auth/oidc/verify",
+  userInfo: "/api/auth/oidc/userinfo",
 };
 
 // Built-in auth endpoints
 const BUILTIN_ENDPOINTS = {
-  login: '/api/auth/login',
-  register: '/api/auth/register',
-  logout: '/api/auth/logout',
-  verify: '/api/auth/verify',
+  login: "/api/auth/login",
+  register: "/api/auth/register",
+  logout: "/api/auth/logout",
+  verify: "/api/auth/verify",
 };
 
 export const AUTH_URLS = {
@@ -42,7 +42,7 @@ export interface AuthConfig {
     builtin: boolean;
     oidc: boolean;
   };
-  default: 'builtin' | 'oidc';
+  default: "builtin" | "oidc";
   bypass?: boolean;
 }
 
@@ -50,18 +50,18 @@ export async function getAuthConfig(): Promise<AuthConfig> {
   try {
     const response = await fetch(AUTH_URLS.config);
     if (!response.ok) {
-      throw new Error('Failed to fetch auth configuration');
+      throw new Error("Failed to fetch auth configuration");
     }
     return await response.json();
   } catch (error) {
-    console.error('Error fetching auth config:', error);
+    console.error("Error fetching auth config:", error);
     // Return default configuration if fetch fails
     return {
       methods: {
         builtin: true,
         oidc: false,
       },
-      default: 'builtin',
+      default: "builtin",
       bypass: false,
     };
   }

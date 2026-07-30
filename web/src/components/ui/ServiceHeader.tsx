@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import {
   ArrowTopRightOnSquareIcon,
   Cog6ToothIcon,
-  TrashIcon,
+  TrashIcon
 } from "@heroicons/react/20/solid";
 import AnimatedModal from "./AnimatedModal";
 import { StatusIcon, StatusType } from "./StatusIcon";

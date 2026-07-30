@@ -86,10 +86,10 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               animate-ping
               opacity-20
               ${
-                variant === "primary"
-                  ? "bg-blue-500"
-                  : "bg-gray-400 dark:bg-gray-600"
-              }
+    variant === "primary"
+      ? "bg-blue-500"
+      : "bg-gray-400 dark:bg-gray-600"
+    }
             `}
           />
         </div>

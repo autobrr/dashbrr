@@ -12,19 +12,19 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useReducer,
+  useReducer
 } from "react";
 import { Service } from "../types/service";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { useAuth } from "./useAuth";
 import {
   deriveHealthUpdate,
-  mergeServicePatchSnapshot,
+  mergeServicePatchSnapshot
 } from "./serviceData/merge";
 import type { ServicePatchSnapshot } from "./serviceData/merge";
 import {
   initialServiceDataState,
-  serviceDataReducer,
+  serviceDataReducer
 } from "./serviceData/reducer";
 
 type ServiceDataContextValue = {
