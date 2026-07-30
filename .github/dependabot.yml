@@ -12,7 +12,7 @@ updates:
           - "*"
 
   - package-ecosystem: gomod
-    directory: /backend
+    directory: /
     schedule:
       interval: monthly
     groups:
@@ -21,7 +21,7 @@ updates:
           - "*"
 
   - package-ecosystem: npm
-    directory: /
+    directory: /web
     schedule:
       interval: monthly
     groups:
