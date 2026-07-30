@@ -64,8 +64,14 @@ export default defineConfig(({ mode }) => {
     modulePreload: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom']
+        // Vite 8 builds with Rolldown, which drops Rollup's object form of
+        // `manualChunks` in favour of `codeSplitting.groups`. Matching on the
+        // node_modules path also catches `react-dom/client`, which the old
+        // exact-specifier form missed -- so react-dom actually lands here now.
+        codeSplitting: {
+          groups: [
+            { name: 'vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ }
+          ]
         },
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

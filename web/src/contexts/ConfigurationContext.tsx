@@ -78,7 +78,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to update configuration";
       setError(errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     }
   };
 
@@ -97,7 +97,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to delete configuration";
       setError(errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     }
   };
 
