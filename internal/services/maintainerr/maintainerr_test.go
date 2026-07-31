@@ -61,6 +61,9 @@ func TestGetCollections_NewSchema(t *testing.T) {
 	if collections[0].MediaCount != 42 {
 		t.Fatalf("MediaCount = %d, want 42", collections[0].MediaCount)
 	}
+	if collections[0].Media != nil {
+		t.Fatalf("Media = %v, want nil (must not be re-serialized to clients)", collections[0].Media)
+	}
 }
 
 // Older Maintainerr: no mediaCount, full media array, numeric libraryId/type.
@@ -94,5 +97,18 @@ func TestGetCollections_OldSchemaFallsBackToMediaLength(t *testing.T) {
 	}
 	if collections[0].MediaCount != 3 {
 		t.Fatalf("MediaCount = %d, want 3", collections[0].MediaCount)
+	}
+}
+
+// A single collection object (not an array) is malformed and must error, not
+// be accepted through a fallback that masks parse errors.
+func TestGetCollections_NonArrayResponseErrors(t *testing.T) {
+	t.Parallel()
+
+	server := newCollectionsServer(t, `{"id": 1, "title": "Old Movies", "isActive": true, "mediaCount": 42}`)
+
+	service := NewMaintainerrService().(*MaintainerrService)
+	if _, err := service.GetCollections(context.Background(), server.URL, "key"); err == nil {
+		t.Fatal("GetCollections() error = nil, want parse error")
 	}
 }

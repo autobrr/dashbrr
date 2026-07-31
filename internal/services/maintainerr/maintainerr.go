@@ -65,7 +65,7 @@ type Collection struct {
 	// returns it directly and caps media at a small preview. Older versions
 	// omit it, so GetCollections falls back to len(Media).
 	MediaCount int               `json:"mediaCount"`
-	Media      []json.RawMessage `json:"media"`
+	Media      []json.RawMessage `json:"media,omitempty"`
 }
 
 func init() {
@@ -256,6 +256,9 @@ func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey str
 			if collection.MediaCount == 0 {
 				collection.MediaCount = len(collection.Media)
 			}
+			// Media is only needed for decoding and the count fallback above;
+			// drop it so API and SSE payloads don't echo raw media records.
+			collection.Media = nil
 			activeCollections = append(activeCollections, collection)
 		}
 	}
