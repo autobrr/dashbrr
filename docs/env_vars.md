@@ -33,6 +33,14 @@ Only needed if you serve the web UI from a different origin than the API (differ
   - Purpose: Preflight cache max-age, in hours
   - Default: `12`
 
+## Logging
+
+- `DASHBRR__LOG_LEVEL`
+  - Purpose: Lowest log level that dashbrr writes
+  - Values: `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `panic`
+  - Default: `info`
+  - Note: You can also set this level in `config.toml`, as `level` under `[log]`. The environment variable has priority.
+
 ## Configuration Path
 
 - `DASHBRR__CONFIG_PATH`

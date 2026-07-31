@@ -159,6 +159,10 @@ listen_addr = ":8080"
 [database]
 type = "sqlite"
 path = "./data/dashbrr.db"
+
+[log]
+# trace, debug, info, warn, error, fatal, panic
+level = "info"
 ```
 
 By default, the database file will be created in the same directory as your configuration file. For example:
@@ -181,6 +185,7 @@ Key configuration options include:
 - Server settings (listen address, ports)
 - Database settings (SQLite/PostgreSQL)
 - Authentication (Built-in/OIDC)
+- Log level (`DASHBRR__LOG_LEVEL`)
 
 ### Service Discovery
 

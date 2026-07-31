@@ -17,6 +17,7 @@ services:
       - DASHBRR__DB_PASSWORD=dashbrr
       - DASHBRR__DB_NAME=dashbrr
       - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
+      #- DASHBRR__LOG_LEVEL=info
 
       #- OIDC_ISSUER=optional
       #- OIDC_CLIENT_ID=optional
