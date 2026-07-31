@@ -157,22 +157,12 @@ export interface AutobrrActionStatus {
 }
 
 // Maintainerr Types
-export interface MaintainerrMedia {
-  id: number;
-  collectionId: number;
-  plexId: number;
-  tmdbId: number;
-  addDate: string;
-  image_path: string;
-  isManual: boolean;
-}
-
 export interface MaintainerrCollection {
   id: number;
   title: string;
   deleteAfterDays: number;
   isActive: boolean;
-  media: MaintainerrMedia[];
+  mediaCount: number;
 }
 
 // Plex Types

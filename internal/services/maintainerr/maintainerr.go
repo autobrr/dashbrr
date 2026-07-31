@@ -53,33 +53,19 @@ type StatusResponse struct {
 	UpdateAvailable bool   `json:"updateAvailable"`
 }
 
-type Media struct {
-	ID           int       `json:"id"`
-	CollectionID int       `json:"collectionId"`
-	PlexID       int       `json:"plexId"`
-	TmdbID       int       `json:"tmdbId"`
-	AddDate      time.Time `json:"addDate"`
-	ImagePath    string    `json:"image_path"`
-	IsManual     bool      `json:"isManual"`
-}
-
+// Collection declares only the fields that dashbrr consumes. Maintainerr
+// changed the types of fields we never read (libraryId, type), and decoding
+// them broke parsing entirely (#98).
 type Collection struct {
-	ID                int     `json:"id"`
-	PlexID            int     `json:"plexId"`
-	LibraryID         int     `json:"libraryId"`
-	Title             string  `json:"title"`
-	Description       string  `json:"description"`
-	IsActive          bool    `json:"isActive"`
-	ArrAction         int     `json:"arrAction"`
-	VisibleOnHome     bool    `json:"visibleOnHome"`
-	DeleteAfterDays   int     `json:"deleteAfterDays"`
-	ManualCollection  bool    `json:"manualCollection"`
-	ListExclusions    bool    `json:"listExclusions"`
-	ForceOverseerr    bool    `json:"forceOverseerr"`
-	Type              int     `json:"type"`
-	KeepLogsForMonths int     `json:"keepLogsForMonths"`
-	AddDate           string  `json:"addDate"`
-	Media             []Media `json:"media"`
+	ID              int    `json:"id"`
+	Title           string `json:"title"`
+	IsActive        bool   `json:"isActive"`
+	DeleteAfterDays int    `json:"deleteAfterDays"`
+	// MediaCount is the total media count of the collection. Newer Maintainerr
+	// returns it directly and caps media at a small preview. Older versions
+	// omit it, so GetCollections falls back to len(Media).
+	MediaCount int               `json:"mediaCount"`
+	Media      []json.RawMessage `json:"media,omitempty"`
 }
 
 func init() {
@@ -261,21 +247,18 @@ func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey str
 
 	var collections []Collection
 	if err := json.Unmarshal(body, &collections); err != nil {
-		// Try parsing as single collection if array parse fails
-		var singleCollection Collection
-		if err := json.Unmarshal(body, &singleCollection); err != nil {
-			return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("failed to parse response: %w", err)}
-		}
-		if singleCollection.IsActive {
-			collections = []Collection{singleCollection}
-		} else {
-			collections = []Collection{}
-		}
+		return nil, &ErrMaintainerr{Op: "get_collections", Err: fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	activeCollections := make([]Collection, 0)
 	for _, collection := range collections {
 		if collection.IsActive {
+			if collection.MediaCount == 0 {
+				collection.MediaCount = len(collection.Media)
+			}
+			// Media is only needed for decoding and the count fallback above;
+			// drop it so API and SSE payloads don't echo raw media records.
+			collection.Media = nil
 			activeCollections = append(activeCollections, collection)
 		}
 	}

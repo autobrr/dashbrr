@@ -55,7 +55,7 @@ export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
               </div>
               <div className="flex items-center gap-1">
                 <FilmIcon className="w-3.5 h-3.5 text-gray-400" />
-                <span className="text-gray-700 dark:text-gray-200">{collection.media.length}</span>
+                <span className="text-gray-700 dark:text-gray-200">{collection.mediaCount}</span>
               </div>
             </div>
           </div>
