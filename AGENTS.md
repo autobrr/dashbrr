@@ -5,17 +5,26 @@ keep shipping; keep CI green
 
 Owner: soup (s0up4200@pm.me)
 
+## Collaboration
+
+- Stay inside requested scope. Do not implement review-suggested/extra changes without explicit user approval.
+- Treat other agent/CodeRabbit feedback as input to discuss, not automatic action.
+- dashbrr is single-user self-hosted software. Prefer readable, maintainable code over paranoid guards for impossible states.
+- In final reports, state which checks ran and which were skipped. Do not claim complete while a required check is known failing.
+
 ## Git
 
-- Do not rebase, squash, or force-push PR branches. Fix problems with a normal follow-up commit. PRs are squash-merged, so branch history does not matter.
+- Conventional commits: `feat(scope):`, `fix(scope):`, etc. Keep commits focused; split backend/frontend when practical.
+- Update PR branches by merging develop into them, never rebase/force-push. PRs are squash-merged, so rebase gains nothing and force-pushes break review history and contributors' local branches.
+- Never add AI advertising/attribution/co-author lines.
 
 ## Commands
 
 Backend (Go):
 
-- `go test ./...`
+- `go test -race -count=1 ./...`
 - `make lint-backend` — golangci-lint
-- `make precommit` — fmt + gofix + lint + type-check
+- `make precommit` — fmt + gofix + lint + type-check; run before final for code changes
 
 Frontend (`web/`, pnpm):
 
@@ -25,7 +34,14 @@ Frontend (`web/`, pnpm):
 - `pnpm -C web test:browser`
 - `pnpm -C web build`
 
-Full gate before a PR: `go test ./...` plus all five web commands above.
+Full gate before a PR: the Go tests plus all five web commands above.
+
+## Go
+
+- Keep `gofmt` clean. Exports PascalCase, locals camelCase. Prefer explicit error handling.
+- Avoid `map[string]interface{}`; use structs. Keep interfaces small (<=5 methods).
+- No backward compatibility shims unless requested.
+- Tests live beside code as `*_test.go`; prefer table-driven tests and existing fixtures.
 
 ## Layout
 
