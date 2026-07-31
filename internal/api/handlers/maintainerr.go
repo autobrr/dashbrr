@@ -197,7 +197,7 @@ func createCollectionsHash(collections []maintainerr.Collection) string {
 		fmt.Fprintf(&sb, "%d:%s:%d,",
 			collection.ID,
 			collection.Title,
-			len(collection.Media))
+			collection.MediaCount)
 	}
 	return sb.String()
 }
