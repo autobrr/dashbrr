@@ -79,15 +79,17 @@ changelog:
       - Merge pull request
       - Merge remote-tracking branch
       - Merge branch
+      - go mod tidy
   groups:
     - title: "New Features"
       regexp: "^.*feat[(\\w)]*:+.*$"
       order: 0
-    - title: "Bug fixes"
+    - title: "Bug Fixes"
       regexp: "^.*fix[(\\w)]*:+.*$"
       order: 10
-    - title: Other work
-      order: 999
+    - title: "Other Changes"
+      regexp: "^.*(chore|docs|style|refactor|test|perf|security|build|ci)[(\\w)]*:+.*$"
+      order: 20
 
 nfpms:
   - package_name: dashbrr
