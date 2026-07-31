@@ -39,4 +39,20 @@ func Init() {
 		},
 	}
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
+
+	// Set the level from the environment first, so that early logs use it.
+	// LoadEnvOverrides calls SetLevel again with the value from the config file.
+	SetLevel(os.Getenv("DASHBRR__LOG_LEVEL"))
+}
+
+// SetLevel sets the global log level. If the value is empty or unknown, SetLevel uses info.
+func SetLevel(level string) {
+	parsed, err := zerolog.ParseLevel(strings.ToLower(strings.TrimSpace(level)))
+	if err != nil || parsed == zerolog.NoLevel {
+		if level != "" {
+			log.Warn().Str("level", level).Msg("Unknown log level, dashbrr uses info instead")
+		}
+		parsed = zerolog.InfoLevel
+	}
+	zerolog.SetGlobalLevel(parsed)
 }
