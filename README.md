@@ -74,7 +74,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 
 - **Uptime Kuma**: Monitor status summary via metrics
 - **Traefik**: Router/service/middleware overview and issue routers
-- **General Service**: Generic health endpoint checks. Shows the top-level fields of a JSON response (for example, tracker stats) as a key/value table
+- **General Service**: Generic health endpoint checks. Shows the top-level fields of a JSON response (for example, tracker stats) as a key/value table.
 
 ## Installation
 

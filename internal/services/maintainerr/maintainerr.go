@@ -53,16 +53,16 @@ type StatusResponse struct {
 	UpdateAvailable bool   `json:"updateAvailable"`
 }
 
-// Collection only declares the fields dashbrr consumes; Maintainerr has
-// changed the types of fields we never read (libraryId, type) and decoding
+// Collection declares only the fields that dashbrr consumes. Maintainerr
+// changed the types of fields we never read (libraryId, type), and decoding
 // them broke parsing entirely (#98).
 type Collection struct {
 	ID              int    `json:"id"`
 	Title           string `json:"title"`
 	IsActive        bool   `json:"isActive"`
 	DeleteAfterDays int    `json:"deleteAfterDays"`
-	// MediaCount is the collection's total media count. Newer Maintainerr
-	// returns it directly and caps media at a small preview; older versions
+	// MediaCount is the total media count of the collection. Newer Maintainerr
+	// returns it directly and caps media at a small preview. Older versions
 	// omit it, so GetCollections falls back to len(Media).
 	MediaCount int               `json:"mediaCount"`
 	Media      []json.RawMessage `json:"media"`

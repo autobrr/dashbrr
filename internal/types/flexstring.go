@@ -9,12 +9,12 @@ import (
 )
 
 // FlexString unmarshals from either a JSON string or a JSON number and stores
-// the value as a string, always marshalling back out as a string.
+// the value as a string. It always marshals back out as a string.
 //
-// SABnzbd changed several queue fields (e.g. noofslots, noofslots_total) from
-// JSON strings to JSON numbers in newer releases; dashbrr and its web frontend
-// still treat them as strings. This type keeps the upstream parse working while
-// preserving the string contract the frontend expects.
+// Newer SABnzbd releases changed several queue fields (for example, noofslots
+// and noofslots_total) from JSON strings to JSON numbers. Dashbrr and its web
+// frontend still treat them as strings. This type accepts the new upstream
+// format and keeps the string contract that the frontend expects.
 type FlexString string
 
 func (f *FlexString) UnmarshalJSON(b []byte) error {
