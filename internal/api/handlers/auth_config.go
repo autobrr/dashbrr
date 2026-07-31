@@ -25,9 +25,9 @@ func GetAuthConfig(c *gin.Context) {
 		return
 	}
 
-	hasOIDC := os.Getenv("OIDC_ISSUER") != "" &&
-		os.Getenv("OIDC_CLIENT_ID") != "" &&
-		os.Getenv("OIDC_CLIENT_SECRET") != ""
+	hasOIDC := os.Getenv("DASHBRR__OIDC_ISSUER") != "" &&
+		os.Getenv("DASHBRR__OIDC_CLIENT_ID") != "" &&
+		os.Getenv("DASHBRR__OIDC_CLIENT_SECRET") != ""
 
 	defaultMethod := "builtin"
 	if hasOIDC {

@@ -154,10 +154,10 @@ func (s *Server) Handler() http.Handler {
 	// Initialize OIDC if configuration is provided
 	if hasOIDCConfig() {
 		authConfig := &types.AuthConfig{
-			Issuer:       getEnvOrDefault("OIDC_ISSUER", ""),
-			ClientID:     getEnvOrDefault("OIDC_CLIENT_ID", ""),
-			ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),
-			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/oidc/callback"),
+			Issuer:       getEnvOrDefault("DASHBRR__OIDC_ISSUER", ""),
+			ClientID:     getEnvOrDefault("DASHBRR__OIDC_CLIENT_ID", ""),
+			ClientSecret: getEnvOrDefault("DASHBRR__OIDC_CLIENT_SECRET", ""),
+			RedirectURL:  getEnvOrDefault("DASHBRR__OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/oidc/callback"),
 		}
 		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
 	}
@@ -373,9 +373,9 @@ func (s *Server) Handler() http.Handler {
 
 // hasOIDCConfig checks if all required OIDC configuration is provided
 func hasOIDCConfig() bool {
-	return os.Getenv("OIDC_ISSUER") != "" &&
-		os.Getenv("OIDC_CLIENT_ID") != "" &&
-		os.Getenv("OIDC_CLIENT_SECRET") != ""
+	return os.Getenv("DASHBRR__OIDC_ISSUER") != "" &&
+		os.Getenv("DASHBRR__OIDC_CLIENT_ID") != "" &&
+		os.Getenv("DASHBRR__OIDC_CLIENT_SECRET") != ""
 }
 
 // getEnvOrDefault returns the value of an environment variable or a default value if not set
