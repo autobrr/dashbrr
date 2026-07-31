@@ -91,6 +91,23 @@ func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (m
 			"responseTime": responseTime,
 		}
 
+		// Expose top-level scalar fields so the UI can display arbitrary API
+		// payloads (e.g. tracker stats) as a key/value table (#87). Nested
+		// values are skipped, and status/message are already consumed above.
+		fields := make(map[string]any)
+		for key, value := range jsonResponse {
+			if key == "status" || key == "message" {
+				continue
+			}
+			switch value.(type) {
+			case string, float64, bool:
+				fields[key] = value
+			}
+		}
+		if len(fields) > 0 {
+			extras["details"] = map[string]any{"general": fields}
+		}
+
 		return s.CreateHealthResponse(startTime, status, message, extras), resp.StatusCode
 	}
 
