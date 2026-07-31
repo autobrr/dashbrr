@@ -4,8 +4,6 @@
 package web
 
 import (
-	"bufio"
-	"bytes"
 	"embed"
 	"fmt"
 	"io"
@@ -100,139 +98,67 @@ func ServeStatic(r *gin.Engine) {
 		}
 	}
 
-	// Helper function to serve static files with proper headers
-	serveStaticFile := func(c *gin.Context, filepath string, contentType string) {
-		file, err := DistDirFS.Open(filepath)
+	// Serve any file that exists in the embedded dist. Reports whether it did,
+	// so the caller can fall back to index.html for client-side routes.
+	// ponytail: no per-file route list -- dist is the source of truth, so new
+	// build outputs (registerSW.js, pattern.svg, ...) never need a Go change.
+	serveStaticFile := func(c *gin.Context, name string) bool {
+		if name == "index.html" {
+			return false // serveIndex owns it, with no-store headers
+		}
+		file, err := DistDirFS.Open(name)
 		if err != nil {
-			c.Status(http.StatusNotFound)
-			return
+			return false
 		}
 		defer file.Close()
 
 		stat, err := file.Stat()
-		if err != nil {
-			c.Status(http.StatusInternalServerError)
-			return
+		if err != nil || stat.IsDir() {
+			return false
 		}
 
-		data, err := io.ReadAll(bufio.NewReader(file))
-		if err != nil {
-			c.Status(http.StatusInternalServerError)
-			return
+		// embed.FS and os.File both seek; ServeContent needs a ReadSeeker.
+		seeker, ok := file.(io.ReadSeeker)
+		if !ok {
+			return false
 		}
 
-		c.Header("Content-Type", contentType)
-		if strings.Contains(filepath, "sw.js") || strings.Contains(filepath, "manifest.json") {
+		switch {
+		case name == "manifest.json":
+			c.Header("Content-Type", "application/manifest+json; charset=utf-8")
 			c.Header("Cache-Control", "no-cache")
-			if strings.Contains(filepath, "sw.js") {
-				c.Header("Service-Worker-Allowed", "/")
-			}
-		} else {
+		case name == "sw.js" || name == "registerSW.js":
+			c.Header("Cache-Control", "no-cache")
+			c.Header("Service-Worker-Allowed", "/")
+		case strings.HasSuffix(name, ".html"):
+			// Unhashed pages (plex-auth-complete.html) must not cache for a year.
+			c.Header("Cache-Control", "no-cache")
+		default:
 			c.Header("Cache-Control", "public, max-age=31536000")
 		}
 		c.Header("X-Content-Type-Options", "nosniff")
 
-		reader := bytes.NewReader(data)
-		http.ServeContent(c.Writer, c.Request, filepath, stat.ModTime(), reader)
+		// ServeContent picks the Content-Type from the extension when unset.
+		http.ServeContent(c.Writer, c.Request, name, stat.ModTime(), seeker)
+		return true
 	}
 
-	// Serve static files from root path
-	r.GET("/logo.svg", func(c *gin.Context) {
-		serveStaticFile(c, "logo.svg", "image/svg+xml")
-	})
-
-	r.GET("/masked-icon.svg", func(c *gin.Context) {
-		serveStaticFile(c, "masked-icon.svg", "image/svg+xml")
-	})
-
-	r.GET("/favicon.ico", func(c *gin.Context) {
-		serveStaticFile(c, "favicon.ico", "image/x-icon")
-	})
-
-	r.GET("/apple-touch-icon.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-iphone-60x60.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-iphone-60x60.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-ipad-76x76.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-ipad-76x76.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-iphone-retina-120x120.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-iphone-retina-120x120.png", "image/png")
-	})
-
-	r.GET("/apple-touch-icon-ipad-retina-152x152.png", func(c *gin.Context) {
-		serveStaticFile(c, "apple-touch-icon-ipad-retina-152x152.png", "image/png")
-	})
-
-	r.GET("/pwa-192x192.png", func(c *gin.Context) {
-		serveStaticFile(c, "pwa-192x192.png", "image/png")
-	})
-
-	r.GET("/pwa-512x512.png", func(c *gin.Context) {
-		serveStaticFile(c, "pwa-512x512.png", "image/png")
-	})
-
-	// Serve manifest.json
-	r.GET("/manifest.json", func(c *gin.Context) {
-		serveStaticFile(c, "manifest.json", "application/manifest+json; charset=utf-8")
-	})
-
-	// Serve service worker
-	r.GET("/sw.js", func(c *gin.Context) {
-		serveStaticFile(c, "sw.js", "text/javascript; charset=utf-8")
-	})
-
-	// Serve workbox files
-	r.GET("/workbox-:hash.js", func(c *gin.Context) {
-		serveStaticFile(c, c.Request.URL.Path[1:], "text/javascript; charset=utf-8")
-	})
-
-	// Serve assets directory
-	r.GET("/assets/*filepath", func(c *gin.Context) {
-		filepath := strings.TrimPrefix(c.Param("filepath"), "/")
-		fullPath := path.Join("assets", filepath)
-
-		// Set content type based on file extension
-		ext := strings.ToLower(path.Ext(filepath))
-		var contentType string
-		switch ext {
-		case ".css":
-			contentType = "text/css; charset=utf-8"
-		case ".js", ".mjs", ".tsx", ".ts":
-			contentType = "text/javascript; charset=utf-8"
-		case ".svg":
-			contentType = "image/svg+xml"
-		case ".png":
-			contentType = "image/png"
-		case ".jpg", ".jpeg":
-			contentType = "image/jpeg"
-		case ".json":
-			contentType = "application/json; charset=utf-8"
-		case ".woff":
-			contentType = "font/woff"
-		case ".woff2":
-			contentType = "font/woff2"
-		default:
-			contentType = "text/javascript; charset=utf-8"
-		}
-
-		serveStaticFile(c, fullPath, contentType)
-	})
-
-	// Serve index.html for root path and direct requests
 	r.GET("/", serveIndex)
-	r.GET("/index.html", serveIndex)
 
-	// Handle all other routes
 	r.NoRoute(func(c *gin.Context) {
 		// Don't serve index.html for API routes
 		if strings.HasPrefix(c.Request.URL.Path, "/api") {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+
+		if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+
+		name := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
+		if serveStaticFile(c, name) {
 			return
 		}
 
@@ -254,6 +180,8 @@ func serveIndex(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.Header("Pragma", "no-cache")
 	c.Header("Expires", "0")
+	// NoRoute pre-sets 404; deep links are real pages, so reset it.
+	c.Status(http.StatusOK)
 
 	io.Copy(c.Writer, file)
 }
