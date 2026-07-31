@@ -152,11 +152,14 @@ func ServeStatic(r *gin.Engine) {
 			return
 		}
 
-		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead {
-			name := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
-			if serveStaticFile(c, name) {
-				return
-			}
+		if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+
+		name := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
+		if serveStaticFile(c, name) {
+			return
 		}
 
 		// For all other routes, serve index.html for client-side routing
