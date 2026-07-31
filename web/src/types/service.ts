@@ -928,6 +928,7 @@ export interface ServiceStats {
 
 // Service Details Union Type
 export interface ServiceDetails {
+  general?: Record<string, string | number | boolean>;
   autobrr?: {
     irc: AutobrrIRC[];
     base_url: string;
