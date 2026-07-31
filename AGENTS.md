@@ -16,6 +16,7 @@ Owner: soup (s0up4200@pm.me)
 
 - Conventional commits: `feat(scope):`, `fix(scope):`, etc. Keep commits focused; split backend/frontend when practical.
 - Update PR branches by merging develop into them, never rebase/force-push. PRs are squash-merged, so rebase gains nothing and force-pushes break review history and contributors' local branches.
+- Always label a PR when you open it. Run `gh label list` and pick from the existing labels; do not invent new ones. Add `breaking change` whenever the PR renames or removes anything user-facing.
 - Never add AI advertising/attribution/co-author lines.
 
 ## Commands
