@@ -19,10 +19,10 @@ services:
       - DASHBRR__LISTEN_ADDR=0.0.0.0:8080
       #- DASHBRR__LOG_LEVEL=info
 
-      #- OIDC_ISSUER=optional
-      #- OIDC_CLIENT_ID=optional
-      #- OIDC_CLIENT_SECRET=optional
-      #- OIDC_REDIRECT_URL=optional
+      #- DASHBRR__OIDC_ISSUER=optional
+      #- DASHBRR__OIDC_CLIENT_ID=optional
+      #- DASHBRR__OIDC_CLIENT_SECRET=optional
+      #- DASHBRR__OIDC_REDIRECT_URL=optional
     volumes:
       - ./data:/data
     depends_on:

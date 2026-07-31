@@ -96,22 +96,26 @@ Only needed if you serve the web UI from a different origin than the API (differ
 
 (Optional OpenID Connect configuration)
 
-- `OIDC_ISSUER`
+CAUTION: These four variables had no prefix before. If you use `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, or `OIDC_REDIRECT_URL`, add the `DASHBRR__` prefix. Dashbrr ignores the old names and writes a warning at startup.
+
+You can also set these four values in `config.toml`, under `[auth.oidc]`, as `issuer`, `client_id`, `client_secret`, and `redirect_url`. The environment variables have priority.
+
+- `DASHBRR__OIDC_ISSUER`
 
   - Purpose: Your OIDC provider's issuer URL
   - Required if using OIDC
 
-- `OIDC_CLIENT_ID`
+- `DASHBRR__OIDC_CLIENT_ID`
 
   - Purpose: Client ID from your OIDC provider
   - Required if using OIDC
 
-- `OIDC_CLIENT_SECRET`
+- `DASHBRR__OIDC_CLIENT_SECRET`
 
   - Purpose: Client secret from your OIDC provider
   - Required if using OIDC
 
-- `OIDC_REDIRECT_URL`
+- `DASHBRR__OIDC_REDIRECT_URL`
   - Purpose: Callback URL for OIDC authentication
   - Example: `http://localhost:3000/api/auth/oidc/callback` (legacy `/api/auth/callback` also works)
   - Required if using OIDC

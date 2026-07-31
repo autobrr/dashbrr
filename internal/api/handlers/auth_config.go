@@ -5,41 +5,38 @@ package handlers
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-// GetAuthConfig returns the available authentication methods
-func GetAuthConfig(c *gin.Context) {
-	if middleware.IsAuthBypassEnabled() {
+// AuthConfig returns a handler that reports the available authentication methods.
+func AuthConfig(hasOIDC bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if middleware.IsAuthBypassEnabled() {
+			c.JSON(http.StatusOK, gin.H{
+				"methods": map[string]bool{
+					"builtin": true,
+					"oidc":    false,
+				},
+				"default": "builtin",
+				"bypass":  true,
+			})
+			return
+		}
+
+		defaultMethod := "builtin"
+		if hasOIDC {
+			defaultMethod = "oidc"
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"methods": map[string]bool{
-				"builtin": true,
-				"oidc":    false,
+				"builtin": !hasOIDC, // Built-in auth is only available when OIDC is not configured
+				"oidc":    hasOIDC,
 			},
-			"default": "builtin",
-			"bypass":  true,
+			"default": defaultMethod,
+			"bypass":  false,
 		})
-		return
 	}
-
-	hasOIDC := os.Getenv("OIDC_ISSUER") != "" &&
-		os.Getenv("OIDC_CLIENT_ID") != "" &&
-		os.Getenv("OIDC_CLIENT_SECRET") != ""
-
-	defaultMethod := "builtin"
-	if hasOIDC {
-		defaultMethod = "oidc"
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"methods": map[string]bool{
-			"builtin": !hasOIDC, // Built-in auth is only available when OIDC is not configured
-			"oidc":    hasOIDC,
-		},
-		"default": defaultMethod,
-		"bypass":  false,
-	})
 }

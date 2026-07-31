@@ -20,6 +20,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// defaultOIDCCallbackURL is used when the config does not set a redirect URL.
+const defaultOIDCCallbackURL = "http://localhost:3000/api/auth/oidc/callback"
+
 type Server struct {
 	cfg        *config.Config
 	db         *database.DB
@@ -152,12 +155,17 @@ func (s *Server) Handler() http.Handler {
 	authMiddleware := middleware.NewAuthMiddleware(s.cache)
 
 	// Initialize OIDC if configuration is provided
-	if hasOIDCConfig() {
+	oidc := s.cfg.Auth.OIDC
+	if oidc.IsConfigured() {
+		redirectURL := oidc.RedirectURL
+		if redirectURL == "" {
+			redirectURL = defaultOIDCCallbackURL
+		}
 		authConfig := &types.AuthConfig{
-			Issuer:       getEnvOrDefault("OIDC_ISSUER", ""),
-			ClientID:     getEnvOrDefault("OIDC_CLIENT_ID", ""),
-			ClientSecret: getEnvOrDefault("OIDC_CLIENT_SECRET", ""),
-			RedirectURL:  getEnvOrDefault("OIDC_REDIRECT_URL", "http://localhost:3000/api/auth/oidc/callback"),
+			Issuer:       oidc.Issuer,
+			ClientID:     oidc.ClientID,
+			ClientSecret: oidc.ClientSecret,
+			RedirectURL:  redirectURL,
 		}
 		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
 	}
@@ -171,7 +179,7 @@ func (s *Server) Handler() http.Handler {
 		})
 
 		// Auth configuration endpoint
-		public.GET("/api/auth/config", handlers.GetAuthConfig)
+		public.GET("/api/auth/config", handlers.AuthConfig(oidc.IsConfigured()))
 
 		// OIDC auth endpoints (only if OIDC is configured)
 		if oidcAuthHandler != nil {
@@ -369,19 +377,4 @@ func (s *Server) Handler() http.Handler {
 	web.ServeStatic(r)
 
 	return r
-}
-
-// hasOIDCConfig checks if all required OIDC configuration is provided
-func hasOIDCConfig() bool {
-	return os.Getenv("OIDC_ISSUER") != "" &&
-		os.Getenv("OIDC_CLIENT_ID") != "" &&
-		os.Getenv("OIDC_CLIENT_SECRET") != ""
-}
-
-// getEnvOrDefault returns the value of an environment variable or a default value if not set
-func getEnvOrDefault(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
-	}
-	return defaultValue
 }

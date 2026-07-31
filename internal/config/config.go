@@ -61,10 +61,16 @@ type AuthConfig struct {
 
 // OIDCConfig holds OIDC-specific configuration
 type OIDCConfig struct {
-	Issuer       string `toml:"issuer" env:"OIDC_ISSUER"`
-	ClientID     string `toml:"client_id" env:"OIDC_CLIENT_ID"`
-	ClientSecret string `toml:"client_secret" env:"OIDC_CLIENT_SECRET"`
-	RedirectURL  string `toml:"redirect_url" env:"OIDC_REDIRECT_URL"`
+	Issuer       string `toml:"issuer" env:"DASHBRR__OIDC_ISSUER"`
+	ClientID     string `toml:"client_id" env:"DASHBRR__OIDC_CLIENT_ID"`
+	ClientSecret string `toml:"client_secret" env:"DASHBRR__OIDC_CLIENT_SECRET"`
+	RedirectURL  string `toml:"redirect_url" env:"DASHBRR__OIDC_REDIRECT_URL"`
+}
+
+// IsConfigured reports whether OIDC has the three values that it needs. The
+// redirect URL has a default, so it is not part of this test.
+func (c OIDCConfig) IsConfigured() bool {
+	return c.Issuer != "" && c.ClientID != "" && c.ClientSecret != ""
 }
 
 // DefaultConfig returns a configuration with default values
@@ -278,21 +284,37 @@ func LoadEnvOverrides(config *Config) error {
 	}
 
 	// Auth OIDC
-	if env := os.Getenv("OIDC_ISSUER"); env != "" {
+	if env := os.Getenv("DASHBRR__OIDC_ISSUER"); env != "" {
 		config.Auth.OIDC.Issuer = env
 	}
-	if env := os.Getenv("OIDC_CLIENT_ID"); env != "" {
+	if env := os.Getenv("DASHBRR__OIDC_CLIENT_ID"); env != "" {
 		config.Auth.OIDC.ClientID = env
 	}
-	if env := os.Getenv("OIDC_CLIENT_SECRET"); env != "" {
+	if env := os.Getenv("DASHBRR__OIDC_CLIENT_SECRET"); env != "" {
 		config.Auth.OIDC.ClientSecret = env
 	}
-	if env := os.Getenv("OIDC_REDIRECT_URL"); env != "" {
+	if env := os.Getenv("DASHBRR__OIDC_REDIRECT_URL"); env != "" {
 		config.Auth.OIDC.RedirectURL = env
 	}
+
+	warnRenamedOIDCVars()
 
 	// Every config path goes through this function, so it is the one place that applies the level.
 	logger.SetLevel(config.Log.Level)
 
 	return nil
+}
+
+// warnRenamedOIDCVars reports OIDC variables that still use the old, unprefixed
+// name. Dashbrr ignores those names, and without this warning an upgrade
+// disables OIDC login with nothing in the log to explain it.
+func warnRenamedOIDCVars() {
+	for _, name := range []string{"OIDC_ISSUER", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_REDIRECT_URL"} {
+		if os.Getenv(name) != "" && os.Getenv("DASHBRR__"+name) == "" {
+			log.Warn().
+				Str("old", name).
+				Str("new", "DASHBRR__"+name).
+				Msg("Ignored OIDC variable with the old name, rename it")
+		}
+	}
 }

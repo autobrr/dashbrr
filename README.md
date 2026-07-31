@@ -163,6 +163,13 @@ path = "./data/dashbrr.db"
 [log]
 # trace, debug, info, warn, error, fatal, panic
 level = "info"
+
+# Optional: OpenID Connect. You can also set these with DASHBRR__OIDC_* variables.
+# [auth.oidc]
+# issuer = "https://your-provider.com"
+# client_id = "your-client-id"
+# client_secret = "your-client-secret"
+# redirect_url = "http://localhost:3000/api/auth/oidc/callback"
 ```
 
 By default, the database file will be created in the same directory as your configuration file. For example:
@@ -236,10 +243,10 @@ Enterprise-grade authentication with support for providers like Auth0.
 Required OIDC environment variables:
 
 ```bash
-OIDC_ISSUER=https://your-provider.com
-OIDC_CLIENT_ID=your-client-id
-OIDC_CLIENT_SECRET=your-client-secret
-OIDC_REDIRECT_URL=http://localhost:3000/api/auth/oidc/callback
+DASHBRR__OIDC_ISSUER=https://your-provider.com
+DASHBRR__OIDC_CLIENT_ID=your-client-id
+DASHBRR__OIDC_CLIENT_SECRET=your-client-secret
+DASHBRR__OIDC_REDIRECT_URL=http://localhost:3000/api/auth/oidc/callback
 ```
 
 ## Tech Stack
