@@ -5,6 +5,8 @@ package maintainerr
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -108,7 +110,9 @@ func TestGetCollections_NonArrayResponseErrors(t *testing.T) {
 	server := newCollectionsServer(t, `{"id": 1, "title": "Old Movies", "isActive": true, "mediaCount": 42}`)
 
 	service := NewMaintainerrService().(*MaintainerrService)
-	if _, err := service.GetCollections(context.Background(), server.URL, "key"); err == nil {
-		t.Fatal("GetCollections() error = nil, want parse error")
+	_, err := service.GetCollections(context.Background(), server.URL, "key")
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		t.Fatalf("GetCollections() error = %v, want wrapped *json.UnmarshalTypeError", err)
 	}
 }
