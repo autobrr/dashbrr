@@ -393,8 +393,14 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	sessionTTL := time.Until(token.Expiry)
+	if sessionTTL <= 0 {
+		log.Warn().Time("token_expiry", token.Expiry).Msg("OIDC token has no usable expiry, using 24h session TTL")
+		sessionTTL = 24 * time.Hour
+	}
+
 	sessionData := types.SessionData{
-		ExpiresAt: token.Expiry,
+		ExpiresAt: time.Now().Add(sessionTTL),
 		AuthType:  "oidc",
 	}
 
@@ -408,7 +414,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	if err := h.cache.Set(ctx, sessionKey, sessionData, time.Until(token.Expiry)); err != nil {
+	if err := h.cache.Set(ctx, sessionKey, sessionData, sessionTTL); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
 			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
@@ -424,7 +430,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	c.SetCookie(
 		"session",
 		sessionID,
-		int(time.Until(token.Expiry).Seconds()),
+		int(sessionTTL.Seconds()),
 		"/",
 		"",
 		isSecure,
