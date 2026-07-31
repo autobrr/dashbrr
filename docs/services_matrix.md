@@ -1,18 +1,18 @@
 # Supported Services Matrix
 
-This matrix tracks current service support across CLI/discovery/auth and poller detail jobs.
+This matrix shows the support for each service: CLI commands, discovery, credentials, and poller detail jobs.
 
 Notes:
 
 - All configured services also receive baseline health polling.
-- Poll intervals below are for service-specific detail jobs in `internal/api/handlers/poller.go`.
-- CLI command group for the generic service is `generic`; discovery key is `general`.
+- The poll intervals in the table apply to the service-specific detail jobs in `internal/api/handlers/poller.go`.
+- The CLI command group for the generic service is `generic`. The discovery key is `general`.
 
 | Service | CLI Group | Discovery Key | Credential | Required | Detail Endpoint(s) | Poll Interval |
 | --- | --- | --- | --- | --- | --- | --- |
 | Autobrr | `autobrr` | `autobrr` | API key | Yes | `/api/autobrr/stats`, `/api/autobrr/irc`, `/api/autobrr/releases` | 120s |
 | Bazarr | `bazarr` | `bazarr` | API key | Yes | `/api/bazarr/summary` | 90s |
-| General | `generic` | `general` | API key/token | Optional | none (health only) | n/a |
+| General | `generic` | `general` | API key/token | Optional | none (the health poll also shows top-level JSON fields on the card) | n/a |
 | Jellyfin | `jellyfin` | `jellyfin` | API key | Yes | `/api/jellyfin/summary` | 10s |
 | Lidarr | `lidarr` | `lidarr` | API key | Yes | `/api/lidarr/queue` | 60s |
 | Maintainerr | `maintainerr` | `maintainerr` | API key | Yes | `/api/maintainerr/collections` | 10m |
