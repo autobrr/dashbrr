@@ -67,6 +67,12 @@ type OIDCConfig struct {
 	RedirectURL  string `toml:"redirect_url" env:"DASHBRR__OIDC_REDIRECT_URL"`
 }
 
+// IsConfigured reports whether OIDC has the three values that it needs. The
+// redirect URL has a default, so it is not part of this test.
+func (c OIDCConfig) IsConfigured() bool {
+	return c.Issuer != "" && c.ClientID != "" && c.ClientSecret != ""
+}
+
 // DefaultConfig returns a configuration with default values
 func DefaultConfig() *Config {
 	return &Config{

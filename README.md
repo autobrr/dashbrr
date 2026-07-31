@@ -163,6 +163,13 @@ path = "./data/dashbrr.db"
 [log]
 # trace, debug, info, warn, error, fatal, panic
 level = "info"
+
+# Optional: OpenID Connect. You can also set these with DASHBRR__OIDC_* variables.
+# [auth.oidc]
+# issuer = "https://your-provider.com"
+# client_id = "your-client-id"
+# client_secret = "your-client-secret"
+# redirect_url = "http://localhost:3000/api/auth/oidc/callback"
 ```
 
 By default, the database file will be created in the same directory as your configuration file. For example:

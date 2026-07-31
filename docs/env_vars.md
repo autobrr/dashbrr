@@ -98,6 +98,8 @@ Only needed if you serve the web UI from a different origin than the API (differ
 
 CAUTION: These four variables had no prefix before. If you use `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, or `OIDC_REDIRECT_URL`, add the `DASHBRR__` prefix. Dashbrr ignores the old names and writes a warning at startup.
 
+You can also set these four values in `config.toml`, under `[auth.oidc]`, as `issuer`, `client_id`, `client_secret`, and `redirect_url`. The environment variables have priority.
+
 - `DASHBRR__OIDC_ISSUER`
 
   - Purpose: Your OIDC provider's issuer URL
