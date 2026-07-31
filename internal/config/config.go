@@ -12,6 +12,8 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/rs/zerolog/log"
+
+	"github.com/autobrr/dashbrr/internal/logger"
 )
 
 const (
@@ -23,6 +25,12 @@ type Config struct {
 	Server   ServerConfig   `toml:"server"`
 	Database DatabaseConfig `toml:"database"`
 	Auth     AuthConfig     `toml:"auth"`
+	Log      LogConfig      `toml:"log"`
+}
+
+// LogConfig holds logging-related configuration
+type LogConfig struct {
+	Level string `toml:"level" env:"DASHBRR__LOG_LEVEL"`
 }
 
 // ServerConfig holds server-related configuration
@@ -74,6 +82,7 @@ func DefaultConfig() *Config {
 			Type: "sqlite",
 			Path: "./data/dashbrr.db",
 		},
+		Log: LogConfig{Level: "info"},
 	}
 }
 
@@ -263,6 +272,11 @@ func LoadEnvOverrides(config *Config) error {
 		config.Database.Name = env
 	}
 
+	// Log
+	if env := os.Getenv("DASHBRR__LOG_LEVEL"); env != "" {
+		config.Log.Level = env
+	}
+
 	// Auth OIDC
 	if env := os.Getenv("OIDC_ISSUER"); env != "" {
 		config.Auth.OIDC.Issuer = env
@@ -276,6 +290,9 @@ func LoadEnvOverrides(config *Config) error {
 	if env := os.Getenv("OIDC_REDIRECT_URL"); env != "" {
 		config.Auth.OIDC.RedirectURL = env
 	}
+
+	// Every config path goes through this function, so it is the one place that applies the level.
+	logger.SetLevel(config.Log.Level)
 
 	return nil
 }
