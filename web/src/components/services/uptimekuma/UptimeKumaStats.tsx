@@ -4,19 +4,56 @@
  */
 
 import React from "react";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/20/solid";
 
 import { useServiceData } from "../../../hooks/useServiceData";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { ArrMessage } from "../common/ArrMessage";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
-import { CollapsibleSection } from "../../ui/CollapsibleSection";
-import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
-import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import type { UptimeKumaSummary } from "../../../types/service";
+import {
+  buildUptimeKumaDashboardURL,
+  buildUptimeKumaMonitorURL,
+  getUptimeKumaMonitorView,
+  resolveUptimeKumaBaseURL,
+  type UptimeKumaFilter
+} from "./uptimeKumaView";
 
 interface UptimeKumaStatsProps {
   instanceId: string;
 }
+
+interface UptimeKumaCounts {
+  total: number;
+  up: number;
+  down: number;
+  pending: number;
+  maintenance: number;
+}
+
+interface UptimeKumaStatsViewProps {
+  baseURL: string | null;
+  counts: UptimeKumaCounts;
+  summary: UptimeKumaSummary;
+}
+
+const FILTER_TILES: Array<{
+  filter: UptimeKumaFilter;
+  label: string;
+  valueClass: string;
+  layoutClass?: string;
+}> = [
+  { filter: "total", label: "Total", valueClass: "text-zinc-100" },
+  { filter: "up", label: "Up", valueClass: "text-emerald-300" },
+  { filter: "down", label: "Down", valueClass: "text-red-300" },
+  { filter: "pending", label: "Pending", valueClass: "text-amber-300" },
+  {
+    filter: "maintenance",
+    label: "Maintenance",
+    valueClass: "text-blue-300",
+    layoutClass: "col-span-2 sm:col-span-1",
+  },
+];
 
 const EMPTY_SUMMARY: UptimeKumaSummary = {
   monitors: [],
@@ -55,16 +92,147 @@ const statusBadgeClass = (status: string): string => {
   }
 };
 
+export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
+  baseURL,
+  counts,
+  summary,
+}) => {
+  const monitorViewTitleID = React.useId();
+  const [selectedFilter, setSelectedFilter] = React.useState<UptimeKumaFilter | null>(
+    null
+  );
+  const activeFilter = selectedFilter && counts[selectedFilter] > 0
+    ? selectedFilter
+    : null;
+  const monitorView = getUptimeKumaMonitorView(summary.monitors, activeFilter);
+  const dashboardURL = buildUptimeKumaDashboardURL(baseURL);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+        {FILTER_TILES.map(({ filter, label, valueClass, layoutClass = "" }) => {
+          const count = counts[filter];
+          const isActive = activeFilter === filter;
+
+          return (
+            <button
+              key={filter}
+              type="button"
+              disabled={count === 0}
+              aria-label={`${label} ${count}`}
+              aria-pressed={isActive}
+              onClick={() =>
+                setSelectedFilter((currentFilter) =>
+                  currentFilter === filter ? null : filter
+                )
+              }
+              className={`rounded-md bg-zinc-900/80 px-3.5 py-2 text-left text-xs outline-none transition-[background-color,box-shadow,transform] duration-150 enabled:hover:bg-zinc-900 enabled:active:translate-y-px enabled:focus-visible:ring-2 enabled:focus-visible:ring-blue-500/70 disabled:cursor-default disabled:opacity-60 ${
+                isActive ? "bg-zinc-900 ring-1 ring-inset ring-zinc-500/80" : ""
+              } ${layoutClass}`}
+            >
+              <div className="text-zinc-400">{label}</div>
+              <div className={`mt-0.5 ${valueClass}`}>{count}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      {monitorView.totalCount > 0 && (
+        <section aria-labelledby={monitorViewTitleID}>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <h4
+              id={monitorViewTitleID}
+              className="text-xs font-semibold text-zinc-200"
+            >
+              {monitorView.title}
+            </h4>
+            <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-400">
+              <span>
+                Showing {monitorView.monitors.length} of {monitorView.totalCount}
+              </span>
+              {monitorView.monitors.length < monitorView.totalCount && dashboardURL && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <a
+                    href={dashboardURL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 transition-colors hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
+                  >
+                    Open Uptime Kuma
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="divide-y divide-zinc-700/60 border-y border-zinc-700/60">
+            {monitorView.monitors.map((monitor) => {
+              const monitorURL = buildUptimeKumaMonitorURL(baseURL, monitor.id);
+              const rowClassName =
+                "flex items-center justify-between gap-3 px-1 py-2.5 text-xs";
+              const rowContent = (
+                <>
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-zinc-200 transition-colors group-hover/monitor:text-blue-300">
+                      {monitor.name}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-zinc-400">
+                      <span className="truncate">{monitor.type || "monitor"}</span>
+                      {typeof monitor.responseTimeMs === "number" &&
+                      monitor.responseTimeMs > 0 && (
+                        <span>{monitor.responseTimeMs}ms</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`inline-flex rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(
+                        monitor.status
+                      )}`}
+                    >
+                      {humanizeStatus(monitor.status)}
+                    </span>
+                    {monitorURL && (
+                      <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 text-zinc-600 transition-colors group-hover/monitor:text-blue-400" />
+                    )}
+                  </div>
+                </>
+              );
+
+              if (!monitorURL) {
+                return (
+                  <div key={monitor.id} className={rowClassName}>
+                    {rowContent}
+                  </div>
+                );
+              }
+
+              return (
+                <a
+                  key={monitor.id}
+                  href={monitorURL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${monitor.name}, ${monitor.type || "monitor"}, ${humanizeStatus(
+                    monitor.status
+                  )} in Uptime Kuma`}
+                  className={`group/monitor ${rowClassName} transition-colors hover:bg-zinc-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
+                >
+                  {rowContent}
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+};
+
 export const UptimeKumaStats: React.FC<UptimeKumaStatsProps> = ({ instanceId }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const summary = service?.stats?.uptimekuma?.summary ?? EMPTY_SUMMARY;
-
-  const { isExpanded: issuesExpanded, toggle: toggleIssues } =
-    useCollapsiblePreference(
-      serviceSectionCollapseKey(instanceId, "uptimekuma:issues"),
-      true
-    );
 
   const isInitialLoading =
     service?.status === "loading" && !service?.stats?.uptimekuma?.summary;
@@ -86,75 +254,16 @@ export const UptimeKumaStats: React.FC<UptimeKumaStatsProps> = ({ instanceId }) 
   const maintenance =
     service.details?.uptimekuma?.maintenance ??
     countByStatus(summary, "maintenance");
-
-  const issueMonitors = summary.monitors.filter(
-    (monitor) => monitor.status === "down" || monitor.status === "pending"
-  );
+  const baseURL = resolveUptimeKumaBaseURL(service.accessUrl, service.url);
 
   return (
     <div className="space-y-4">
       <ArrMessage status={service.status} message={message} />
-
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
-        <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Total</div>
-          <div className="mt-0.5 text-zinc-100">{total}</div>
-        </div>
-        <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Up</div>
-          <div className="mt-0.5 text-emerald-300">{up}</div>
-        </div>
-        <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Down</div>
-          <div className="mt-0.5 text-red-300">{down}</div>
-        </div>
-        <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Pending</div>
-          <div className="mt-0.5 text-amber-300">{pending}</div>
-        </div>
-        <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs col-span-2 sm:col-span-1">
-          <div className="text-zinc-400">Maintenance</div>
-          <div className="mt-0.5 text-blue-300">{maintenance}</div>
-        </div>
-      </div>
-
-      {issueMonitors.length > 0 && (
-        <CollapsibleSection
-          title="Monitors With Issues"
-          meta={`${issueMonitors.length}`}
-          isExpanded={issuesExpanded}
-          onToggle={toggleIssues}
-        >
-          <div className="space-y-1.5">
-            {issueMonitors.slice(0, 10).map((monitor) => (
-              <div
-                key={monitor.id}
-                className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="truncate font-medium text-zinc-200">
-                    {monitor.name}
-                  </div>
-                  <span
-                    className={`inline-flex rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(
-                      monitor.status
-                    )}`}
-                  >
-                    {humanizeStatus(monitor.status)}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-2 text-zinc-400">
-                  <span className="truncate">{monitor.type || "monitor"}</span>
-                  {typeof monitor.responseTimeMs === "number" &&
-                    monitor.responseTimeMs > 0 && (
-                    <span>{monitor.responseTimeMs}ms</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
+      <UptimeKumaStatsView
+        baseURL={baseURL}
+        counts={{ total, up, down, pending, maintenance }}
+        summary={summary}
+      />
     </div>
   );
 };
