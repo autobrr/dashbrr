@@ -296,3 +296,62 @@ func TestCheckHealth_SummarizesInstanceState(t *testing.T) {
 		t.Fatal("health details should not include qui.summary to avoid overwriting overview metrics")
 	}
 }
+
+// Current qui serves the all-time totals from transfer-info itself. Requesting the
+// torrent list on top of that makes qui filter and sort its whole torrent set for
+// two numbers it already sent, so the extra request must not happen at all.
+func TestGetAggregatedTransferInfo_UsesTransferInfoTotals(t *testing.T) {
+	t.Parallel()
+
+	var torrentRequests atomic.Int64
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-API-Key") != "test-key" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/instances/1/transfer-info":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"connection_status":"connected",
+				"dht_nodes":72,
+				"dl_info_data":1000,
+				"dl_info_speed":1200,
+				"dl_rate_limit":0,
+				"up_info_data":500,
+				"up_info_speed":300,
+				"up_rate_limit":0,
+				"alltime_dl":5000,
+				"alltime_ul":3000
+			}`))
+		case "/api/instances/1/torrents":
+			torrentRequests.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"serverState":{"alltime_dl":1,"alltime_ul":1}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	summary, transfers := newQuiTestService().GetAggregatedTransferInfo(
+		context.Background(),
+		server.URL,
+		"test-key",
+		[]types.QuiInstance{{ID: 1, Name: "Main", IsActive: true, Connected: true}},
+	)
+
+	if got := torrentRequests.Load(); got != 0 {
+		t.Fatalf("torrent list requests = %d, want 0", got)
+	}
+	if summary.Downloaded != 5000 || summary.Uploaded != 3000 {
+		t.Fatalf("unexpected data totals: dl=%d up=%d", summary.Downloaded, summary.Uploaded)
+	}
+	if summary.DownloadSpeed != 1200 || summary.UploadSpeed != 300 {
+		t.Fatalf("unexpected speed totals: dl=%d up=%d", summary.DownloadSpeed, summary.UploadSpeed)
+	}
+	if len(transfers) != 1 || transfers[0].Downloaded != 5000 || transfers[0].Uploaded != 3000 {
+		t.Fatalf("unexpected transfers: %#v", transfers)
+	}
+}
