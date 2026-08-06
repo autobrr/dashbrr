@@ -27,6 +27,10 @@ type QuiTransferInfo struct {
 	Uploaded         int64  `json:"up_info_data"`
 	UploadSpeed      int64  `json:"up_info_speed"`
 	UploadRate       int64  `json:"up_rate_limit"`
+
+	// Nil against qui versions whose transfer-info endpoint omits the totals.
+	AllTimeDownloaded *int64 `json:"alltime_dl"`
+	AllTimeUploaded   *int64 `json:"alltime_ul"`
 }
 
 type QuiInstanceTransfer struct {

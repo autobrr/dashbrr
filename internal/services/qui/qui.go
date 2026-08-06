@@ -129,6 +129,23 @@ func (s *QuiService) GetTransferInfo(ctx context.Context, url, apiKey string, in
 	return &info, nil
 }
 
+// allTimeTotalsFromTransferInfo returns nil when qui did not report the totals,
+// sending the caller to the fallback. Both fields must be present: a half-filled
+// response would report one total as zero.
+func allTimeTotalsFromTransferInfo(info *types.QuiTransferInfo) *quiServerState {
+	if info == nil || info.AllTimeDownloaded == nil || info.AllTimeUploaded == nil {
+		return nil
+	}
+
+	return &quiServerState{
+		AllTimeDownloaded: *info.AllTimeDownloaded,
+		AllTimeUploaded:   *info.AllTimeUploaded,
+	}
+}
+
+// GetAllTimeTotals reads the all-time totals from a torrent list request. This is
+// the fallback for qui versions whose transfer-info endpoint omits them: it makes
+// qui filter and sort its whole torrent set to answer two numbers.
 func (s *QuiService) GetAllTimeTotals(ctx context.Context, url, apiKey string, instanceID int) (*quiServerState, error) {
 	var response quiTorrentsResponse
 	_, err := s.requestJSON(
@@ -240,19 +257,24 @@ func (s *QuiService) GetAggregatedTransferInfo(ctx context.Context, url, apiKey 
 		instanceID := transfers[idx].InstanceID
 		group.Go(func() error {
 			info, infoErr := s.GetTransferInfo(groupCtx, url, apiKey, instanceID)
-			allTimeTotals, allTimeErr := s.GetAllTimeTotals(groupCtx, url, apiKey, instanceID)
-
 			if infoErr != nil {
 				log.Debug().
 					Err(infoErr).
 					Str("instance", strconv.Itoa(instanceID)).
 					Msg("qui transfer-info fetch failed")
 			}
-			if allTimeErr != nil {
-				log.Debug().
-					Err(allTimeErr).
-					Str("instance", strconv.Itoa(instanceID)).
-					Msg("qui all-time totals fetch failed")
+
+			// Current qui reports the all-time totals in transfer-info itself.
+			allTimeTotals := allTimeTotalsFromTransferInfo(info)
+			if allTimeTotals == nil {
+				var allTimeErr error
+				allTimeTotals, allTimeErr = s.GetAllTimeTotals(groupCtx, url, apiKey, instanceID)
+				if allTimeErr != nil {
+					log.Debug().
+						Err(allTimeErr).
+						Str("instance", strconv.Itoa(instanceID)).
+						Msg("qui all-time totals fetch failed")
+				}
 			}
 
 			if info == nil && allTimeTotals == nil {
