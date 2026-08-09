@@ -202,7 +202,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	}
 
 	// Create session
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(sessionTTL)
 	sessionData := types.SessionData{
 		ExpiresAt: expiresAt,
 		UserID:    user.ID,
@@ -210,7 +210,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	}
 
 	// Store session in cache
-	if err := h.cache.Set(ctx, sessionCacheKey(sessionToken), sessionData, time.Until(expiresAt)); err != nil {
+	if err := h.cache.Set(ctx, sessionCacheKey(sessionToken), sessionData, sessionTTL); err != nil {
 		log.Error().Err(err).Msg("failed to store session in cache")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
@@ -220,7 +220,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	c.SetCookie(
 		"session",
 		sessionToken,
-		int(time.Until(expiresAt).Seconds()),
+		int(sessionTTL.Seconds()),
 		"/",
 		"",
 		isSecureRequest(c), // Secure
@@ -230,7 +230,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"access_token": sessionToken,
 		"token_type":   "Bearer",
-		"expires_in":   int(time.Until(expiresAt).Seconds()),
+		"expires_in":   int(sessionTTL.Seconds()),
 		"user": gin.H{
 			"id":       user.ID,
 			"username": user.Username,

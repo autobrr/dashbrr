@@ -38,6 +38,9 @@ type AuthHandler struct {
 
 const oidcSessionLookupTimeout = 5 * time.Second
 
+// Independent of the OIDC provider token, which is discarded after login.
+const sessionTTL = 30 * 24 * time.Hour
+
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	httpClient := &http.Client{Timeout: 1 * time.Second}
 
@@ -391,12 +394,6 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		log.Error().Msg("id_token nonce mismatch")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_nonce", frontendUrl))
 		return
-	}
-
-	sessionTTL := time.Until(token.Expiry)
-	if sessionTTL <= 0 {
-		log.Warn().Time("token_expiry", token.Expiry).Msg("OIDC token has no usable expiry, using 24h session TTL")
-		sessionTTL = 24 * time.Hour
 	}
 
 	sessionData := types.SessionData{
