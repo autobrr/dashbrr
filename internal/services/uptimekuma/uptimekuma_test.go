@@ -83,6 +83,36 @@ monitor_response_time{monitor_id="2",monitor_name="DB"} -1`
 	}
 }
 
+func TestParseSummaryFromMetrics_LabelValuesWithSpaces(t *testing.T) {
+	t.Parallel()
+
+	// Uptime Kuma passes monitor names through to labels unsanitized, so a
+	// space in a name must not split the line. Label set and value formatting
+	// match uptime-kuma server/prometheus.js.
+	metrics := `monitor_status{monitor_id="1",monitor_name="My Media Server",monitor_type="http",monitor_url="https://media.example",monitor_hostname="null",monitor_port="null"} 1
+monitor_response_time{monitor_id="1",monitor_name="My Media Server",monitor_type="http",monitor_url="https://media.example",monitor_hostname="null",monitor_port="null"} 12
+monitor_status{monitor_id="2",monitor_name="Docker qbittorrent",monitor_type="docker",monitor_url="https://",monitor_hostname="null",monitor_port="null"} 0
+monitor_response_time{monitor_id="2",monitor_name="Docker qbittorrent",monitor_type="docker",monitor_url="https://",monitor_hostname="null",monitor_port="null"} -1`
+
+	summary, err := parseSummaryFromMetrics(metrics)
+	if err != nil {
+		t.Fatalf("parseSummaryFromMetrics() error = %v", err)
+	}
+
+	if len(summary.Monitors) != 2 {
+		t.Fatalf("monitor count = %d, want 2", len(summary.Monitors))
+	}
+	if summary.Monitors[0].Name != "Docker qbittorrent" || summary.Monitors[0].Status != "down" {
+		t.Fatalf("monitor[0] = %+v, want Docker qbittorrent down", summary.Monitors[0])
+	}
+	if summary.Monitors[1].Name != "My Media Server" || summary.Monitors[1].Status != "up" {
+		t.Fatalf("monitor[1] = %+v, want My Media Server up", summary.Monitors[1])
+	}
+	if summary.Monitors[1].ResponseTimeMs != 12 {
+		t.Fatalf("monitor[1].responseTimeMs = %d, want 12", summary.Monitors[1].ResponseTimeMs)
+	}
+}
+
 func TestCheckHealth_DownMonitorReturnsWarning(t *testing.T) {
 	t.Parallel()
 

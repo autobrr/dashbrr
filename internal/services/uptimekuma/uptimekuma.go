@@ -218,33 +218,26 @@ func parseSummaryFromMetrics(metrics string) (types.UptimeKumaSummaryResponse, e
 }
 
 func parseMetricLine(line string) (string, map[string]string, float64, bool) {
-	fields := strings.Fields(line)
-	if len(fields) < 2 {
-		return "", nil, 0, false
-	}
-
-	value, err := strconv.ParseFloat(fields[1], 64)
-	if err != nil {
-		return "", nil, 0, false
-	}
-
-	metric := fields[0]
-	if !strings.Contains(metric, "{") {
-		return metric, map[string]string{}, value, true
-	}
-
-	start := strings.IndexByte(metric, '{')
-	end := strings.LastIndexByte(metric, '}')
+	// Label values may contain spaces, so read the value after the closing
+	// brace instead of splitting the line on whitespace.
+	start := strings.IndexByte(line, '{')
+	end := strings.LastIndexByte(line, '}')
 	if start <= 0 || end <= start {
 		return "", nil, 0, false
 	}
 
-	labels, err := parsePrometheusLabels(metric[start+1 : end])
+	valueStr, _, _ := strings.Cut(strings.TrimSpace(line[end+1:]), " ")
+	value, err := strconv.ParseFloat(valueStr, 64)
 	if err != nil {
 		return "", nil, 0, false
 	}
 
-	return metric[:start], labels, value, true
+	labels, err := parsePrometheusLabels(line[start+1 : end])
+	if err != nil {
+		return "", nil, 0, false
+	}
+
+	return line[:start], labels, value, true
 }
 
 func parsePrometheusLabels(raw string) (map[string]string, error) {
