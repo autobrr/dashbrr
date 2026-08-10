@@ -2,12 +2,12 @@ import { expect, test } from "@playwright/test";
 
 const HARNESS_PATH = "/tests/browser/uptimekuma-card-harness.html";
 
-test("issues auto-open with a five-row cap", async ({ page }) => {
+test("issues auto-open and every row stays reachable", async ({ page }) => {
   await page.goto(HARNESS_PATH);
   const card = page.getByTestId("primary-card");
 
   await expect(card.getByRole("heading", { name: "Needs Attention" })).toBeVisible();
-  await expect(card.getByRole("link", { name: /Open .* in Uptime Kuma/ })).toHaveCount(5);
+  await expect(card.getByRole("link", { name: /Open .* in Uptime Kuma/ })).toHaveCount(7);
   const cacheLink = card.getByRole("link", {
     name: "Open Cache, redis, Down in Uptime Kuma",
   });
@@ -17,13 +17,18 @@ test("issues auto-open with a five-row cap", async ({ page }) => {
   );
   await expect(cacheLink).toHaveAttribute("target", "_blank");
   await expect(cacheLink).toHaveAttribute("rel", "noopener noreferrer");
-  await expect(card.getByText("Showing 5 of 7")).toBeVisible();
+  await expect(card.getByText("7 monitors")).toBeVisible();
   await expect(card.getByRole("link", { name: "Open Uptime Kuma" })).toHaveAttribute(
     "href",
     "https://kuma.example/internal/dashboard"
   );
   await expect(card.getByText("API", { exact: true })).toHaveCount(0);
-  await expect(card.getByText("Worker", { exact: true })).toHaveCount(0);
+
+  const worker = card.getByRole("link", {
+    name: "Open Worker, docker, Pending in Uptime Kuma",
+  });
+  await worker.scrollIntoViewIfNeeded();
+  await expect(worker).toBeVisible();
 });
 
 test("all nonzero stat tiles filter the monitor list", async ({ page }) => {
@@ -97,6 +102,23 @@ test("each monitor list has a unique accessible label", async ({ page }) => {
       sections.map((section) => section.getAttribute("aria-labelledby"))
     );
 
-  expect(labelledSections).toHaveLength(2);
-  expect(new Set(labelledSections).size).toBe(2);
+  expect(labelledSections).toHaveLength(3);
+  expect(new Set(labelledSections).size).toBe(3);
+});
+
+test("stat tile labels stay readable in a narrow card", async ({ page }) => {
+  await page.goto(HARNESS_PATH);
+
+  const label = page
+    .getByTestId("narrow-card")
+    .getByRole("button", { name: "Maintenance 1" })
+    .locator("div")
+    .first();
+
+  // The tile grid keys off the card width, not the viewport, so a narrow card
+  // drops to two columns instead of clipping the longest label.
+  const overflow = await label.evaluate(
+    (node) => node.scrollWidth - node.clientWidth
+  );
+  expect(overflow).toBe(0);
 });

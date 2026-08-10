@@ -5,8 +5,6 @@
 
 import type { UptimeKumaMonitor } from "../../../types/service";
 
-export const UPTIME_KUMA_MONITOR_ROW_LIMIT = 5;
-
 export type UptimeKumaFilter =
   | "total"
   | "up"
@@ -16,7 +14,6 @@ export type UptimeKumaFilter =
 
 export interface UptimeKumaMonitorView {
   title: string;
-  totalCount: number;
   monitors: UptimeKumaMonitor[];
 }
 
@@ -103,7 +100,6 @@ export const getUptimeKumaMonitorView = (
 
   return {
     title,
-    totalCount: filteredMonitors.length,
-    monitors: sortedMonitors.slice(0, UPTIME_KUMA_MONITOR_ROW_LIMIT),
+    monitors: sortedMonitors,
   };
 };

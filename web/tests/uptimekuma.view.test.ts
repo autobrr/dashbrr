@@ -21,7 +21,6 @@ test("default monitor view contains only monitors needing attention", () => {
   const view = getUptimeKumaMonitorView(monitors, null);
 
   assert.equal(view.title, "Needs Attention");
-  assert.equal(view.totalCount, 2);
   assert.deepEqual(
     view.monitors.map((monitor) => monitor.id),
     ["2", "3"]
@@ -44,30 +43,11 @@ test("explicit monitor filters return only their matching status", () => {
   for (const { filter, title, ids } of cases) {
     const view = getUptimeKumaMonitorView(monitors, filter);
     assert.equal(view.title, title);
-    assert.equal(view.totalCount, ids.length);
     assert.deepEqual(
       view.monitors.map((monitor) => monitor.id),
       ids
     );
   }
-});
-
-test("monitor views cap rendered rows without losing the total count", () => {
-  const downMonitors: UptimeKumaMonitor[] = Array.from(
-    { length: 7 },
-    (_, index) => ({
-      id: String(index + 1),
-      name: `Monitor ${index + 1}`,
-      status: "down",
-    })
-  );
-  const view = getUptimeKumaMonitorView(downMonitors, "down");
-
-  assert.equal(view.totalCount, 7);
-  assert.deepEqual(
-    view.monitors.map((monitor) => monitor.id),
-    ["1", "2", "3", "4", "5"]
-  );
 });
 
 test("default monitor view prioritizes down before pending", () => {
