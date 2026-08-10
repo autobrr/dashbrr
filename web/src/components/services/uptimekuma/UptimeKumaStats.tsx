@@ -51,7 +51,7 @@ const FILTER_TILES: Array<{
     filter: "maintenance",
     label: "Maintenance",
     valueClass: "text-blue-300",
-    layoutClass: "col-span-2 sm:col-span-1",
+    layoutClass: "col-span-2 @md:col-span-1",
   },
 ];
 
@@ -109,7 +109,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-1.5 @md:grid-cols-5">
         {FILTER_TILES.map(({ filter, label, valueClass, layoutClass = "" }) => {
           const count = counts[filter];
           const isActive = activeFilter === filter;
@@ -137,7 +137,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
         })}
       </div>
 
-      {monitorView.totalCount > 0 && (
+      {monitorView.monitors.length > 0 && (
         <section aria-labelledby={monitorViewTitleID}>
           <div className="mb-1.5 flex items-center justify-between gap-3">
             <h4
@@ -147,10 +147,8 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
               {monitorView.title}
             </h4>
             <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-400">
-              <span>
-                Showing {monitorView.monitors.length} of {monitorView.totalCount}
-              </span>
-              {monitorView.monitors.length < monitorView.totalCount && dashboardURL && (
+              <span>{monitorView.monitors.length} monitors</span>
+              {dashboardURL && (
                 <>
                   <span aria-hidden="true">·</span>
                   <a
@@ -165,7 +163,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
               )}
             </div>
           </div>
-          <div className="divide-y divide-zinc-700/60 border-y border-zinc-700/60">
+          <div className="max-h-80 overflow-y-auto scrollbar-small divide-y divide-zinc-700/60 border-y border-zinc-700/60">
             {monitorView.monitors.map((monitor) => {
               const monitorURL = buildUptimeKumaMonitorURL(baseURL, monitor.id);
               const rowClassName =

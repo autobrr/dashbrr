@@ -25,7 +25,7 @@ createRoot(app).render(
   <main className="mx-auto max-w-3xl space-y-6">
     <section
       data-testid="primary-card"
-      className="rounded-lg border border-zinc-700 bg-zinc-800 p-4"
+      className="@container rounded-lg border border-zinc-700 bg-zinc-800 p-4"
     >
       <UptimeKumaStatsView
         baseURL="https://kuma.example/internal"
@@ -35,12 +35,22 @@ createRoot(app).render(
     </section>
     <section
       data-testid="zero-count-card"
-      className="rounded-lg border border-zinc-700 bg-zinc-800 p-4"
+      className="@container rounded-lg border border-zinc-700 bg-zinc-800 p-4"
     >
       <UptimeKumaStatsView
         baseURL={null}
         counts={{ total: 1, up: 1, down: 0, pending: 0, maintenance: 0 }}
         summary={{ monitors: monitors.slice(0, 1) }}
+      />
+    </section>
+    <section
+      data-testid="narrow-card"
+      className="@container w-72 rounded-lg border border-zinc-700 bg-zinc-800 p-4"
+    >
+      <UptimeKumaStatsView
+        baseURL={null}
+        counts={{ total: 9, up: 1, down: 6, pending: 1, maintenance: 1 }}
+        summary={{ monitors }}
       />
     </section>
   </main>
