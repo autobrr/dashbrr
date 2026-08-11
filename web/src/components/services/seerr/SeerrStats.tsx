@@ -84,7 +84,7 @@ export const SeerrStats: React.FC<SeerrStatsProps> = ({
     null
   );
   const { isExpanded, toggle } = useCollapsiblePreference(
-    serviceSectionCollapseKey(instanceId, "seerr:recent_requests"),
+    serviceSectionCollapseKey(instanceId, "overseerr:recent_requests"),
     true
   );
 
