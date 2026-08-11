@@ -4,6 +4,7 @@
  */
 
 import React from "react";
+import { TFunction } from "i18next";
 
 import { useServiceData } from "../../../hooks/useServiceData";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
@@ -18,7 +19,7 @@ interface TraefikStatsProps {
   instanceId: string;
 }
 
-const renderFeature = (value: string | undefined, t: any): string =>
+const renderFeature = (value: string | undefined, t: TFunction): string =>
   value && value.trim() ? value : t("traefik.off", "Off");
 
 const formatDuration = (seconds?: number): string => {

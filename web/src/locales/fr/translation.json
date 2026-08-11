@@ -19,9 +19,7 @@
     "pending": "En attente",
     "unknown": "Inconnu",
     "healthy": "En bonne santé",
-    "unhealthy": "En panne",
-    "offline": "Hors ligne",
-    "warning": "Avertissement"
+    "unhealthy": "En panne"
   },
   "errors": {
     "ERR_CONFIGURATION": "Erreur de configuration",
@@ -45,7 +43,9 @@
     "disconnected": "DÉCONNECTÉ",
     "disconnected_backend": "Déconnecté du backend",
     "needs_configuration": "Cliquez sur l'icône d'engrenage pour configurer ce service",
-    "configure_service": "Configurer {{name}}"
+    "configure_service": "Configurer {{name}}",
+    "adding": "Ajout en cours...",
+    "offline_msg": "Le service est hors ligne"
   },
   "qui": {
     "combined_speed": "Vitesse combinée",
@@ -80,6 +80,7 @@
     "unknown_issue": "Problème inconnu"
   },
   "common": {
+    "language_selector": "Changer de langue",
     "queue": "File d'attente ({{count}}) :",
     "view_in": "Voir dans {{name}}",
     "manage_queue": "Gérer la file d'attente",
@@ -201,7 +202,8 @@
     "maintenance": "Maintenance",
     "monitors": "{{count}} moniteurs",
     "open": "Ouvrir Uptime Kuma",
-    "monitor": "moniteur"
+    "monitor": "moniteur",
+    "open_monitor": "Ouvrir {{name}}, {{type}}, {{status}} dans Uptime Kuma"
   },
   "overseerr": {
     "pending_requests": "Demandes en attente :",
@@ -238,5 +240,9 @@
     "requested_by": "Demandé par :",
     "date_requested": "Date de la demande :",
     "confirm_action": "Êtes-vous sûr de vouloir {{action}} cette demande ?"
+  },
+  "overseerr": {
+    "request_approved": "Demande pour {{title}} approuvée avec succès",
+    "request_rejected": "Demande pour {{title}} rejetée avec succès"
   }
 }

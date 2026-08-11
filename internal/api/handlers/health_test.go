@@ -111,6 +111,24 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 			expectedCode: http.StatusOK,
 			expectedBody: gin.H{"status": "healthy"},
 		},
+		{
+			name:      "Service Not Configured",
+			serviceID: "autobrr-empty",
+			mockDBResponse: func(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+				return &models.ServiceConfiguration{
+					ID:         2,
+					InstanceID: "autobrr-empty",
+					URL:        "",
+					APIKey:     "test-key",
+				}, nil
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: gin.H{
+				"status":  "offline",
+				"message": models.ErrNotConfigured,
+				"serviceId": "autobrr-empty",
+			},
+		},
 	}
 
 	for _, tt := range tests {

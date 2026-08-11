@@ -117,21 +117,28 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   isInitialLoad = false,
   isConnected = true,
 }) => {
+  const { t } = useTranslation();
+
+  const effectiveStatus = isInitialLoad ? "loading" : !isConnected ? "disconnected" : status;
+
   const statusDisplay: StatusDisplay = isInitialLoad
-    ? { text: "Loading", color: "text-blue-500 dark:text-blue-400", icon: "⟳" }
+    ? { text: t("status.loading", "Loading"), color: "text-blue-500 dark:text-blue-400", icon: "⟳" }
     : !isConnected
       ? {
-        text: "Disconnected",
+        text: t("status.disconnected", "Disconnected"),
         color: "text-amber-500 dark:text-amber-300",
         icon: "⚠",
       }
-      : STATUS_DISPLAY_MAP[status] || UNKNOWN_STATUS_DISPLAY;
-  const { t } = useTranslation();
+      : {
+        ...(STATUS_DISPLAY_MAP[status] || UNKNOWN_STATUS_DISPLAY),
+        text: t(`status.${effectiveStatus}`, (STATUS_DISPLAY_MAP[status] || UNKNOWN_STATUS_DISPLAY).text),
+      };
+
   const shouldShowMessage = message && (status !== "online" || !isConnected);
   const displayMessage = isInitialLoad
-    ? t("status.loading")
+    ? t("status.loading", "Loading")
     : !isConnected
-      ? "Connection to server lost"
+      ? t("errors.ERR_CONNECTION", "Connection to server lost")
       : (message?.startsWith("ERR_") ? t(`errors.${message}`, message) : message) || "";
 
   const formatMessage = (msg: string) => {

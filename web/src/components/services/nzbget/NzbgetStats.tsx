@@ -4,6 +4,7 @@
  */
 
 import React from "react";
+import { TFunction } from "i18next";
 
 import { useServiceData } from "../../../hooks/useServiceData";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
@@ -62,7 +63,7 @@ const formatBytes = (value: number): string => {
 
 const formatSpeed = (value: number): string => `${formatBytes(value)}/s`;
 
-const formatStatus = (summary: NzbgetSummary, t?: any): string => {
+const formatStatus = (summary: NzbgetSummary, t?: TFunction): string => {
   if (summary.status.DownloadPaused) return t?.("nzbget.paused", "Paused") || "Paused";
   if (summary.status.ServerStandBy) return t?.("nzbget.standby", "Standby") || "Standby";
   return t?.("nzbget.running", "Running") || "Running";

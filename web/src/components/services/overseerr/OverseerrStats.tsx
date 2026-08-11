@@ -38,7 +38,7 @@ const EMPTY_REQUESTS: OverseerrMediaRequest[] = [];
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const serviceRequests = service?.stats?.overseerr?.requests ?? EMPTY_REQUESTS;
@@ -108,11 +108,16 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       // Optimistic UI: override status locally; SSE refresh will reconcile.
       setStatusOverrides((prev) => ({ ...prev, [selectedRequest.id]: status }));
 
+      const title = selectedRequest.media.title || "media";
+      const successMsg = modalAction === "approve"
+        ? t("overseerr.request_approved", { title, defaultValue: `Successfully approved request for ${title}` })
+        : t("overseerr.request_rejected", { title, defaultValue: `Successfully rejected request for ${title}` });
+
       // Show success toast
       toast.custom((t_toast) => (
         <Toast
           type="success"
-          body={t("overseerr.successfully", { action: modalAction, title: selectedRequest.media.title || "media", defaultValue: `Successfully ${modalAction}d request for ${selectedRequest.media.title || "media"}` })}
+          body={successMsg}
           t={t_toast}
         />
       ));
@@ -144,7 +149,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, {
+    return date.toLocaleDateString(i18n.language, {
       month: "short",
       day: "numeric",
     });
@@ -259,7 +264,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
               <span className="flex items-center gap-2 bg-gray-800/50 -ml-1 px-1.5 py-0.5 rounded">
-                {getMediaType(request) === "Show" ? (
+                {request.media.tvdbId != null ? (
                   <FaTv className="h-3.5 w-3.5 text-gray-400" />
                 ) : (
                   <FaFilm className="h-3.5 w-3.5 text-gray-400" />

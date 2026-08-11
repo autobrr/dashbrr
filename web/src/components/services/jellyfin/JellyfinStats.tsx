@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState } from "react";
+import { TFunction } from "i18next";
 import { FaExchangeAlt, FaPause, FaPlay, FaUser } from "react-icons/fa";
 
 import { useServiceData } from "../../../hooks/useServiceData";
@@ -42,14 +43,14 @@ const EMPTY_SUMMARY: JellyfinSummary = {
 };
 const EMPTY_SESSIONS: JellyfinSession[] = [];
 
-const getSessionTitle = (name?: string, seriesName?: string, t?: any): string => {
+const getSessionTitle = (name?: string, seriesName?: string, t?: TFunction): string => {
   if (seriesName && name) {
     return `${seriesName} - ${name}`;
   }
   return name || seriesName || t?.("jellyfin.unknown_playback", "Unknown playback") || "Unknown playback";
 };
 
-const getPlayStateText = (isPaused?: boolean, t?: any): string => (isPaused ? t?.("jellyfin.paused_short", "Paused") || "Paused" : t?.("jellyfin.playing", "Playing") || "Playing");
+const getPlayStateText = (isPaused?: boolean, t?: TFunction): string => (isPaused ? t?.("jellyfin.paused_short", "Paused") || "Paused" : t?.("jellyfin.playing", "Playing") || "Playing");
 
 const isPlayingSession = (session: JellyfinSession): boolean =>
   !session.PlayState?.IsPaused &&

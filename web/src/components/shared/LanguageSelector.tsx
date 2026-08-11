@@ -5,19 +5,23 @@ import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 
 const languages = [
-  { code: "en", name: "English" },
-  { code: "fr", name: "Français" },
+  { code: "en", nameKey: "languages.en" },
+  { code: "fr", nameKey: "languages.fr" },
 ];
 
 export function LanguageSelector() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <Menu as="div" className="relative inline-block text-left">
       <div>
-        <Menu.Button className="flex items-center gap-1 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white focus:outline-none" title="Change Language">
+        <Menu.Button
+          className="flex items-center gap-1 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white focus:outline-none"
+          title={t("common.language_selector", "Change Language")}
+          aria-label={t("common.language_selector", "Change Language")}
+        >
           <GlobeAltIcon className="h-5 w-5" aria-hidden="true" />
-          <span className="text-xs font-medium uppercase">{i18n.resolvedLanguage || 'en'}</span>
+          <span className="text-xs font-medium uppercase">{i18n.resolvedLanguage || "en"}</span>
         </Menu.Button>
       </div>
 
@@ -43,7 +47,7 @@ export function LanguageSelector() {
                       "block w-full px-4 py-2 text-left text-sm"
                     )}
                   >
-                    {lng.name}
+                    {t(lng.nameKey)}
                   </button>
                 )}
               </Menu.Item>

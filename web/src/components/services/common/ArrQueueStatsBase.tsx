@@ -28,6 +28,7 @@ import {
   getRemovalMethodText
 } from "./ArrQueueDelete";
 import { useTranslation } from "react-i18next";
+import { TFunction } from "i18next";
 
 export type ArrQueueRecord = {
   id: number;
@@ -123,7 +124,7 @@ type Props = {
   ) => { totalRecords: number; records: ArrQueueRecord[] } | undefined;
   // allow Radarr importPending as well
   canManageRecord: (record: ArrQueueRecord) => boolean;
-  getManageDisabledReason: (record: ArrQueueRecord, t: any) => string;
+  getManageDisabledReason: (record: ArrQueueRecord, t: TFunction) => string;
   renderMessage: (props: { status: ServiceStatus; message?: string }) => React.ReactNode;
 };
 
@@ -368,7 +369,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                     removeFromClient,
                   }))
                 }
-                displayText={t("common." + deleteOptions.removeFromClient, getRemovalMethodText(deleteOptions.removeFromClient))}
+                displayText={removalOptions.find(o => o.value === deleteOptions.removeFromClient)?.label || getRemovalMethodText(deleteOptions.removeFromClient)}
                 options={removalOptions}
               />
 
@@ -382,11 +383,11 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                       blocklist,
                     }))
                   }
-                  displayText={t("common." + deleteOptions.blocklist, getBlocklistText(deleteOptions.blocklist))}
+                  displayText={blocklistOptions.find(o => o.value === deleteOptions.blocklist)?.label || getBlocklistText(deleteOptions.blocklist)}
                   options={blocklistOptions}
                 />
                 <p className="text-xs text-zinc-500 mt-1">
-                  {t("common." + deleteOptions.blocklist, getBlocklistText(deleteOptions.blocklist))}
+                  {blocklistOptions.find(o => o.value === deleteOptions.blocklist)?.label || getBlocklistText(deleteOptions.blocklist)}
                 </p>
               </div>
             </div>

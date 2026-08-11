@@ -9,6 +9,7 @@ import { ServiceStats } from "../../../types/service";
 import { ArrMessage } from "./ArrMessage";
 import { ArrQueueRecord, ArrQueueStatsBase } from "./ArrQueueStatsBase";
 import { useTranslation } from "react-i18next";
+import { TFunction } from "i18next";
 
 type ArrQueueServiceType = "sonarr" | "radarr" | "lidarr" | "readarr";
 
@@ -28,7 +29,7 @@ type ArrQueueStatsConfig = {
     stats: ServiceStats
   ) => { totalRecords: number; records: ArrQueueRecord[] } | undefined;
   canManageRecord: (record: ArrQueueRecord) => boolean;
-  getManageDisabledReason: (record: ArrQueueRecord, t: any) => string;
+  getManageDisabledReason: (record: ArrQueueRecord, t: TFunction) => string;
 };
 
 const canManageBlockedOrPending = (record: ArrQueueRecord) =>

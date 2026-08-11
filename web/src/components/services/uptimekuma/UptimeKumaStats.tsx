@@ -4,6 +4,7 @@
  */
 
 import React from "react";
+import { TFunction } from "i18next";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/20/solid";
 
 import { useServiceData } from "../../../hooks/useServiceData";
@@ -61,7 +62,7 @@ const EMPTY_SUMMARY: UptimeKumaSummary = {
 const countByStatus = (summary: UptimeKumaSummary, status: string): number =>
   summary.monitors.filter((monitor) => monitor.status === status).length;
 
-const humanizeStatus = (status: string, t: any): string => {
+const humanizeStatus = (status: string, t: TFunction): string => {
   switch (status) {
     case "up":
       return t("uptimekuma.up", "Up");
@@ -212,10 +213,15 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
                   href={monitorURL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`Open ${monitor.name}, ${monitor.type || t("uptimekuma.monitor", "monitor")}, ${humanizeStatus(
-                    monitor.status,
-                    t
-                  )} in Uptime Kuma`}
+                  aria-label={t("uptimekuma.open_monitor", {
+                    name: monitor.name,
+                    type: monitor.type || t("uptimekuma.monitor", "monitor"),
+                    status: humanizeStatus(monitor.status, t),
+                    defaultValue: `Open ${monitor.name}, ${monitor.type || t("uptimekuma.monitor", "monitor")}, ${humanizeStatus(
+                      monitor.status,
+                      t
+                    )} in Uptime Kuma`,
+                  })}
                   className={`group/monitor ${rowClassName} transition-colors hover:bg-zinc-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                 >
                   {rowContent}

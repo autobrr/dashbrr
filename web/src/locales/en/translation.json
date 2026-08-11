@@ -19,9 +19,7 @@
     "pending": "Pending",
     "unknown": "Unknown",
     "healthy": "Healthy",
-    "unhealthy": "Unhealthy",
-    "offline": "Offline",
-    "warning": "Warning"
+    "unhealthy": "Unhealthy"
   },
   "errors": {
     "ERR_CONFIGURATION": "Configuration error",
@@ -45,7 +43,9 @@
     "disconnected": "DISCONNECTED",
     "disconnected_backend": "Disconnected from backend",
     "needs_configuration": "Click the gear icon to configure this service",
-    "configure_service": "Configure {{name}}"
+    "configure_service": "Configure {{name}}",
+    "adding": "Adding...",
+    "offline_msg": "Service is offline"
   },
   "qui": {
     "combined_speed": "Combined Speed",
@@ -80,6 +80,7 @@
     "unknown_issue": "Unknown issue"
   },
   "common": {
+    "language_selector": "Change Language",
     "queue": "Queue ({{count}}):",
     "view_in": "View in {{name}}",
     "manage_queue": "Manage queue",
@@ -201,7 +202,8 @@
     "maintenance": "Maintenance",
     "monitors": "{{count}} monitors",
     "open": "Open Uptime Kuma",
-    "monitor": "monitor"
+    "monitor": "monitor",
+    "open_monitor": "Open {{name}}, {{type}}, {{status}} in Uptime Kuma"
   },
   "overseerr": {
     "pending_requests": "Pending Requests:",
@@ -238,5 +240,9 @@
     "requested_by": "Requested by:",
     "date_requested": "Date requested:",
     "confirm_action": "Are you sure you want to {{action}} this request?"
+  },
+  "overseerr": {
+    "request_approved": "Successfully approved request for {{title}}",
+    "request_rejected": "Successfully rejected request for {{title}}"
   }
 }

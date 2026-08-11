@@ -78,7 +78,7 @@ export const MaintainerrService: React.FC<MaintainerrServiceProps> = ({
     return (
       <div className="flex items-center gap-1.5 select-none pb-2">
         <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
-          {t("common.state", "Status")}
+          {t("service.status", "Status")}
         </span>
         <div className={`flex items-center gap-1 ${getStatusColor()}`}>
           <span className="text-xs pointer-events-none">{getStatusText()}</span>
@@ -115,7 +115,7 @@ export const MaintainerrService: React.FC<MaintainerrServiceProps> = ({
       messages.push(
         <MaintainerrMessage
           key="offline"
-          message={t("status.offline", "Service is offline")}
+          message={t("service.offline_msg", "Service is offline")}
           type="offline"
         />
       );
