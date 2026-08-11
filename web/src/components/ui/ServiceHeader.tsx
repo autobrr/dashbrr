@@ -3,16 +3,16 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState } from "react";
 import {
   ArrowTopRightOnSquareIcon,
   Cog6ToothIcon,
   TrashIcon
 } from "@heroicons/react/20/solid";
-import AnimatedModal from "./AnimatedModal";
-import { StatusIcon, StatusType } from "./StatusIcon";
+import React, { useState } from "react";
 import { repoUrls } from "../../config/repoUrls";
 import { ServiceStatus } from "../../types/service";
+import AnimatedModal from "./AnimatedModal";
+import { StatusIcon, StatusType } from "./StatusIcon";
 
 interface ServiceHeaderProps {
   displayName: string;
@@ -40,6 +40,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
 }) => {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
 
+
   const trimVersion = (version: string): string => {
     if (!version) return "Unknown";
     if (version.startsWith("pr-")) return version;
@@ -65,6 +66,8 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   // Use accessUrl if available, otherwise fall back to url
   const openUrl = accessUrl || url;
 
+  const serviceKey = displayName.toLowerCase().replace(/\s+/g, "-");
+
   return (
     <>
       <div className="flex items-start justify-between gap-2 @md:items-center">
@@ -78,6 +81,34 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
                 className="flex items-center gap-2 text-inherit hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Light mode icon */}
+                <img
+                  key={`${serviceKey}-light`}
+                  src={`/icons/${serviceKey}-light.svg`}
+                  alt=""
+                  className="w-5 h-5 flex-shrink-0 object-contain dark:hidden"
+                  onError={(e) => {
+                    if (!e.currentTarget.src.endsWith(`/icons/${serviceKey}.svg`)) {
+                      e.currentTarget.src = `/icons/${serviceKey}.svg`;
+                    } else {
+                      e.currentTarget.style.display = "none";
+                    }
+                  }}
+                />
+                {/* Dark mode icon */}
+                <img
+                  key={`${serviceKey}-dark`}
+                  src={`/icons/${serviceKey}-dark.svg`}
+                  alt=""
+                  className="w-5 h-5 flex-shrink-0 object-contain hidden dark:block"
+                  onError={(e) => {
+                    if (!e.currentTarget.src.endsWith(`/icons/${serviceKey}.svg`)) {
+                      e.currentTarget.src = `/icons/${serviceKey}.svg`;
+                    } else {
+                      e.currentTarget.style.display = "none";
+                    }
+                  }}
+                />
                 {displayName}
                 {openUrl && (
                   <ArrowTopRightOnSquareIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 transition-transform duration-200 hover:scale-110" />
@@ -112,7 +143,9 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
         <div className="ml-2 flex items-center space-x-2 @md:ml-4">
           <div
             className={`flex items-center ${
-              needsConfiguration ? "" : "opacity-100 @md:opacity-0 @md:group-hover:opacity-100"
+              needsConfiguration
+                ? ""
+                : "opacity-100 @md:opacity-0 @md:group-hover:opacity-100"
             } transition-all duration-200`}
           >
             <button
