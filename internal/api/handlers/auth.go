@@ -22,6 +22,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -425,7 +426,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
 	c.SetCookie(
-		"session",
+		middleware.SessionCookieName,
 		sessionID,
 		int(sessionTTL.Seconds()),
 		"/",
@@ -472,7 +473,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
 
 	c.SetCookie(
-		"session",
+		middleware.SessionCookieName,
 		"",
 		-1,
 		"/",

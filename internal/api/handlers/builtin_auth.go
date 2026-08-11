@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -218,7 +219,7 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 
 	// Set session cookie
 	c.SetCookie(
-		"session",
+		middleware.SessionCookieName,
 		sessionToken,
 		int(sessionTTL.Seconds()),
 		"/",
@@ -278,7 +279,7 @@ func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
 
 	// Clear session cookie
 	c.SetCookie(
-		"session",
+		middleware.SessionCookieName,
 		"",
 		-1,
 		"/",

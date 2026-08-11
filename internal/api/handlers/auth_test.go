@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -408,7 +409,7 @@ func TestUserInfo_SessionLookupTimeout(t *testing.T) {
 	defer cancel()
 
 	req := httptest.NewRequest("GET", "/api/auth/oidc/userinfo", nil).WithContext(baseCtx)
-	req.AddCookie(&http.Cookie{Name: "session", Value: "test-session"})
+	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: "test-session"}) //nolint:gosec // request cookie; attributes don't apply
 	c.Request = req
 
 	handler := &AuthHandler{
@@ -427,7 +428,7 @@ func TestUserInfo_SessionExpired(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	req := httptest.NewRequest("GET", "/api/auth/oidc/userinfo", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: "test-session"})
+	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: "test-session"}) //nolint:gosec // request cookie; attributes don't apply
 	c.Request = req
 
 	mockStore := new(MockStore)

@@ -70,7 +70,7 @@ func TestRequireAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T) 
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: "test-token"})
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -101,7 +101,7 @@ func TestOptionalAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T)
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: "test-token"})
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -163,7 +163,7 @@ func TestRequireAuth_DoesNotMaskSessionLookupErrorsAsUnauthorized(t *testing.T) 
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: "test-token"})
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

@@ -25,6 +25,10 @@ const (
 	AuthTypeKey       contextKey = "auth_type"
 	UserIDKey         contextKey = "user_id"
 	authLookupTimeout            = 5 * time.Second
+
+	// SessionCookieName is prefixed with the app name so other services on the
+	// same host cannot clobber it (cookies are scoped per host, not per port).
+	SessionCookieName = "dashbrr_user_session"
 )
 
 type AuthMiddleware struct {
@@ -105,7 +109,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		defer cancel()
 
 		// Get session cookie, fallback to Authorization header.
-		sessionToken, err := c.Cookie("session")
+		sessionToken, err := c.Cookie(SessionCookieName)
 		if err != nil {
 			authHeader := c.GetHeader("Authorization")
 			if authHeader == "" {
@@ -162,7 +166,7 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 		lookupCtx, cancel := context.WithTimeout(baseCtx, authLookupTimeout)
 		defer cancel()
 
-		sessionToken, err := c.Cookie("session")
+		sessionToken, err := c.Cookie(SessionCookieName)
 		if err != nil {
 			authHeader := c.GetHeader("Authorization")
 			token, ok := bearerTokenFromHeader(authHeader)

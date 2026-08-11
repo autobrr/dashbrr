@@ -17,7 +17,7 @@ import (
 const (
 	csrfTokenLength   = 32
 	csrfTokenHeader   = "X-CSRF-Token"
-	csrfTokenCookie   = "csrf_token"
+	csrfTokenCookie   = "dashbrr_csrf" //nolint:gosec // cookie name, not a credential
 	csrfTokenDuration = 24 * time.Hour
 )
 
