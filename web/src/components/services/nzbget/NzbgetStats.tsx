@@ -13,6 +13,7 @@ import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import type { NzbgetSummary } from "../../../types/service";
+import { useTranslation } from "react-i18next";
 
 interface NzbgetStatsProps {
   instanceId: string;
@@ -61,13 +62,14 @@ const formatBytes = (value: number): string => {
 
 const formatSpeed = (value: number): string => `${formatBytes(value)}/s`;
 
-const formatStatus = (summary: NzbgetSummary): string => {
-  if (summary.status.DownloadPaused) return "Paused";
-  if (summary.status.ServerStandBy) return "Standby";
-  return "Running";
+const formatStatus = (summary: NzbgetSummary, t?: any): string => {
+  if (summary.status.DownloadPaused) return t?.("nzbget.paused", "Paused") || "Paused";
+  if (summary.status.ServerStandBy) return t?.("nzbget.standby", "Standby") || "Standby";
+  return t?.("nzbget.running", "Running") || "Running";
 };
 
 export const NzbgetStats: React.FC<NzbgetStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const summary = service?.stats?.nzbget?.summary ?? EMPTY_SUMMARY;
@@ -116,42 +118,42 @@ export const NzbgetStats: React.FC<NzbgetStatsProps> = ({ instanceId }) => {
 
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Queue Status</div>
-          <div className="mt-0.5 text-zinc-100">{formatStatus(summary)}</div>
+          <div className="text-zinc-400">{t("nzbget.queue_status", "Queue Status")}</div>
+          <div className="mt-0.5 text-zinc-100">{formatStatus(summary, t)}</div>
           <div className="text-zinc-400">
-            {summary.queue.length} active
-            {summary.failedCount > 0 ? ` · ${summary.failedCount} failure(s)` : ""}
+            {t("nzbget.active", { count: summary.queue.length, defaultValue: `${summary.queue.length} active` })}
+            {summary.failedCount > 0 ? ` · ${t("nzbget.failures", { count: summary.failedCount, defaultValue: `${summary.failedCount} failure(s)` })}` : ""}
           </div>
         </div>
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Download Speed</div>
+          <div className="text-zinc-400">{t("nzbget.download_speed", "Download Speed")}</div>
           <div className="mt-0.5 text-zinc-100">{formatSpeed(speedBps)}</div>
           <div className="text-zinc-400">
-            Remaining {formatBytes(remainingBytes)}
+            {t("nzbget.remaining", { size: formatBytes(remainingBytes), defaultValue: `Remaining ${formatBytes(remainingBytes)}` })}
           </div>
         </div>
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Disk Free</div>
+          <div className="text-zinc-400">{t("nzbget.disk_free", "Disk Free")}</div>
           <div className="mt-0.5 text-zinc-100">{formatBytes(freeDiskBytes)}</div>
           {summary.status.QuotaReached && (
-            <div className="text-amber-300">Quota reached</div>
+            <div className="text-amber-300">{t("nzbget.quota_reached", "Quota reached")}</div>
           )}
         </div>
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Pause State</div>
+          <div className="text-zinc-400">{t("nzbget.pause_state", "Pause State")}</div>
           <div className="mt-0.5 text-zinc-100">
-            {summary.status.DownloadPaused ? "Download paused" : "Download active"}
+            {summary.status.DownloadPaused ? t("nzbget.download_paused", "Download paused") : t("nzbget.download_active", "Download active")}
           </div>
           <div className="text-zinc-400">
-            {summary.status.PostPaused ? "Post paused" : "Post active"} ·{" "}
-            {summary.status.ScanPaused ? "Scan paused" : "Scan active"}
+            {summary.status.PostPaused ? t("nzbget.post_paused", "Post paused") : t("nzbget.post_active", "Post active")} ·{" "}
+            {summary.status.ScanPaused ? t("nzbget.scan_paused", "Scan paused") : t("nzbget.scan_active", "Scan active")}
           </div>
         </div>
       </div>
 
       {summary.queue.length > 0 && (
         <CollapsibleSection
-          title="Queue"
+          title={t("nzbget.queue", "Queue")}
           meta={`${summary.queue.length}`}
           isExpanded={queueExpanded}
           onToggle={toggleQueue}
@@ -166,8 +168,8 @@ export const NzbgetStats: React.FC<NzbgetStatsProps> = ({ instanceId }) => {
                   {item.NZBName || `Item ${item.NZBID}`}
                 </div>
                 <div className="mt-1 flex items-center justify-between text-zinc-400">
-                  <span>{item.Status || "Unknown"}</span>
-                  <span>{formatBytes(item.RemainingSizeMB * 1024 * 1024)} left</span>
+                  <span>{item.Status || t("status.unknown", "Unknown")}</span>
+                  <span>{t("nzbget.left", { size: formatBytes(item.RemainingSizeMB * 1024 * 1024), defaultValue: `${formatBytes(item.RemainingSizeMB * 1024 * 1024)} left` })}</span>
                 </div>
                 {item.Category && (
                   <div className="mt-1 truncate text-zinc-500">{item.Category}</div>
@@ -180,7 +182,7 @@ export const NzbgetStats: React.FC<NzbgetStatsProps> = ({ instanceId }) => {
 
       {(summary.failedCount > 0 || summary.recentFailures.length > 0) && (
         <CollapsibleSection
-          title="Recent Failures"
+          title={t("nzbget.recent_failures", "Recent Failures")}
           meta={`${summary.failedCount}`}
           isExpanded={failuresExpanded}
           onToggle={toggleFailures}
@@ -202,7 +204,7 @@ export const NzbgetStats: React.FC<NzbgetStatsProps> = ({ instanceId }) => {
               ))
             ) : (
               <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs text-zinc-400">
-                Failures detected, waiting for history details.
+                {t("nzbget.waiting_history", "Failures detected, waiting for history details.")}
               </div>
             )}
           </div>

@@ -12,6 +12,7 @@ import { api } from "../utils/api";
 import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
+import { useTranslation } from "react-i18next";
 
 interface AddServicesMenuProps {
   serviceTemplates: Array<{
@@ -207,6 +208,7 @@ export function AddServicesMenu({
   onConfirmService,
   onCancelService,
 }: AddServicesMenuProps) {
+  const { t } = useTranslation();
   const [displayName, setDisplayName] = useState(
     pendingService?.displayName || ""
   );
@@ -358,7 +360,7 @@ export function AddServicesMenu({
           <>
             <div>
               <Menu.Button className="px-2 py-2 text-sm bg-zinc-800 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1">
-                <span>Add Service</span>
+                <span>{t("service.add_service")}</span>
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -533,21 +535,21 @@ export function AddServicesMenu({
             )}
           </div>
 
-          <div className="mt-6 flex justify-end space-x-3">
+          <div className="mt-6 flex justify-end gap-3">
             <button
               type="button"
               onClick={onCancelService}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-600"
+              className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
               disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
             >
-              {isSubmitting ? "Adding..." : "Add Service"}
+              {isSubmitting ? t("service.adding", "Adding...") : t("service.add_service")}
             </button>
           </div>
         </form>

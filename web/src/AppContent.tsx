@@ -18,12 +18,15 @@ import { AddServicesMenu } from "./components/AddServicesMenu";
 import { ServiceHealthMonitor } from "./components/services/ServiceHealthMonitor";
 import { StatusCounters } from "./components/shared/StatusCounters";
 import { TailscaleStatusBar } from "./components/services/TailscaleStatusBar";
+import { LanguageSelector } from "./components/shared/LanguageSelector";
+import { useTranslation } from "react-i18next";
 
 // Preload the logo image.
 const preloadLogo = new Image();
 preloadLogo.src = logo;
 
 export default function AppContent() {
+  const { t } = useTranslation();
   const {
     addServiceInstance,
     showServiceConfig,
@@ -65,31 +68,33 @@ export default function AppContent() {
                 />
                 <span className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
                   <h1 className="text-2xl sm:text-3xl font-bold dark:text-white leading-none">
-                    Dashbrr
+                    {t("header.title")}
                   </h1>
                   <span className="flex items-center">
                     <p className="dark:text-gray-400 text-xs tracking-wide lowercase mt-1 sm:mt-1">
-                      Service Health Monitor
+                      {t("header.subtitle")}
                     </p>
                   </span>
                 </span>
               </div>
               <div className="hidden sm:flex items-center gap-4">
                 <TailscaleStatusBar />
+                <LanguageSelector />
                 <button
                   onClick={logout}
                   className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
-                  title="Logout"
+                  title={t("auth.logout")}
                 >
                   <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
                 </button>
               </div>
             </div>
-            <div className="sm:hidden absolute top-0 right-0">
+            <div className="sm:hidden absolute top-0 right-0 flex items-center gap-2 mt-2 mr-2">
+              <LanguageSelector />
               <button
                 onClick={logout}
                 className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
-                title="Logout"
+                title={t("auth.logout")}
               >
                 <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
               </button>

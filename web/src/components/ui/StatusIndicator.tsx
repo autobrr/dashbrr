@@ -4,6 +4,7 @@
  */
 
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 type StatusType =
   | "online"
@@ -125,12 +126,13 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
         icon: "⚠",
       }
       : STATUS_DISPLAY_MAP[status] || UNKNOWN_STATUS_DISPLAY;
+  const { t } = useTranslation();
   const shouldShowMessage = message && (status !== "online" || !isConnected);
   const displayMessage = isInitialLoad
-    ? "Initializing service..."
+    ? t("status.loading")
     : !isConnected
       ? "Connection to server lost"
-      : message || "";
+      : (message?.startsWith("ERR_") ? t(`errors.${message}`, message) : message) || "";
 
   const formatMessage = (msg: string) => {
     const sections: Record<string, React.ReactNode[]> = {};
@@ -270,11 +272,11 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     <div className="space-y-2 transition-all duration-200 mb-1">
       <div className="flex items-center gap-1.5 select-none pb-2">
         <span className="text-xs font-medium text-zinc-700 dark:text-zinc-100">
-          Status
+          {t("service.status", "Status")}:
         </span>
         <div className={`flex items-center gap-1 ${statusDisplay.color}`}>
           <span className="text-xs pointer-events-none">
-            {statusDisplay.text}
+            {t(`status.${status}`, statusDisplay.text)}
           </span>
           <span
             className={`text-xs ${

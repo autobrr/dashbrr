@@ -18,6 +18,7 @@ import {
   resolveUptimeKumaBaseURL,
   type UptimeKumaFilter
 } from "./uptimeKumaView";
+import { useTranslation } from "react-i18next";
 
 interface UptimeKumaStatsProps {
   instanceId: string;
@@ -37,23 +38,21 @@ interface UptimeKumaStatsViewProps {
   summary: UptimeKumaSummary;
 }
 
-const FILTER_TILES: Array<{
-  filter: UptimeKumaFilter;
-  label: string;
-  valueClass: string;
-  layoutClass?: string;
-}> = [
-  { filter: "total", label: "Total", valueClass: "text-zinc-100" },
-  { filter: "up", label: "Up", valueClass: "text-emerald-300" },
-  { filter: "down", label: "Down", valueClass: "text-red-300" },
-  { filter: "pending", label: "Pending", valueClass: "text-amber-300" },
-  {
-    filter: "maintenance",
-    label: "Maintenance",
-    valueClass: "text-blue-300",
-    layoutClass: "col-span-2 @md:col-span-1",
-  },
-];
+const useFilterTiles = () => {
+  const { t } = useTranslation();
+  return [
+    { filter: "total" as UptimeKumaFilter, label: t("uptimekuma.total", "Total"), valueClass: "text-zinc-100" },
+    { filter: "up" as UptimeKumaFilter, label: t("uptimekuma.up", "Up"), valueClass: "text-emerald-300" },
+    { filter: "down" as UptimeKumaFilter, label: t("uptimekuma.down", "Down"), valueClass: "text-red-300" },
+    { filter: "pending" as UptimeKumaFilter, label: t("uptimekuma.pending", "Pending"), valueClass: "text-amber-300" },
+    {
+      filter: "maintenance" as UptimeKumaFilter,
+      label: t("uptimekuma.maintenance", "Maintenance"),
+      valueClass: "text-blue-300",
+      layoutClass: "col-span-2 @md:col-span-1",
+    },
+  ];
+};
 
 const EMPTY_SUMMARY: UptimeKumaSummary = {
   monitors: [],
@@ -62,18 +61,18 @@ const EMPTY_SUMMARY: UptimeKumaSummary = {
 const countByStatus = (summary: UptimeKumaSummary, status: string): number =>
   summary.monitors.filter((monitor) => monitor.status === status).length;
 
-const humanizeStatus = (status: string): string => {
+const humanizeStatus = (status: string, t: any): string => {
   switch (status) {
     case "up":
-      return "Up";
+      return t("uptimekuma.up", "Up");
     case "down":
-      return "Down";
+      return t("uptimekuma.down", "Down");
     case "pending":
-      return "Pending";
+      return t("uptimekuma.pending", "Pending");
     case "maintenance":
-      return "Maintenance";
+      return t("uptimekuma.maintenance", "Maintenance");
     default:
-      return "Unknown";
+      return t("status.unknown", "Unknown");
   }
 };
 
@@ -97,6 +96,8 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
   counts,
   summary,
 }) => {
+  const { t } = useTranslation();
+  const FILTER_TILES = useFilterTiles();
   const monitorViewTitleID = React.useId();
   const [selectedFilter, setSelectedFilter] = React.useState<UptimeKumaFilter | null>(
     null
@@ -147,7 +148,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
               {monitorView.title}
             </h4>
             <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-400">
-              <span>{monitorView.monitors.length} monitors</span>
+              <span>{t("uptimekuma.monitors", { count: monitorView.monitors.length, defaultValue: `${monitorView.monitors.length} monitors` })}</span>
               {dashboardURL && (
                 <>
                   <span aria-hidden="true">·</span>
@@ -157,7 +158,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
                     rel="noopener noreferrer"
                     className="text-blue-400 transition-colors hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
                   >
-                    Open Uptime Kuma
+                    {t("uptimekuma.open", "Open Uptime Kuma")}
                   </a>
                 </>
               )}
@@ -175,7 +176,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
                       {monitor.name}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-zinc-400">
-                      <span className="truncate">{monitor.type || "monitor"}</span>
+                      <span className="truncate">{monitor.type || t("uptimekuma.monitor", "monitor")}</span>
                       {typeof monitor.responseTimeMs === "number" &&
                       monitor.responseTimeMs > 0 && (
                         <span>{monitor.responseTimeMs}ms</span>
@@ -188,7 +189,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
                         monitor.status
                       )}`}
                     >
-                      {humanizeStatus(monitor.status)}
+                      {humanizeStatus(monitor.status, t)}
                     </span>
                     {monitorURL && (
                       <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 text-zinc-600 transition-colors group-hover/monitor:text-blue-400" />
@@ -211,8 +212,9 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
                   href={monitorURL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`Open ${monitor.name}, ${monitor.type || "monitor"}, ${humanizeStatus(
-                    monitor.status
+                  aria-label={`Open ${monitor.name}, ${monitor.type || t("uptimekuma.monitor", "monitor")}, ${humanizeStatus(
+                    monitor.status,
+                    t
                   )} in Uptime Kuma`}
                   className={`group/monitor ${rowClassName} transition-colors hover:bg-zinc-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                 >

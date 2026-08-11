@@ -12,12 +12,14 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { useTranslation } from "react-i18next";
 
 interface BazarrStatsProps {
   instanceId: string;
 }
 
 export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
@@ -63,12 +65,12 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
 
       <div>
         <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
-          Subtitles Backlog:
+          {t("bazarr.subtitles_backlog", "Subtitles Backlog:")}
         </div>
         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           <div className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2">
             <span className="text-xs font-normal text-gray-200">
-              Missing Episodes
+              {t("bazarr.missing_episodes", "Missing Episodes")}
             </span>
             <span className="text-sm font-bold text-gray-200">
               {badges.episodes || 0}
@@ -76,7 +78,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
           </div>
           <div className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2">
             <span className="text-xs font-normal text-gray-200">
-              Missing Movies
+              {t("bazarr.missing_movies", "Missing Movies")}
             </span>
             <span className="text-sm font-bold text-gray-200">
               {badges.movies || 0}
@@ -84,7 +86,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
           </div>
           <div className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2">
             <span className="text-xs font-normal text-gray-200">
-              Providers with Issues
+              {t("bazarr.providers_with_issues", "Providers with Issues")}
             </span>
             <span className="text-sm font-bold text-amber-400">
               {providersWithIssues}
@@ -92,7 +94,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
           </div>
           <div className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2">
             <span className="text-xs font-normal text-gray-200">
-              System Health Issues
+              {t("bazarr.system_health_issues", "System Health Issues")}
             </span>
             <span className="text-sm font-bold text-amber-400">
               {systemHealthIssues}
@@ -105,7 +107,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
         <div className="flex flex-wrap gap-2 text-xs text-gray-300">
           {badges.sonarr_signalr && (
             <span className="rounded-md bg-gray-850/95 px-2 py-1">
-              Sonarr SignalR:{" "}
+              {t("bazarr.sonarr_signalr", "Sonarr SignalR:")}{" "}
               <span className="font-semibold text-green-400">
                 {badges.sonarr_signalr}
               </span>
@@ -113,7 +115,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
           )}
           {badges.radarr_signalr && (
             <span className="rounded-md bg-gray-850/95 px-2 py-1">
-              Radarr SignalR:{" "}
+              {t("bazarr.radarr_signalr", "Radarr SignalR:")}{" "}
               <span className="font-semibold text-green-400">
                 {badges.radarr_signalr}
               </span>
@@ -124,7 +126,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
 
       {providers.length > 0 && (
         <CollapsibleSection
-          title="Providers with issues:"
+          title={t("bazarr.providers_issues_title", "Providers with issues:")}
           meta={`${providers.length}`}
           isExpanded={providersExpanded}
           onToggle={toggleProviders}
@@ -138,7 +140,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
                 <span className="font-medium text-gray-200">{provider.name}</span>
                 <span className="text-gray-400">
                   {provider.status}
-                  {provider.retry && provider.retry !== "-" ? ` • Retry ${provider.retry}` : ""}
+                  {provider.retry && provider.retry !== "-" ? ` • ${t("bazarr.retry", { count: provider.retry, defaultValue: `Retry ${provider.retry}` })}` : ""}
                 </span>
               </div>
             ))}
@@ -148,7 +150,7 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
 
       {healthIssues.length > 0 && (
         <CollapsibleSection
-          title="Health issues:"
+          title={t("bazarr.health_issues_title", "Health issues:")}
           meta={`${healthIssues.length}`}
           isExpanded={healthExpanded}
           onToggle={toggleHealth}
@@ -159,8 +161,8 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
                 key={`${issue.object}:${issue.issue}:${index}`}
                 className="rounded-md border border-amber-800/40 bg-amber-900/20 px-3.5 py-2 text-xs text-amber-300"
               >
-                <div className="font-medium">{issue.object || "System"}</div>
-                <div>{issue.issue || "Unknown issue"}</div>
+                <div className="font-medium">{issue.object || t("bazarr.system", "System")}</div>
+                <div>{issue.issue || t("bazarr.unknown_issue", "Unknown issue")}</div>
               </div>
             ))}
           </div>

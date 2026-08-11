@@ -4,11 +4,9 @@
  */
 
 import React from "react";
-import {
-  ExclamationTriangleIcon,
-  CheckCircleIcon
-} from "@heroicons/react/24/outline";
+import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { ServiceStatus } from "../../../types/service";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   message?: string;
@@ -21,6 +19,7 @@ const isActionableStatus = (status: ServiceStatus | "healthy"): boolean =>
   status === "warning" || status === "error" || status === "offline";
 
 export const ArrMessage: React.FC<Props> = ({ message, status }) => {
+  const { t } = useTranslation();
   const getMessageStyle = () => {
     const baseStyles =
       "text-xs p-2 rounded-lg transition-all duration-200 backdrop-blur-sm";
@@ -171,10 +170,10 @@ export const ArrMessage: React.FC<Props> = ({ message, status }) => {
       <div className={`arr-message-status flex items-center gap-1.5 select-none ${statusPadding}`}>
         <div className="flex items-center gap-1">
           <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
-            Status:
+            {t("service.status", "Status")}:
           </span>
           <span className={`text-xs ${statusDisplay.color}`}>
-            {statusDisplay.text}
+            {t(`status.${status}`, statusDisplay.text)}
           </span>
           {statusDisplay.icon}
         </div>

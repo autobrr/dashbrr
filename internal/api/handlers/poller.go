@@ -533,7 +533,7 @@ func (p *Poller) runPending(_ context.Context, svc models.ServiceConfiguration, 
 	publishHealthServiceUpdate(p.bc, models.ServiceHealth{
 		ServiceID:   svc.InstanceID,
 		Status:      "pending",
-		Message:     "Service not configured",
+		Message:     models.ErrNotConfigured,
 		LastChecked: time.Now(),
 	})
 	p.logFirstHealthSeen(svc.InstanceID, serviceType, "pending")

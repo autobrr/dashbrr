@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   XCircleIcon
 } from "@heroicons/react/24/outline";
+import { useTranslation } from "react-i18next";
 
 interface MaintainerrServiceProps {
   instanceId: string;
@@ -20,6 +21,7 @@ interface MaintainerrServiceProps {
 export const MaintainerrService: React.FC<MaintainerrServiceProps> = ({
   instanceId,
 }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
 
@@ -59,24 +61,24 @@ export const MaintainerrService: React.FC<MaintainerrServiceProps> = ({
     const getStatusText = () => {
       switch (service.status) {
         case "online":
-          return "Healthy";
+          return t("status.healthy", "Healthy");
         case "error":
-          return "Error";
+          return t("status.error", "Error");
         case "offline":
-          return "Offline";
+          return t("status.offline", "Offline");
         case "warning":
-          return "Warning";
+          return t("status.warning", "Warning");
         case "loading":
-          return "Loading";
+          return t("status.loading", "Loading");
         default:
-          return "Unknown";
+          return t("status.unknown", "Unknown");
       }
     };
 
     return (
       <div className="flex items-center gap-1.5 select-none pb-2">
         <span className="text-xs font-medium text-gray-700 dark:text-gray-100">
-          Status
+          {t("common.state", "Status")}
         </span>
         <div className={`flex items-center gap-1 ${getStatusColor()}`}>
           <span className="text-xs pointer-events-none">{getStatusText()}</span>
@@ -113,7 +115,7 @@ export const MaintainerrService: React.FC<MaintainerrServiceProps> = ({
       messages.push(
         <MaintainerrMessage
           key="offline"
-          message="Service is offline"
+          message={t("status.offline", "Service is offline")}
           type="offline"
         />
       );

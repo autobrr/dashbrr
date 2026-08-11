@@ -27,6 +27,7 @@ import {
   getBlocklistText,
   getRemovalMethodText
 } from "./ArrQueueDelete";
+import { useTranslation } from "react-i18next";
 
 export type ArrQueueRecord = {
   id: number;
@@ -122,7 +123,7 @@ type Props = {
   ) => { totalRecords: number; records: ArrQueueRecord[] } | undefined;
   // allow Radarr importPending as well
   canManageRecord: (record: ArrQueueRecord) => boolean;
-  getManageDisabledReason: (record: ArrQueueRecord) => string;
+  getManageDisabledReason: (record: ArrQueueRecord, t: any) => string;
   renderMessage: (props: { status: ServiceStatus; message?: string }) => React.ReactNode;
 };
 
@@ -135,6 +136,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   getManageDisabledReason,
   renderMessage,
 }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const sectionKey = `${serviceName.toLowerCase()}:queue`;
   const { isExpanded, toggle } = useCollapsiblePreference(
@@ -161,19 +163,19 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   const removalOptions: Array<
     SelectOption<ArrQueueDeleteOptions["removeFromClient"]>
   > = [
-    { value: "remove", label: "Remove from Download Client" },
-    { value: "ignore", label: "Ignore Download" },
+    { value: "remove", label: t("common.remove_from_client", "Remove from Download Client") },
+    { value: "ignore", label: t("common.ignore_download", "Ignore Download") },
   ];
   if (selectedItem?.protocol !== "usenet") {
     removalOptions.splice(1, 0, {
       value: "change",
-      label: "Change Category",
+      label: t("common.change_category", "Change Category"),
     });
   }
   const blocklistOptions: Array<SelectOption<ArrQueueDeleteOptions["blocklist"]>> = [
-    { value: "none", label: "Do not blocklist" },
-    { value: "blocklist", label: "Blocklist only" },
-    { value: "blocklistAndSearch", label: "Blocklist and search" },
+    { value: "none", label: t("common.do_not_blocklist", "Do not blocklist") },
+    { value: "blocklist", label: t("common.blocklist_only", "Blocklist only") },
+    { value: "blocklistAndSearch", label: t("common.blocklist_and_search", "Blocklist and search") },
   ];
 
   const handleDelete = async () => {
@@ -186,10 +188,10 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
       setShowDeleteModal(false);
       setSelectedItem(null);
-      toast.custom((t) => <Toast type="success" body="Successfully removed from queue" t={t} />);
+      toast.custom((to) => <Toast type="success" body={t("common.success_remove", "Successfully removed from queue")} t={to} />);
     } catch (error) {
       console.error("Failed to delete queue item:", error);
-      toast.custom((t) => <Toast type="error" body="Failed to remove from queue" t={t} />);
+      toast.custom((to) => <Toast type="error" body={t("common.fail_remove", "Failed to remove from queue")} t={to} />);
     }
   };
 
@@ -207,7 +209,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
       {queue && queue.totalRecords > 0 && (
         <CollapsibleSection
-          title={`Queue (${queue.totalRecords}):`}
+          title={t("common.queue", { count: queue.totalRecords, defaultValue: `Queue (${queue.totalRecords}):` })}
           isExpanded={isExpanded}
           onToggle={toggle}
         >
@@ -234,7 +236,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-1.5 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-700 transition-colors"
-                        title={`View in ${serviceName}`}
+                        title={t("common.view_in", { name: serviceName, defaultValue: `View in ${serviceName}` })}
                       >
                         <ArrowTopRightOnSquareIcon className="h-4 w-4 text-zinc-400" />
                       </a>
@@ -253,8 +255,8 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                       }`}
                       title={
                         canManageRecord(record)
-                          ? "Manage queue"
-                          : getManageDisabledReason(record)
+                          ? t("common.manage_queue", "Manage queue")
+                          : getManageDisabledReason(record, t)
                       }
                     >
                       <Cog6ToothIcon className="h-4 w-4 text-zinc-400" />
@@ -264,31 +266,31 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
                 <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-zinc-400 pointer-events-none">
                   <div className="flex items-center gap-1">
-                    <span className="font-medium text-zinc-500">State:</span>
+                    <span className="font-medium text-zinc-500">{t("common.state", "State:")}</span>
                     <span>{record.trackedDownloadState}</span>
                   </div>
 
                   {record.indexer && (
                     <div className="flex items-center gap-1">
-                      <span className="font-medium text-zinc-500">Indexer:</span>
+                      <span className="font-medium text-zinc-500">{t("common.indexer", "Indexer:")}</span>
                       <span>{record.indexer}</span>
                     </div>
                   )}
 
                   {record.customFormatScore != null && (
                     <div className="flex items-center gap-1">
-                      <span className="font-medium text-zinc-500">CF Score:</span>
+                      <span className="font-medium text-zinc-500">{t("common.cf_score", "CF Score:")}</span>
                       <span>{record.customFormatScore}</span>
                     </div>
                   )}
 
                   <div className="flex items-center gap-1">
-                    <span className="font-medium text-zinc-500">Client:</span>
+                    <span className="font-medium text-zinc-500">{t("common.client", "Client:")}</span>
                     <span>{record.downloadClient}</span>
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <span className="font-medium text-zinc-500">Protocol:</span>
+                    <span className="font-medium text-zinc-500">{t("common.protocol", "Protocol:")}</span>
                     <span className="capitalize">{record.protocol}</span>
                   </div>
                 </div>
@@ -318,12 +320,12 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
       <AnimatedModal
         isOpen={showDeleteModal}
         onClose={closeDeleteModal}
-        title="Manage Download"
+        title={t("common.manage_download", "Manage Download")}
         className="min-h-[400px] max-h-[90vh]"
       >
         <div className="space-y-4">
           <p className="text-md font-medium text-zinc-600 dark:text-zinc-400">
-            Are you sure you want to remove this release from the queue?
+            {t("common.confirm_remove", "Are you sure you want to remove this release from the queue?")}
           </p>
 
           <p className="text-xs">
@@ -358,7 +360,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
           <div className="space-y-4">
             <div className="space-y-2 max-w-full">
               <QueueOptionSelect
-                label="Removal Method"
+                label={t("common.removal_method", "Removal Method")}
                 value={deleteOptions.removeFromClient}
                 onChange={(removeFromClient) =>
                   setDeleteOptions((prev) => ({
@@ -366,13 +368,13 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                     removeFromClient,
                   }))
                 }
-                displayText={getRemovalMethodText(deleteOptions.removeFromClient)}
+                displayText={t("common." + deleteOptions.removeFromClient, getRemovalMethodText(deleteOptions.removeFromClient))}
                 options={removalOptions}
               />
 
               <div className="flex flex-col space-y-1">
                 <QueueOptionSelect
-                  label="Blocklist Release"
+                  label={t("common.blocklist_release", "Blocklist Release")}
                   value={deleteOptions.blocklist}
                   onChange={(blocklist) =>
                     setDeleteOptions((prev) => ({
@@ -380,11 +382,11 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                       blocklist,
                     }))
                   }
-                  displayText={getBlocklistText(deleteOptions.blocklist)}
+                  displayText={t("common." + deleteOptions.blocklist, getBlocklistText(deleteOptions.blocklist))}
                   options={blocklistOptions}
                 />
                 <p className="text-xs text-zinc-500 mt-1">
-                  {getBlocklistText(deleteOptions.blocklist)}
+                  {t("common." + deleteOptions.blocklist, getBlocklistText(deleteOptions.blocklist))}
                 </p>
               </div>
             </div>
@@ -395,13 +397,13 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
               onClick={closeDeleteModal}
               className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-200 dark:bg-zinc-700 rounded-md hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
-              Cancel
+              {t("common.cancel", "Cancel")}
             </button>
             <button
               onClick={handleDelete}
               className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
             >
-              Remove
+              {t("common.remove", "Remove")}
             </button>
           </div>
         </div>

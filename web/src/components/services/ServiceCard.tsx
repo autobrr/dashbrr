@@ -25,6 +25,7 @@ import AnimatedModal from "../ui/AnimatedModal";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useConfiguration } from "../../contexts/useConfiguration";
+import { useTranslation } from "react-i18next";
 import { useCollapsiblePreference } from "../../hooks/useCollapsiblePreference";
 import { serviceCardCollapseKey } from "../../utils/collapsePreferences";
 import {
@@ -112,6 +113,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   isConnected = true,
   isInitialLoad,
 }) => {
+  const { t } = useTranslation();
   const [showConfig, setShowConfig] = useState(false);
   const { isExpanded, toggle } = useCollapsiblePreference(
     serviceCardCollapseKey(service.instanceId),
@@ -140,7 +142,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
       return (
         <div className="flex items-center justify-center p-6 text-center">
           <p className="text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/20 px-4 py-2 rounded-lg">
-            {isInitialLoad ? "Loading..." : "Disconnected from backend"}
+            {isInitialLoad ? t("status.loading", "Loading...") : t("service.disconnected_backend", "Disconnected from backend")}
           </p>
         </div>
       );
@@ -205,7 +207,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             {needsConfiguration ? (
               <div className="flex items-center justify-center p-6 text-center">
                 <p className="text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-lg">
-                  Click the gear icon to configure this service
+                  {t("service.needs_configuration", "Click the gear icon to configure this service")}
                 </p>
               </div>
             ) : (
@@ -223,13 +225,13 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
           >
             {service.responseTime !== undefined && (
               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Response time:{" "}
+                {t("service.response_time")}:{" "}
                 <span className="font-normal">{service.responseTime}ms</span>
               </p>
             )}
             {service.lastChecked && (
               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Last checked:{" "}
+                {t("service.last_checked")}:{" "}
                 <span className="font-normal">{formatLastChecked(service.lastChecked)}</span>
               </p>
             )}
@@ -257,7 +259,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
       <AnimatedModal
         isOpen={showConfig}
         onClose={() => setShowConfig(false)}
-        title={`Configure ${service.displayName}`}
+        title={t("service.configure_service", { name: service.displayName, defaultValue: `Configure ${service.displayName}` })}
       >
         <ConfigurationForm
           instanceId={service.instanceId}

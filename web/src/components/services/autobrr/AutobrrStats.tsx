@@ -26,12 +26,14 @@ import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { useTranslation } from "react-i18next";
 
 interface AutobrrStatsProps {
   instanceId: string;
 }
 
 export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const isLoading = service?.status === "loading";
@@ -86,7 +88,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
       {ircStatus && ircStatus.some((irc) => !irc.healthy) && (
         <div>
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300">
-            IRC Status:
+            {t("autobrr.irc_status", "IRC Status:")}
           </div>
           <div className="text-sm rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4 space-y-1">
             {ircStatus.map((irc, index) => (
@@ -95,7 +97,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                 <div className="flex items-center">
                   <StatusIcon status={irc.healthy ? "online" : "error"} />
                   <span className="ml-2 text-xs" style={{ color: "inherit" }}>
-                    {irc.healthy ? "Healthy" : "Unhealthy"}
+                    {irc.healthy ? t("status.healthy", "Healthy") : t("status.unhealthy", "Unhealthy")}
                   </span>
                 </div>
               </div>
@@ -108,7 +110,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
       {showStats && (
         <div>
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
-            Stats:
+            {t("autobrr.stats", "Stats:")}
           </div>
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
             <a
@@ -118,7 +120,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
               className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Total</span>
+                <span className="text-xs font-normal text-gray-200">{t("autobrr.total", "Total")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-gray-200">{stats.total_count || 0}</span>
@@ -133,7 +135,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
               className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Approved</span>
+                <span className="text-xs font-normal text-gray-200">{t("autobrr.approved", "Approved")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-green-500">{stats.push_approved_count || 0}</span>
@@ -148,7 +150,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
               className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Rejected</span>
+                <span className="text-xs font-normal text-gray-200">{t("autobrr.rejected", "Rejected")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-blue-400">{stats.push_rejected_count || 0}</span>
@@ -163,7 +165,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
               className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Errors</span>
+                <span className="text-xs font-normal text-gray-200">{t("autobrr.errors", "Errors")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-red-500">{stats.push_error_count || 0}</span>
@@ -177,8 +179,8 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
       {/* Recent Releases */}
       {(service.status === "online" || service.status === "warning") && (
         <CollapsibleSection
-          title="Recent Releases:"
-          meta={displayedReleaseCount > 0 ? `${displayedReleaseCount} shown` : "0"}
+          title={t("autobrr.recent_releases", "Recent Releases:")}
+          meta={displayedReleaseCount > 0 ? t("autobrr.shown", { count: displayedReleaseCount, defaultValue: `${displayedReleaseCount} shown` }) : "0"}
           isExpanded={isExpanded}
           onToggle={toggle}
         >
@@ -222,7 +224,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-400 hover:text-blue-300 p-1 hover:bg-gray-700/50 rounded transition-colors"
-                            title={"Download torrentfile"}
+                            title={t("autobrr.download_torrent", "Download torrentfile")}
                           >
                             <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                           </a>
@@ -233,7 +235,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-400 hover:text-blue-300 p-1 hover:bg-gray-700/50 rounded transition-colors"
-                            title={`View this release on ${release.indexer.name}`}
+                            title={t("autobrr.view_release", { name: release.indexer.name, defaultValue: `View this release on ${release.indexer.name}` })}
                           >
                             <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
                           </a>
@@ -287,7 +289,7 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
             </div>
           ) : (
             <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5">
-              No recent releases
+              {t("autobrr.no_recent_releases", "No recent releases")}
             </div>
           )}
         </CollapsibleSection>

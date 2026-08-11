@@ -22,6 +22,7 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { useTranslation } from "react-i18next";
 import {
   getRequestStatus,
   OVERSEERR_REQUEST_STATUS,
@@ -37,6 +38,7 @@ const EMPTY_REQUESTS: OverseerrMediaRequest[] = [];
 export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   instanceId,
 }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const serviceRequests = service?.stats?.overseerr?.requests ?? EMPTY_REQUESTS;
@@ -107,13 +109,11 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       setStatusOverrides((prev) => ({ ...prev, [selectedRequest.id]: status }));
 
       // Show success toast
-      toast.custom((t) => (
+      toast.custom((t_toast) => (
         <Toast
           type="success"
-          body={`Successfully ${modalAction}d request for ${
-            selectedRequest.media.title || "media"
-          }`}
-          t={t}
+          body={t("overseerr.successfully", { action: modalAction, title: selectedRequest.media.title || "media", defaultValue: `Successfully ${modalAction}d request for ${selectedRequest.media.title || "media"}` })}
+          t={t_toast}
         />
       ));
 
@@ -121,22 +121,22 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       setModalAction(null);
     } catch (error) {
       console.error("Failed to update request status:", error);
-      toast.custom((t) => (
+      toast.custom((t_toast) => (
         <Toast
           type="error"
-          body={`Failed to ${modalAction} request: ${error}`}
-          t={t}
+          body={t("overseerr.failed_to", { action: modalAction, error: String(error), defaultValue: `Failed to ${modalAction} request: ${error}` })}
+          t={t_toast}
         />
       ));
     }
   };
 
   if (isLoading) {
-    return <p className="text-xs text-gray-500">Loading requests...</p>;
+    return <p className="text-xs text-gray-500">{t("overseerr.loading_requests", "Loading requests...")}</p>;
   }
 
   if (error) {
-    return <p className="text-xs text-gray-500">Error: {error}</p>;
+    return <p className="text-xs text-gray-500">{t("status.error", "Error")}: {error}</p>;
   }
 
   // Combine service message with health message if available
@@ -153,17 +153,17 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   const getUserDisplayName = (
     requestedBy: OverseerrMediaRequest["requestedBy"]
   ) => {
-    if (!requestedBy) return "Unknown User";
+    if (!requestedBy) return t("overseerr.unknown_user", "Unknown User");
     return (
       requestedBy.username ||
       requestedBy.plexUsername ||
       requestedBy.email ||
-      "Unknown User"
+      t("overseerr.unknown_user", "Unknown User")
     );
   };
 
   const getMediaType = (request: OverseerrMediaRequest) => {
-    return request.media.tvdbId ? "Show" : "Movie";
+    return request.media.tvdbId ? t("overseerr.show", "Show") : t("overseerr.movie", "Movie");
   };
 
   const getMediaTitle = (request: OverseerrMediaRequest) => {
@@ -171,8 +171,8 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       return request.media.title;
     }
     return request.media.tvdbId
-      ? `TV Show (TVDB: ${request.media.tvdbId})`
-      : `Movie (TMDB: ${request.media.tmdbId})`;
+      ? t("overseerr.tv_show_id", { id: request.media.tvdbId, defaultValue: `TV Show (TVDB: ${request.media.tvdbId})` })
+      : t("overseerr.movie_id", { id: request.media.tmdbId, defaultValue: `Movie (TMDB: ${request.media.tmdbId})` });
   };
 
   const RequestItem = ({
@@ -297,8 +297,8 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
                 <span
                   className={`${statusMeta.color} bg-gray-800/50 px-2 py-0.5 rounded font-medium`}
                 >
-                  {statusMeta.label}
-                  {status.isFallback ? " (media)" : ""}
+                  {t(`overseerr.status.${statusMeta.label.toLowerCase().replace(" ", "_")}`, statusMeta.label)}
+                  {status.isFallback ? t("overseerr.media", " (media)") : ""}
                 </span>
               )}
             </div>
@@ -316,7 +316,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       {pendingCount > 0 && (
         <div>
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
-            Pending Requests:
+            {t("overseerr.pending_requests", "Pending Requests:")}
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {pendingRequests
@@ -336,7 +336,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           </div>
           {pendingCount > 3 && (
             <div className="mt-1 text-[11px] text-zinc-400">
-              Showing 3 of {pendingCount} pending requests
+              {t("overseerr.showing_requests", { count: 3, total: pendingCount, defaultValue: `Showing 3 of ${pendingCount} pending requests` })}
             </div>
           )}
         </div>
@@ -345,7 +345,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       {/* Recent Requests */}
       {recentNonPendingRequests.length > 0 ? (
         <CollapsibleSection
-          title="Recent Requests"
+          title={t("overseerr.recent_requests", "Recent Requests")}
           meta={`${Math.min(recentNonPendingRequests.length, 5)} shown`}
           isExpanded={isExpanded}
           onToggle={toggle}
@@ -360,7 +360,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
         </CollapsibleSection>
       ) : (
         <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
-          No recent requests
+          {t("overseerr.no_recent", "No recent requests")}
         </div>
       )}
 

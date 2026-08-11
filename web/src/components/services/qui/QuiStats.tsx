@@ -12,6 +12,7 @@ import { QuiInstanceTransfer } from "../../../types/service";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { useTranslation } from "react-i18next";
 
 interface QuiStatsProps {
   instanceId: string;
@@ -37,6 +38,7 @@ const toSpeedScore = (transfer: QuiInstanceTransfer) =>
   transfer.downloadSpeed + transfer.uploadSpeed;
 
 export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const { isExpanded, toggle } = useCollapsiblePreference(
@@ -71,31 +73,35 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
       <ArrMessage status={service.status} message={message} />
 
       {summary && (
-        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-            <div className="text-zinc-400">Combined Speed</div>
-            <div className="mt-0.5 text-zinc-100">
+        <div className="grid grid-cols-2 gap-4 bg-zinc-900/50 rounded-lg p-3 @md:p-4 mb-4">
+          <div>
+            <p className="text-xs font-medium text-zinc-400 mb-1">
+              {t("qui.combined_speed", "Combined Speed")}
+            </p>
+            <p className="text-sm font-semibold text-zinc-100">
               {formatSpeed(summary.downloadSpeed + summary.uploadSpeed)}
-            </div>
-            <div className="text-zinc-400">
-              {formatSpeed(summary.downloadSpeed)} down · {formatSpeed(summary.uploadSpeed)} up
-            </div>
+            </p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {formatSpeed(summary.downloadSpeed)} {t("service.down", "down")} · {formatSpeed(summary.uploadSpeed)} {t("service.up", "up")}
+            </p>
           </div>
-          <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-            <div className="text-zinc-400">Combined Data (all-time)</div>
-            <div className="mt-0.5 text-zinc-100">
+          <div>
+            <p className="text-xs font-medium text-zinc-400 mb-1">
+              {t("qui.combined_data", "Combined Data (all-time)")}
+            </p>
+            <p className="text-sm font-semibold text-zinc-100">
               {formatBytes(summary.downloaded + summary.uploaded)}
-            </div>
-            <div className="text-zinc-400">
-              {formatBytes(summary.downloaded)} down · {formatBytes(summary.uploaded)} up
-            </div>
+            </p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {formatBytes(summary.downloaded)} {t("service.down", "down")} · {formatBytes(summary.uploaded)} {t("service.up", "up")}
+            </p>
           </div>
         </div>
       )}
 
       {transfers.length > 0 && (
         <CollapsibleSection
-          title="Active qBittorrent Instances"
+          title={t("qui.active_instances", "Active qBittorrent Instances")}
           isExpanded={isExpanded}
           onToggle={toggle}
         >
@@ -109,19 +115,21 @@ export const QuiStats: React.FC<QuiStatsProps> = ({ instanceId }) => {
                   <span className="truncate font-medium text-zinc-200">
                     {transfer.name}
                   </span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
-                      transfer.connected
-                        ? "bg-emerald-500/15 text-emerald-300"
-                        : "bg-amber-500/15 text-amber-200"
-                    }`}
-                  >
-                    {transfer.connected ? "Connected" : "Disconnected"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        transfer.connected
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : "bg-red-500/10 text-red-500"
+                      }`}
+                    >
+                      {transfer.connected ? t("service.connected", "CONNECTED") : t("service.disconnected", "DISCONNECTED")}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1 flex items-center justify-between text-zinc-400">
-                  <span>Down {formatSpeed(transfer.downloadSpeed)}</span>
-                  <span>Up {formatSpeed(transfer.uploadSpeed)}</span>
+                <div className="flex justify-between text-xs text-zinc-500 mt-1">
+                  <span>{t("service.down", "Down")} {formatSpeed(transfer.downloadSpeed)}</span>
+                  <span>{t("service.up", "Up")} {formatSpeed(transfer.uploadSpeed)}</span>
                 </div>
               </div>
             ))}

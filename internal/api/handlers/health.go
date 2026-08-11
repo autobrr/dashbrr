@@ -117,8 +117,8 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	// Check if service is configured
 	if service.URL == "" {
 		c.JSON(http.StatusOK, models.ServiceHealth{
-			Status:      "unconfigured",
-			Message:     "Service is not configured",
+			Status:      "offline",
+			Message:     models.ErrNotConfigured,
 			ServiceID:   serviceID,
 			LastChecked: time.Now(),
 		})

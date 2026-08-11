@@ -13,6 +13,7 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { useTranslation } from "react-i18next";
 import type {
   JellyfinMediaStream,
   JellyfinSession,
@@ -41,14 +42,14 @@ const EMPTY_SUMMARY: JellyfinSummary = {
 };
 const EMPTY_SESSIONS: JellyfinSession[] = [];
 
-const getSessionTitle = (name?: string, seriesName?: string): string => {
+const getSessionTitle = (name?: string, seriesName?: string, t?: any): string => {
   if (seriesName && name) {
     return `${seriesName} - ${name}`;
   }
-  return name || seriesName || "Unknown playback";
+  return name || seriesName || t?.("jellyfin.unknown_playback", "Unknown playback") || "Unknown playback";
 };
 
-const getPlayStateText = (isPaused?: boolean): string => (isPaused ? "Paused" : "Playing");
+const getPlayStateText = (isPaused?: boolean, t?: any): string => (isPaused ? t?.("jellyfin.paused_short", "Paused") || "Paused" : t?.("jellyfin.playing", "Playing") || "Playing");
 
 const isPlayingSession = (session: JellyfinSession): boolean =>
   !session.PlayState?.IsPaused &&
@@ -108,6 +109,7 @@ const getPlaybackKey = (session: JellyfinSession): string =>
   `${session.UserName || "unknown"}:${session.NowPlayingItem?.SeriesName || ""}:${session.NowPlayingItem?.Name || ""}`;
 
 export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const summary = service?.stats?.jellyfin?.summary ?? EMPTY_SUMMARY;
@@ -214,12 +216,12 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
             title={
               <div className="flex w-full items-center justify-between pr-6">
                 <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                  Active Streams:
+                  {t("jellyfin.active_streams", "Active Streams:")}
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Total:
+                      {t("jellyfin.total", "Total:")}
                     </span>
                     <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
                       {activeStreams}
@@ -227,7 +229,7 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Transcoding:
+                      {t("jellyfin.transcoding", "Transcoding:")}
                     </span>
                     <span className="text-xs font-medium text-amber-500 dark:text-amber-400">
                       {transcoding}
@@ -235,7 +237,7 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Paused:
+                      {t("jellyfin.paused", "Paused:")}
                     </span>
                     <span className="text-xs font-medium text-zinc-300">{paused}</span>
                   </div>
@@ -290,28 +292,30 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                             className="text-xs font-medium text-gray-200 truncate"
                             title={getSessionTitle(
                               session.NowPlayingItem?.Name,
-                              session.NowPlayingItem?.SeriesName
+                              session.NowPlayingItem?.SeriesName,
+                              t
                             )}
                           >
                             {getSessionTitle(
                               session.NowPlayingItem?.Name,
-                              session.NowPlayingItem?.SeriesName
+                              session.NowPlayingItem?.SeriesName,
+                              t
                             )}
                           </span>
                           {isTranscodingSession(session) && (
                             <div className="flex items-center gap-1 ml-2 text-amber-500 dark:text-amber-400">
                               <FaExchangeAlt className="h-3 w-3" />
-                              <span className="text-[10px]">Transcoding</span>
+                              <span className="text-[10px]">{t("jellyfin.transcoding_badge", "Transcoding")}</span>
                             </div>
                           )}
                           <span className="text-[10px] text-zinc-400 ml-1">
                             {isPaused ? (
                               <span className="inline-flex items-center gap-1">
-                                <FaPause className="h-2.5 w-2.5" /> Paused
+                                <FaPause className="h-2.5 w-2.5" /> {t("jellyfin.paused_short", "Paused")}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1">
-                                <FaPlay className="h-2.5 w-2.5" /> Playing
+                                <FaPlay className="h-2.5 w-2.5" /> {t("jellyfin.playing", "Playing")}
                               </span>
                             )}
                           </span>
@@ -337,12 +341,12 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                         <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
                           <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
                             <FaUser className="h-4 w-4 text-gray-400" />
-                            <span>{session.UserName || "Unknown user"}</span>
+                            <span>{session.UserName || t("jellyfin.unknown_user", "Unknown user")}</span>
                           </span>
                           <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
                             {getDeviceIcon(session.DeviceType || session.Client)}
                             <span className="truncate">
-                              {session.Client || session.DeviceName || "Unknown client"}
+                              {session.Client || session.DeviceName || t("jellyfin.unknown_client", "Unknown client")}
                             </span>
                           </span>
                         </div>
@@ -359,7 +363,7 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                             </span>
                           ) : (
                             <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
-                              {session.PlayState?.PlayMethod || getPlayStateText(isPaused)}
+                              {session.PlayState?.PlayMethod || getPlayStateText(isPaused, t)}
                             </span>
                           )}
                         </div>

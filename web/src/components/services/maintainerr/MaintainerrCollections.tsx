@@ -7,12 +7,14 @@ import React from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { ArrowTopRightOnSquareIcon, ClockIcon, FilmIcon } from "@heroicons/react/24/outline";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   instanceId: string;
 }
 
 export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const collections = service?.stats?.maintainerr?.collections || [];
@@ -29,7 +31,7 @@ export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
   return (
     <>
       <div className="text-xs mb-2 pt-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
-        Collections:
+        {t("maintainerr.collections", "Collections:")}
       </div>
       {collections.map((collection) => (
         <div key={collection.id} className="mt-2">
@@ -50,8 +52,8 @@ export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
             <div className="flex items-center gap-4 mt-1">
               <div className="flex items-center gap-1">
                 <ClockIcon className="w-3.5 h-3.5 text-gray-400" />
-                <span className="text-gray-600 dark:text-gray-400">Delete after:</span>
-                <span className="text-gray-700 dark:text-gray-200">{collection.deleteAfterDays} days</span>
+                <span className="text-gray-600 dark:text-gray-400">{t("maintainerr.delete_after", "Delete after:")}</span>
+                <span className="text-gray-700 dark:text-gray-200">{t("maintainerr.days", { count: collection.deleteAfterDays, defaultValue: `${collection.deleteAfterDays} days` })}</span>
               </div>
               <div className="flex items-center gap-1">
                 <FilmIcon className="w-3.5 h-3.5 text-gray-400" />

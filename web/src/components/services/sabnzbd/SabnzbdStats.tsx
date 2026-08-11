@@ -13,6 +13,7 @@ import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import type { SabnzbdSummary } from "../../../types/service";
+import { useTranslation } from "react-i18next";
 
 interface SabnzbdStatsProps {
   instanceId: string;
@@ -61,6 +62,7 @@ const formatSpeed = (raw: string): string => {
 };
 
 export const SabnzbdStats: React.FC<SabnzbdStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const service = getService(instanceId);
   const summary = service?.stats?.sabnzbd?.summary ?? EMPTY_SUMMARY;
@@ -99,42 +101,41 @@ export const SabnzbdStats: React.FC<SabnzbdStatsProps> = ({ instanceId }) => {
 
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Queue Status</div>
+          <div className="text-zinc-400">{t("sabnzbd.queue_status", "Queue Status")}</div>
           <div className="mt-0.5 text-zinc-100">
-            {summary.queue.status || "Unknown"}
+            {summary.queue.status || t("status.unknown", "Unknown")}
           </div>
           <div className="text-zinc-400">
-            {queueCount} active
-            {warningsCount > 0 ? ` · ${warningsCount} warning(s)` : ""}
+            {t("sabnzbd.active", { count: queueCount, defaultValue: `${queueCount} active` })}
+            {warningsCount > 0 ? ` · ${t("sabnzbd.warnings", { count: warningsCount, defaultValue: `${warningsCount} warning(s)` })}` : ""}
           </div>
         </div>
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Download Speed</div>
+          <div className="text-zinc-400">{t("sabnzbd.download_speed", "Download Speed")}</div>
           <div className="mt-0.5 text-zinc-100">
             {formatSpeed(summary.queue.speed)}
           </div>
           <div className="text-zinc-400">
-            Remaining {summary.queue.sizeleft || "0 B"} · ETA{" "}
-            {summary.queue.timeleft || "0:00:00"}
+            {t("sabnzbd.remaining", { size: summary.queue.sizeleft || "0 B", defaultValue: `Remaining ${summary.queue.sizeleft || "0 B"}` })} · {t("sabnzbd.eta", { time: summary.queue.timeleft || "0:00:00", defaultValue: `ETA ${summary.queue.timeleft || "0:00:00"}` })}
           </div>
         </div>
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Disk Free (incomplete)</div>
+          <div className="text-zinc-400">{t("sabnzbd.disk_free_incomplete", "Disk Free (incomplete)")}</div>
           <div className="mt-0.5 text-zinc-100">
-            {summary.queue.diskspace1_norm || "Unknown"}
+            {summary.queue.diskspace1_norm || t("status.unknown", "Unknown")}
           </div>
         </div>
         <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs">
-          <div className="text-zinc-400">Disk Free (complete)</div>
+          <div className="text-zinc-400">{t("sabnzbd.disk_free_complete", "Disk Free (complete)")}</div>
           <div className="mt-0.5 text-zinc-100">
-            {summary.queue.diskspace2_norm || "Unknown"}
+            {summary.queue.diskspace2_norm || t("status.unknown", "Unknown")}
           </div>
         </div>
       </div>
 
       {summary.queue.slots.length > 0 && (
         <CollapsibleSection
-          title="Queue"
+          title={t("sabnzbd.queue", "Queue")}
           meta={`${summary.queue.slots.length}`}
           isExpanded={queueExpanded}
           onToggle={toggleQueue}
@@ -146,14 +147,14 @@ export const SabnzbdStats: React.FC<SabnzbdStatsProps> = ({ instanceId }) => {
                 className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs"
               >
                 <div className="truncate font-medium text-zinc-200">
-                  {slot.filename || "Unnamed download"}
+                  {slot.filename || t("sabnzbd.unnamed_download", "Unnamed download")}
                 </div>
                 <div className="mt-1 flex items-center justify-between text-zinc-400">
-                  <span>{slot.status || "Unknown"}</span>
+                  <span>{slot.status || t("status.unknown", "Unknown")}</span>
                   <span>{slot.percentage || "0"}%</span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-zinc-400">
-                  <span>{slot.sizeleft || "0 B"} left</span>
+                  <span>{t("sabnzbd.left", { size: slot.sizeleft || "0 B", defaultValue: `${slot.sizeleft || "0 B"} left` })}</span>
                   <span>{slot.timeleft || "0:00:00"}</span>
                 </div>
               </div>
@@ -164,7 +165,7 @@ export const SabnzbdStats: React.FC<SabnzbdStatsProps> = ({ instanceId }) => {
 
       {(summary.failedCount > 0 || summary.recentFailures.length > 0) && (
         <CollapsibleSection
-          title="Recent Failures"
+          title={t("sabnzbd.recent_failures", "Recent Failures")}
           meta={`${summary.failedCount}`}
           isExpanded={failuresExpanded}
           onToggle={toggleFailures}
@@ -177,7 +178,7 @@ export const SabnzbdStats: React.FC<SabnzbdStatsProps> = ({ instanceId }) => {
                   className="rounded-md border border-amber-800/40 bg-amber-900/20 px-3.5 py-2 text-xs text-amber-300"
                 >
                   <div className="truncate font-medium">
-                    {failure.name || "Unknown release"}
+                    {failure.name || t("sabnzbd.unknown_release", "Unknown release")}
                   </div>
                   {failure.fail_message && (
                     <div className="mt-1 truncate text-amber-200">
@@ -188,7 +189,7 @@ export const SabnzbdStats: React.FC<SabnzbdStatsProps> = ({ instanceId }) => {
               ))
             ) : (
               <div className="rounded-md bg-zinc-900/80 px-3.5 py-2 text-xs text-zinc-400">
-                Failed jobs detected, waiting for history details.
+                {t("sabnzbd.waiting_history", "Failed jobs detected, waiting for history details.")}
               </div>
             )}
           </div>

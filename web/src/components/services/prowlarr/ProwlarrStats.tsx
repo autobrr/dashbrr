@@ -12,6 +12,7 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import { useTranslation } from "react-i18next";
 import {
   ClockIcon,
   ArrowDownTrayIcon,
@@ -23,6 +24,7 @@ interface ProwlarrStatsProps {
 }
 
 export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
   const [stableIndexers, setStableIndexers] = useState<ProwlarrIndexer[]>([]);
@@ -77,9 +79,9 @@ export const ProwlarrStats: React.FC<ProwlarrStatsProps> = ({ instanceId }) => {
         <CollapsibleSection
           title={
             <>
-              Active Indexers{" "}
+              {t("prowlarr.active_indexers", "Active Indexers")}{" "}
               <span className="text-xs font-bold lowercase">
-                (Last 30 Days)
+                {t("prowlarr.last_30_days", "(Last 30 Days)")}
               </span>
             </>
           }

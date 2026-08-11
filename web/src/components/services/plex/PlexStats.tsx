@@ -13,6 +13,7 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
+import { useTranslation } from "react-i18next";
 import {
   formatBitrateKbps,
   formatDurationMs,
@@ -49,6 +50,7 @@ const getPlaybackKey = (session: PlexSession): string => {
 };
 
 export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
+  const { t } = useTranslation();
   const { getService } = useServiceData();
   const [playbackStates, setPlaybackStates] = useState<{
     [key: string]: TimerState;
@@ -164,12 +166,12 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
             title={
               <div className="flex w-full items-center justify-between pr-6">
                 <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                  Active Streams:
+                  {t("plex.active_streams", "Active Streams:")}
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Total:
+                      {t("plex.total", "Total:")}
                     </span>
                     <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
                       {activeStreams}
@@ -177,7 +179,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Transcoding:
+                      {t("plex.transcoding", "Transcoding:")}
                     </span>
                     <span className="text-xs font-medium text-amber-500 dark:text-amber-400">
                       {transcodingCount}
@@ -219,7 +221,7 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                         {isTranscoding(session) && (
                           <div className="flex items-center gap-1 ml-4 text-amber-500 dark:text-amber-400">
                             <FaExchangeAlt className="h-3 w-3" />
-                            <span className="text-[10px]">Transcoding</span>
+                            <span className="text-[10px]">{t("plex.transcoding_badge", "Transcoding")}</span>
                           </div>
                         )}
                       </div>
