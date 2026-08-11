@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Only probe the OIDC endpoint when OIDC is configured; the route does not
     // exist otherwise and the browser logs a 404.
     const candidates: Array<"oidc" | "builtin"> =
-      config && !config.methods.oidc ? ["builtin"] : ["oidc", "builtin"];
+      config?.methods.oidc === true ? ["oidc", "builtin"] : ["builtin"];
 
     const baseRequest: RequestInit = {
       credentials: "include",
