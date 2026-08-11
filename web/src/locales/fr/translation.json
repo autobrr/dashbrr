@@ -203,7 +203,7 @@
     "open": "Ouvrir Uptime Kuma",
     "monitor": "moniteur"
   },
-  "overseerr": {
+  "seerr": {
     "pending_requests": "Demandes en attente :",
     "recent_requests": "Demandes Récentes",
     "showing_requests": "Affichage de {{count}} sur {{total}} demandes en attente",

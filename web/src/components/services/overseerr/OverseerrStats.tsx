@@ -84,7 +84,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
     null
   );
   const { isExpanded, toggle } = useCollapsiblePreference(
-    serviceSectionCollapseKey(instanceId, "overseerr:recent_requests"),
+    serviceSectionCollapseKey(instanceId, "seerr:recent_requests"),
     true
   );
 
@@ -112,7 +112,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       toast.custom((t_toast) => (
         <Toast
           type="success"
-          body={t("overseerr.successfully", { action: modalAction, title: selectedRequest.media.title || "media", defaultValue: `Successfully ${modalAction}d request for ${selectedRequest.media.title || "media"}` })}
+          body={t("seerr.successfully", { action: modalAction, title: selectedRequest.media.title || "media", defaultValue: `Successfully ${modalAction}d request for ${selectedRequest.media.title || "media"}` })}
           t={t_toast}
         />
       ));
@@ -124,7 +124,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       toast.custom((t_toast) => (
         <Toast
           type="error"
-          body={t("overseerr.failed_to", { action: modalAction, error: String(error), defaultValue: `Failed to ${modalAction} request: ${error}` })}
+          body={t("seerr.failed_to", { action: modalAction, error: String(error), defaultValue: `Failed to ${modalAction} request: ${error}` })}
           t={t_toast}
         />
       ));
@@ -132,7 +132,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   };
 
   if (isLoading) {
-    return <p className="text-xs text-gray-500">{t("overseerr.loading_requests", "Loading requests...")}</p>;
+    return <p className="text-xs text-gray-500">{t("seerr.loading_requests", "Loading requests...")}</p>;
   }
 
   if (error) {
@@ -153,17 +153,17 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   const getUserDisplayName = (
     requestedBy: OverseerrMediaRequest["requestedBy"]
   ) => {
-    if (!requestedBy) return t("overseerr.unknown_user", "Unknown User");
+    if (!requestedBy) return t("seerr.unknown_user", "Unknown User");
     return (
       requestedBy.username ||
       requestedBy.plexUsername ||
       requestedBy.email ||
-      t("overseerr.unknown_user", "Unknown User")
+      t("seerr.unknown_user", "Unknown User")
     );
   };
 
   const getMediaType = (request: OverseerrMediaRequest) => {
-    return request.media.tvdbId ? t("overseerr.show", "Show") : t("overseerr.movie", "Movie");
+    return request.media.tvdbId ? t("seerr.show", "Show") : t("seerr.movie", "Movie");
   };
 
   const getMediaTitle = (request: OverseerrMediaRequest) => {
@@ -171,8 +171,8 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       return request.media.title;
     }
     return request.media.tvdbId
-      ? t("overseerr.tv_show_id", { id: request.media.tvdbId, defaultValue: `TV Show (TVDB: ${request.media.tvdbId})` })
-      : t("overseerr.movie_id", { id: request.media.tmdbId, defaultValue: `Movie (TMDB: ${request.media.tmdbId})` });
+      ? t("seerr.tv_show_id", { id: request.media.tvdbId, defaultValue: `TV Show (TVDB: ${request.media.tvdbId})` })
+      : t("seerr.movie_id", { id: request.media.tmdbId, defaultValue: `Movie (TMDB: ${request.media.tmdbId})` });
   };
 
   const RequestItem = ({
@@ -298,7 +298,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
                   className={`${statusMeta.color} bg-gray-800/50 px-2 py-0.5 rounded font-medium`}
                 >
                   {t(`overseerr.status.${statusMeta.label.toLowerCase().replace(" ", "_")}`, statusMeta.label)}
-                  {status.isFallback ? t("overseerr.media", " (media)") : ""}
+                  {status.isFallback ? t("seerr.media", " (media)") : ""}
                 </span>
               )}
             </div>
@@ -316,7 +316,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       {pendingCount > 0 && (
         <div>
           <div className="text-xs mb-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
-            {t("overseerr.pending_requests", "Pending Requests:")}
+            {t("seerr.pending_requests", "Pending Requests:")}
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {pendingRequests
@@ -336,7 +336,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           </div>
           {pendingCount > 3 && (
             <div className="mt-1 text-[11px] text-zinc-400">
-              {t("overseerr.showing_requests", { count: 3, total: pendingCount, defaultValue: `Showing 3 of ${pendingCount} pending requests` })}
+              {t("seerr.showing_requests", { count: 3, total: pendingCount, defaultValue: `Showing 3 of ${pendingCount} pending requests` })}
             </div>
           )}
         </div>
@@ -345,7 +345,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       {/* Recent Requests */}
       {recentNonPendingRequests.length > 0 ? (
         <CollapsibleSection
-          title={t("overseerr.recent_requests", "Recent Requests")}
+          title={t("seerr.recent_requests", "Recent Requests")}
           meta={`${Math.min(recentNonPendingRequests.length, 5)} shown`}
           isExpanded={isExpanded}
           onToggle={toggle}
@@ -360,7 +360,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
         </CollapsibleSection>
       ) : (
         <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-4">
-          {t("overseerr.no_recent", "No recent requests")}
+          {t("seerr.no_recent", "No recent requests")}
         </div>
       )}
 

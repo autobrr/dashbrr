@@ -30,7 +30,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
   action,
 }) => {
   const { t } = useTranslation();
-  const actionText = action === "approve" ? t("overseerr.approve", "approve") : t("overseerr.reject", "reject");
+  const actionText = action === "approve" ? t("seerr.approve", "approve") : t("seerr.reject", "reject");
   const actionColor = action === "approve" ? "green" : "red";
 
   const formatDate = (dateString: string) => {
@@ -48,12 +48,12 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
   const getUserDisplayName = (
     requestedBy: OverseerrMediaRequest["requestedBy"]
   ) => {
-    if (!requestedBy) return t("overseerr.unknown_user", "Unknown User");
+    if (!requestedBy) return t("seerr.unknown_user", "Unknown User");
     return (
       requestedBy.username ||
       requestedBy.plexUsername ||
       requestedBy.email ||
-      t("overseerr.unknown_user", "Unknown User")
+      t("seerr.unknown_user", "Unknown User")
     );
   };
 
@@ -63,7 +63,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
       onClose={onClose}
       title={`${
         actionText.charAt(0).toUpperCase() + actionText.slice(1)
-      } ${t("overseerr.request", "request")}`}
+      } ${t("seerr.request", "request")}`}
       maxWidth="md"
     >
       <div className="space-y-6">
@@ -89,7 +89,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
                     <h3 className="text-2xl font-semibold text-white tracking-tight">
                       {request.media.title ||
                         `${
-                          request.media.mediaType === "tv" ? t("overseerr.show", "Show") : t("overseerr.movie", "Movie")
+                          request.media.mediaType === "tv" ? t("seerr.show", "Show") : t("seerr.movie", "Movie")
                         } (${request.media.tmdbId})`}
                     </h3>
                   </div>
@@ -103,7 +103,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 px-3 py-0.5 rounded-md bg-gray-700/50 border border-gray-600/50 text-xs font-medium text-gray-300 min-w-[120px] text-center hover:text-blue-400"
                       >
-                        {t("overseerr.view_on_tmdb", "View on TMDB")}
+                        {t("seerr.view_on_tmdb", "View on TMDB")}
                         <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                       </a>
                     )}
@@ -114,7 +114,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 px-3 py-0.5 rounded-md bg-gray-700/50 border border-gray-600/50 text-xs font-medium text-gray-300 min-w-[120px] text-center hover:text-blue-400"
                       >
-                        {t("overseerr.view_on_tvdb", "View on TVDB")}
+                        {t("seerr.view_on_tvdb", "View on TVDB")}
                         <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                       </a>
                     )}
@@ -124,14 +124,14 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center text-gray-300 gap-2">
                     <UserIcon className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium">{t("overseerr.requested_by", "Requested by:")}</span>
+                    <span className="font-medium">{t("seerr.requested_by", "Requested by:")}</span>
                     <span className="text-gray-400">
                       {getUserDisplayName(request.requestedBy)}
                     </span>
                   </div>
                   <div className="flex items-center text-gray-300 gap-2">
                     <ClockIcon className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium">{t("overseerr.date_requested", "Date requested:")}</span>
+                    <span className="font-medium">{t("seerr.date_requested", "Date requested:")}</span>
                     <span className="text-gray-400">
                       {formatDate(request.createdAt)}
                     </span>
@@ -144,7 +144,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
 
         <div className="px-1">
           <p className="text-base text-gray-300">
-            {t("overseerr.confirm_action", { action: actionText, defaultValue: `Are you sure you want to ${actionText} this request?` })}
+            {t("seerr.confirm_action", { action: actionText, defaultValue: `Are you sure you want to ${actionText} this request?` })}
           </p>
         </div>
 
