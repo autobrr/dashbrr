@@ -8,14 +8,16 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 )
 
 var errNoSessionToken = errors.New("no session token")
 
-// getSessionToken extracts the session token from either the "session" cookie
+// getSessionToken extracts the session token from either the session cookie
 // or a Bearer Authorization header.
 func getSessionToken(c *gin.Context) (string, error) {
-	if token, err := c.Cookie("session"); err == nil && token != "" {
+	if token, err := c.Cookie(middleware.SessionCookieName); err == nil && token != "" {
 		return token, nil
 	}
 

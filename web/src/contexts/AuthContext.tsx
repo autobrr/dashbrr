@@ -65,11 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthType(null);
   }, []);
 
-  const checkAuthStatus = useCallback(async () => {
+  const checkAuthStatus = useCallback(async (config?: AuthConfig | null) => {
     debug("[AuthProvider] Checking auth status");
     setLoading(true);
 
-    const candidates: Array<"oidc" | "builtin"> = ["oidc", "builtin"];
+    // Only probe the OIDC endpoint when OIDC is configured; the route does not
+    // exist otherwise and the browser logs a 404.
+    const candidates: Array<"oidc" | "builtin"> =
+      config?.methods.oidc === true ? ["oidc", "builtin"] : ["builtin"];
 
     const baseRequest: RequestInit = {
       credentials: "include",
@@ -141,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Always check once: supports cookie-only sessions.
-      await checkAuthStatus();
+      await checkAuthStatus(config);
     };
 
     void init();
@@ -199,7 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       await response.json();
       debug("[AuthProvider] Login successful");
-      await checkAuthStatus();
+      await checkAuthStatus(authConfig);
     } catch (error) {
       console.error("[AuthProvider] Login error:", error);
       throw error;
