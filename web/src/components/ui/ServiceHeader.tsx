@@ -16,6 +16,7 @@ import { StatusIcon, StatusType } from "./StatusIcon";
 
 interface ServiceHeaderProps {
   displayName: string;
+  serviceType: string;
   url?: string;
   accessUrl?: string;
   version?: string;
@@ -29,6 +30,7 @@ interface ServiceHeaderProps {
 
 export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   displayName,
+  serviceType,
   url,
   accessUrl,
   version,
@@ -59,14 +61,13 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   };
 
   const getUpdateUrl = () => {
-    const serviceKey = displayName.toLowerCase();
-    return repoUrls[serviceKey];
+    return repoUrls[serviceType];
   };
 
   // Use accessUrl if available, otherwise fall back to url
   const openUrl = accessUrl || url;
 
-  const serviceKey = displayName.toLowerCase().replace(/\s+/g, "-");
+  const serviceKey = serviceType;
 
   return (
     <>
