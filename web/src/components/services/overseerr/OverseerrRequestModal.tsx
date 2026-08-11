@@ -80,7 +80,7 @@ export const OverseerrRequestModal: React.FC<OverseerrRequestModalProps> = ({
                     <div
                       className={"p-2 rounded-lg bg-gray-700/50 border border-gray-600/50 shadow-inner h-fit"}
                     >
-                      {request.media.tvdbId ? (
+                      {request.media.mediaType === "tv" ? (
                         <FaTv className="h-5 w-5 text-blue-400" />
                       ) : (
                         <FaFilm className="h-5 w-5 text-purple-400" />

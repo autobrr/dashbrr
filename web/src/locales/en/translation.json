@@ -61,7 +61,7 @@
     "errors": "Errors",
     "recent_releases": "Recent Releases:",
     "shown": "{{count}} shown",
-    "download_torrent": "Download torrentfile",
+    "download_torrent": "Download torrent file",
     "view_release": "View this release on {{name}}",
     "no_recent_releases": "No recent releases"
   },
@@ -239,9 +239,7 @@
     "view_on_tvdb": "View on TVDB",
     "requested_by": "Requested by:",
     "date_requested": "Date requested:",
-    "confirm_action": "Are you sure you want to {{action}} this request?"
-  },
-  "overseerr": {
+    "confirm_action": "Are you sure you want to {{action}} this request?",
     "request_approved": "Successfully approved request for {{title}}",
     "request_rejected": "Successfully rejected request for {{title}}"
   }

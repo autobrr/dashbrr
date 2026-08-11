@@ -283,7 +283,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
         </span>
         <div className={`flex items-center gap-1 ${statusDisplay.color}`}>
           <span className="text-xs pointer-events-none">
-            {t(`status.${status}`, statusDisplay.text)}
+            {t(`status.${effectiveStatus}`, statusDisplay.text)}
           </span>
           <span
             className={`text-xs ${

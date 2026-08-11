@@ -16,7 +16,7 @@ export function LanguageSelector() {
     <Menu as="div" className="relative inline-block text-left">
       <div>
         <Menu.Button
-          className="flex items-center gap-1 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white focus:outline-none"
+          className="flex items-center gap-1 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           title={t("common.language_selector", "Change Language")}
           aria-label={t("common.language_selector", "Change Language")}
         >
@@ -34,7 +34,7 @@ export function LanguageSelector() {
         leaveFrom="transform opacity-100 scale-100"
         leaveTo="transform opacity-0 scale-95"
       >
-        <Menu.Items className="absolute right-0 z-50 mt-2 w-36 origin-top-right rounded-md bg-white dark:bg-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+        <Menu.Items className="absolute right-0 z-50 mt-2 w-36 origin-top-right rounded-md bg-white dark:bg-zinc-800 shadow-lg ring-1 ring-black/5 focus:outline-none">
           <div className="py-1">
             {languages.map((lng) => (
               <Menu.Item key={lng.code}>

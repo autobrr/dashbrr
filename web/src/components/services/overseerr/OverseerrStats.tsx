@@ -125,11 +125,12 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
       setSelectedRequest(null);
       setModalAction(null);
     } catch (error) {
+      const localizedAction = modalAction === "approve" ? t("overseerr.approve", "approve") : t("overseerr.reject", "reject");
       console.error("Failed to update request status:", error);
       toast.custom((t_toast) => (
         <Toast
           type="error"
-          body={t("overseerr.failed_to", { action: modalAction, error: String(error), defaultValue: `Failed to ${modalAction} request: ${error}` })}
+          body={t("overseerr.failed_to", { action: localizedAction, error: String(error), defaultValue: `Failed to ${localizedAction} request: ${error}` })}
           t={t_toast}
         />
       ));
@@ -168,14 +169,14 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
   };
 
   const getMediaType = (request: OverseerrMediaRequest) => {
-    return request.media.tvdbId ? t("overseerr.show", "Show") : t("overseerr.movie", "Movie");
+    return request.media.mediaType === "tv" ? t("overseerr.show", "Show") : t("overseerr.movie", "Movie");
   };
 
   const getMediaTitle = (request: OverseerrMediaRequest) => {
     if (request.media.title) {
       return request.media.title;
     }
-    return request.media.tvdbId
+    return request.media.mediaType === "tv"
       ? t("overseerr.tv_show_id", { id: request.media.tvdbId, defaultValue: `TV Show (TVDB: ${request.media.tvdbId})` })
       : t("overseerr.movie_id", { id: request.media.tmdbId, defaultValue: `Movie (TMDB: ${request.media.tmdbId})` });
   };
@@ -263,8 +264,8 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
           </div>
           <div className="flex items-center justify-between">
             <div className="flex flex-wrap items-center gap-y-1.5 text-xs text-gray-400">
-              <span className="flex items-center gap-2 bg-gray-800/50 -ml-1 px-1.5 py-0.5 rounded">
-                {request.media.tvdbId != null ? (
+              <span className="flex items-center gap-1.5 bg-gray-800/50 px-2 py-0.5 rounded">
+                {request.media.mediaType === "tv" ? (
                   <FaTv className="h-3.5 w-3.5 text-gray-400" />
                 ) : (
                   <FaFilm className="h-3.5 w-3.5 text-gray-400" />

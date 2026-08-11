@@ -38,8 +38,8 @@
     "healthy": "En bonne santé",
     "add_service": "Ajouter un service",
     "connected": "CONNECTÉ",
-    "up": "Haut",
-    "down": "Bas",
+    "up": "Envoi",
+    "down": "Téléchargement",
     "disconnected": "DÉCONNECTÉ",
     "disconnected_backend": "Déconnecté du backend",
     "needs_configuration": "Cliquez sur l'icône d'engrenage pour configurer ce service",
@@ -218,9 +218,9 @@
     "movie_id": "Film (TMDB: {{id}})",
     "media": " (média)",
     "successfully": "Demande pour {{title}} {{action}} avec succès",
-    "failed_to": "Échec de l'action {{action}} pour la demande : {{error}}",
-    "approve": "approuvée",
-    "reject": "rejetée",
+    "failed_to": "Échec de l'action : {{action}} la demande (erreur : {{error}})",
+    "approve": "approuver",
+    "reject": "rejeter",
     "status": {
       "pending": "En attente",
       "approved": "Approuvé",
@@ -239,9 +239,7 @@
     "view_on_tvdb": "Voir sur TVDB",
     "requested_by": "Demandé par :",
     "date_requested": "Date de la demande :",
-    "confirm_action": "Êtes-vous sûr de vouloir {{action}} cette demande ?"
-  },
-  "overseerr": {
+    "confirm_action": "Êtes-vous sûr de vouloir {{action}} cette demande ?",
     "request_approved": "Demande pour {{title}} approuvée avec succès",
     "request_rejected": "Demande pour {{title}} rejetée avec succès"
   }
