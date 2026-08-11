@@ -114,7 +114,7 @@ Currently supported service command groups:
 - `lidarr`
 - `maintainerr`
 - `nzbget`
-- `overseerr`
+- `seerr`
 - `plex`
 - `prowlarr`
 - `qui`
@@ -217,19 +217,19 @@ Example: dashbrr service maintainerr remove http://localhost:7476
 dashbrr service maintainerr list
 ```
 
-### Overseerr
+### Seerr
 
 ```bash
-# Add an Overseerr service
-dashbrr service overseerr add <url> <api-key>
-Example: dashbrr service overseerr add http://localhost:5055 your-api-key
+# Add an Seerr service
+dashbrr service seerr add <url> <api-key>
+Example: dashbrr service seerr add http://localhost:5055 your-api-key
 
-# Remove an Overseerr service
-dashbrr service overseerr remove <url>
-Example: dashbrr service overseerr remove http://localhost:5055
+# Remove an Seerr service
+dashbrr service seerr remove <url>
+Example: dashbrr service seerr remove http://localhost:5055
 
-# List Overseerr services
-dashbrr service overseerr list
+# List Seerr services
+dashbrr service seerr list
 ```
 
 ### Plex

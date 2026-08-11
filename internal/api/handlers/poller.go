@@ -23,13 +23,13 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/lidarr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/nzbget"
-	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/services/qui"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/readarr"
 	"github.com/autobrr/dashbrr/internal/services/sabnzbd"
+	"github.com/autobrr/dashbrr/internal/services/seerr"
 	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/services/traefik"
@@ -118,8 +118,8 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		"uptimekuma": {
 			{name: "uptimekuma_summary", interval: 30 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runUptimeKumaSummary},
 		},
-		"overseerr": {
-			{name: "overseerr_requests", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runOverseerrRequests},
+		"seerr": {
+			{name: "seerr_requests", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runSeerrRequests},
 		},
 		"radarr": {
 			{name: "radarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runRadarrQueue},
@@ -703,8 +703,8 @@ func (p *Poller) runUptimeKumaSummary(ctx context.Context, svc models.ServiceCon
 	return nil
 }
 
-func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
-	service := &overseerr.OverseerrService{}
+func (p *Poller) runSeerrRequests(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := &seerr.SeerrService{}
 	service.SetDB(p.db)
 
 	stats, err := service.GetRequests(ctx, svc.URL, svc.APIKey)
@@ -719,7 +719,7 @@ func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceCon
 		stats.Requests = []types.MediaRequest{}
 	}
 
-	publishInternalServiceUpdate(p.bc, buildOverseerrRequestsServiceUpdate(svc.InstanceID, stats))
+	publishInternalServiceUpdate(p.bc, buildSeerrRequestsServiceUpdate(svc.InstanceID, stats))
 	return nil
 }
 

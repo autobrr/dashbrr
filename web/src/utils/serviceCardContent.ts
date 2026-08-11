@@ -80,8 +80,8 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
         (service.details?.traefik?.routerTotal ?? 0) > 0 ||
         (service.stats?.traefik?.summary?.issueRouters?.length ?? 0) > 0
       );
-    case "overseerr":
-      return (service.stats?.overseerr?.requests?.length ?? 0) > 0;
+    case "seerr":
+      return (service.stats?.seerr?.requests?.length ?? 0) > 0;
     case "maintainerr":
       return (service.stats?.maintainerr?.collections?.length ?? 0) > 0;
     case "qui":

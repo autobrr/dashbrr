@@ -66,9 +66,9 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewProwlarrService != nil {
 			return NewProwlarrService()
 		}
-	case "overseerr":
-		if NewOverseerrService != nil {
-			return NewOverseerrService()
+	case "seerr":
+		if NewSeerrService != nil {
+			return NewSeerrService()
 		}
 	case "plex":
 		if NewPlexService != nil {

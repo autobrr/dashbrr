@@ -17,7 +17,7 @@ Notes:
 | Lidarr | `lidarr` | `lidarr` | API key | Yes | `/api/lidarr/queue` | 60s |
 | Maintainerr | `maintainerr` | `maintainerr` | API key | Yes | `/api/maintainerr/collections` | 10m |
 | NZBGet | `nzbget` | `nzbget` | Control password or `user:pass` | Yes | `/api/nzbget/summary` | 45s |
-| Overseerr | `overseerr` | `overseerr` | API key | Yes | `/api/overseerr/requests` | 60s |
+| Seerr | `seerr` | `seerr` | API key | Yes | `/api/seerr/requests` | 60s |
 | Plex | `plex` | `plex` | Plex token | Yes | `/api/plex/sessions` | 10s |
 | Prowlarr | `prowlarr` | `prowlarr` | API key | Yes | `/api/prowlarr/stats`, `/api/prowlarr/indexers` | 120s |
 | Qui | `qui` | `qui` | API key | Yes | `/api/qui/overview` | 20s |

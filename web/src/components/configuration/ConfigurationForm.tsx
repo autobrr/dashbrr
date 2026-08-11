@@ -124,7 +124,7 @@ export const ConfigurationForm = ({
       case "sabnzbd":
       case "prowlarr":
         return "API Key";
-      case "overseerr":
+      case "seerr":
         return "API Key";
       case "jellyfin":
       case "uptimekuma":
@@ -193,7 +193,7 @@ export const ConfigurationForm = ({
           text: "Settings > API Keys",
           link: getSettingsUrl("/settings/api-keys"),
         };
-      case "overseerr":
+      case "seerr":
         return {
           prefix: "Found in ",
           text: "Settings",

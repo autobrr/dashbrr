@@ -46,4 +46,3 @@ func TestExtractJWTNonce(t *testing.T) {
 		}
 	})
 }
-

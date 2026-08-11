@@ -13,7 +13,7 @@ var canonicalServiceMessageKeys = []string{
 	"plex_sessions",
 	"jellyfin_summary",
 	"uptimekuma_summary",
-	"overseerr_requests",
+	"seerr_requests",
 	"radarr_queue",
 	"lidarr_queue",
 	"readarr_queue",

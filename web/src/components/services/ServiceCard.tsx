@@ -10,7 +10,7 @@ import { ServiceHeader } from "../ui/ServiceHeader";
 import { PlexStats } from "./plex/PlexStats";
 import { JellyfinStats } from "./jellyfin/JellyfinStats";
 import { UptimeKumaStats } from "./uptimekuma/UptimeKumaStats";
-import { OverseerrStats } from "./overseerr/OverseerrStats";
+import { SeerrStats } from "./seerr/SeerrStats";
 import { AutobrrStats } from "./autobrr/AutobrrStats";
 import { MaintainerrService } from "./maintainerr/MaintainerrService";
 import { BazarrStats } from "./bazarr/BazarrStats";
@@ -74,7 +74,7 @@ const SERVICE_STATS_RENDERERS: Partial<
       <AutobrrStats instanceId={instanceId} />
     </div>
   ),
-  overseerr: (instanceId) => <OverseerrStats instanceId={instanceId} />,
+  seerr: (instanceId) => <SeerrStats instanceId={instanceId} />,
   plex: (instanceId) => <PlexStats instanceId={instanceId} />,
   jellyfin: (instanceId) => <JellyfinStats instanceId={instanceId} />,
   uptimekuma: (instanceId) => <UptimeKumaStats instanceId={instanceId} />,

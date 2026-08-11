@@ -97,13 +97,13 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "/api/health/traefik",
   },
   {
-    name: "Overseerr",
+    name: "Seerr",
     displayName: "",
-    type: "overseerr",
+    type: "seerr",
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/overseerr",
+    healthEndpoint: "/api/health/seerr",
   },
   {
     name: "Plex",

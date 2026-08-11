@@ -137,7 +137,7 @@ func (s *Server) Handler() http.Handler {
 	uptimeKumaHandler := handlers.NewUptimeKumaHandler(s.db, s.cache, bc)
 	plexAuthHandler := handlers.NewPlexAuthHandler()
 	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
-	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache, bc)
+	seerrHandler := handlers.NewSeerrHandler(s.db, s.cache, bc)
 	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache, bc)
 	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache, bc)
 	lidarrHandler := handlers.NewLidarrHandler(s.db, s.cache, bc)
@@ -286,10 +286,10 @@ func (s *Server) Handler() http.Handler {
 				regularServices.GET("/uptimekuma/summary", uptimeKumaHandler.GetSummary)
 				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
 
-				// Overseerr endpoints
-				overseerr := regularServices.Group("/overseerr")
+				// Seerr endpoints
+				seerr := regularServices.Group("/seerr")
 				{
-					overseerr.GET("/requests", overseerrHandler.GetRequests)
+					seerr.GET("/requests", seerrHandler.GetRequests)
 				}
 
 				// Sonarr endpoints
@@ -365,10 +365,10 @@ func (s *Server) Handler() http.Handler {
 			serviceActions := services.Group("/services/:instanceId")
 			serviceActions.Use(apiRateLimiter.RateLimit())
 			{
-				// Overseerr action endpoints
-				overseerrActions := serviceActions.Group("/overseerr")
+				// Seerr action endpoints
+				seerrActions := serviceActions.Group("/seerr")
 				{
-					overseerrActions.POST("/request/:requestId/:status", overseerrHandler.UpdateRequestStatus)
+					seerrActions.POST("/request/:requestId/:status", seerrHandler.UpdateRequestStatus)
 				}
 			}
 		}

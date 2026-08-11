@@ -16,7 +16,7 @@ export type ServiceType =
   | "nzbget"
   | "prowlarr"
   | "traefik"
-  | "overseerr"
+  | "seerr"
   | "plex"
   | "jellyfin"
   | "uptimekuma"
@@ -351,8 +351,8 @@ export interface UptimeKumaSummary {
   monitors: UptimeKumaMonitor[];
 }
 
-// Overseerr Types
-export interface OverseerrMediaRequest {
+// Seerr Types
+export interface SeerrMediaRequest {
   id: number;
   status: number;
   createdAt: string;
@@ -403,9 +403,9 @@ export interface OverseerrMediaRequest {
   rootFolder: string;
 }
 
-export interface OverseerrStats {
+export interface SeerrStats {
   pendingCount: number;
-  requests: OverseerrMediaRequest[];
+  requests: SeerrMediaRequest[];
   version?: string;
   status?: number;
   updateAvailable?: boolean;
@@ -871,7 +871,7 @@ export interface ServiceStats {
   uptimekuma?: {
     summary: UptimeKumaSummary;
   };
-  overseerr?: OverseerrStats;
+  seerr?: SeerrStats;
   sonarr?: {
     queue: SonarrQueue;
     stats?: SonarrStats;
@@ -945,7 +945,7 @@ export interface ServiceDetails {
     activeCollections: number;
     totalMedia: number;
   };
-  overseerr?: {
+  seerr?: {
     lastRequestDate?: Date;
     totalRequests?: number;
     pendingCount?: number;

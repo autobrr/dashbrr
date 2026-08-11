@@ -154,7 +154,7 @@ When using environment variables for API keys/tokens (`${SERVICE_API_KEY}`), the
 - `DASHBRR_LIDARR_API_KEY`
 - `DASHBRR_MAINTAINERR_API_KEY`
 - `DASHBRR_NZBGET_API_KEY`
-- `DASHBRR_OVERSEERR_API_KEY`
+- `DASHBRR_SEERR_API_KEY`
 - `DASHBRR_PLEX_API_KEY`
 - `DASHBRR_PROWLARR_API_KEY`
 - `DASHBRR_QUI_API_KEY`
@@ -177,7 +177,7 @@ Discovery/import currently supports these service type keys:
 - `lidarr`
 - `maintainerr`
 - `nzbget`
-- `overseerr`
+- `seerr`
 - `plex`
 - `prowlarr`
 - `qui`

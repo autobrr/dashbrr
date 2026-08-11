@@ -60,7 +60,7 @@ var (
 	NewUptimeKumaService  func() ServiceHealthChecker
 	NewTraefikService     func() ServiceHealthChecker
 	NewProwlarrService    func() ServiceHealthChecker
-	NewOverseerrService   func() ServiceHealthChecker
+	NewSeerrService       func() ServiceHealthChecker
 	NewPlexService        func() ServiceHealthChecker
 	NewTailscaleService   func() ServiceHealthChecker
 	NewMaintainerrService func() ServiceHealthChecker

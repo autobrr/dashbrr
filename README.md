@@ -56,7 +56,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
   - Version check and update notifications
 - **Bazarr**: Subtitle backlog, provider status, health issue visibility
 - **Prowlarr**: Indexer health, stats, active indexers
-- **Overseerr**: Request management, pending requests monitoring
+- **Seerr**: Request management, pending requests monitoring
 - **Maintainerr**: Collection and deletion-rule monitoring
 
 ### Download Management

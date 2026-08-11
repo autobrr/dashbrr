@@ -180,7 +180,7 @@ func buildTraefikSummaryServiceUpdate(instanceID string, summary *types.TraefikS
 	}
 }
 
-func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.RequestsStats) models.ServiceHealth {
+func buildSeerrRequestsServiceUpdate(instanceID string, stats *types.RequestsStats) models.ServiceHealth {
 	serviceStatus := "online"
 	if stats.PendingCount > 0 {
 		serviceStatus = "warning"
@@ -189,15 +189,15 @@ func buildOverseerrRequestsServiceUpdate(instanceID string, stats *types.Request
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    serviceStatus,
-		Message:   "overseerr_requests",
+		Message:   "seerr_requests",
 		Stats: map[string]any{
-			"overseerr": types.OverseerrStats{
+			"seerr": types.SeerrStats{
 				Requests:     stats.Requests,
 				PendingCount: stats.PendingCount,
 			},
 		},
 		Details: map[string]any{
-			"overseerr": types.OverseerrDetails{
+			"seerr": types.SeerrDetails{
 				PendingCount:  stats.PendingCount,
 				TotalRequests: len(stats.Requests),
 			},

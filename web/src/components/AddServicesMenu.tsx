@@ -63,7 +63,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   plex: "MEDIA_SERVER",
   jellyfin: "MEDIA_SERVER",
   uptimekuma: "MONITORING",
-  overseerr: "REQUESTS",
+  seerr: "REQUESTS",
   maintainerr: "REQUESTS",
   qui: "AUTOMATION",
   general: "MONITORING",
@@ -168,7 +168,7 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     text: "Bearer token or user:password for protected dashboard APIs",
     link: null,
   }),
-  overseerr: ({ getSettingsUrl }) => ({
+  seerr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",
     text: "Settings",
     link: getSettingsUrl("/settings/main"),
