@@ -332,6 +332,29 @@ func buildReadarrQueueServiceUpdate(instanceID string, queueResp *types.ReadarrQ
 	}
 }
 
+func buildWhisparrQueueServiceUpdate(instanceID string, queueResp *types.WhisparrQueueResponse) models.ServiceHealth {
+	downloading, episodeCount, totalSize := summarizeWhisparrQueue(queueResp.Records)
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    "online",
+		Message:   "whisparr_queue",
+		Stats: map[string]any{
+			"whisparr": map[string]any{
+				"queue": queueResp,
+			},
+		},
+		Details: map[string]any{
+			"whisparr": map[string]any{
+				"queueCount":       queueResp.TotalRecords,
+				"totalRecords":     queueResp.TotalRecords,
+				"downloadingCount": downloading,
+				"episodeCount":     episodeCount,
+				"totalSize":        totalSize,
+			},
+		},
+	}
+}
 func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQueueResponse) models.ServiceHealth {
 	downloading, episodeCount, totalSize := summarizeSonarrQueue(queueResp.Records)
 

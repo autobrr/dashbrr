@@ -24,4 +24,5 @@ import (
 	_ "github.com/autobrr/dashbrr/internal/services/tailscale"
 	_ "github.com/autobrr/dashbrr/internal/services/traefik"
 	_ "github.com/autobrr/dashbrr/internal/services/uptimekuma"
+	_ "github.com/autobrr/dashbrr/internal/services/whisparr"
 )

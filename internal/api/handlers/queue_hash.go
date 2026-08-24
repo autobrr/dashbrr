@@ -94,6 +94,22 @@ func wrapSonarrQueue(queue *types.SonarrQueueResponse) []QueueRecordWrapper {
 	})
 }
 
+// wrapWhisparrQueue converts WhisparrQueueResponse to slice of QueueRecordWrapper.
+func wrapWhisparrQueue(queue *types.WhisparrQueueResponse) []QueueRecordWrapper {
+	if queue == nil {
+		return nil
+	}
+
+	return wrapQueueRecords(queue.Records, func(record types.WhisparrQueueItem) QueueRecordWrapper {
+		return QueueRecordWrapper{
+			ID:     record.ID,
+			Title:  record.Title,
+			Status: record.Status,
+			Size:   record.Size,
+		}
+	})
+}
+
 // generateQueueHash creates a hash string from queue records
 func generateQueueHash(records []QueueRecordWrapper) string {
 	if len(records) == 0 {

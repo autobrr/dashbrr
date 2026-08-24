@@ -78,6 +78,27 @@ func TestSummarizeReadarrQueue(t *testing.T) {
 	}
 }
 
+func TestSummarizeWhisparrQueue(t *testing.T) {
+	t.Parallel()
+
+	records := []types.WhisparrQueueItem{
+		{Status: "downloading", Size: 100, Episodes: []types.WhisparrEpisodeBasic{{}, {}}},
+		{Status: "queued", Size: 250, Episodes: []types.WhisparrEpisodeBasic{{}}},
+		{Status: "downloading", Size: 50, Episodes: nil},
+	}
+
+	downloading, episodeCount, totalSize := summarizeWhisparrQueue(records)
+	if downloading != 2 {
+		t.Fatalf("summarizeWhisparrQueue() downloading = %d, want 2", downloading)
+	}
+	if episodeCount != 3 {
+		t.Fatalf("summarizeWhisparrQueue() episodeCount = %d, want 3", episodeCount)
+	}
+	if totalSize != 400 {
+		t.Fatalf("summarizeWhisparrQueue() totalSize = %d, want 400", totalSize)
+	}
+}
+
 func TestSummarizeSonarrQueue(t *testing.T) {
 	t.Parallel()
 

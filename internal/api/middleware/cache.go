@@ -34,6 +34,7 @@ var CacheDurations = struct {
 	AutobrrReleases   time.Duration
 	MaintainerrStatus time.Duration
 	SonarrStatus      time.Duration
+	WhisparrStatus    time.Duration
 	RadarrStatus      time.Duration
 	LidarrStatus      time.Duration
 	ReadarrStatus     time.Duration
@@ -55,6 +56,7 @@ var CacheDurations = struct {
 	AutobrrReleases:   1 * time.Minute,
 	MaintainerrStatus: 10 * time.Minute,
 	SonarrStatus:      1 * time.Minute,
+	WhisparrStatus:    1 * time.Minute,
 	RadarrStatus:      1 * time.Minute,
 	LidarrStatus:      1 * time.Minute,
 	ReadarrStatus:     1 * time.Minute,
@@ -178,6 +180,8 @@ func (m *CacheMiddleware) getTTL(path string) time.Duration {
 		return CacheDurations.AutobrrStatus
 	case strings.Contains(path, "/maintainerr"):
 		return CacheDurations.MaintainerrStatus
+	case strings.Contains(path, "/whisparr"):
+		return CacheDurations.WhisparrStatus
 	case strings.Contains(path, "/sonarr"):
 		return CacheDurations.SonarrStatus
 	case strings.Contains(path, "/radarr"):

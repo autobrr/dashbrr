@@ -28,6 +28,7 @@ import (
 	_ "github.com/autobrr/dashbrr/internal/services/sonarr"
 	_ "github.com/autobrr/dashbrr/internal/services/tailscale"
 	_ "github.com/autobrr/dashbrr/internal/services/uptimekuma"
+	_ "github.com/autobrr/dashbrr/internal/services/whisparr"
 
 	"github.com/spf13/cobra"
 )
