@@ -9,7 +9,12 @@ import { ServiceStats } from "../../../types/service";
 import { ArrMessage } from "./ArrMessage";
 import { ArrQueueRecord, ArrQueueStatsBase } from "./ArrQueueStatsBase";
 
-type ArrQueueServiceType = "sonarr" | "radarr" | "lidarr" | "readarr";
+type ArrQueueServiceType =
+  | "sonarr"
+  | "whisparr"
+  | "radarr"
+  | "lidarr"
+  | "readarr";
 
 interface ArrQueueStatsProps {
   instanceId: string;
@@ -17,9 +22,10 @@ interface ArrQueueStatsProps {
 }
 
 type ArrQueueStatsConfig = {
-  serviceName: "Sonarr" | "Radarr" | "Lidarr" | "Readarr";
+  serviceName: "Sonarr" | "Whisparr" | "Radarr" | "Lidarr" | "Readarr";
   queuePath:
     | "/api/sonarr/queue"
+    | "/api/whisparr/queue"
     | "/api/radarr/queue"
     | "/api/lidarr/queue"
     | "/api/readarr/queue";
@@ -39,6 +45,14 @@ const ARR_QUEUE_STATS_CONFIG: Record<ArrQueueServiceType, ArrQueueStatsConfig> =
     serviceName: "Sonarr",
     queuePath: "/api/sonarr/queue",
     getQueue: (stats) => stats.sonarr?.queue,
+    canManageRecord: (record) => record.trackedDownloadState === "importBlocked",
+    getManageDisabledReason: () =>
+      "Can only remove items that are import blocked",
+  },
+  whisparr: {
+    serviceName: "Whisparr",
+    queuePath: "/api/whisparr/queue",
+    getQueue: (stats) => stats.whisparr?.queue,
     canManageRecord: (record) => record.trackedDownloadState === "importBlocked",
     getManageDisabledReason: () =>
       "Can only remove items that are import blocked",

@@ -52,6 +52,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   autobrr: "AUTOMATION",
   radarr: "MEDIA_MANAGEMENT",
   sonarr: "MEDIA_MANAGEMENT",
+  whisparr: "MEDIA_MANAGEMENT",
   lidarr: "MEDIA_MANAGEMENT",
   readarr: "MEDIA_MANAGEMENT",
   bazarr: "MEDIA_MANAGEMENT",
@@ -98,6 +99,7 @@ const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   qui: "http://localhost:7476",
   traefik: "http://localhost:8080",
   bazarr: "http://localhost:6767",
+  whisparr: "http://localhost:6969",
   sabnzbd: "http://localhost:8080",
   nzbget: "http://localhost:6789",
   general: "Enter full URL including health endpoint",
@@ -113,6 +115,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     link: getSettingsUrl("/settings/api"),
   }),
   radarr: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > General",
+    link: getSettingsUrl("/settings/general"),
+  }),
+  whisparr: ({ getSettingsUrl }) => ({
     prefix: "Found in ",
     text: "Settings > General",
     link: getSettingsUrl("/settings/general"),

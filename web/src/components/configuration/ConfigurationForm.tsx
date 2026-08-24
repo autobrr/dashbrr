@@ -118,6 +118,7 @@ export const ConfigurationForm = ({
         return "X-Plex-Token";
       case "radarr":
       case "sonarr":
+      case "whisparr":
       case "lidarr":
       case "readarr":
       case "bazarr":
@@ -160,6 +161,7 @@ export const ConfigurationForm = ({
         };
       case "radarr":
       case "sonarr":
+      case "whisparr":
       case "lidarr":
       case "readarr":
       case "bazarr":

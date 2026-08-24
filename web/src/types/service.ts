@@ -9,6 +9,7 @@ export type ServiceType =
   | "autobrr"
   | "radarr"
   | "sonarr"
+  | "whisparr"
   | "lidarr"
   | "readarr"
   | "bazarr"
@@ -491,6 +492,33 @@ export interface RadarrQueue {
   records: RadarrQueueItem[];
 }
 
+// Whisparr Types (V2 is a Sonarr fork, so records share the Sonarr shape)
+export interface WhisparrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
+export interface WhisparrQueueItem {
+  id: number;
+  title: string;
+  status: string;
+  protocol: string; // "usenet" or "torrent"
+  indexer?: string;
+  customFormatScore: number;
+  downloadClient: string;
+  timeLeft?: string;
+  trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  statusMessages?: WhisparrStatusMessage[];
+  size: number;
+  episodes: { id: number; episodeNumber: number; seasonNumber: number }[];
+}
+
+export interface WhisparrQueue {
+  totalRecords: number;
+  records: WhisparrQueueItem[];
+}
 // Lidarr Types
 export interface LidarrStatusMessage {
   title: string;
@@ -880,6 +908,9 @@ export interface ServiceStats {
   radarr?: {
     queue: RadarrQueue;
   };
+  whisparr?: {
+    queue: WhisparrQueue;
+  };
   lidarr?: {
     queue: LidarrQueue;
   };
@@ -963,6 +994,13 @@ export interface ServiceDetails {
     queueCount: number;
     totalRecords?: number;
     downloadingCount?: number;
+    totalSize?: number;
+  };
+  whisparr?: {
+    queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    episodeCount?: number;
     totalSize?: number;
   };
   lidarr?: {
