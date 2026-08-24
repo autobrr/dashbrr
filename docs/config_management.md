@@ -165,6 +165,7 @@ When using environment variables for API keys/tokens (`${SERVICE_API_KEY}`), the
 - `DASHBRR_TAILSCALE_API_KEY`
 - `DASHBRR_TRAEFIK_API_KEY` (optional)
 - `DASHBRR_UPTIMEKUMA_API_KEY`
+- `DASHBRR_WHISPARR_API_KEY`
 
 ## Supported Discovery Service Types
 
@@ -188,6 +189,7 @@ Discovery/import currently supports these service type keys:
 - `tailscale`
 - `traefik`
 - `uptimekuma`
+- `whisparr`
 
 ## Security Considerations
 

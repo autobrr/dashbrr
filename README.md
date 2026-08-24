@@ -51,7 +51,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 
 - **Plex**: Active streams monitoring, version check
 - **Jellyfin**: Active sessions monitoring, play/transcode state, version check
-- **Sonarr, Radarr, Lidarr, Readarr**:
+- **Sonarr, Radarr, Lidarr, Readarr, Whisparr**:
   - Queue visibility and download state
   - Version check and update notifications
 - **Bazarr**: Subtitle backlog, provider status, health issue visibility
