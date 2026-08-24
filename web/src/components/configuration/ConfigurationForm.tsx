@@ -234,6 +234,8 @@ export const ConfigurationForm = ({
         return "http://localhost:3001";
       case "bazarr":
         return "http://localhost:6767";
+      case "whisparr":
+        return "http://localhost:6969";
       case "traefik":
         return "http://localhost:8080";
       case "sabnzbd":
