@@ -498,6 +498,18 @@ export interface WhisparrStatusMessage {
   messages: string[];
 }
 
+// Whisparr models releases as scenes: no episodeNumber, and seasonNumber
+// carries the release year. The API returns one episode object per queue
+// item, not an array.
+export interface WhisparrEpisode {
+  id: number;
+  seriesId?: number;
+  title?: string;
+  seasonNumber?: number;
+  releaseDate?: string;
+  hasFile?: boolean;
+}
+
 export interface WhisparrQueueItem {
   id: number;
   title: string;
@@ -512,7 +524,8 @@ export interface WhisparrQueueItem {
   errorMessage?: string;
   statusMessages?: WhisparrStatusMessage[];
   size: number;
-  episodes: { id: number; episodeNumber: number; seasonNumber: number }[];
+  episodeId?: number;
+  episode?: WhisparrEpisode;
 }
 
 export interface WhisparrQueue {

@@ -116,10 +116,16 @@ func TestGetQueueForHealth_RequestShapeAndParsing(t *testing.T) {
 		gotPath, gotAPIKey = r.URL.Path, r.Header.Get("X-Api-Key")
 		gotQuery, gotMethod = r.URL.RawQuery, r.Method
 		w.Header().Set("Content-Type", "application/json")
+		// Mirrors a real Whisparr V2 QueueResource: a singular "episode" object
+		// (not an "episodes" array), with no episodeNumber -- scenes carry a
+		// releaseDate and use seasonNumber as the release year.
 		_, _ = w.Write([]byte(`{"page":1,"totalRecords":2,"records":[
 			{"id":11,"title":"Scene A","status":"downloading","size":1024,"sizeleft":512,
 			 "protocol":"torrent","indexer":"idx","downloadClient":"qbit",
-			 "trackedDownloadState":"importBlocked","customFormatScore":7},
+			 "trackedDownloadState":"importBlocked","customFormatScore":7,
+			 "episodeId":802746,"seasonNumber":2024,
+			 "episode":{"id":802746,"seriesId":1007,"tvdbId":439,"title":"Scene A Full Title",
+			  "seasonNumber":2024,"releaseDate":"2024-11-22","runtime":120,"hasFile":false}},
 			{"id":12,"title":"Scene B","status":"completed","size":2048}]}`))
 	}))
 	defer srv.Close()
@@ -164,6 +170,29 @@ func TestGetQueueForHealth_RequestShapeAndParsing(t *testing.T) {
 	}
 	if first.CustomFormatScore != 7 {
 		t.Errorf("customFormatScore = %d, want 7", first.CustomFormatScore)
+	}
+
+	// The queue payload carries a singular episode object. Decoding it as an
+	// array silently yields zero episodes, which makes episodeCount always 0.
+	if first.EpisodeID != 802746 {
+		t.Errorf("episodeId = %d, want 802746", first.EpisodeID)
+	}
+	if first.Episode.ID != 802746 {
+		t.Errorf("episode.id = %d, want 802746", first.Episode.ID)
+	}
+	if first.Episode.Title != "Scene A Full Title" {
+		t.Errorf("episode.title = %q, want %q", first.Episode.Title, "Scene A Full Title")
+	}
+	if first.Episode.SeasonNumber != 2024 {
+		t.Errorf("episode.seasonNumber = %d, want 2024", first.Episode.SeasonNumber)
+	}
+	if first.Episode.ReleaseDate != "2024-11-22" {
+		t.Errorf("episode.releaseDate = %q, want 2024-11-22", first.Episode.ReleaseDate)
+	}
+
+	// A record without an episode must stay zero-valued rather than erroring.
+	if second := records[1]; second.EpisodeID != 0 || second.Episode.ID != 0 {
+		t.Errorf("record without episode should be zero-valued, got %+v", second.Episode)
 	}
 }
 

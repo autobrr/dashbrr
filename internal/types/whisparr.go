@@ -37,7 +37,8 @@ type WhisparrQueueItem struct {
 	StatusMessages          []WhisparrStatusMessage `json:"statusMessages"`
 	ErrorMessage            string                  `json:"errorMessage"`
 	CustomFormatScore       int                     `json:"customFormatScore"`
-	Episodes                []WhisparrEpisodeBasic  `json:"episodes"`
+	EpisodeID               int                     `json:"episodeId"`
+	Episode                 WhisparrEpisode         `json:"episode"`
 }
 
 // WhisparrStatusMessage represents detailed status information for a queue record.
@@ -46,12 +47,22 @@ type WhisparrStatusMessage struct {
 	Messages []string `json:"messages"`
 }
 
-// WhisparrEpisodeBasic represents the minimal episode structure carried on a
-// queue item; Whisparr models these as scenes.
-type WhisparrEpisodeBasic struct {
-	ID            int `json:"id"`
-	EpisodeNumber int `json:"episodeNumber"`
-	SeasonNumber  int `json:"seasonNumber"`
+// WhisparrEpisode represents the episode carried on a queue item. Whisparr
+// models these as scenes, so there is no episode number: releases are
+// identified by release date, and seasonNumber carries the release year.
+// The API returns a single episode object per queue item, not an array.
+type WhisparrEpisode struct {
+	ID            int    `json:"id"`
+	SeriesID      int    `json:"seriesId"`
+	TvdbID        int    `json:"tvdbId"`
+	Title         string `json:"title"`
+	SeasonNumber  int    `json:"seasonNumber"`
+	ReleaseDate   string `json:"releaseDate"`
+	Runtime       int    `json:"runtime"`
+	Overview      string `json:"overview"`
+	HasFile       bool   `json:"hasFile"`
+	EpisodeFileID int    `json:"episodeFileId"`
+	Monitored     bool   `json:"monitored"`
 }
 
 // WhisparrQueueDeleteOptions represents options for deleting a queue item.

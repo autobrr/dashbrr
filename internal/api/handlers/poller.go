@@ -636,7 +636,11 @@ func summarizeWhisparrQueue(records []types.WhisparrQueueItem) (int, int, int64)
 		if record.Status == "downloading" {
 			downloading++
 		}
-		episodeCount += len(record.Episodes)
+		// Whisparr returns one episode (scene) per queue item rather than an
+		// array, so each entry with an episode contributes exactly one.
+		if record.EpisodeID != 0 {
+			episodeCount++
+		}
 	}
 
 	return downloading, episodeCount, totalSize
