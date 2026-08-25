@@ -9,6 +9,7 @@ export type ServiceType =
   | "autobrr"
   | "radarr"
   | "sonarr"
+  | "whisparr"
   | "lidarr"
   | "readarr"
   | "bazarr"
@@ -491,6 +492,46 @@ export interface RadarrQueue {
   records: RadarrQueueItem[];
 }
 
+// Whisparr Types (V2 is a Sonarr fork, so records share the Sonarr shape)
+export interface WhisparrStatusMessage {
+  title: string;
+  messages: string[];
+}
+
+// Whisparr models releases as scenes: no episodeNumber, and seasonNumber
+// carries the release year. The API returns one episode object per queue
+// item, not an array.
+export interface WhisparrEpisode {
+  id: number;
+  seriesId?: number;
+  title?: string;
+  seasonNumber?: number;
+  releaseDate?: string;
+  hasFile?: boolean;
+}
+
+export interface WhisparrQueueItem {
+  id: number;
+  title: string;
+  status: string;
+  protocol: string; // "usenet" or "torrent"
+  indexer?: string;
+  customFormatScore: number;
+  downloadClient: string;
+  timeLeft?: string;
+  trackedDownloadState?: string;
+  trackedDownloadStatus?: string;
+  errorMessage?: string;
+  statusMessages?: WhisparrStatusMessage[];
+  size: number;
+  episodeId?: number;
+  episode?: WhisparrEpisode;
+}
+
+export interface WhisparrQueue {
+  totalRecords: number;
+  records: WhisparrQueueItem[];
+}
 // Lidarr Types
 export interface LidarrStatusMessage {
   title: string;
@@ -880,6 +921,9 @@ export interface ServiceStats {
   radarr?: {
     queue: RadarrQueue;
   };
+  whisparr?: {
+    queue: WhisparrQueue;
+  };
   lidarr?: {
     queue: LidarrQueue;
   };
@@ -963,6 +1007,13 @@ export interface ServiceDetails {
     queueCount: number;
     totalRecords?: number;
     downloadingCount?: number;
+    totalSize?: number;
+  };
+  whisparr?: {
+    queueCount: number;
+    totalRecords?: number;
+    downloadingCount?: number;
+    episodeCount?: number;
     totalSize?: number;
   };
   lidarr?: {

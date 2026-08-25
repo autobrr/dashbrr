@@ -52,6 +52,7 @@ var (
 	NewBazarrService      func() ServiceHealthChecker
 	NewRadarrService      func() ServiceHealthChecker
 	NewSonarrService      func() ServiceHealthChecker
+	NewWhisparrService    func() ServiceHealthChecker
 	NewLidarrService      func() ServiceHealthChecker
 	NewReadarrService     func() ServiceHealthChecker
 	NewSabnzbdService     func() ServiceHealthChecker

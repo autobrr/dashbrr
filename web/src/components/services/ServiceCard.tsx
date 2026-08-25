@@ -83,6 +83,9 @@ const SERVICE_STATS_RENDERERS: Partial<
         <MaintainerrService instanceId={instanceId} />
       </div>
     ) : null,
+  whisparr: (instanceId) => (
+    <ArrQueueStats instanceId={instanceId} serviceType="whisparr" />
+  ),
   sonarr: (instanceId) => (
     <ArrQueueStats instanceId={instanceId} serviceType="sonarr" />
   ),

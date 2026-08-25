@@ -56,6 +56,8 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
     case "uptimekuma":
       // Uptime Kuma cards render persistent monitor stat tiles.
       return true;
+    case "whisparr":
+      return (service.stats?.whisparr?.queue?.totalRecords ?? 0) > 0;
     case "sonarr":
       return (service.stats?.sonarr?.queue?.totalRecords ?? 0) > 0;
     case "radarr":

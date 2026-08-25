@@ -142,6 +142,7 @@ func (s *Server) Handler() http.Handler {
 	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache, bc)
 	lidarrHandler := handlers.NewLidarrHandler(s.db, s.cache, bc)
 	readarrHandler := handlers.NewReadarrHandler(s.db, s.cache, bc)
+	whisparrHandler := handlers.NewWhisparrHandler(s.db, s.cache, bc)
 	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
 	traefikHandler := handlers.NewTraefikHandler(s.db, s.cache, bc)
 	bazarrHandler := handlers.NewBazarrHandler(s.db, s.cache, bc)
@@ -321,6 +322,12 @@ func (s *Server) Handler() http.Handler {
 					readarr.DELETE("/queue/:id", readarrHandler.DeleteQueueItem)
 				}
 
+				// Whisparr endpoints
+				whisparr := regularServices.Group("/whisparr")
+				{
+					whisparr.GET("/queue", whisparrHandler.GetQueue)
+					whisparr.DELETE("/queue/:id", whisparrHandler.DeleteQueueItem)
+				}
 				// Prowlarr endpoints
 				prowlarr := regularServices.Group("/prowlarr")
 				{

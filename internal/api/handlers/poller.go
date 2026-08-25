@@ -34,6 +34,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/services/traefik"
 	"github.com/autobrr/dashbrr/internal/services/uptimekuma"
+	"github.com/autobrr/dashbrr/internal/services/whisparr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -132,6 +133,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"sonarr": {
 			{name: "sonarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runSonarrQueue},
+		},
+		"whisparr": {
+			{name: "whisparr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runWhisparrQueue},
 		},
 		"prowlarr": {
 			{name: "prowlarr_stats", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runProwlarrStats},
@@ -622,6 +626,26 @@ func summarizeReadarrQueue(records []types.ReadarrQueueItem) (int, int64) {
 	return downloading, totalSize
 }
 
+func summarizeWhisparrQueue(records []types.WhisparrQueueItem) (int, int, int64) {
+	downloading := 0
+	episodeCount := 0
+	var totalSize int64
+
+	for _, record := range records {
+		totalSize += record.Size
+		if record.Status == "downloading" {
+			downloading++
+		}
+		// Whisparr returns one episode (scene) per queue item rather than an
+		// array, so each entry with an episode contributes exactly one.
+		if record.EpisodeID != 0 {
+			episodeCount++
+		}
+	}
+
+	return downloading, episodeCount, totalSize
+}
+
 func summarizeSonarrQueue(records []types.QueueRecord) (int, int, int64) {
 	downloading := 0
 	episodeCount := 0
@@ -780,6 +804,24 @@ func (p *Poller) runReadarrQueue(ctx context.Context, svc models.ServiceConfigur
 	return nil
 }
 
+func (p *Poller) runWhisparrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := &whisparr.WhisparrService{}
+	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+	if records == nil {
+		records = []types.WhisparrQueueItem{}
+	}
+
+	resp := &types.WhisparrQueueResponse{
+		Records:      records,
+		TotalRecords: len(records),
+	}
+
+	publishInternalServiceUpdate(p.bc, buildWhisparrQueueServiceUpdate(svc.InstanceID, resp))
+	return nil
+}
 func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &sonarr.SonarrService{}
 	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)

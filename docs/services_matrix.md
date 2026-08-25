@@ -28,3 +28,4 @@ Notes:
 | Tailscale | `tailscale` | `tailscale` | API token | Yes | `/api/tailscale/devices` | 60s |
 | Traefik | `traefik` | `traefik` | Auth token or `user:pass` | Optional | `/api/traefik/summary` | 30s |
 | Uptime Kuma | `uptimekuma` | `uptimekuma` | API key or `user:pass` | Yes | `/api/uptimekuma/summary` | 30s |
+| Whisparr | `whisparr` | `whisparr` | API key | Yes | `/api/whisparr/queue` | 60s |

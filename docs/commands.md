@@ -125,6 +125,7 @@ Currently supported service command groups:
 - `tailscale`
 - `traefik`
 - `uptimekuma`
+- `whisparr`
 
 ### Autobrr
 
@@ -337,6 +338,20 @@ Example: dashbrr service sonarr remove http://localhost:8989
 dashbrr service sonarr list
 ```
 
+### Whisparr
+
+```bash
+# Add a Whisparr service
+dashbrr service whisparr add <url> <api-key>
+Example: dashbrr service whisparr add http://localhost:6969 your-api-key
+
+# Remove a Whisparr service
+dashbrr service whisparr remove <url>
+Example: dashbrr service whisparr remove http://localhost:6969
+
+# List Whisparr services
+dashbrr service whisparr list
+```
 ### NZBGet
 
 ```bash

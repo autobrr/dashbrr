@@ -118,6 +118,7 @@ export const ConfigurationForm = ({
         return "X-Plex-Token";
       case "radarr":
       case "sonarr":
+      case "whisparr":
       case "lidarr":
       case "readarr":
       case "bazarr":
@@ -160,6 +161,7 @@ export const ConfigurationForm = ({
         };
       case "radarr":
       case "sonarr":
+      case "whisparr":
       case "lidarr":
       case "readarr":
       case "bazarr":
@@ -232,6 +234,8 @@ export const ConfigurationForm = ({
         return "http://localhost:3001";
       case "bazarr":
         return "http://localhost:6767";
+      case "whisparr":
+        return "http://localhost:6969";
       case "traefik":
         return "http://localhost:8080";
       case "sabnzbd":
