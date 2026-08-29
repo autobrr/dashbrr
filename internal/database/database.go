@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	_ "modernc.org/sqlite"
@@ -34,37 +35,64 @@ type DB struct {
 
 // Config holds database configuration
 type Config struct {
-	Driver   string
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	Path     string // For SQLite
+	Driver   string `toml:"type" env:"DASHBRR__DB_TYPE"`
+	Path     string `toml:"path" env:"DASHBRR__DB_PATH"`
+	DSN      string `toml:"dsn" env:"DASHBRR__DB_DSN"`
+	Host     string `toml:"host" env:"DASHBRR__DB_HOST"`
+	Port     int    `toml:"port" env:"DASHBRR__DB_PORT"`
+	User     string `toml:"user" env:"DASHBRR__DB_USER"`
+	Password string `toml:"password" env:"DASHBRR__DB_PASSWORD"`
+	DBName   string `toml:"name" env:"DASHBRR__DB_NAME"`
 }
 
-// NewConfig creates a new database configuration from environment variables
+// DefaultConfig returns the default database configuration.
+func DefaultConfig() *Config {
+	return &Config{
+		Driver:   "sqlite",
+		Path:     "./data/dashbrr.db",
+		Host:     "localhost",
+		Port:     5432,
+		User:     "dashbrr",
+		Password: "dashbrr",
+		DBName:   "dashbrr",
+	}
+}
+
+// NewConfig creates a new database configuration from environment variables.
 func NewConfig() *Config {
-	dbType := os.Getenv("DASHBRR__DB_TYPE")
-	if dbType == "" {
-		dbType = "sqlite" // Default to SQLite
-	}
-
-	config := &Config{
-		Driver: dbType,
-	}
-
-	if dbType == "postgres" {
-		config.Host = getEnv("DASHBRR__DB_HOST", "localhost")
-		config.Port = getEnv("DASHBRR__DB_PORT", "5432")
-		config.User = getEnv("DASHBRR__DB_USER", "dashbrr")
-		config.Password = getEnv("DASHBRR__DB_PASSWORD", "dashbrr")
-		config.DBName = getEnv("DASHBRR__DB_NAME", "dashbrr")
-	} else {
-		config.Path = getEnv("DASHBRR__DB_PATH", "./data/dashbrr.db")
-	}
-
+	config := DefaultConfig()
+	config.ApplyEnvOverrides()
 	return config
+}
+
+// ApplyEnvOverrides applies database environment variables to config.
+func (config *Config) ApplyEnvOverrides() {
+	if env := os.Getenv("DASHBRR__DB_TYPE"); env != "" {
+		config.Driver = env
+	}
+	if env := os.Getenv("DASHBRR__DB_PATH"); env != "" {
+		config.Path = env
+	}
+	if env := os.Getenv("DASHBRR__DB_DSN"); env != "" {
+		config.DSN = env
+	}
+	if env := os.Getenv("DASHBRR__DB_HOST"); env != "" {
+		config.Host = env
+	}
+	if env := os.Getenv("DASHBRR__DB_PORT"); env != "" {
+		if port, err := strconv.Atoi(env); err == nil {
+			config.Port = port
+		}
+	}
+	if env := os.Getenv("DASHBRR__DB_USER"); env != "" {
+		config.User = env
+	}
+	if env, exists := os.LookupEnv("DASHBRR__DB_PASSWORD"); exists {
+		config.Password = env
+	}
+	if env := os.Getenv("DASHBRR__DB_NAME"); env != "" {
+		config.DBName = env
+	}
 }
 
 // InitDB initializes the database connection and performs migrations
@@ -200,31 +228,29 @@ func (db *DB) openPostgres() error {
 	maxRetries := 5
 	baseDelay := time.Second
 
-	// PostgreSQL connection
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		db.config.Host, db.config.Port, db.config.User, db.config.Password, db.config.DBName)
+	dsn := postgresDSN(db.config)
 
 	log.Debug().
 		Str("host", db.config.Host).
-		Str("port", db.config.Port).
+		Int("port", db.config.Port).
 		Str("database", db.config.DBName).
 		Msg("Initializing PostgreSQL database")
 
-	var database *sql.DB
-	var err error
+	connector, err := pq.NewConnector(dsn)
+	if err != nil {
+		return errors.New("invalid PostgreSQL connection configuration")
+	}
+	database := sql.OpenDB(connector)
 
 	// Retry loop with exponential backoff
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		database, err = sql.Open("postgres", dsn)
+		err = database.PingContext(context.Background())
 		if err == nil {
-			// Test the connection
-			err = database.Ping()
-			if err == nil {
-				break // Successfully connected
-			}
+			break // Successfully connected
 		}
 
 		if attempt == maxRetries {
+			_ = database.Close()
 			return fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, err)
 		}
 
@@ -253,12 +279,13 @@ func (db *DB) openPostgres() error {
 	return nil
 }
 
-// getEnv retrieves an environment variable with a fallback value
-func getEnv(key, fallback string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
+func postgresDSN(config *Config) string {
+	if config.DSN != "" {
+		return config.DSN
 	}
-	return fallback
+
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		config.Host, config.Port, config.User, config.Password, config.DBName)
 }
 
 // HasUsers checks if any users exist in the database

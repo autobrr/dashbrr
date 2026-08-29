@@ -13,6 +13,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/rs/zerolog/log"
 
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
 )
 
@@ -22,10 +23,10 @@ const (
 
 // Config represents the main configuration structure
 type Config struct {
-	Server   ServerConfig   `toml:"server"`
-	Database DatabaseConfig `toml:"database"`
-	Auth     AuthConfig     `toml:"auth"`
-	Log      LogConfig      `toml:"log"`
+	Server   ServerConfig    `toml:"server"`
+	Database database.Config `toml:"database"`
+	Auth     AuthConfig      `toml:"auth"`
+	Log      LogConfig       `toml:"log"`
 }
 
 // LogConfig holds logging-related configuration
@@ -41,17 +42,6 @@ type ServerConfig struct {
 	CORSMethods []string `toml:"cors_methods" env:"DASHBRR__CORS_METHODS"`
 	CORSMaxAgeH int      `toml:"cors_max_age_hours" env:"DASHBRR__CORS_MAX_AGE_HOURS"`
 	CORSCreds   *bool    `toml:"cors_allow_credentials" env:"DASHBRR__CORS_ALLOW_CREDENTIALS"`
-}
-
-// DatabaseConfig holds database-related configuration
-type DatabaseConfig struct {
-	Type     string `toml:"type" env:"DASHBRR__DB_TYPE"`
-	Path     string `toml:"path" env:"DASHBRR__DB_PATH"`
-	Host     string `toml:"host" env:"DASHBRR__DB_HOST"`
-	Port     int    `toml:"port" env:"DASHBRR__DB_PORT"`
-	User     string `toml:"user" env:"DASHBRR__DB_USER"`
-	Password string `toml:"password" env:"DASHBRR__DB_PASSWORD"`
-	Name     string `toml:"name" env:"DASHBRR__DB_NAME"`
 }
 
 // AuthConfig holds authentication-related configuration
@@ -84,11 +74,8 @@ func DefaultConfig() *Config {
 			// Defaults (can be overridden via env/config)
 			CORSMaxAgeH: 12,
 		},
-		Database: DatabaseConfig{
-			Type: "sqlite",
-			Path: "./data/dashbrr.db",
-		},
-		Log: LogConfig{Level: "info"},
+		Database: *database.DefaultConfig(),
+		Log:      LogConfig{Level: "info"},
 	}
 }
 
@@ -120,6 +107,9 @@ func HasRequiredEnvVars() bool {
 			return false
 		}
 	case "postgres":
+		if os.Getenv("DASHBRR__DB_DSN") != "" {
+			return true
+		}
 		requiredVars := []string{
 			"DASHBRR__DB_HOST",
 			"DASHBRR__DB_PORT",
@@ -143,13 +133,24 @@ func HasRequiredEnvVars() bool {
 func LoadConfig(path string) (*Config, error) {
 	config := &Config{}
 
-	// If all required environment variables are set, use them directly
+	// A PostgreSQL DSN takes priority over complete separate environment
+	// fields. Other complete environment configurations keep bypassing the file.
 	if HasRequiredEnvVars() {
+		if os.Getenv("DASHBRR__DB_TYPE") == "postgres" {
+			data, err := os.ReadFile(path)
+			fileConfig := DefaultConfig()
+			if err == nil && toml.Unmarshal(data, fileConfig) == nil && fileConfig.Database.DSN != "" {
+				config.Database.DSN = fileConfig.Database.DSN
+			}
+		}
+
 		if err := LoadEnvOverrides(config); err != nil {
 			return nil, fmt.Errorf("error loading environment variables: %w", err)
 		}
 		return config, nil
 	}
+
+	config = DefaultConfig()
 
 	// Otherwise try to load from config file
 	absPath, err := filepath.Abs(path)
@@ -163,8 +164,6 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Create default config
-			config = DefaultConfig()
-
 			// Ensure directory exists
 			if dir := filepath.Dir(absPath); dir != "" {
 				if err := os.MkdirAll(dir, 0755); err != nil {
@@ -253,30 +252,7 @@ func LoadEnvOverrides(config *Config) error {
 		}
 	}
 
-	// Database
-	if env := os.Getenv("DASHBRR__DB_TYPE"); env != "" {
-		config.Database.Type = env
-	}
-	if env := os.Getenv("DASHBRR__DB_PATH"); env != "" {
-		config.Database.Path = env
-	}
-	if env := os.Getenv("DASHBRR__DB_HOST"); env != "" {
-		config.Database.Host = env
-	}
-	if env := os.Getenv("DASHBRR__DB_PORT"); env != "" {
-		if port, err := strconv.Atoi(env); err == nil {
-			config.Database.Port = port
-		}
-	}
-	if env := os.Getenv("DASHBRR__DB_USER"); env != "" {
-		config.Database.User = env
-	}
-	if env := os.Getenv("DASHBRR__DB_PASSWORD"); env != "" {
-		config.Database.Password = env
-	}
-	if env := os.Getenv("DASHBRR__DB_NAME"); env != "" {
-		config.Database.Name = env
-	}
+	config.Database.ApplyEnvOverrides()
 
 	// Log
 	if env := os.Getenv("DASHBRR__LOG_LEVEL"); env != "" {

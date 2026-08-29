@@ -160,6 +160,10 @@ listen_addr = ":8080"
 type = "sqlite"
 path = "./data/dashbrr.db"
 
+# PostgreSQL can use a standard connection URI instead:
+# type = "postgres"
+# dsn = "postgres://dashbrr:password@postgres:5432/dashbrr?sslmode=require"
+
 [log]
 # trace, debug, info, warn, error, fatal, panic
 level = "info"

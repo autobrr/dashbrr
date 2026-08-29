@@ -6,6 +6,7 @@ package database
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +66,65 @@ func TestDatabaseInitialization(t *testing.T) {
 	// We expect at least the users and service_configurations tables
 	if tableCount < 2 {
 		t.Errorf("Expected at least 2 tables, got %d", tableCount)
+	}
+}
+
+func TestPostgresDSN(t *testing.T) {
+	uri := "postgres://db.example/dashbrr?sslmode=verify-full&sslrootcert=/certs/root.crt&sslcert=/certs/client.crt&sslkey=/certs/client.key"
+	tests := []struct {
+		name   string
+		config *Config
+		want   string
+	}{
+		{
+			name:   "configured URI",
+			config: &Config{DSN: uri},
+			want:   uri,
+		},
+		{
+			name: "separate fields",
+			config: &Config{
+				Host: "db.example", Port: 5432, User: "dashbrr", Password: "secret", DBName: "dashbrr",
+			},
+			want: "host=db.example port=5432 user=dashbrr password=secret dbname=dashbrr sslmode=disable",
+		},
+		{
+			name: "empty password",
+			config: &Config{
+				Host: "db.example", Port: 5432, User: "dashbrr", DBName: "dashbrr",
+			},
+			want: "host=db.example port=5432 user=dashbrr password= dbname=dashbrr sslmode=disable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := postgresDSN(tt.config); got != tt.want {
+				t.Errorf("postgresDSN() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewConfigReadsPostgresDSN(t *testing.T) {
+	t.Setenv("DASHBRR__DB_TYPE", "postgres")
+	t.Setenv("DASHBRR__DB_DSN", "postgres://db.example/dashbrr?sslmode=require")
+
+	if got := NewConfig().DSN; got != "postgres://db.example/dashbrr?sslmode=require" {
+		t.Errorf("database DSN = %q, want the value from the environment", got)
+	}
+}
+
+func TestPostgresErrorsDoNotExposeDSNCredentials(t *testing.T) {
+	const secret = "client-secret"
+	db := &DB{config: &Config{DSN: "postgres://client:" + secret + "@db.example/%zz"}}
+
+	err := db.openPostgres()
+	if err == nil {
+		t.Fatal("openPostgres() error = nil, want invalid DSN error")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Errorf("openPostgres() error exposes DSN credentials: %v", err)
 	}
 }
 
