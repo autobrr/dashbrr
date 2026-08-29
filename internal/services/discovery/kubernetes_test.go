@@ -19,8 +19,8 @@ func TestParseServiceAnnotations_Valid(t *testing.T) {
 	if service == nil {
 		t.Fatalf("expected discovered service")
 	}
-	if service.InstanceID != "radarr-k8s-radarr-radarr" {
-		t.Fatalf("instance id = %q, want %q", service.InstanceID, "radarr-k8s-radarr-radarr")
+	if service.InstanceID != "radarr-k8s-radarr.radarr" {
+		t.Fatalf("instance id = %q, want %q", service.InstanceID, "radarr-k8s-radarr.radarr")
 	}
 	if service.URL != "http://radarr.radarr.svc.cluster.local:80" {
 		t.Fatalf("url = %q", service.URL)
@@ -47,10 +47,11 @@ func TestParseServiceAnnotations_InstanceID(t *testing.T) {
 		serviceName string
 		want        string
 	}{
-		{name: "same namespace first service", namespace: "media", serviceName: "sonarr", want: "sonarr-k8s-media-sonarr"},
-		{name: "same namespace second service", namespace: "media", serviceName: "sonarr-anime", want: "sonarr-k8s-media-sonarr-anime"},
-		{name: "same service again", namespace: "media", serviceName: "sonarr", want: "sonarr-k8s-media-sonarr"},
-		{name: "different namespace", namespace: "anime", serviceName: "sonarr", want: "sonarr-k8s-anime-sonarr"},
+		{name: "same namespace first service", namespace: "media", serviceName: "sonarr", want: "sonarr-k8s-media.sonarr"},
+		{name: "same namespace second service", namespace: "media", serviceName: "sonarr-anime", want: "sonarr-k8s-media.sonarr-anime"},
+		{name: "hyphen boundary collision", namespace: "media-sonarr", serviceName: "anime", want: "sonarr-k8s-media-sonarr.anime"},
+		{name: "same service again", namespace: "media", serviceName: "sonarr", want: "sonarr-k8s-media.sonarr"},
+		{name: "different namespace", namespace: "anime", serviceName: "sonarr", want: "sonarr-k8s-anime.sonarr"},
 	}
 
 	for _, tt := range tests {
