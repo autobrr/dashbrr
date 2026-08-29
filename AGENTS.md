@@ -54,3 +54,17 @@ Full gate before a PR: the Go tests plus all five web commands above.
 ## Gotchas
 
 - CI backend lint runs golangci-lint with `--new-from-rev=HEAD~1`, so it lints only lines added in the newest commit. Re-adding or reverting old code exposes it to current lint rules. Oversized PR diffs (more than 20000 lines) cannot use `only-new-issues` because the GitHub diff API returns 406.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five canonical triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo uses a single-context domain layout. See `docs/agents/domain.md`.
