@@ -89,7 +89,14 @@ func TestDatabaseDSNTakesPriorityOverSeparateEnvironmentFields(t *testing.T) {
 }
 
 func TestPostgresConfigKeepsDefaultsAndEmptyPassword(t *testing.T) {
+	t.Setenv("DASHBRR__DB_TYPE", "")
+	t.Setenv("DASHBRR__DB_PATH", "")
+	t.Setenv("DASHBRR__DB_DSN", "")
+	t.Setenv("DASHBRR__DB_HOST", "")
+	t.Setenv("DASHBRR__DB_PORT", "")
+	t.Setenv("DASHBRR__DB_USER", "")
 	t.Setenv("DASHBRR__DB_PASSWORD", "")
+	t.Setenv("DASHBRR__DB_NAME", "")
 
 	cfg, err := LoadConfig(writeConfig(t, "[database]\ntype = \"postgres\"\n"))
 	if err != nil {
