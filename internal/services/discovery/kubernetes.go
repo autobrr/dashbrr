@@ -100,8 +100,7 @@ func (k *KubernetesDiscovery) parseServiceAnnotations(annotations map[string]str
 		return nil, nil
 	}
 
-	// Generate instance ID based on service type and namespace
-	instanceID := fmt.Sprintf("%s-k8s-%s", parsed.serviceType, namespace)
+	instanceID := fmt.Sprintf("%s-k8s-%s-%s", parsed.serviceType, namespace, serviceName)
 
 	return &models.ServiceConfiguration{
 		InstanceID:  instanceID,
