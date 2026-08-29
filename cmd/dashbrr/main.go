@@ -120,34 +120,24 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 		origDBPath = filepath.Join(configDir, "data", "dashbrr.db")
 	}
 
-	var cfg *config.Config
-	var err error
+	hasRequiredEnvVars := config.HasRequiredEnvVars()
+	log.Debug().Str("path", configPath).Msg("Loading config file")
 
-	if config.HasRequiredEnvVars() {
-		cfg = &config.Config{}
-		if err := config.LoadEnvOverrides(cfg); err != nil {
-			log.Error().Err(err).Msg("Failed to load environment variables")
-			return err
-		}
-	} else {
-		log.Debug().Str("path", configPath).Msg("Loading config file")
-
-		cfg, err = config.LoadConfig(configPath)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to load or create configuration")
-			return err
-		}
-
-		// Override with command line flags if they differ from defaults
-		if listenAddr != origListenAddr {
-			cfg.Server.ListenAddr = listenAddr
-		}
-		if origDBPath != "" {
-			cfg.Database.Path = origDBPath
-		}
+	cfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to load or create configuration")
+		return err
 	}
 
-	db, err := database.InitDB(cfg.Database.Path)
+	// Override with command line flags if they differ from defaults
+	if !hasRequiredEnvVars && listenAddr != origListenAddr {
+		cfg.Server.ListenAddr = listenAddr
+	}
+	if !hasRequiredEnvVars && origDBPath != "" {
+		cfg.Database.Path = origDBPath
+	}
+
+	db, err := database.InitDBWithConfig(&cfg.Database)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to initialize database")
 		return err

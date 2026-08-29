@@ -40,6 +40,124 @@ func TestOIDCFromTOML(t *testing.T) {
 	}
 }
 
+func TestDatabaseDSNFromTOML(t *testing.T) {
+	dsn := "postgres://db.example/dashbrr?sslmode=verify-full&sslrootcert=/certs/root.crt&sslcert=/certs/client.crt&sslkey=/certs/client.key"
+	cfg, err := LoadConfig(writeConfig(t, "[database]\ntype = \"postgres\"\ndsn = \""+dsn+"\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := cfg.Database.DSN; got != dsn {
+		t.Errorf("database DSN = %q, want %q", got, dsn)
+	}
+}
+
+func TestDatabaseDSNEnvOverridesTOML(t *testing.T) {
+	t.Setenv("DASHBRR__DB_DSN", "postgres://env.example/dashbrr?sslmode=require")
+
+	cfg, err := LoadConfig(writeConfig(t, "[database]\ntype = \"postgres\"\ndsn = \"postgres://toml.example/dashbrr?sslmode=disable\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := cfg.Database.DSN; got != "postgres://env.example/dashbrr?sslmode=require" {
+		t.Errorf("database DSN = %q, want the value from the environment", got)
+	}
+}
+
+func TestDatabaseDSNTakesPriorityOverSeparateEnvironmentFields(t *testing.T) {
+	t.Setenv("DASHBRR__LISTEN_ADDR", ":8080")
+	t.Setenv("DASHBRR__DB_TYPE", "postgres")
+	t.Setenv("DASHBRR__DB_HOST", "env-db.example")
+	t.Setenv("DASHBRR__DB_PORT", "5432")
+	t.Setenv("DASHBRR__DB_USER", "env-user")
+	t.Setenv("DASHBRR__DB_PASSWORD", "env-password")
+	t.Setenv("DASHBRR__DB_NAME", "env-database")
+
+	want := "postgres://toml.example/dashbrr?sslmode=require"
+	cfg, err := LoadConfig(writeConfig(t, "[database]\ntype = \"postgres\"\ndsn = \""+want+"\"\n"+oidcTOML))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := cfg.Database.DSN; got != want {
+		t.Errorf("database DSN = %q, want %q", got, want)
+	}
+	if cfg.Auth.OIDC.IsConfigured() {
+		t.Error("unrelated TOML settings loaded with the database DSN")
+	}
+}
+
+func TestPostgresConfigKeepsDefaultsAndEmptyPassword(t *testing.T) {
+	t.Setenv("DASHBRR__DB_TYPE", "")
+	t.Setenv("DASHBRR__DB_PATH", "")
+	t.Setenv("DASHBRR__DB_DSN", "")
+	t.Setenv("DASHBRR__DB_HOST", "")
+	t.Setenv("DASHBRR__DB_PORT", "")
+	t.Setenv("DASHBRR__DB_USER", "")
+	t.Setenv("DASHBRR__DB_PASSWORD", "")
+	t.Setenv("DASHBRR__DB_NAME", "")
+
+	cfg, err := LoadConfig(writeConfig(t, "[database]\ntype = \"postgres\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.Database.Host != "localhost" || cfg.Database.Port != 5432 || cfg.Database.User != "dashbrr" || cfg.Database.DBName != "dashbrr" {
+		t.Errorf("database defaults not preserved: %#v", cfg.Database)
+	}
+	if cfg.Database.Password != "" {
+		t.Errorf("database password = %q, want explicit empty value", cfg.Database.Password)
+	}
+}
+
+func TestHasRequiredEnvVarsWithDatabaseDSN(t *testing.T) {
+	t.Setenv("DASHBRR__LISTEN_ADDR", ":8080")
+	t.Setenv("DASHBRR__DB_TYPE", "postgres")
+	t.Setenv("DASHBRR__DB_DSN", "postgres://db.example/dashbrr?sslmode=require")
+	t.Setenv("DASHBRR__DB_HOST", "")
+	t.Setenv("DASHBRR__DB_PORT", "")
+	t.Setenv("DASHBRR__DB_USER", "")
+	t.Setenv("DASHBRR__DB_PASSWORD", "")
+	t.Setenv("DASHBRR__DB_NAME", "")
+
+	if !HasRequiredEnvVars() {
+		t.Error("HasRequiredEnvVars() = false, want true for PostgreSQL DSN")
+	}
+}
+
+func TestCompleteSQLiteEnvironmentIgnoresConfigFile(t *testing.T) {
+	t.Setenv("DASHBRR__LISTEN_ADDR", ":8080")
+	t.Setenv("DASHBRR__DB_TYPE", "sqlite")
+	t.Setenv("DASHBRR__DB_PATH", "/data/env.db")
+
+	cfg, err := LoadConfig(writeConfig(t, "not valid toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Database.Path; got != "/data/env.db" {
+		t.Errorf("database path = %q, want the value from the environment", got)
+	}
+}
+
+func TestCompletePostgresEnvironmentIgnoresTOMLWithoutDSN(t *testing.T) {
+	t.Setenv("DASHBRR__LISTEN_ADDR", ":8080")
+	t.Setenv("DASHBRR__DB_TYPE", "postgres")
+	t.Setenv("DASHBRR__DB_HOST", "env-db.example")
+	t.Setenv("DASHBRR__DB_PORT", "5432")
+	t.Setenv("DASHBRR__DB_USER", "env-user")
+	t.Setenv("DASHBRR__DB_PASSWORD", "env-password")
+	t.Setenv("DASHBRR__DB_NAME", "env-database")
+
+	cfg, err := LoadConfig(writeConfig(t, oidcTOML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Auth.OIDC.IsConfigured() {
+		t.Error("OIDC config loaded from TOML in a complete environment-only setup")
+	}
+}
+
 func TestOIDCEnvOverridesTOML(t *testing.T) {
 	t.Setenv("DASHBRR__OIDC_ISSUER", "https://env.example.com")
 

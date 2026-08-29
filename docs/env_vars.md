@@ -76,6 +76,10 @@ Only needed if you serve the web UI from a different origin than the API (differ
 
 - `DASHBRR__DB_TYPE`
   - Set to: `"postgres"`
+- `DASHBRR__DB_DSN`
+  - Purpose: Standard PostgreSQL connection URI
+  - Example: `postgres://dashbrr:password@postgres:5432/dashbrr?sslmode=verify-full&sslrootcert=/certs/root.crt&sslcert=/certs/client.crt&sslkey=/certs/client.key`
+  - Optional. When set, this takes priority over the separate PostgreSQL settings below.
 - `DASHBRR__DB_HOST`
   - Purpose: PostgreSQL host address
   - Default: `postgres` (in Docker)
