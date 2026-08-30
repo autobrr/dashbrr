@@ -111,9 +111,9 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 			if apiKey != "" {
 				devices, err = service.GetDevices(ctx, "", apiKey)
 			} else {
-				tailscaleConfig, err := requireServiceConfig(ctx, h.db, instanceId, "tailscale")
-				if err != nil {
-					return tailscaleDevicesResponse{}, err
+				tailscaleConfig, cfgErr := requireServiceConfig(ctx, h.db, instanceId, "tailscale")
+				if cfgErr != nil {
+					return tailscaleDevicesResponse{}, cfgErr
 				}
 				devices, err = service.GetDevices(ctx, "", tailscaleConfig.APIKey)
 			}
