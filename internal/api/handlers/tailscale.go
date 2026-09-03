@@ -106,17 +106,15 @@ func (h *TailscaleHandler) GetTailscaleDevices(c *gin.Context) {
 		Fetch: func() (tailscaleDevicesResponse, error) {
 			service := &tailscale.TailscaleService{}
 
-			var devices []tailscale.Device
-			var err error
-			if apiKey != "" {
-				devices, err = service.GetDevices(ctx, "", apiKey)
-			} else {
+			key := apiKey
+			if key == "" {
 				tailscaleConfig, err := requireServiceConfig(ctx, h.db, instanceId, "tailscale")
 				if err != nil {
 					return tailscaleDevicesResponse{}, err
 				}
-				devices, err = service.GetDevices(ctx, "", tailscaleConfig.APIKey)
+				key = tailscaleConfig.APIKey
 			}
+			devices, err := service.GetDevices(ctx, "", key)
 			if err != nil {
 				return tailscaleDevicesResponse{}, err
 			}
