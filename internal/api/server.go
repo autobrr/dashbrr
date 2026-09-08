@@ -149,6 +149,7 @@ func (s *Server) Handler() http.Handler {
 	sabnzbdHandler := handlers.NewSabnzbdHandler(s.db, s.cache, bc)
 	nzbgetHandler := handlers.NewNzbgetHandler(s.db, s.cache, bc)
 	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
+	generalHandler := handlers.NewGeneralHandler(s.db)
 
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
@@ -240,6 +241,19 @@ func (s *Server) Handler() http.Handler {
 		{
 			uiPreferences.GET("/collapse", uiPreferencesHandler.GetCollapsePreferences)
 			uiPreferences.PUT("/collapse", uiPreferencesHandler.UpsertCollapsePreference)
+		}
+
+		// General (custom) service config/action/test endpoints.
+		generalRoutes := api.Group("/general")
+		{
+			generalRoutes.POST("/test", generalHandler.Test)
+
+			generalInstance := generalRoutes.Group("/:instanceId")
+			{
+				generalInstance.GET("/config", generalHandler.GetConfig)
+				generalInstance.PUT("/config", generalHandler.PutConfig)
+				generalInstance.POST("/actions/:actionId", generalHandler.RunAction)
+			}
 		}
 
 		plexAuth := api.Group("/plex/auth")
