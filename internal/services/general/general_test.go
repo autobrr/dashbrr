@@ -243,6 +243,42 @@ func TestCheckHealth_StatusMapping(t *testing.T) {
 	}
 }
 
+// mapStatusValue directly: when both OkValues and WarnValues are empty,
+// there's nothing to match against, so presence stands in for health - a
+// non-empty extracted value is online, a missing/empty one is offline. When
+// either list is non-empty, a non-matching value is still offline
+// (unchanged).
+func TestMapStatusValue(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		json       string // the "state" field this pulls the value from
+		okValues   []string
+		warnValues []string
+		want       string
+	}{
+		{"both_lists_empty_any_value_is_online", `{"state":"anything"}`, nil, nil, "online"},
+		{"both_lists_empty_missing_path_is_offline", `{"other":"x"}`, nil, nil, "offline"},
+		{"both_lists_empty_empty_string_is_offline", `{"state":""}`, nil, nil, "offline"},
+		{"okvalues_set_non_matching_is_offline", `{"state":"dead"}`, []string{"good"}, nil, "offline"},
+		{"okvalues_set_matching_is_online", `{"state":"Good"}`, []string{"good"}, nil, "online"},
+		{"warnvalues_set_matching_is_warning", `{"state":"DEGRADED"}`, []string{"good"}, []string{"degraded"}, "warning"},
+		{"lists_set_missing_path_is_offline", `{"other":"x"}`, []string{"good"}, []string{"degraded"}, "offline"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			val := gjson.Get(tc.json, "state")
+			if got := mapStatusValue(val, tc.okValues, tc.warnValues); got != tc.want {
+				t.Errorf("mapStatusValue(%v, %v, %v) = %q, want %q", val, tc.okValues, tc.warnValues, got, tc.want)
+			}
+		})
+	}
+}
+
 // StatusPath empty falls back to plain HTTP 2xx = online.
 func TestCheckHealth_NoStatusPathUsesHTTPStatus(t *testing.T) {
 	t.Parallel()
@@ -611,6 +647,53 @@ func TestRunAction(t *testing.T) {
 
 	if _, err := service.RunAction(context.Background(), server.URL, "", cfg, "unknown-id"); err == nil {
 		t.Fatal("expected error for unknown action id")
+	}
+}
+
+// When an action body's content type isn't otherwise configured, it must be
+// inferred from the body's shape: qBittorrent's "hashes=all"-style action
+// body (application/x-www-form-urlencoded) 400s if sent as JSON, so a
+// non-JSON-looking body must not default to application/json. No body means
+// no Content-Type header at all.
+func TestRunAction_InfersContentType(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name            string
+		body            string
+		wantContentType string // "" means the header must be entirely absent
+	}{
+		{"form_body", "hashes=all", "application/x-www-form-urlencoded"},
+		{"json_body", `{"a":1}`, "application/json"},
+		{"no_body", "", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotContentType string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotContentType = r.Header.Get("Content-Type")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			cfg := &models.CustomServiceConfig{
+				Actions: []models.CustomActionConfig{
+					{ID: "act", Label: "Act", Method: "POST", Path: "/act", Body: tc.body},
+				},
+			}
+
+			service := NewGeneralService().(*GeneralService)
+			if _, err := service.RunAction(context.Background(), server.URL, "", cfg, "act"); err != nil {
+				t.Fatalf("RunAction returned error: %v", err)
+			}
+
+			if gotContentType != tc.wantContentType {
+				t.Fatalf("Content-Type = %q, want %q", gotContentType, tc.wantContentType)
+			}
+		})
 	}
 }
 

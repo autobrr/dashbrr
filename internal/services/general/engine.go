@@ -216,14 +216,22 @@ func (e *Engine) checkHealthWithConfig(ctx context.Context, rawURL, apiKey strin
 }
 
 // mapStatusValue implements the D2 status-mapping rule: value in OkValues ->
-// online, in WarnValues -> warning, otherwise offline. Comparisons are
-// case-insensitive strings; gjson stringifies booleans/numbers for us.
+// online, in WarnValues -> warning. Comparisons are case-insensitive strings;
+// gjson stringifies booleans/numbers for us.
+//
+// If either list is non-empty and the value matches neither, the result is
+// offline - that's unchanged. But when BOTH lists are empty (statusPath is
+// set with no ok/warn values configured), there's nothing to match against,
+// so presence stands in for health: a non-empty extracted value is online,
+// and a missing or empty value is offline. This matches Dashboarr's client
+// and both projects' docs; previously the both-empty case always fell to
+// offline, which contradicted them.
 func mapStatusValue(val gjson.Result, okValues, warnValues []string) string {
-	if !val.Exists() {
-		return "offline"
+	s := ""
+	if val.Exists() {
+		s = val.String()
 	}
 
-	s := val.String()
 	for _, ok := range okValues {
 		if strings.EqualFold(s, ok) {
 			return "online"
@@ -234,6 +242,11 @@ func mapStatusValue(val gjson.Result, okValues, warnValues []string) string {
 			return "warning"
 		}
 	}
+
+	if len(okValues) == 0 && len(warnValues) == 0 && val.Exists() && s != "" {
+		return "online"
+	}
+
 	return "offline"
 }
 
@@ -361,7 +374,7 @@ func (e *Engine) attemptRequest(ctx context.Context, baseURL, method, path strin
 	if contentType != "" {
 		headers["Content-Type"] = contentType
 	} else if body != nil {
-		headers["Content-Type"] = "application/json"
+		headers["Content-Type"] = inferContentType(body)
 	}
 
 	fullURL := applyQueryParams(joinURL(baseURL, path), query)
@@ -425,6 +438,22 @@ func buildAuthHeaders(cfg *models.CustomServiceConfig, apiKey string) (headers m
 func basicAuthHeader(username, password string) string {
 	creds := username + ":" + password
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(creds))
+}
+
+// inferContentType guesses a Content-Type for a health/stats/action request
+// body on the configured path, used only when nothing else already set one
+// (cfg.Auth never sets a content type, so in practice this fires whenever
+// Health.Body or an action's Body is non-empty). A trimmed body starting
+// with '{' or '[' is treated as JSON; anything else - e.g. qBittorrent's
+// "hashes=all" action body, which 400s if sent as application/json - is
+// treated as form-urlencoded. The login step's explicit Login.ContentType is
+// handled separately in performLogin and never goes through this.
+func inferContentType(body []byte) string {
+	trimmed := strings.TrimSpace(string(body))
+	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+		return "application/json"
+	}
+	return "application/x-www-form-urlencoded"
 }
 
 // injectLogin applies a captured login result into headers/query per
