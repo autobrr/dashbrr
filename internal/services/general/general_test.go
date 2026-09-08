@@ -650,6 +650,53 @@ func TestRunAction(t *testing.T) {
 	}
 }
 
+// When an action body's content type isn't otherwise configured, it must be
+// inferred from the body's shape: qBittorrent's "hashes=all"-style action
+// body (application/x-www-form-urlencoded) 400s if sent as JSON, so a
+// non-JSON-looking body must not default to application/json. No body means
+// no Content-Type header at all.
+func TestRunAction_InfersContentType(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name            string
+		body            string
+		wantContentType string // "" means the header must be entirely absent
+	}{
+		{"form_body", "hashes=all", "application/x-www-form-urlencoded"},
+		{"json_body", `{"a":1}`, "application/json"},
+		{"no_body", "", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotContentType string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotContentType = r.Header.Get("Content-Type")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			cfg := &models.CustomServiceConfig{
+				Actions: []models.CustomActionConfig{
+					{ID: "act", Label: "Act", Method: "POST", Path: "/act", Body: tc.body},
+				},
+			}
+
+			service := NewGeneralService().(*GeneralService)
+			if _, err := service.RunAction(context.Background(), server.URL, "", cfg, "act"); err != nil {
+				t.Fatalf("RunAction returned error: %v", err)
+			}
+
+			if gotContentType != tc.wantContentType {
+				t.Fatalf("Content-Type = %q, want %q", gotContentType, tc.wantContentType)
+			}
+		})
+	}
+}
+
 // The login body's {{username}}/{{password}} placeholders must be substituted
 // from cfg.Auth even when Auth.Mode is "none" - the qBittorrent preset
 // (username={{username}}&password={{password}}) relies on Auth carrying
