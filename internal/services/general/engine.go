@@ -69,7 +69,7 @@ func (e *Engine) legacyCheckHealth(ctx context.Context, rawURL, apiKey string, s
 
 	headers := make(map[string]string)
 	if apiKey != "" {
-		headers["Authorization"] = fmt.Sprintf("Bearer %s", apiKey)
+		headers["Authorization"] = "Bearer " + apiKey
 	}
 
 	resp, err := e.DoRequest(healthCtx, http.MethodGet, rawURL, headers, nil)
@@ -85,7 +85,7 @@ func (e *Engine) legacyCheckHealth(ctx context.Context, rawURL, apiKey string, s
 		return e.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to read response: %v", err)), http.StatusInternalServerError
 	}
 
-	return legacyHealthResponse(e, startTime, body, responseTime, resp.StatusCode), resp.StatusCode
+	return legacyHealthResponse(e, startTime, body, responseTime), resp.StatusCode
 }
 
 // legacyCheckHealthWithAuth is used when a CustomServiceConfig is present but
@@ -103,10 +103,10 @@ func (e *Engine) legacyCheckHealthWithAuth(ctx context.Context, rawURL, apiKey s
 
 	responseTime := time.Since(startTime).Milliseconds()
 
-	return legacyHealthResponse(e, startTime, body, responseTime, statusCode), statusCode
+	return legacyHealthResponse(e, startTime, body, responseTime), statusCode
 }
 
-func legacyHealthResponse(e *Engine, startTime time.Time, body []byte, responseTime int64, statusCode int) models.ServiceHealth {
+func legacyHealthResponse(e *Engine, startTime time.Time, body []byte, responseTime int64) models.ServiceHealth {
 	if status, message, fields, ok := legacyParseBody(body); ok {
 		extras := map[string]any{"responseTime": responseTime}
 		if len(fields) > 0 {
@@ -122,7 +122,7 @@ func legacyHealthResponse(e *Engine, startTime time.Time, body []byte, responseT
 		return e.CreateHealthResponse(startTime, "online", "", extras)
 	}
 
-	return e.CreateHealthResponse(startTime, "error", fmt.Sprintf("Unexpected response: %s", textResponse), extras)
+	return e.CreateHealthResponse(startTime, "error", "Unexpected response: "+textResponse, extras)
 }
 
 // legacyParseBody implements the original general-service JSON handling:
@@ -390,7 +390,7 @@ func buildAuthHeaders(cfg *models.CustomServiceConfig, apiKey string) (headers m
 
 	if cfg == nil || cfg.Auth == nil {
 		if apiKey != "" {
-			headers["Authorization"] = fmt.Sprintf("Bearer %s", apiKey)
+			headers["Authorization"] = "Bearer " + apiKey
 		}
 		return headers, query, ""
 	}
@@ -415,7 +415,7 @@ func buildAuthHeaders(cfg *models.CustomServiceConfig, apiKey string) (headers m
 		headers["Authorization"] = basicAuthHeader(cfg.Auth.Username, cfg.Auth.Password)
 	case "bearer":
 		if value != "" {
-			headers["Authorization"] = fmt.Sprintf("Bearer %s", value)
+			headers["Authorization"] = "Bearer " + value
 		}
 	}
 
@@ -452,7 +452,7 @@ func injectLogin(login *models.CustomLoginConfig, value string, headers, query m
 			headers["Cookie"] = fmt.Sprintf("%s=%s", name, value)
 		}
 	case "bearer":
-		headers["Authorization"] = fmt.Sprintf("Bearer %s", value)
+		headers["Authorization"] = "Bearer " + value
 	}
 }
 

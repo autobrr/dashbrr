@@ -13,7 +13,21 @@ import (
 
 // formatStatValue renders a gjson value per one of the stat.Format values
 // D2 supports: bytes, duration, percent, number, text (default).
+//
+// For the numeric formats, a string value that doesn't actually parse as a
+// number (e.g. Cleanuparr's upTime "0.12:34:56.789") is returned unchanged
+// rather than silently formatted as 0 - misconfiguring the format is a
+// display-time distraction, not a reason to fabricate a value.
 func formatStatValue(val gjson.Result, format string) string {
+	switch format {
+	case "bytes", "duration", "percent", "number":
+		if val.Type == gjson.String {
+			if _, err := strconv.ParseFloat(val.String(), 64); err != nil {
+				return val.String()
+			}
+		}
+	}
+
 	switch format {
 	case "bytes":
 		return formatBytes(val.Float())

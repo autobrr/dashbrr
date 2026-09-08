@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,9 +86,30 @@ func (e *Engine) ensureLogin(ctx context.Context, baseURL string, cfg *models.Cu
 	return value, nil
 }
 
+// substituteLoginCredentials replaces the {{username}} and {{password}}
+// placeholders in a login body template with the configured Auth
+// credentials, regardless of Auth.Mode (a "none"-mode auth block can still
+// carry credentials meant only for the login step, e.g. the qBittorrent
+// preset username={{username}}&password={{password}}). A nil auth block
+// substitutes empty strings. Never logged - the caller must not log the
+// result.
+func substituteLoginCredentials(body string, auth *models.CustomAuthConfig) string {
+	var username, password string
+	if auth != nil {
+		username = auth.Username
+		password = auth.Password
+	}
+	replacer := strings.NewReplacer(
+		"{{username}}", username,
+		"{{password}}", password,
+	)
+	return replacer.Replace(body)
+}
+
 // performLogin runs cfg.Login once: sends the configured request, and
 // captures either a named Set-Cookie value or a gjson path from the JSON
-// body. Never logs the request body or the captured value.
+// body. Never logs the request body (raw or substituted) or the captured
+// value.
 func (e *Engine) performLogin(ctx context.Context, baseURL string, cfg *models.CustomServiceConfig, apiKey string) (string, error) {
 	login := cfg.Login
 
@@ -105,7 +127,7 @@ func (e *Engine) performLogin(ctx context.Context, baseURL string, cfg *models.C
 	var bodyBytes []byte
 	contentType := login.ContentType
 	if login.Body != "" {
-		bodyBytes = []byte(login.Body)
+		bodyBytes = []byte(substituteLoginCredentials(login.Body, cfg.Auth))
 		if contentType == "" {
 			contentType = "application/json"
 		}

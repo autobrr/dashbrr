@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/tidwall/gjson"
+
 	"github.com/autobrr/dashbrr/internal/models"
 )
 
@@ -609,5 +611,82 @@ func TestRunAction(t *testing.T) {
 
 	if _, err := service.RunAction(context.Background(), server.URL, "", cfg, "unknown-id"); err == nil {
 		t.Fatal("expected error for unknown action id")
+	}
+}
+
+// The login body's {{username}}/{{password}} placeholders must be substituted
+// from cfg.Auth even when Auth.Mode is "none" - the qBittorrent preset
+// (username={{username}}&password={{password}}) relies on Auth carrying
+// login-only credentials while the actual request auth is handled elsewhere
+// (or not at all).
+func TestLogin_SubstitutesCredentialsInBody(t *testing.T) {
+	t.Parallel()
+
+	var gotBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			b, _ := io.ReadAll(r.Body)
+			gotBody = string(b)
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "sid-value"})
+			w.WriteHeader(http.StatusOK)
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &models.CustomServiceConfig{
+		Auth: &models.CustomAuthConfig{
+			Mode:     "none",
+			Username: "admin",
+			Password: "hunter2",
+		},
+		Login: &models.CustomLoginConfig{
+			Method:        "POST",
+			Path:          "/login",
+			ContentType:   "application/x-www-form-urlencoded",
+			Body:          "username={{username}}&password={{password}}",
+			CaptureCookie: "SID",
+			InjectAs:      "cookie",
+			InjectName:    "SID",
+		},
+		Health: &models.CustomHealthConfig{Path: "/health"},
+	}
+
+	service := NewGeneralService().(*GeneralService)
+	_, code := service.Engine.CheckHealth(context.Background(), server.URL, "", cfg)
+	if code != http.StatusOK {
+		t.Fatalf("code = %d, want %d", code, http.StatusOK)
+	}
+	if gotBody != "username=admin&password=hunter2" {
+		t.Fatalf("login body = %q, want %q", gotBody, "username=admin&password=hunter2")
+	}
+}
+
+// formatStatValue must not silently format a non-numeric string as 0: a
+// string that fails strconv.ParseFloat is returned unchanged for every
+// numeric format (e.g. Cleanuparr's upTime "0.12:34:56.789").
+func TestFormatStatValue_NonNumericStringPassesThrough(t *testing.T) {
+	t.Parallel()
+
+	const raw = "0.12:34:56.789"
+	val := gjson.Parse(`"` + raw + `"`)
+
+	for _, format := range []string{"bytes", "duration", "percent", "number"} {
+		t.Run(format, func(t *testing.T) {
+			if got := formatStatValue(val, format); got != raw {
+				t.Errorf("formatStatValue(%q, %q) = %q, want %q (unchanged)", raw, format, got, raw)
+			}
+		})
+	}
+
+	// A numeric string must still format normally.
+	numeric := gjson.Parse(`"1024"`)
+	if got := formatStatValue(numeric, "bytes"); got != "1.0 KiB" {
+		t.Errorf("formatStatValue(%q, bytes) = %q, want %q", "1024", got, "1.0 KiB")
 	}
 }
