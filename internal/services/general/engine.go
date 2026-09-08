@@ -351,11 +351,11 @@ func (e *Engine) attemptRequest(ctx context.Context, baseURL, method, path strin
 	headers, query, contentType := buildAuthHeaders(cfg, apiKey)
 
 	if hasLogin {
-		loginValue, err := e.ensureLogin(ctx, baseURL, cfg, apiKey, forceRelogin)
+		login, err := e.ensureLogin(ctx, baseURL, cfg, apiKey, forceRelogin)
 		if err != nil {
 			return 0, nil, fmt.Errorf("login failed: %w", err)
 		}
-		injectLogin(cfg.Login, loginValue, headers, query)
+		injectLogin(cfg.Login, login, headers, query)
 	}
 
 	if contentType != "" {
@@ -427,32 +427,37 @@ func basicAuthHeader(username, password string) string {
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(creds))
 }
 
-// injectLogin applies a captured login value into headers/query per
+// injectLogin applies a captured login result into headers/query per
 // login.InjectAs. Never logs the value.
-func injectLogin(login *models.CustomLoginConfig, value string, headers, query map[string]string) {
-	if login == nil || value == "" {
+//
+// For InjectAs "cookie" with no InjectName configured, the cookie name comes
+// from result.cookieName - the actual Set-Cookie name matched during login,
+// never login.CaptureCookie itself (which may be a wildcard pattern like
+// "*SID*" and would produce a broken "Cookie: *SID*=..." header).
+func injectLogin(login *models.CustomLoginConfig, result loginResult, headers, query map[string]string) {
+	if login == nil || result.value == "" {
 		return
 	}
 
 	switch login.InjectAs {
 	case "header":
 		if login.InjectName != "" {
-			headers[login.InjectName] = value
+			headers[login.InjectName] = result.value
 		}
 	case "query":
 		if login.InjectName != "" {
-			query[login.InjectName] = value
+			query[login.InjectName] = result.value
 		}
 	case "cookie":
 		name := login.InjectName
 		if name == "" {
-			name = login.CaptureCookie
+			name = result.cookieName
 		}
 		if name != "" {
-			headers["Cookie"] = fmt.Sprintf("%s=%s", name, value)
+			headers["Cookie"] = name + "=" + result.value
 		}
 	case "bearer":
-		headers["Authorization"] = "Bearer " + value
+		headers["Authorization"] = "Bearer " + result.value
 	}
 }
 

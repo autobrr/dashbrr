@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -24,9 +25,21 @@ import (
 // before we run the login step again.
 const loginCacheTTL = 10 * time.Minute
 
+// loginResult is what a login step produces: the value to inject (a cookie
+// value or a captured JSON token), plus - when the value came from a cookie -
+// the cookie's actual name. CaptureCookie may be a wildcard pattern (e.g.
+// "*SID*" to match qBittorrent's port-suffixed "QBT_SID_8080"), so the actual
+// matched name has to be remembered for injection; it must never be the
+// pattern itself.
+type loginResult struct {
+	value      string
+	cookieName string
+}
+
 type loginCacheEntry struct {
-	value     string
-	expiresAt time.Time
+	value      string
+	cookieName string
+	expiresAt  time.Time
 }
 
 // loginCache is keyed by (url, cfg-hash) rather than by Engine instance:
@@ -59,10 +72,12 @@ func invalidateLogin(baseURL string, cfg *models.CustomServiceConfig) {
 	loginCacheMu.Unlock()
 }
 
-// ensureLogin returns a cached login value, or runs the login step and caches
-// the result for loginCacheTTL. forceRefresh skips the cache read (used after
-// a 401/403 invalidation) but still repopulates the cache on success.
-func (e *Engine) ensureLogin(ctx context.Context, baseURL string, cfg *models.CustomServiceConfig, apiKey string, forceRefresh bool) (string, error) {
+// ensureLogin returns a cached login result, or runs the login step and
+// caches the result for loginCacheTTL. forceRefresh skips the cache read
+// (used after a 401/403 invalidation) but still repopulates the cache on
+// success. The cached cookieName (not just the pattern) is replayed on a
+// cache hit so a later wildcard match doesn't have to be re-derived.
+func (e *Engine) ensureLogin(ctx context.Context, baseURL string, cfg *models.CustomServiceConfig, apiKey string, forceRefresh bool) (loginResult, error) {
 	key := loginCacheKey(baseURL, cfg)
 
 	if !forceRefresh {
@@ -70,20 +85,20 @@ func (e *Engine) ensureLogin(ctx context.Context, baseURL string, cfg *models.Cu
 		entry, ok := loginCache[key]
 		loginCacheMu.Unlock()
 		if ok && time.Now().Before(entry.expiresAt) {
-			return entry.value, nil
+			return loginResult{value: entry.value, cookieName: entry.cookieName}, nil
 		}
 	}
 
-	value, err := e.performLogin(ctx, baseURL, cfg, apiKey)
+	result, err := e.performLogin(ctx, baseURL, cfg, apiKey)
 	if err != nil {
-		return "", err
+		return loginResult{}, err
 	}
 
 	loginCacheMu.Lock()
-	loginCache[key] = loginCacheEntry{value: value, expiresAt: time.Now().Add(loginCacheTTL)}
+	loginCache[key] = loginCacheEntry{value: result.value, cookieName: result.cookieName, expiresAt: time.Now().Add(loginCacheTTL)}
 	loginCacheMu.Unlock()
 
-	return value, nil
+	return result, nil
 }
 
 // substituteLoginCredentials replaces the {{username}} and {{password}}
@@ -106,11 +121,23 @@ func substituteLoginCredentials(body string, auth *models.CustomAuthConfig) stri
 	return replacer.Replace(body)
 }
 
+// matchCookieName reports whether a Set-Cookie name satisfies
+// login.captureCookie. A pattern containing "*" is matched with Go's
+// path.Match semantics (case-sensitive); a pattern without "*" is an exact
+// match, same as before wildcards were supported.
+func matchCookieName(pattern, name string) bool {
+	if !strings.Contains(pattern, "*") {
+		return pattern == name
+	}
+	matched, err := path.Match(pattern, name)
+	return err == nil && matched
+}
+
 // performLogin runs cfg.Login once: sends the configured request, and
-// captures either a named Set-Cookie value or a gjson path from the JSON
-// body. Never logs the request body (raw or substituted) or the captured
-// value.
-func (e *Engine) performLogin(ctx context.Context, baseURL string, cfg *models.CustomServiceConfig, apiKey string) (string, error) {
+// captures either a named/wildcard-matched Set-Cookie value or a gjson path
+// from the JSON body. Never logs the request body (raw or substituted) or
+// the captured value.
+func (e *Engine) performLogin(ctx context.Context, baseURL string, cfg *models.CustomServiceConfig, apiKey string) (loginResult, error) {
 	login := cfg.Login
 
 	method := login.Method
@@ -140,15 +167,17 @@ func (e *Engine) performLogin(ctx context.Context, baseURL string, cfg *models.C
 
 	resp, err := e.DoRequest(ctx, method, loginURL, headers, bodyBytes)
 	if err != nil {
-		return "", fmt.Errorf("login request failed: %w", err)
+		return loginResult{}, fmt.Errorf("login request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	var capturedCookie string
+	// If several Set-Cookie headers match the pattern, take the first.
+	var capturedCookieName, capturedCookieValue string
 	if login.CaptureCookie != "" {
 		for _, c := range resp.Cookies() {
-			if c.Name == login.CaptureCookie {
-				capturedCookie = c.Value
+			if matchCookieName(login.CaptureCookie, c.Name) {
+				capturedCookieName = c.Name
+				capturedCookieValue = c.Value
 				break
 			}
 		}
@@ -156,18 +185,18 @@ func (e *Engine) performLogin(ctx context.Context, baseURL string, cfg *models.C
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read login response: %w", err)
+		return loginResult{}, fmt.Errorf("failed to read login response: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("login request returned status %d", resp.StatusCode)
+		return loginResult{}, fmt.Errorf("login request returned status %d", resp.StatusCode)
 	}
 
 	if login.CaptureJSONPath != "" {
 		if val := gjson.GetBytes(body, login.CaptureJSONPath); val.Exists() {
-			return val.String(), nil
+			return loginResult{value: val.String()}, nil
 		}
 	}
 
-	return capturedCookie, nil
+	return loginResult{value: capturedCookieValue, cookieName: capturedCookieName}, nil
 }
