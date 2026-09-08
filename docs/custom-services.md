@@ -60,7 +60,7 @@ version.
 |---------------|----------|-------|
 | `method`      | string   | `GET` or `POST`. |
 | `path`        | string   | **Required.** Path on the service, relative to its base URL. |
-| `body`        | string   | Request body, for `POST`. |
+| `body`        | string   | Request body, for `POST`. Content type is inferred: a body starting with `{` or `[` is sent as `application/json`, anything else as `application/x-www-form-urlencoded`. |
 | `statusPath`  | string   | gjson path into the response body to read a status value from. If omitted, a 2xx response alone means "online". |
 | `okValues`    | []string | Values at `statusPath` that count as online. If both `okValues` and `warnValues` are omitted, any non-empty value at `statusPath` (with a 2xx response) counts as online and a missing or empty value is offline. When either list is set, a value that matches neither list is offline. |
 | `warnValues`  | []string | Values at `statusPath` that count as degraded rather than online or offline. |
@@ -92,7 +92,7 @@ service.
 | `label`   | string | **Required.** Button label. |
 | `method`  | string | `GET`, `POST`, `PUT`, or `DELETE`. |
 | `path`    | string | **Required.** Path on the service, relative to its base URL. |
-| `body`    | string | Request body. |
+| `body`    | string | Request body. Content type is inferred: a body starting with `{` or `[` is sent as `application/json`, anything else as `application/x-www-form-urlencoded`. |
 | `confirm` | bool   | If true, the UI asks for confirmation before firing the action. |
 
 ### `timeoutSeconds`
