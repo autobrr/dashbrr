@@ -690,3 +690,142 @@ func TestFormatStatValue_NonNumericStringPassesThrough(t *testing.T) {
 		t.Errorf("formatStatValue(%q, bytes) = %q, want %q", "1024", got, "1.0 KiB")
 	}
 }
+
+// captureCookie supports "*" wildcards (path.Match semantics) so a session
+// cookie that includes something variable in its name - e.g. qBittorrent
+// v5.2.3's port-suffixed "QBT_SID_8080" - can still be captured. Injection
+// (InjectAs "cookie" with no InjectName) must use the actual matched cookie
+// name, never the pattern; a pattern without "*" still requires an exact
+// match, unchanged from before wildcards existed; no match injects no cookie.
+func TestCheckHealth_LoginCookieWildcardCapture(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name          string
+		captureCookie string
+		setCookieName string
+		setCookieVal  string
+		wantCookie    string // exact "Cookie" header expected on the health request; "" means none sent
+	}{
+		{
+			name:          "wildcard_matches_port_suffixed_cookie",
+			captureCookie: "*SID*",
+			setCookieName: "QBT_SID_8080",
+			setCookieVal:  "abc",
+			wantCookie:    "QBT_SID_8080=abc",
+		},
+		{
+			name:          "exact_match_unchanged",
+			captureCookie: "session",
+			setCookieName: "session",
+			setCookieVal:  "xyz123",
+			wantCookie:    "session=xyz123",
+		},
+		{
+			name:          "no_match_injects_no_cookie",
+			captureCookie: "*NOPE*",
+			setCookieName: "session",
+			setCookieVal:  "xyz123",
+			wantCookie:    "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotCookie string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/login":
+					http.SetCookie(w, &http.Cookie{Name: tc.setCookieName, Value: tc.setCookieVal})
+					w.WriteHeader(http.StatusOK)
+				case "/health":
+					gotCookie = r.Header.Get("Cookie")
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte(`{"status":"ok"}`))
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+
+			cfg := &models.CustomServiceConfig{
+				Login: &models.CustomLoginConfig{
+					Method:        "POST",
+					Path:          "/login",
+					CaptureCookie: tc.captureCookie,
+					InjectAs:      "cookie",
+					// InjectName intentionally left empty: injection must fall back to
+					// the actual captured cookie name, not the (possibly wildcard) pattern.
+				},
+				Health: &models.CustomHealthConfig{Path: "/health"},
+			}
+
+			service := NewGeneralService().(*GeneralService)
+			_, code := service.Engine.CheckHealth(context.Background(), server.URL, "", cfg)
+			if code != http.StatusOK {
+				t.Fatalf("code = %d, want %d", code, http.StatusOK)
+			}
+			if gotCookie != tc.wantCookie {
+				t.Fatalf("Cookie header = %q, want %q", gotCookie, tc.wantCookie)
+			}
+		})
+	}
+}
+
+// The captured cookie NAME (not just the value) must be cached and replayed
+// on a cache hit, so a second health check within the TTL still sends the
+// real wildcard-matched cookie name without re-running the login step.
+func TestCheckHealth_LoginCookieWildcardCacheReplay(t *testing.T) {
+	t.Parallel()
+
+	var loginHits int32
+	var gotCookies []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			atomic.AddInt32(&loginHits, 1)
+			http.SetCookie(w, &http.Cookie{Name: "QBT_SID_8080", Value: "abc"})
+			w.WriteHeader(http.StatusOK)
+		case "/health":
+			gotCookies = append(gotCookies, r.Header.Get("Cookie"))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &models.CustomServiceConfig{
+		Login: &models.CustomLoginConfig{
+			Method:        "POST",
+			Path:          "/login",
+			CaptureCookie: "*SID*",
+			InjectAs:      "cookie",
+		},
+		Health: &models.CustomHealthConfig{Path: "/health"},
+	}
+
+	service := NewGeneralService().(*GeneralService)
+	for i := range 2 {
+		_, code := service.Engine.CheckHealth(context.Background(), server.URL, "", cfg)
+		if code != http.StatusOK {
+			t.Fatalf("call %d: code = %d, want %d", i, code, http.StatusOK)
+		}
+	}
+
+	if got := atomic.LoadInt32(&loginHits); got != 1 {
+		t.Fatalf("loginHits = %d, want 1 (second call should replay the cache)", got)
+	}
+	if len(gotCookies) != 2 {
+		t.Fatalf("len(gotCookies) = %d, want 2", len(gotCookies))
+	}
+	for i, c := range gotCookies {
+		if c != "QBT_SID_8080=abc" {
+			t.Errorf("gotCookies[%d] = %q, want %q", i, c, "QBT_SID_8080=abc")
+		}
+	}
+}
