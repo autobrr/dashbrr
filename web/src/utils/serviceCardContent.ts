@@ -93,7 +93,13 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
       );
     case "tailscale":
       return (service.stats?.tailscale?.devices?.length ?? 0) > 0;
-    case "general":
+    case "general": {
+      const generalStats = service.stats?.general ?? service.health?.stats?.general;
+      return (
+        Object.keys(generalStats?.stats ?? {}).length > 0 ||
+        (generalStats?.actions?.length ?? 0) > 0
+      );
+    }
     case "other":
     default:
       return false;
