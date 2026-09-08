@@ -222,10 +222,14 @@ func (db *DB) openSQLite() error {
 		return errors.Wrap(err, "error running sqlite migrations")
 	}
 
-	// Belt-and-suspenders upgrade path: a database that was already fully
-	// migrated (schema_migrations up to date) before the config column was
-	// introduced won't pick it up from a new numbered migration alone, since
-	// the migrator only replays migrations it hasn't recorded as applied.
+	// The config column was added without a numbered migration, so this
+	// ensure-step exists purely to guarantee its presence on databases
+	// created before this change. A normal numbered migration would already
+	// be replayed automatically on such a database - the migrator applies
+	// every migration it hasn't yet recorded as applied, regardless of how
+	// long ago the database was first migrated. A maintainer could still
+	// convert this into a numbered migration (e.g. 003_add_service_config)
+	// instead.
 	if err := ensureSQLiteServiceConfigColumn(db.DB); err != nil {
 		return errors.Wrap(err, "error ensuring service_configurations.config column")
 	}
@@ -285,8 +289,10 @@ func (db *DB) openPostgres() error {
 		return errors.Wrap(err, "error running postgres migrations")
 	}
 
-	// See the matching comment in openSQLite: keeps already-migrated databases
-	// in sync with the config column without needing a new numbered migration.
+	// See the matching comment in openSQLite: this ensure-step exists so the
+	// config column is guaranteed on databases created before this change,
+	// without adding a numbered migration - a maintainer could convert it
+	// into one (e.g. 003_add_service_config) instead.
 	if _, err := db.ExecContext(context.Background(), `ALTER TABLE service_configurations ADD COLUMN IF NOT EXISTS config TEXT`); err != nil {
 		return errors.Wrap(err, "error ensuring service_configurations.config column")
 	}

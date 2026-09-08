@@ -126,6 +126,42 @@ func TestReadBody_PartialCanceledReadReturnsContextCanceled(t *testing.T) {
 	}
 }
 
+func TestRedactRequestURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "no query is unchanged",
+			in:   "http://example.com/path",
+			want: "http://example.com/path",
+		},
+		{
+			name: "query parameter values are masked",
+			in:   "http://example.com/path?apikey=SECRET&x=1",
+			want: "http://example.com/path?apikey=***&x=***",
+		},
+		{
+			name: "unparseable input masks everything after the first question mark",
+			in:   "http://example.com/path\x7f?apikey=SECRET",
+			want: "http://example.com/path\x7f?***",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := redactRequestURL(tt.in); got != tt.want {
+				t.Fatalf("redactRequestURL(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetUpdateStatusFromCache_LegacyVersionPrefixedKey(t *testing.T) {
 	t.Parallel()
 

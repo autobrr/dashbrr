@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,7 +86,7 @@ func (e *Engine) legacyCheckHealth(ctx context.Context, rawURL, apiKey string, s
 		return e.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to read response: %v", err)), http.StatusInternalServerError
 	}
 
-	return legacyHealthResponse(e, startTime, body, responseTime), resp.StatusCode
+	return legacyHealthResponse(e, startTime, resp.StatusCode, body, responseTime), resp.StatusCode
 }
 
 // legacyCheckHealthWithAuth is used when a CustomServiceConfig is present but
@@ -103,12 +104,22 @@ func (e *Engine) legacyCheckHealthWithAuth(ctx context.Context, rawURL, apiKey s
 
 	responseTime := time.Since(startTime).Milliseconds()
 
-	return legacyHealthResponse(e, startTime, body, responseTime), statusCode
+	return legacyHealthResponse(e, startTime, statusCode, body, responseTime), statusCode
 }
 
-func legacyHealthResponse(e *Engine, startTime time.Time, body []byte, responseTime int64) models.ServiceHealth {
+// legacyHealthResponse implements the legacy general-service response shape.
+// A non-2xx status code always means offline - regardless of what the body
+// contains, since a JSON body without a "status" key would otherwise be
+// misread as online - and short-circuits before legacyParseBody runs; 2xx
+// responses keep the original JSON/plain-text parsing untouched.
+func legacyHealthResponse(e *Engine, startTime time.Time, statusCode int, body []byte, responseTime int64) models.ServiceHealth {
+	extras := map[string]any{"responseTime": responseTime}
+
+	if statusCode < 200 || statusCode >= 300 {
+		return e.CreateHealthResponse(startTime, "offline", "status: "+strconv.Itoa(statusCode), extras)
+	}
+
 	if status, message, fields, ok := legacyParseBody(body); ok {
-		extras := map[string]any{"responseTime": responseTime}
 		if len(fields) > 0 {
 			extras["details"] = map[string]any{"general": fields}
 		}
@@ -116,7 +127,6 @@ func legacyHealthResponse(e *Engine, startTime time.Time, body []byte, responseT
 	}
 
 	textResponse := strings.TrimSpace(string(body))
-	extras := map[string]any{"responseTime": responseTime}
 
 	if strings.EqualFold(textResponse, "ok") {
 		return e.CreateHealthResponse(startTime, "online", "", extras)

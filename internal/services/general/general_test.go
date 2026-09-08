@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -97,6 +99,41 @@ func TestCheckHealth_BackwardCompatNilConfig(t *testing.T) {
 	}
 	if fields["version"] != "1.2.3" {
 		t.Fatalf("fields[version] = %v, want %q", fields["version"], "1.2.3")
+	}
+}
+
+// The legacy (nil-config) probe must treat any non-2xx response as offline,
+// even when the body is a JSON object with no "status" key - previously that
+// shape was misread as online regardless of the HTTP status code.
+func TestLegacyCheckHealth_Non2xxIsOffline(t *testing.T) {
+	t.Parallel()
+
+	statuses := []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusInternalServerError}
+
+	for _, statusCode := range statuses {
+		t.Run("status_"+strconv.Itoa(statusCode), func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(statusCode)
+				_, _ = w.Write([]byte(`{"message":"nope"}`))
+			}))
+			defer server.Close()
+
+			service := NewGeneralService().(*GeneralService)
+			health, code := service.CheckHealth(context.Background(), server.URL, "")
+
+			if code != statusCode {
+				t.Fatalf("code = %d, want %d", code, statusCode)
+			}
+			if health.Status != "offline" {
+				t.Fatalf("Status = %q, want %q", health.Status, "offline")
+			}
+			if !strings.Contains(health.Message, strconv.Itoa(statusCode)) {
+				t.Fatalf("Message = %q, want it to contain %d", health.Message, statusCode)
+			}
+		})
 	}
 }
 
