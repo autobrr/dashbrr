@@ -1,10 +1,15 @@
 package commands
 
 import (
+	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/autobrr/dashbrr/internal/database"
 )
 
 func TestParseGeneralStatFlag(t *testing.T) {
@@ -168,5 +173,105 @@ func TestServiceGeneralTestCommand_RejectsInvalidURL(t *testing.T) {
 
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected a non-zero exit for an invalid URL")
+	}
+}
+
+// Regression test: `add` must gate connectivity with the config-aware
+// engine, not the nil-config legacy check. The fixture 401s the legacy
+// probe path ("/", no credential header) and only answers 200 on the
+// configured health path with the configured header credential - so this
+// fails against the old "always GET / with apiKey as Bearer" gate and
+// passes once the gate is config-aware.
+func TestServiceGeneralAddCommand_WithConfig_UsesConfiguredHealthCheck(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" && r.Header.Get("X-Api-Key") == "secret-key" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	cmd := ServiceGeneralAddCommand()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{
+		server.URL, "Custom Service", "secret-key",
+		"--auth-mode=header",
+		"--header-name=X-Api-Key",
+		"--health-path=/health",
+		"--status-path=status",
+		"--ok=ok",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected the add to succeed against the configured health check, got: %v", err)
+	}
+
+	db, err := database.InitDB("./data/dashbrr.db")
+	if err != nil {
+		t.Fatalf("failed to open persisted database: %v", err)
+	}
+	defer db.Close()
+
+	services, err := db.GetAllServices(context.Background())
+	if err != nil {
+		t.Fatalf("GetAllServices: %v", err)
+	}
+	if len(services) != 1 {
+		t.Fatalf("expected exactly 1 persisted service, got %d", len(services))
+	}
+	if services[0].URL != server.URL {
+		t.Fatalf("URL = %q, want %q", services[0].URL, server.URL)
+	}
+	if services[0].Config == nil || services[0].Config.Health == nil || services[0].Config.Health.Path != "/health" {
+		t.Fatalf("expected the configured health path to be persisted, got %+v", services[0].Config)
+	}
+}
+
+// Plain `add` with no flags/--config must keep using the legacy nil-config
+// check (GET base URL, apiKey as Bearer) unchanged.
+func TestServiceGeneralAddCommand_LegacyNoConfig_StillWorks(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	cmd := ServiceGeneralAddCommand()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{server.URL, "Legacy Service"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected the legacy no-config add to succeed, got: %v", err)
+	}
+
+	db, err := database.InitDB("./data/dashbrr.db")
+	if err != nil {
+		t.Fatalf("failed to open persisted database: %v", err)
+	}
+	defer db.Close()
+
+	services, err := db.GetAllServices(context.Background())
+	if err != nil {
+		t.Fatalf("GetAllServices: %v", err)
+	}
+	if len(services) != 1 {
+		t.Fatalf("expected exactly 1 persisted service, got %d", len(services))
+	}
+	if services[0].Config != nil {
+		t.Fatalf("expected no config for a plain legacy add, got %+v", services[0].Config)
 	}
 }
