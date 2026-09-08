@@ -5,12 +5,6 @@ package general
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"strings"
-	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
@@ -29,100 +23,19 @@ func NewGeneralService() models.ServiceHealthChecker {
 	return service
 }
 
+// GeneralService is the models.ServiceHealthChecker implementation registered
+// for the "general" service type. All of the real work lives in Engine, which
+// additionally knows how to drive a models.CustomServiceConfig (auth, login,
+// health, stats, actions). GeneralService.CheckHealth keeps the exact 3-arg
+// signature the poller/registry call through models.ServiceHealthChecker, and
+// delegates to Engine with a nil config so behaviour for services with no
+// custom config is unchanged.
 type GeneralService struct {
-	core.ServiceCore
+	Engine
 }
 
 func (s *GeneralService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {
-	startTime := time.Now()
-
-	if url == "" {
-		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
-	}
-
-	// Create a child context with timeout if needed
-	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
-	defer cancel()
-
-	headers := make(map[string]string)
-	if apiKey != "" {
-		headers["Authorization"] = fmt.Sprintf("Bearer %s", apiKey)
-	}
-
-	resp, err := s.DoRequest(healthCtx, http.MethodGet, url, headers, nil)
-	if err != nil {
-		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusServiceUnavailable
-	}
-	defer resp.Body.Close()
-
-	// Calculate response time directly
-	responseTime := time.Since(startTime).Milliseconds()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to read response: %v", err)), http.StatusInternalServerError
-	}
-
-	// Try to parse as JSON first
-	var jsonResponse map[string]any
-	if err := json.Unmarshal(body, &jsonResponse); err == nil {
-		// Handle JSON response
-		status := "online"
-		message := ""
-
-		if statusVal, ok := jsonResponse["status"].(string); ok {
-			// Map status values to our supported statuses
-			switch strings.ToLower(statusVal) {
-			case "healthy", "ok", "online":
-				status = "online"
-			case "unhealthy", "error", "offline":
-				status = "offline"
-			case "warning":
-				status = "warning"
-			default:
-				status = "unknown"
-			}
-		}
-		if messageVal, ok := jsonResponse["message"].(string); ok {
-			message = messageVal
-		}
-
-		extras := map[string]any{
-			"responseTime": responseTime,
-		}
-
-		// Expose top-level scalar fields so the UI can show arbitrary API
-		// payloads (for example, tracker stats) as a key/value table (#87).
-		// The loop skips nested values. The code above already consumes
-		// status and message.
-		fields := make(map[string]any)
-		for key, value := range jsonResponse {
-			if key == "status" || key == "message" {
-				continue
-			}
-			switch value.(type) {
-			case string, float64, bool:
-				fields[key] = value
-			}
-		}
-		if len(fields) > 0 {
-			extras["details"] = map[string]any{"general": fields}
-		}
-
-		return s.CreateHealthResponse(startTime, status, message, extras), resp.StatusCode
-	}
-
-	// If JSON parsing fails, treat as plain text
-	textResponse := strings.TrimSpace(string(body))
-	extras := map[string]any{
-		"responseTime": responseTime,
-	}
-
-	if strings.EqualFold(textResponse, "ok") {
-		return s.CreateHealthResponse(startTime, "online", "", extras), resp.StatusCode
-	}
-
-	return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Unexpected response: %s", textResponse), extras), resp.StatusCode
+	return s.Engine.CheckHealth(ctx, url, apiKey, nil)
 }
 
 func (s *GeneralService) GetVersion(ctx context.Context, url, apiKey string) (string, error) {
