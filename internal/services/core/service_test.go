@@ -4,13 +4,20 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
 )
@@ -160,6 +167,63 @@ func TestRedactRequestURL(t *testing.T) {
 			}
 		})
 	}
+}
+
+// DoRequest must never leak a query-string secret via a *url.Error - neither
+// in the logged error nor in the one returned to the caller (which for the
+// legacy health probe ends up in a "Failed to connect: %v" message shown in
+// the UI/API) - for both a dial failure (httpClient.Do) and a parse failure
+// (http.NewRequestWithContext). The redaction must not break errors.Is/As on
+// the underlying cause, which callers rely on to distinguish failure modes.
+//
+// Not run in parallel: it swaps the shared zerolog global logger for the
+// duration of the test.
+func TestDoRequest_RedactsURLSecretsInLogsAndErrors(t *testing.T) {
+	var buf bytes.Buffer
+	origLogger := log.Logger
+	log.Logger = zerolog.New(&buf)
+	defer func() { log.Logger = origLogger }()
+
+	s := &ServiceCore{}
+	s.SetTimeout(2 * time.Second)
+
+	t.Run("connection refused", func(t *testing.T) {
+		buf.Reset()
+
+		_, err := s.DoRequest(context.Background(), http.MethodGet, "http://127.0.0.1:1/x?apikey=SECRET2", nil, nil)
+		if err == nil {
+			t.Fatal("expected an error connecting to a refused port")
+		}
+		if strings.Contains(err.Error(), "SECRET2") {
+			t.Fatalf("returned error leaks the secret: %v", err)
+		}
+		if strings.Contains(buf.String(), "SECRET2") {
+			t.Fatalf("log output leaks the secret: %s", buf.String())
+		}
+
+		var opErr *net.OpError
+		if !errors.As(err, &opErr) {
+			t.Fatalf("expected errors.As to still find *net.OpError on the redacted error, got: %v", err)
+		}
+		if !errors.Is(err, syscall.ECONNREFUSED) {
+			t.Fatalf("expected errors.Is(err, syscall.ECONNREFUSED) to still hold on the redacted error, got: %v", err)
+		}
+	})
+
+	t.Run("unparseable URL", func(t *testing.T) {
+		buf.Reset()
+
+		_, err := s.DoRequest(context.Background(), http.MethodGet, "http://[::1?apikey=SECRET4", nil, nil)
+		if err == nil {
+			t.Fatal("expected an error for an unparseable URL")
+		}
+		if strings.Contains(err.Error(), "SECRET4") {
+			t.Fatalf("returned error leaks the secret: %v", err)
+		}
+		if strings.Contains(buf.String(), "SECRET4") {
+			t.Fatalf("log output leaks the secret: %s", buf.String())
+		}
+	})
 }
 
 func TestGetUpdateStatusFromCache_LegacyVersionPrefixedKey(t *testing.T) {
