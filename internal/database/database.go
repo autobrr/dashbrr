@@ -6,6 +6,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -221,6 +222,14 @@ func (db *DB) openSQLite() error {
 		return errors.Wrap(err, "error running sqlite migrations")
 	}
 
+	// Belt-and-suspenders upgrade path: a database that was already fully
+	// migrated (schema_migrations up to date) before the config column was
+	// introduced won't pick it up from a new numbered migration alone, since
+	// the migrator only replays migrations it hasn't recorded as applied.
+	if err := ensureSQLiteServiceConfigColumn(db.DB); err != nil {
+		return errors.Wrap(err, "error ensuring service_configurations.config column")
+	}
+
 	return nil
 }
 
@@ -276,7 +285,82 @@ func (db *DB) openPostgres() error {
 		return errors.Wrap(err, "error running postgres migrations")
 	}
 
+	// See the matching comment in openSQLite: keeps already-migrated databases
+	// in sync with the config column without needing a new numbered migration.
+	if _, err := db.DB.Exec(`ALTER TABLE service_configurations ADD COLUMN IF NOT EXISTS config TEXT`); err != nil {
+		return errors.Wrap(err, "error ensuring service_configurations.config column")
+	}
+
 	return nil
+}
+
+// ensureSQLiteServiceConfigColumn adds the service_configurations.config
+// column if it's missing. SQLite has no "ADD COLUMN IF NOT EXISTS", so the
+// existing columns are inspected via PRAGMA table_info first.
+func ensureSQLiteServiceConfigColumn(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(service_configurations)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var hasConfig bool
+	for rows.Next() {
+		var (
+			cid       int
+			name      string
+			colType   string
+			notNull   int
+			dfltValue sql.NullString
+			pk        int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == "config" {
+			hasConfig = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if hasConfig {
+		return nil
+	}
+
+	_, err = db.Exec(`ALTER TABLE service_configurations ADD COLUMN config TEXT`)
+	return err
+}
+
+// marshalServiceConfig serializes a CustomServiceConfig for storage in the
+// nullable config TEXT column. A nil config is stored as SQL NULL.
+func marshalServiceConfig(cfg *models.CustomServiceConfig) (any, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "error marshaling service config")
+	}
+
+	return string(data), nil
+}
+
+// unmarshalServiceConfig is the inverse of marshalServiceConfig. NULL/empty
+// values decode to a nil config.
+func unmarshalServiceConfig(raw sql.NullString) (*models.CustomServiceConfig, error) {
+	if !raw.Valid || raw.String == "" {
+		return nil, nil
+	}
+
+	var cfg models.CustomServiceConfig
+	if err := json.Unmarshal([]byte(raw.String), &cfg); err != nil {
+		return nil, errors.Wrap(err, "error unmarshaling service config")
+	}
+
+	return &cfg, nil
 }
 
 func postgresDSN(config *Config) string {
@@ -388,7 +472,7 @@ func (db *DB) UpdateUserPassword(ctx context.Context, userID int64, newPasswordH
 
 // FindServiceBy retrieves a service configuration by FindServiceParams
 func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
-	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url", "config").
 		From("service_configurations")
 
 	if params.InstanceID != "" {
@@ -413,7 +497,7 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 	}
 
 	var service models.ServiceConfiguration
-	var url, apiKey, accessURL sql.NullString
+	var url, apiKey, accessURL, config sql.NullString
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(
 		&service.ID,
@@ -422,6 +506,7 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 		&url,
 		&apiKey,
 		&accessURL,
+		&config,
 	)
 
 	if err != nil {
@@ -441,6 +526,9 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 	if accessURL.Valid {
 		service.AccessURL = accessURL.String
 	}
+	if service.Config, err = unmarshalServiceConfig(config); err != nil {
+		return nil, err
+	}
 
 	return &service, nil
 }
@@ -448,19 +536,19 @@ func (db *DB) FindServiceBy(ctx context.Context, params types.FindServiceParams)
 // GetServiceByInstancePrefix retrieves a service configuration by its instance ID prefix
 func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*models.ServiceConfiguration, error) {
 	var service models.ServiceConfiguration
-	var url, apiKey, accessURL sql.NullString
+	var url, apiKey, accessURL, config sql.NullString
 
 	var query string
 	if db.driver == "postgres" {
 		query = `
-			SELECT id, instance_id, display_name, url, api_key, access_url
-			FROM service_configurations 
+			SELECT id, instance_id, display_name, url, api_key, access_url, config
+			FROM service_configurations
 			WHERE instance_id LIKE $1 || '%'
 			LIMIT 1`
 	} else {
 		query = `
-			SELECT id, instance_id, display_name, url, api_key, access_url
-			FROM service_configurations 
+			SELECT id, instance_id, display_name, url, api_key, access_url, config
+			FROM service_configurations
 			WHERE instance_id LIKE ? || '%'
 			LIMIT 1`
 	}
@@ -472,6 +560,7 @@ func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*m
 		&url,
 		&apiKey,
 		&accessURL,
+		&config,
 	)
 
 	if err == sql.ErrNoRows {
@@ -491,13 +580,16 @@ func (db *DB) GetServiceByInstancePrefix(ctx context.Context, prefix string) (*m
 	if accessURL.Valid {
 		service.AccessURL = accessURL.String
 	}
+	if service.Config, err = unmarshalServiceConfig(config); err != nil {
+		return nil, err
+	}
 
 	return &service, nil
 }
 
 // GetAllServices retrieves all service configurations
 func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration, error) {
-	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url").
+	queryBuilder := db.squirrel.Select("id", "instance_id", "display_name", "url", "api_key", "access_url", "config").
 		From("service_configurations")
 
 	query, args, err := queryBuilder.ToSql()
@@ -514,7 +606,7 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 	var services []models.ServiceConfiguration
 	for rows.Next() {
 		var service models.ServiceConfiguration
-		var url, apiKey, accessURL sql.NullString
+		var url, apiKey, accessURL, config sql.NullString
 
 		err := rows.Scan(
 			&service.ID,
@@ -523,6 +615,7 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 			&url,
 			&apiKey,
 			&accessURL,
+			&config,
 		)
 		if err != nil {
 			return nil, err
@@ -537,6 +630,9 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 		if accessURL.Valid {
 			service.AccessURL = accessURL.String
 		}
+		if service.Config, err = unmarshalServiceConfig(config); err != nil {
+			return nil, err
+		}
 
 		services = append(services, service)
 	}
@@ -546,9 +642,14 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 
 // CreateService creates a new service configuration
 func (db *DB) CreateService(ctx context.Context, service *models.ServiceConfiguration) error {
+	config, err := marshalServiceConfig(service.Config)
+	if err != nil {
+		return err
+	}
+
 	queryBuilder := db.squirrel.Insert("service_configurations").
-		Columns("instance_id", "display_name", "url", "api_key", "access_url").
-		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL).
+		Columns("instance_id", "display_name", "url", "api_key", "access_url", "config").
+		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL, config).
 		Suffix("RETURNING id").RunWith(db.DB)
 
 	if err := queryBuilder.QueryRowContext(ctx).Scan(&service.ID); err != nil {
@@ -560,11 +661,17 @@ func (db *DB) CreateService(ctx context.Context, service *models.ServiceConfigur
 
 // UpdateService updates an existing service configuration
 func (db *DB) UpdateService(ctx context.Context, service *models.ServiceConfiguration) error {
+	config, err := marshalServiceConfig(service.Config)
+	if err != nil {
+		return err
+	}
+
 	queryBuilder := db.squirrel.Update("service_configurations").
 		Set("display_name", service.DisplayName).
 		Set("url", sql.NullString{String: service.URL, Valid: service.URL != ""}).
 		Set("api_key", sql.NullString{String: service.APIKey, Valid: service.APIKey != ""}).
 		Set("access_url", sql.NullString{String: service.AccessURL, Valid: service.AccessURL != ""}).
+		Set("config", config).
 		Where(sq.Eq{"instance_id": service.InstanceID})
 
 	query, args, err := queryBuilder.ToSql()

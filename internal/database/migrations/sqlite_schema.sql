@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS service_configurations
     display_name TEXT        NOT NULL,
     url          TEXT,
     api_key      TEXT,
-    access_url   TEXT
+    access_url   TEXT,
+    config       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS ui_collapse_preferences
