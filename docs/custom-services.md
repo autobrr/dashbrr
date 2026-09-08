@@ -46,7 +46,7 @@ expires or a request fails auth.
 | `path`            | string | Path on the service, relative to its base URL. |
 | `contentType`     | string | e.g. `application/x-www-form-urlencoded`. |
 | `body`            | string | Request body. May contain the literal placeholders `{{username}}` and `{{password}}`, substituted from `auth.username`/`auth.password`. |
-| `captureCookie`   | string | Name of a `Set-Cookie` cookie to capture from the login response. |
+| `captureCookie`   | string | Name of a `Set-Cookie` cookie to capture from the login response. Accepts `*` wildcards (glob) for services that suffix the cookie name — the actual matched cookie name (not the pattern) is what gets injected on later requests. For example qBittorrent names its session cookie `QBT_SID_<port>` as of 5.1 (plain `SID` on older builds), so `captureCookie: "*SID*"` matches either. |
 | `captureJSONPath` | string | gjson path into the login response body to capture a token instead of a cookie. |
 | `injectAs`        | string | Where the captured value goes on later requests: `header`, `query`, `cookie`, or `bearer`. |
 | `injectName`      | string | Name to inject the captured value under. Behavior when empty depends on `injectAs`: for `header` or `query`, the captured value is silently dropped and not applied to later requests — `injectName` is effectively required for those two modes; for `cookie`, it falls back to `captureCookie`'s name; for `bearer`, it is ignored entirely (the value always goes on the `Authorization: Bearer` header). |
@@ -163,4 +163,4 @@ against a real instance before running `add`.
 | slskd | `presets/slskd.json` | API key (`X-API-Key` header) | Reports the Soulseek connection state as a stat. |
 | AzuraCast | `presets/azuracast.json` | None | Public station status endpoint; per-station stats are left out since they vary by install. |
 | Dozzle | `presets/dozzle.json` | None | Health only. |
-| qBittorrent | `presets/qbittorrent.json` | Username/password (session login) | Uses the login flow to capture the `SID` cookie; reports transfer speed and DHT nodes; adds Pause All / Resume All actions. |
+| qBittorrent | `presets/qbittorrent.json` | Username/password (session login) | Uses the login flow to capture the session cookie via the wildcard pattern `*SID*` (matches `QBT_SID_<port>` on 5.1+ or plain `SID` on older builds); reports transfer speed and DHT nodes; adds Pause All / Resume All actions. |
