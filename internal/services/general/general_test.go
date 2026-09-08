@@ -243,6 +243,42 @@ func TestCheckHealth_StatusMapping(t *testing.T) {
 	}
 }
 
+// mapStatusValue directly: when both OkValues and WarnValues are empty,
+// there's nothing to match against, so presence stands in for health - a
+// non-empty extracted value is online, a missing/empty one is offline. When
+// either list is non-empty, a non-matching value is still offline
+// (unchanged).
+func TestMapStatusValue(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		json       string // the "state" field this pulls the value from
+		okValues   []string
+		warnValues []string
+		want       string
+	}{
+		{"both_lists_empty_any_value_is_online", `{"state":"anything"}`, nil, nil, "online"},
+		{"both_lists_empty_missing_path_is_offline", `{"other":"x"}`, nil, nil, "offline"},
+		{"both_lists_empty_empty_string_is_offline", `{"state":""}`, nil, nil, "offline"},
+		{"okvalues_set_non_matching_is_offline", `{"state":"dead"}`, []string{"good"}, nil, "offline"},
+		{"okvalues_set_matching_is_online", `{"state":"Good"}`, []string{"good"}, nil, "online"},
+		{"warnvalues_set_matching_is_warning", `{"state":"DEGRADED"}`, []string{"good"}, []string{"degraded"}, "warning"},
+		{"lists_set_missing_path_is_offline", `{"other":"x"}`, []string{"good"}, []string{"degraded"}, "offline"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			val := gjson.Get(tc.json, "state")
+			if got := mapStatusValue(val, tc.okValues, tc.warnValues); got != tc.want {
+				t.Errorf("mapStatusValue(%v, %v, %v) = %q, want %q", val, tc.okValues, tc.warnValues, got, tc.want)
+			}
+		})
+	}
+}
+
 // StatusPath empty falls back to plain HTTP 2xx = online.
 func TestCheckHealth_NoStatusPathUsesHTTPStatus(t *testing.T) {
 	t.Parallel()
