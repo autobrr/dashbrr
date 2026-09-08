@@ -4,6 +4,7 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 )
@@ -19,7 +20,7 @@ type CustomAuthConfig struct {
 	HeaderName string `json:"headerName,omitempty"`
 	QueryParam string `json:"queryParam,omitempty"`
 	Username   string `json:"username,omitempty"`
-	Password   string `json:"password,omitempty"`
+	Password   string `json:"password,omitempty"` //nolint:gosec // struct field name, not a hardcoded credential
 	Token      string `json:"token,omitempty"`
 }
 
@@ -86,7 +87,7 @@ func (c *CustomServiceConfig) Validate() error {
 	if c.Auth != nil {
 		switch c.Auth.Mode {
 		case "":
-			return fmt.Errorf("auth.mode is required when auth is present")
+			return errors.New("auth.mode is required when auth is present")
 		case "none", "header", "query", "basic", "bearer":
 		default:
 			return fmt.Errorf("auth.mode %q is invalid", c.Auth.Mode)
@@ -108,7 +109,7 @@ func (c *CustomServiceConfig) Validate() error {
 
 	if c.Health != nil {
 		if c.Health.Path == "" {
-			return fmt.Errorf("health.path is required when health is present")
+			return errors.New("health.path is required when health is present")
 		}
 		switch c.Health.Method {
 		case "", "GET", "POST":

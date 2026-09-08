@@ -220,7 +220,7 @@ func TestSettingsHandler_CustomConfigRoundTrip(t *testing.T) {
 		}
 	}`
 	create := httptest.NewRecorder()
-	createReq, _ := http.NewRequest(http.MethodPut, "/api/settings/"+instance, strings.NewReader(createBody))
+	createReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPut, "/api/settings/"+instance, strings.NewReader(createBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(create, createReq)
 
@@ -241,7 +241,7 @@ func TestSettingsHandler_CustomConfigRoundTrip(t *testing.T) {
 
 	// Fetching via GET must also come back redacted.
 	get := httptest.NewRecorder()
-	getReq, _ := http.NewRequest(http.MethodGet, "/api/settings", nil)
+	getReq, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/settings", nil)
 	router.ServeHTTP(get, getReq)
 
 	if get.Code != http.StatusOK {
@@ -271,7 +271,7 @@ func TestSettingsHandler_CustomConfigRoundTrip(t *testing.T) {
 		}
 	}`
 	update := httptest.NewRecorder()
-	updateReq, _ := http.NewRequest(http.MethodPut, "/api/settings/"+instance, strings.NewReader(updateBody))
+	updateReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPut, "/api/settings/"+instance, strings.NewReader(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(update, updateReq)
 
@@ -316,7 +316,7 @@ func TestSettingsHandler_SaveSettings_RejectsInvalidCustomConfig(t *testing.T) {
 	]}}`
 
 	rec := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPut, "/api/settings/general-2", strings.NewReader(body))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPut, "/api/settings/general-2", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 

@@ -9,7 +9,7 @@ type ServiceConfiguration struct {
 	InstanceID  string               `json:"instanceId" gorm:"uniqueIndex"`
 	DisplayName string               `json:"displayName"`
 	URL         string               `json:"url"`
-	APIKey      string               `json:"apiKey,omitempty"`
+	APIKey      string               `json:"apiKey,omitempty"` //nolint:gosec // struct field name, not a hardcoded credential
 	AccessURL   string               `json:"accessUrl,omitempty"`
 	Config      *CustomServiceConfig `json:"config,omitempty"`
 }

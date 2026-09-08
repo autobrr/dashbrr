@@ -287,7 +287,7 @@ func (db *DB) openPostgres() error {
 
 	// See the matching comment in openSQLite: keeps already-migrated databases
 	// in sync with the config column without needing a new numbered migration.
-	if _, err := db.DB.Exec(`ALTER TABLE service_configurations ADD COLUMN IF NOT EXISTS config TEXT`); err != nil {
+	if _, err := db.ExecContext(context.Background(), `ALTER TABLE service_configurations ADD COLUMN IF NOT EXISTS config TEXT`); err != nil {
 		return errors.Wrap(err, "error ensuring service_configurations.config column")
 	}
 
@@ -298,7 +298,9 @@ func (db *DB) openPostgres() error {
 // column if it's missing. SQLite has no "ADD COLUMN IF NOT EXISTS", so the
 // existing columns are inspected via PRAGMA table_info first.
 func ensureSQLiteServiceConfigColumn(db *sql.DB) error {
-	rows, err := db.Query(`PRAGMA table_info(service_configurations)`)
+	ctx := context.Background()
+
+	rows, err := db.QueryContext(ctx, `PRAGMA table_info(service_configurations)`)
 	if err != nil {
 		return err
 	}
@@ -329,7 +331,7 @@ func ensureSQLiteServiceConfigColumn(db *sql.DB) error {
 		return nil
 	}
 
-	_, err = db.Exec(`ALTER TABLE service_configurations ADD COLUMN config TEXT`)
+	_, err = db.ExecContext(ctx, `ALTER TABLE service_configurations ADD COLUMN config TEXT`)
 	return err
 }
 

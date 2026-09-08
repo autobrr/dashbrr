@@ -145,15 +145,18 @@ func TestConfigColumnLegacyUpgrade(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "legacy.db")
 
+	legacyCtx := context.Background()
+
 	raw, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("failed to open raw sqlite db: %v", err)
 	}
-	if _, err := raw.Exec(legacySQLiteSchema); err != nil {
+	if _, err := raw.ExecContext(legacyCtx, legacySQLiteSchema); err != nil {
 		raw.Close()
 		t.Fatalf("failed to apply legacy schema: %v", err)
 	}
-	if _, err := raw.Exec(
+	if _, err := raw.ExecContext(
+		legacyCtx,
 		`INSERT INTO service_configurations (instance_id, display_name, url, api_key, access_url) VALUES (?, ?, ?, ?, ?)`,
 		"preexisting-service", "Preexisting Service", "http://localhost:9002", "key", "",
 	); err != nil {
@@ -174,7 +177,7 @@ func TestConfigColumnLegacyUpgrade(t *testing.T) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`PRAGMA table_info(service_configurations)`)
+	rows, err := db.QueryContext(legacyCtx, `PRAGMA table_info(service_configurations)`)
 	if err != nil {
 		t.Fatalf("failed to inspect table info: %v", err)
 	}
@@ -204,7 +207,7 @@ func TestConfigColumnLegacyUpgrade(t *testing.T) {
 		t.Fatal("expected config column to be added to the legacy database")
 	}
 
-	ctx := context.Background()
+	ctx := legacyCtx
 
 	// The pre-existing row must survive the upgrade untouched.
 	preexisting, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "preexisting-service"})
