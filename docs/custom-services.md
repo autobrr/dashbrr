@@ -62,7 +62,7 @@ version.
 | `path`        | string   | **Required.** Path on the service, relative to its base URL. |
 | `body`        | string   | Request body, for `POST`. |
 | `statusPath`  | string   | gjson path into the response body to read a status value from. If omitted, a 2xx response alone means "online". |
-| `okValues`    | []string | Values at `statusPath` that count as online. If omitted, any value at `statusPath` (with a 2xx response) counts as online. |
+| `okValues`    | []string | Values at `statusPath` that count as online. If both `okValues` and `warnValues` are omitted, any non-empty value at `statusPath` (with a 2xx response) counts as online and a missing or empty value is offline. When either list is set, a value that matches neither list is offline. |
 | `warnValues`  | []string | Values at `statusPath` that count as degraded rather than online or offline. |
 | `versionPath` | string   | gjson path into the response body to read the version string from. Empty means "use the whole response body as the version". |
 
