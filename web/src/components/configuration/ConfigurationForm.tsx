@@ -3,14 +3,17 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useConfiguration } from "../../contexts/useConfiguration";
-import { ServiceConfig } from "../../types/service";
+import { CustomServiceConfig, ServiceConfig } from "../../types/service";
 import { Button } from "../ui/Button";
 import { FormInput } from "../ui/FormInput";
 import { toast } from "react-hot-toast";
 import { api } from "../../utils/api";
 import { usePlexPinAuth } from "../../hooks/usePlexPinAuth";
+import { getGeneralConfig, saveGeneralConfig } from "../../api/general";
+import { validateCustomServiceConfig } from "./general/customServiceConfig";
+import { CustomServiceSection } from "./general/CustomServiceSection";
 
 interface ConfigurationFormProps {
   instanceId: string;
@@ -40,6 +43,31 @@ export const ConfigurationForm = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticating, authenticate } = usePlexPinAuth();
+  const [customConfig, setCustomConfig] = useState<CustomServiceConfig>({});
+
+  // Custom service definitions live behind their own endpoint (not the
+  // generic /settings config), so fetch them separately once we know this
+  // is a "general" instance. A missing definition (new instance, or the
+  // general API not yet available) just leaves the form at its defaults.
+  useEffect(() => {
+    if (serviceType !== "general") return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const existing = await getGeneralConfig(instanceId);
+        if (!cancelled) {
+          setCustomConfig(existing || {});
+        }
+      } catch (err) {
+        console.error("Failed to load custom service config:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [serviceType, instanceId]);
 
   const validateConfiguration = async (config: ServiceConfig) => {
     try {
@@ -77,6 +105,17 @@ export const ConfigurationForm = ({
         throw new Error("Authenticate with Plex first");
       }
 
+      // Validate the custom service definition up front so an invalid
+      // definition never leaves the base service saved without it.
+      let validatedCustomConfig: CustomServiceConfig | undefined;
+      if (serviceType === "general") {
+        const validation = validateCustomServiceConfig(customConfig);
+        if (!validation.ok || !validation.config) {
+          throw new Error(validation.errors.join("; "));
+        }
+        validatedCustomConfig = validation.config;
+      }
+
       const config: ServiceConfig = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
         accessUrl: accessUrl
@@ -95,6 +134,12 @@ export const ConfigurationForm = ({
 
       // Update the configuration
       await updateConfiguration(instanceId, config);
+
+      // The custom service definition is persisted through its own
+      // endpoint, and only once the instance itself exists.
+      if (serviceType === "general" && validatedCustomConfig) {
+        await saveGeneralConfig(instanceId, validatedCustomConfig);
+      }
 
       toast.success("Configuration saved successfully");
       onClose();
@@ -333,6 +378,15 @@ export const ConfigurationForm = ({
             data-1p-ignore
           />
         ))}
+
+      {serviceType === "general" && (
+        <CustomServiceSection
+          config={customConfig}
+          onChange={setCustomConfig}
+          url={url}
+          apiKey={apiKey}
+        />
+      )}
 
       {error && (
         <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>
