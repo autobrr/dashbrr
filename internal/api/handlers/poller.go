@@ -19,6 +19,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/bazarr"
+	"github.com/autobrr/dashbrr/internal/services/general"
 	"github.com/autobrr/dashbrr/internal/services/jellyfin"
 	"github.com/autobrr/dashbrr/internal/services/lidarr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
@@ -166,6 +167,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"traefik": {
 			{name: "traefik_summary", interval: 30 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runTraefikSummary},
+		},
+		"general": {
+			{name: "general_stats", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runGeneralStats},
 		},
 	}
 
@@ -512,6 +516,10 @@ func (p *Poller) maybeRun(ctx context.Context, sem chan struct{}, svc models.Ser
 }
 
 func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration, serviceType string) error {
+	if serviceType == "general" {
+		return p.runGeneralHealth(ctx, svc)
+	}
+
 	checker := p.registry.CreateService(serviceType)
 	if checker == nil {
 		publishHealthServiceUpdate(p.bc, models.ServiceHealth{
@@ -530,6 +538,24 @@ func (p *Poller) runHealth(ctx context.Context, svc models.ServiceConfiguration,
 	}
 	publishHealthServiceUpdate(p.bc, health)
 	p.logFirstHealthSeen(svc.InstanceID, serviceType, health.Status)
+	return nil
+}
+
+// runGeneralHealth is the "general" (custom) service type's health job. It
+// bypasses the registry's generic 2-arg models.ServiceHealthChecker
+// interface - which cannot carry svc.Config - and drives the engine
+// directly, the same way runBazarrSummary et al. call their concrete
+// service types directly instead of going through the registry.
+func (p *Poller) runGeneralHealth(ctx context.Context, svc models.ServiceConfiguration) error {
+	service := general.NewGeneralService().(*general.GeneralService)
+
+	health, _ := service.Engine.CheckHealth(ctx, svc.URL, svc.APIKey, svc.Config)
+	health.ServiceID = svc.InstanceID
+	if health.LastChecked.IsZero() {
+		health.LastChecked = time.Now()
+	}
+	publishHealthServiceUpdate(p.bc, health)
+	p.logFirstHealthSeen(svc.InstanceID, "general", health.Status)
 	return nil
 }
 
@@ -1006,5 +1032,23 @@ func (p *Poller) runTraefikSummary(ctx context.Context, svc models.ServiceConfig
 	}
 
 	publishInternalServiceUpdate(p.bc, buildTraefikSummaryServiceUpdate(svc.InstanceID, &summary))
+	return nil
+}
+
+// runGeneralStats fetches the configured stats for a "general" service
+// instance and republishes its configured actions alongside them. It is a
+// no-op (not an error) when the instance has no CustomServiceConfig yet.
+func (p *Poller) runGeneralStats(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	if svc.Config == nil {
+		return nil
+	}
+
+	service := general.NewGeneralService().(*general.GeneralService)
+	stats, err := service.FetchStats(ctx, svc.URL, svc.APIKey, svc.Config)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildGeneralServiceUpdate(svc.InstanceID, stats, svc.Config.Actions))
 	return nil
 }

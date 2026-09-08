@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/general"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -668,6 +669,43 @@ func buildQuiOverviewServiceUpdate(instanceID string, instances []types.QuiInsta
 		Details: map[string]any{
 			"qui": map[string]any{
 				"summary": summary,
+			},
+		},
+	}
+}
+
+// buildGeneralServiceUpdate carries a "general" (custom) service instance's
+// configured stats and actions. It is published as an internal event (see
+// service_event.go's snake_case Message convention) so it only augments
+// Stats - the concurrently published health-job update remains authoritative
+// for Status/Message/Details.general.
+func buildGeneralServiceUpdate(instanceID string, stats map[string]general.StatValue, actions []models.CustomActionConfig) models.ServiceHealth {
+	statOut := make(map[string]any, len(stats))
+	for label, stat := range stats {
+		statOut[label] = map[string]any{
+			"display": stat.Display,
+			"raw":     stat.Raw,
+			"unit":    stat.Unit,
+		}
+	}
+
+	actionOut := make([]map[string]any, 0, len(actions))
+	for _, action := range actions {
+		actionOut = append(actionOut, map[string]any{
+			"id":      action.ID,
+			"label":   action.Label,
+			"confirm": action.Confirm,
+		})
+	}
+
+	return models.ServiceHealth{
+		ServiceID: instanceID,
+		Status:    "online",
+		Message:   "general_stats",
+		Stats: map[string]any{
+			"general": map[string]any{
+				"stats":   statOut,
+				"actions": actionOut,
 			},
 		},
 	}
