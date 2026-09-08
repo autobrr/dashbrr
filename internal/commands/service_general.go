@@ -256,7 +256,15 @@ func ServiceGeneralAddCommand() *cobra.Command {
 			return fmt.Errorf("service with URL %s already exists", serviceURL)
 		}
 
-		health, _ := generalServiceSpec.HealthCheck(cmd.Context(), serviceURL, apiKey)
+		// Gate connectivity with the config-aware engine (the same call
+		// runGeneralTest makes), not generalServiceSpec.HealthCheck: that
+		// helper always drives the nil-config legacy check (GET base URL,
+		// apiKey as Bearer), which fails for a definition whose health
+		// check lives at a different path and/or uses a different auth
+		// mode. cfg is nil here when no flags/--config were given, so the
+		// legacy check is exactly what runs for a plain `add`.
+		probeService := general.NewGeneralService().(*general.GeneralService)
+		health, _ := probeService.Engine.CheckHealth(cmd.Context(), serviceURL, apiKey, cfg)
 		if !generalServiceSpec.HealthOK(health) {
 			return fmt.Errorf("failed to connect to %s service: %s", generalServiceSpec.DisplayName, health.Message)
 		}
