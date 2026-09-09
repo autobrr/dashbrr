@@ -135,11 +135,14 @@ without saving, then **Save**.
 dashbrr service generic add <url> <name> [apiKey] --config presets/cleanuparr.json
 ```
 
-`<url>` is the service's base URL (e.g. `http://cleanuparr.local:11011`),
+`<url>` is the service's base URL (e.g. `https://cleanuparr.local:11011`),
 `<name>` is the display name, the optional positional `[apiKey]` is the
 service's API key/token, and `--config` points at the preset (or a
 hand-written definition following the same schema) — when given, it
 supplies the whole definition and overrides the individual flags below.
+Use an `https://` URL as shown; plain `http://` is suitable only when no
+secret (API key, password, bearer token) is ever sent over it and the
+service is on a trusted, isolated network.
 
 Instead of `--config`, a definition can be built up from flags: `--auth-mode`,
 `--header-name`, `--query-param`, `--username`, `--password`, `--bearer`,
@@ -147,6 +150,16 @@ Instead of `--config`, a definition can be built up from flags: `--auth-mode`,
 repeatable `--stat "Label=json.path[:unit[:format]]"`. There is no
 per-flag way to configure a `login` step — services that need one (like
 qBittorrent) must be added with `--config`.
+
+> **Security note:** `[apiKey]`, `--password`, and `--bearer` are plain CLI
+> arguments, so on most shells they land in shell history and are visible to
+> other local users via the process list (e.g. `ps`) for as long as the
+> command runs. Prefer `--config` with a definition file (secrets filled in
+> at import time via the UI, or a file readable only by you) when a secret
+> shouldn't be exposed that way. The same applies to credentials embedded
+> directly in a service URL as `http://user:pass@host` — dashbrr redacts
+> userinfo and query-parameter values from its own logs, but the URL itself
+> is still whatever you typed on the command line.
 
 Use `dashbrr service generic test <url> [--config file.json] [apiKey]` to
 run a preset's health/stats request once and print the resulting

@@ -114,11 +114,16 @@ func (s *ServiceCore) initCache(ctx context.Context) error {
 }
 
 // redactRequestURL returns rawURL with every query-parameter value replaced
-// by "***", so log lines can safely include the request URL without leaking
-// secrets (API keys, tokens, etc.) passed via the query string. Parameter
-// names, the path, and the host are preserved. It never panics: if rawURL
-// doesn't parse as a URL, everything from the first "?" onward is masked
-// instead.
+// by "***" and any userinfo (a "user:password@" or "user@" prefix on the
+// host - some custom-service URLs use this for HTTP basic auth) replaced by
+// "REDACTED@", so log lines can safely include the request URL without
+// leaking secrets (API keys, tokens, basic-auth credentials, etc.).
+// Parameter names, the path, and the host are preserved. It never panics:
+// if rawURL doesn't parse as a URL, everything from the first "?" onward is
+// masked instead (userinfo can't be reliably located in an unparseable
+// URL). The userinfo replacement text is "REDACTED" rather than "***": Go's
+// url.User escapes "*" to "%2A" when the URL is restringified, which would
+// otherwise make the masked marker unrecognizable in a log line.
 func redactRequestURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -128,22 +133,28 @@ func redactRequestURL(rawURL string) string {
 		return rawURL
 	}
 
-	if parsed.RawQuery == "" {
+	if parsed.User == nil && parsed.RawQuery == "" {
 		return rawURL
 	}
 
-	pairs := strings.Split(parsed.RawQuery, "&")
-	for i, pair := range pairs {
-		if pair == "" {
-			continue
-		}
-		key := pair
-		if idx := strings.IndexByte(pair, '='); idx != -1 {
-			key = pair[:idx]
-		}
-		pairs[i] = key + "=***"
+	if parsed.User != nil {
+		parsed.User = url.User("REDACTED")
 	}
-	parsed.RawQuery = strings.Join(pairs, "&")
+
+	if parsed.RawQuery != "" {
+		pairs := strings.Split(parsed.RawQuery, "&")
+		for i, pair := range pairs {
+			if pair == "" {
+				continue
+			}
+			key := pair
+			if idx := strings.IndexByte(pair, '='); idx != -1 {
+				key = pair[:idx]
+			}
+			pairs[i] = key + "=***"
+		}
+		parsed.RawQuery = strings.Join(pairs, "&")
+	}
 
 	return parsed.String()
 }

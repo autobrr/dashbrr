@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   parseCustomServiceConfigJSON,
+  redactForExport,
   validateCustomServiceConfig
 } from "../src/components/configuration/general/customServiceConfig.ts";
 
@@ -92,4 +93,42 @@ test("an empty definition is valid (all fields optional)", () => {
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.errors, []);
+});
+
+// Regression test: Export JSON used to serialize the config as-is,
+// including auth.password/auth.token and login.body (which commonly embeds
+// the substituted credential values) verbatim to the clipboard/import box.
+test("redactForExport blanks auth.password, auth.token, and login.body", () => {
+  const config = {
+    auth: { mode: "basic", username: "admin", password: "hunter2", token: "abc123" },
+    login: {
+      method: "POST",
+      path: "/login",
+      body: "username=admin&password=hunter2",
+      injectAs: "cookie",
+    },
+    health: { path: "/health" },
+  };
+
+  const redacted = redactForExport(config);
+
+  assert.equal(redacted.auth?.password, "");
+  assert.equal(redacted.auth?.token, "");
+  assert.equal(redacted.login?.body, "");
+  // Non-secret fields are preserved.
+  assert.equal(redacted.auth?.mode, "basic");
+  assert.equal(redacted.auth?.username, "admin");
+  assert.equal(redacted.login?.path, "/login");
+  assert.deepEqual(redacted.health, { path: "/health" });
+  // The original object passed in is not mutated.
+  assert.equal(config.auth.password, "hunter2");
+  assert.equal(config.login.body, "username=admin&password=hunter2");
+});
+
+test("redactForExport is a no-op when auth/login are absent", () => {
+  const config = { health: { path: "/health" } };
+
+  const redacted = redactForExport(config);
+
+  assert.deepEqual(redacted, config);
 });

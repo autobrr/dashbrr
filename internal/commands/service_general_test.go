@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/autobrr/dashbrr/internal/database"
@@ -122,6 +123,81 @@ func TestGeneralDefinitionFlags_BuildConfig_ConfigFileOverridesFlags(t *testing.
 	}
 	if cfg == nil || cfg.Health == nil || cfg.Health.Path != "/from-file" {
 		t.Fatalf("expected config to come from --config file, got %+v", cfg)
+	}
+}
+
+// runGeneralTest must surface health.Message and record it as a failure
+// (via Error) when the service reports a non-ok status, even though
+// FetchStats itself never runs/errors - regression for the bug where only
+// a FetchStats error was treated as a test failure.
+func TestRunGeneralTest_UnhealthyStatus_SurfacesMessageAndError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"offline","message":"database unreachable"}`))
+	}))
+	defer server.Close()
+
+	result := runGeneralTest(context.Background(), server.URL, "", nil)
+
+	if result.Status != "offline" {
+		t.Fatalf("Status = %q, want %q", result.Status, "offline")
+	}
+	if result.Message != "database unreachable" {
+		t.Fatalf("Message = %q, want %q", result.Message, "database unreachable")
+	}
+	if result.Error == "" {
+		t.Fatal("expected Error to be set for an offline status, got empty")
+	}
+	if !strings.Contains(result.Error, "database unreachable") {
+		t.Fatalf("Error = %q, want it to contain the health message", result.Error)
+	}
+}
+
+// A "warning" status must not be treated as a test failure - only offline/
+// error statuses should fail the command.
+func TestRunGeneralTest_WarningStatus_IsNotAFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"warning","message":"degraded"}`))
+	}))
+	defer server.Close()
+
+	result := runGeneralTest(context.Background(), server.URL, "", nil)
+
+	if result.Status != "warning" {
+		t.Fatalf("Status = %q, want %q", result.Status, "warning")
+	}
+	if result.Error != "" {
+		t.Fatalf("expected no Error for a warning status, got %q", result.Error)
+	}
+}
+
+// ServiceGeneralTestCommand must exit non-zero when the target service
+// reports an offline/unhealthy status, not just on a FetchStats error - a
+// calling script has no other way to detect the failure.
+func TestServiceGeneralTestCommand_UnhealthyStatus_ExitsNonZero(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"offline","message":"database unreachable"}`))
+	}))
+	defer server.Close()
+
+	cmd := ServiceGeneralTestCommand()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{server.URL})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected a non-zero exit for an offline service status")
+	}
+	if !strings.Contains(err.Error(), "database unreachable") {
+		t.Fatalf("error = %q, want it to contain the health message", err.Error())
 	}
 }
 

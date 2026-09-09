@@ -26,6 +26,30 @@ export const CustomServiceHealthFields: React.FC<CustomServiceHealthFieldsProps>
   const patch = (fields: Partial<CustomHealthConfig>) =>
     onChange({ ...health, ...fields });
 
+  // okValues/warnValues are kept as raw text in local state and only
+  // parsed into an array on blur. Deriving the displayed value straight
+  // from the parsed array (the previous approach) re-renders the input
+  // from toStringList's trimmed/filtered output on every keystroke, so
+  // typing a trailing "," is immediately dropped and the user can never
+  // start a second value. These only resync from the `health` prop when
+  // its array reference actually changes (an external reset - e.g.
+  // switching services or importing JSON - not our own onBlur commit,
+  // which doesn't change the prop until the parent re-renders with it).
+  const [okText, setOkText] = React.useState(
+    (health.okValues || []).join(", ")
+  );
+  const [warnText, setWarnText] = React.useState(
+    (health.warnValues || []).join(", ")
+  );
+
+  React.useEffect(() => {
+    setOkText((health.okValues || []).join(", "));
+  }, [health.okValues]);
+
+  React.useEffect(() => {
+    setWarnText((health.warnValues || []).join(", "));
+  }, [health.warnValues]);
+
   return (
     <div className="space-y-1">
       <SelectField
@@ -76,16 +100,33 @@ export const CustomServiceHealthFields: React.FC<CustomServiceHealthFieldsProps>
         id="general-health-ok-values"
         label="OK values (comma separated)"
         type="text"
-        value={(health.okValues || []).join(", ")}
-        onChange={(e) => patch({ okValues: toStringList(e.target.value) })}
+        value={okText}
+        onChange={(e) => setOkText(e.target.value)}
+        onBlur={(e) => patch({ okValues: toStringList(e.target.value) })}
+        // Commit-on-blur alone leaves a gap: pressing Enter to submit the
+        // form while focused here fires the submit handler (which reads
+        // `health` from parent state) before blur ever runs, so the
+        // just-typed text would be lost. Commit here too - and don't
+        // preventDefault, so Enter still submits the form as before.
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            patch({ okValues: toStringList(e.currentTarget.value) });
+          }
+        }}
         placeholder="ok, healthy, running"
       />
       <FormInput
         id="general-health-warn-values"
         label="Warning values (comma separated)"
         type="text"
-        value={(health.warnValues || []).join(", ")}
-        onChange={(e) => patch({ warnValues: toStringList(e.target.value) })}
+        value={warnText}
+        onChange={(e) => setWarnText(e.target.value)}
+        onBlur={(e) => patch({ warnValues: toStringList(e.target.value) })}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            patch({ warnValues: toStringList(e.currentTarget.value) });
+          }
+        }}
         placeholder="degraded, warning"
       />
       <FormInput

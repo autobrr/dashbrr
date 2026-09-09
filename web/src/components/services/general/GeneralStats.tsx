@@ -9,27 +9,48 @@ import { useServiceData } from "../../../hooks/useServiceData";
 import { ArrMessage } from "../common/ArrMessage";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import AnimatedModal from "../../ui/AnimatedModal";
-import { runGeneralAction } from "../../../api/general";
-import type { GeneralActionDescriptor } from "../../../types/service";
+import { runGeneralAction, type GeneralActionResult } from "../../../api/general";
+import type { GeneralActionDescriptor, Service } from "../../../types/service";
 import { buildGeneralStatsView } from "./generalStatsView";
 
 interface GeneralStatsProps {
   instanceId: string;
 }
 
-export const GeneralStats: React.FC<GeneralStatsProps> = ({ instanceId }) => {
-  const { getService } = useServiceData();
-  const service = getService(instanceId);
-  const isLoading = service?.status === "loading";
+export interface GeneralStatsViewProps {
+  service: Service;
+  // Injectable for tests (e.g. the Playwright harness), so the concurrency
+  // guard can be exercised with a controllable delay/failure without a
+  // real backend. Defaults to the real API call.
+  runGeneralActionFn?: (
+    instanceId: string,
+    actionId: string,
+    confirm: boolean
+  ) => Promise<GeneralActionResult>;
+}
+
+export const GeneralStatsView: React.FC<GeneralStatsViewProps> = ({
+  service,
+  runGeneralActionFn = runGeneralAction,
+}) => {
   const [pendingAction, setPendingAction] = React.useState<GeneralActionDescriptor | null>(
     null
   );
   const [runningActionId, setRunningActionId] = React.useState<string | null>(null);
 
   const runAction = async (action: GeneralActionDescriptor, confirm: boolean) => {
+    // Guard against overlapping action requests: without this, a second
+    // click (including the confirm dialog's Confirm button, which wasn't
+    // disabled while a request was in flight) could fire a duplicate
+    // custom-action POST before the first one settles, and one action
+    // completing early would re-enable the controls for a still-running
+    // different action.
+    if (runningActionId !== null) {
+      return;
+    }
     setRunningActionId(action.id);
     try {
-      const result = await runGeneralAction(instanceId, action.id, confirm);
+      const result = await runGeneralActionFn(service.instanceId, action.id, confirm);
       toast.success(`${action.label} ran (status ${result.status})`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Action failed";
@@ -47,14 +68,6 @@ export const GeneralStats: React.FC<GeneralStatsProps> = ({ instanceId }) => {
     }
     void runAction(action, false);
   };
-
-  if (isLoading) {
-    return <StatsSkeleton rows={1} showRight={false} />;
-  }
-
-  if (!service) {
-    return null;
-  }
 
   const view = buildGeneralStatsView(service);
 
@@ -88,7 +101,7 @@ export const GeneralStats: React.FC<GeneralStatsProps> = ({ instanceId }) => {
               key={action.id}
               type="button"
               onClick={() => handleActionClick(action)}
-              disabled={runningActionId === action.id}
+              disabled={runningActionId !== null}
               className="rounded-md bg-gray-850/95 px-3 py-1.5 text-xs font-medium text-gray-200 transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {runningActionId === action.id ? "Running..." : action.label}
@@ -123,20 +136,38 @@ export const GeneralStats: React.FC<GeneralStatsProps> = ({ instanceId }) => {
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"
-            className="inline-flex justify-center rounded-md border border-zinc-300 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors duration-200"
+            className="inline-flex justify-center rounded-md border border-zinc-300 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => setPendingAction(null)}
+            disabled={runningActionId !== null}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors duration-200"
+            className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => pendingAction && void runAction(pendingAction, true)}
+            disabled={runningActionId !== null}
           >
-            Confirm
+            {runningActionId !== null ? "Running..." : "Confirm"}
           </button>
         </div>
       </AnimatedModal>
     </div>
   );
+};
+
+export const GeneralStats: React.FC<GeneralStatsProps> = ({ instanceId }) => {
+  const { getService } = useServiceData();
+  const service = getService(instanceId);
+  const isLoading = service?.status === "loading";
+
+  if (isLoading) {
+    return <StatsSkeleton rows={1} showRight={false} />;
+  }
+
+  if (!service) {
+    return null;
+  }
+
+  return <GeneralStatsView service={service} />;
 };

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -108,17 +109,56 @@ func (e *Engine) ensureLogin(ctx context.Context, baseURL string, cfg *models.Cu
 // preset username={{username}}&password={{password}}). A nil auth block
 // substitutes empty strings. Never logged - the caller must not log the
 // result.
-func substituteLoginCredentials(body string, auth *models.CustomAuthConfig) string {
+//
+// Each value is encoded for contentType before substitution: a credential
+// containing a character special to the body's format (e.g. "&"/"=" in a
+// form-urlencoded body, or '"'/backslash in a JSON body) would otherwise
+// corrupt the request body or truncate the credential.
+func substituteLoginCredentials(body, contentType string, auth *models.CustomAuthConfig) string {
 	var username, password string
 	if auth != nil {
 		username = auth.Username
 		password = auth.Password
 	}
+
+	encode := encodeForContentType(contentType)
+
 	replacer := strings.NewReplacer(
-		"{{username}}", username,
-		"{{password}}", password,
+		"{{username}}", encode(username),
+		"{{password}}", encode(password),
 	)
 	return replacer.Replace(body)
+}
+
+// encodeForContentType returns the value-encoding function appropriate for
+// a login body of contentType. Any content type other than the two form
+// formats below (including empty/unspecified) is passed through raw, since
+// there's no generic way to know how to escape an arbitrary body format.
+func encodeForContentType(contentType string) func(string) string {
+	mediaType := contentType
+	if i := strings.IndexByte(mediaType, ';'); i >= 0 {
+		mediaType = mediaType[:i]
+	}
+	switch strings.ToLower(strings.TrimSpace(mediaType)) {
+	case "application/x-www-form-urlencoded":
+		return url.QueryEscape
+	case "application/json":
+		return jsonStringEscape
+	default:
+		return func(s string) string { return s }
+	}
+}
+
+// jsonStringEscape escapes s the way it would appear inside a JSON string
+// literal (quotes, backslashes, control characters), without the
+// surrounding quotes - the template already supplies those, e.g.
+// {"password":"{{password}}"}.
+func jsonStringEscape(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return s
+	}
+	return string(b[1 : len(b)-1])
 }
 
 // matchCookieName reports whether a Set-Cookie name satisfies
@@ -154,10 +194,10 @@ func (e *Engine) performLogin(ctx context.Context, baseURL string, cfg *models.C
 	var bodyBytes []byte
 	contentType := login.ContentType
 	if login.Body != "" {
-		bodyBytes = []byte(substituteLoginCredentials(login.Body, cfg.Auth))
 		if contentType == "" {
 			contentType = "application/json"
 		}
+		bodyBytes = []byte(substituteLoginCredentials(login.Body, contentType, cfg.Auth))
 	}
 	if contentType != "" {
 		headers["Content-Type"] = contentType

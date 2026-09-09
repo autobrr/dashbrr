@@ -44,6 +44,17 @@ export const ConfigurationForm = ({
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticating, authenticate } = usePlexPinAuth();
   const [customConfig, setCustomConfig] = useState<CustomServiceConfig>({});
+  // For an existing general service, the real definition hasn't loaded yet
+  // (see the fetch below) - saving before it arrives would PUT the
+  // still-default empty customConfig and wipe the stored definition. A
+  // brand-new general service has nothing to lose, so it starts "loaded".
+  const [customConfigLoaded, setCustomConfigLoaded] = useState(
+    !(serviceType === "general" && hasExistingConfig)
+  );
+  // Set only when loading an EXISTING service's definition actually failed
+  // (as opposed to "still loading"), so the UI can tell the two apart
+  // instead of showing "Loading definition..." forever.
+  const [customConfigLoadFailed, setCustomConfigLoadFailed] = useState(false);
 
   // Custom service definitions live behind their own endpoint (not the
   // generic /settings config), so fetch them separately once we know this
@@ -58,16 +69,35 @@ export const ConfigurationForm = ({
         const existing = await getGeneralConfig(instanceId);
         if (!cancelled) {
           setCustomConfig(existing || {});
+          setCustomConfigLoaded(true);
+          setCustomConfigLoadFailed(false);
         }
       } catch (err) {
         console.error("Failed to load custom service config:", err);
+        if (cancelled) return;
+        // For a brand-new instance there's no stored definition to lose,
+        // so still allow saving. For an existing one, leave
+        // customConfigLoaded false - handleSubmit blocks the save rather
+        // than risk overwriting the stored definition with an empty one -
+        // and surface the failure so it isn't silently stuck loading.
+        if (!hasExistingConfig) {
+          setCustomConfigLoaded(true);
+          return;
+        }
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to load the existing custom service definition";
+        setCustomConfigLoadFailed(true);
+        setError(message);
+        toast.error(message);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [serviceType, instanceId]);
+  }, [serviceType, instanceId, hasExistingConfig]);
 
   const validateConfiguration = async (config: ServiceConfig) => {
     try {
@@ -109,6 +139,13 @@ export const ConfigurationForm = ({
       // definition never leaves the base service saved without it.
       let validatedCustomConfig: CustomServiceConfig | undefined;
       if (serviceType === "general") {
+        if (!customConfigLoaded) {
+          throw new Error(
+            customConfigLoadFailed
+              ? "The existing custom service definition failed to load - reload and try again before saving"
+              : "Custom service definition is still loading - please wait and try again"
+          );
+        }
         const validation = validateCustomServiceConfig(customConfig);
         if (!validation.ok || !validation.config) {
           throw new Error(validation.errors.join("; "));
@@ -132,12 +169,30 @@ export const ConfigurationForm = ({
         await validateConfiguration(config);
       }
 
+      // The custom service definition and the base URL/apiKey/displayName
+      // are two separate backend calls (PUT /api/general/{id}/config and
+      // POST /settings/{id}), with no shared transaction across the API
+      // boundary - a true atomic two-phase commit isn't possible here.
+      // Ordering still matters for which half of a partial failure is
+      // safer to leave in place:
+      //  - Editing an EXISTING general service: the service row already
+      //    exists, so PutConfig can run first. If it fails, the base
+      //    fields are untouched and nothing changed. If it succeeds and
+      //    the base-fields save then fails, the new definition is stored
+      //    against the still-old URL/apiKey - recoverable by retrying the
+      //    save, and no worse than the previous "new URL, stale
+      //    definition" mismatch this ordering is meant to avoid.
+      //  - A brand-new general service has no row yet: PutConfig 404s
+      //    until updateConfiguration creates it, so the base fields must
+      //    be saved first for a first-time save.
+      if (serviceType === "general" && validatedCustomConfig && hasExistingConfig) {
+        await saveGeneralConfig(instanceId, validatedCustomConfig);
+      }
+
       // Update the configuration
       await updateConfiguration(instanceId, config);
 
-      // The custom service definition is persisted through its own
-      // endpoint, and only once the instance itself exists.
-      if (serviceType === "general" && validatedCustomConfig) {
+      if (serviceType === "general" && validatedCustomConfig && !hasExistingConfig) {
         await saveGeneralConfig(instanceId, validatedCustomConfig);
       }
 
@@ -401,8 +456,18 @@ export const ConfigurationForm = ({
         >
           Cancel
         </Button>
-        <Button variant="primary" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save"}
+        <Button
+          variant="primary"
+          type="submit"
+          disabled={isSubmitting || !customConfigLoaded}
+        >
+          {isSubmitting
+            ? "Saving..."
+            : customConfigLoadFailed
+              ? "Definition failed to load"
+              : !customConfigLoaded
+                ? "Loading definition..."
+                : "Save"}
         </Button>
       </div>
     </form>

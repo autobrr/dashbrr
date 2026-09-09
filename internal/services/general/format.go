@@ -5,6 +5,7 @@ package general
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -98,14 +99,22 @@ func formatDuration(totalSeconds float64) string {
 }
 
 // formatNumber renders v with thousands separators, e.g. 1234567 -> "1,234,567".
+//
+// The whole value is rounded to 2 decimal places once, up front, and only
+// then split into integer/fraction parts. Rounding after the split (the
+// previous approach) could carry a fraction like 0.999 up to "1.00" without
+// that carry propagating into intPart, corrupting the output (e.g. 1.999
+// rendered as "11." instead of "2").
 func formatNumber(v float64) string {
 	neg := v < 0
 	if neg {
 		v = -v
 	}
 
-	intPart := int64(v)
-	frac := v - float64(intPart)
+	rounded := math.Round(v*100) / 100
+
+	intPart := int64(rounded)
+	frac := rounded - float64(intPart)
 
 	out := addThousandsSeparators(strconv.FormatInt(intPart, 10))
 	if frac > 0.0009 {

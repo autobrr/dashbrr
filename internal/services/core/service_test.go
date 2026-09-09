@@ -156,6 +156,21 @@ func TestRedactRequestURL(t *testing.T) {
 			in:   "http://example.com/path\x7f?apikey=SECRET",
 			want: "http://example.com/path\x7f?***",
 		},
+		{ //nolint:gosec // test fixture URL, not a real credential
+			name: "userinfo credentials are masked",
+			in:   "http://admin:hunter2@example.com/path",
+			want: "http://REDACTED@example.com/path",
+		},
+		{
+			name: "username-only userinfo is masked",
+			in:   "http://admin@example.com/path",
+			want: "http://REDACTED@example.com/path",
+		},
+		{ //nolint:gosec // test fixture URL, not a real credential
+			name: "userinfo and query values are both masked",
+			in:   "http://admin:hunter2@example.com/path?apikey=SECRET",
+			want: "http://REDACTED@example.com/path?apikey=***",
+		},
 	}
 
 	for _, tt := range tests {
@@ -207,6 +222,21 @@ func TestDoRequest_RedactsURLSecretsInLogsAndErrors(t *testing.T) {
 		}
 		if !errors.Is(err, syscall.ECONNREFUSED) {
 			t.Fatalf("expected errors.Is(err, syscall.ECONNREFUSED) to still hold on the redacted error, got: %v", err)
+		}
+	})
+
+	t.Run("userinfo credentials", func(t *testing.T) {
+		buf.Reset()
+
+		_, err := s.DoRequest(context.Background(), http.MethodGet, "http://admin:hunter3@127.0.0.1:1/x", nil, nil)
+		if err == nil {
+			t.Fatal("expected an error connecting to a refused port")
+		}
+		if strings.Contains(err.Error(), "hunter3") {
+			t.Fatalf("returned error leaks the userinfo password: %v", err)
+		}
+		if strings.Contains(buf.String(), "hunter3") {
+			t.Fatalf("log output leaks the userinfo password: %s", buf.String())
 		}
 	})
 

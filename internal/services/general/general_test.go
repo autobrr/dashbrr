@@ -5,6 +5,7 @@ package general
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -784,6 +785,148 @@ func TestLogin_SubstitutesCredentialsInBody(t *testing.T) {
 	}
 	if gotBody != "username=admin&password=hunter2" {
 		t.Fatalf("login body = %q, want %q", gotBody, "username=admin&password=hunter2")
+	}
+}
+
+// Regression test: a password containing characters special to
+// application/x-www-form-urlencoded ("&", "%", "\"" and a space) must be
+// encoded (url.QueryEscape) before substitution, or it corrupts/truncates
+// the login body. Verified by parsing the received body as a form and
+// checking the round-tripped value, not by matching a literal string.
+func TestLogin_SubstitutesCredentialsInBody_FormURLEncoded_SpecialChars(t *testing.T) {
+	t.Parallel()
+
+	const password = `a&b%c"d e` //nolint:gosec // test fixture, not a real credential
+
+	var gotBody string
+	var gotContentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			gotContentType = r.Header.Get("Content-Type")
+			b, _ := io.ReadAll(r.Body)
+			gotBody = string(b)
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "sid-value"})
+			w.WriteHeader(http.StatusOK)
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &models.CustomServiceConfig{
+		Auth: &models.CustomAuthConfig{
+			Mode:     "none",
+			Username: "admin",
+			Password: password,
+		},
+		Login: &models.CustomLoginConfig{
+			Method:        "POST",
+			Path:          "/login",
+			ContentType:   "application/x-www-form-urlencoded",
+			Body:          "username={{username}}&password={{password}}",
+			CaptureCookie: "SID",
+			InjectAs:      "cookie",
+			InjectName:    "SID",
+		},
+		Health: &models.CustomHealthConfig{Path: "/health"},
+	}
+
+	service := NewGeneralService().(*GeneralService)
+	_, code := service.Engine.CheckHealth(context.Background(), server.URL, "", cfg)
+	if code != http.StatusOK {
+		t.Fatalf("code = %d, want %d", code, http.StatusOK)
+	}
+	if gotContentType != "application/x-www-form-urlencoded" {
+		t.Fatalf("content-type = %q, want %q", gotContentType, "application/x-www-form-urlencoded")
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "http://x/", strings.NewReader(gotBody))
+	if err != nil {
+		t.Fatalf("failed to build request for form parsing: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		t.Fatalf("received login body is not valid form-urlencoded: %v (body=%q)", err, gotBody)
+	}
+	if got := req.PostForm.Get("password"); got != password {
+		t.Fatalf("decoded password = %q, want %q (raw body=%q)", got, password, gotBody)
+	}
+	if got := req.PostForm.Get("username"); got != "admin" {
+		t.Fatalf("decoded username = %q, want %q", got, "admin")
+	}
+}
+
+// Regression test: a password containing characters special to a JSON
+// string literal ('"' and backslash) must be JSON-escaped before
+// substitution into a JSON login body, or it produces invalid JSON /
+// truncates the credential.
+func TestLogin_SubstitutesCredentialsInBody_JSON_SpecialChars(t *testing.T) {
+	t.Parallel()
+
+	const password = `p"ss\word & 100%` //nolint:gosec // test fixture, not a real credential
+
+	var gotBody string
+	var gotContentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			gotContentType = r.Header.Get("Content-Type")
+			b, _ := io.ReadAll(r.Body)
+			gotBody = string(b)
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "sid-value"})
+			w.WriteHeader(http.StatusOK)
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &models.CustomServiceConfig{
+		Auth: &models.CustomAuthConfig{
+			Mode:     "none",
+			Username: "admin",
+			Password: password,
+		},
+		Login: &models.CustomLoginConfig{
+			Method:        "POST",
+			Path:          "/login",
+			ContentType:   "application/json",
+			Body:          `{"username":"{{username}}","password":"{{password}}"}`,
+			CaptureCookie: "SID",
+			InjectAs:      "cookie",
+			InjectName:    "SID",
+		},
+		Health: &models.CustomHealthConfig{Path: "/health"},
+	}
+
+	service := NewGeneralService().(*GeneralService)
+	_, code := service.Engine.CheckHealth(context.Background(), server.URL, "", cfg)
+	if code != http.StatusOK {
+		t.Fatalf("code = %d, want %d", code, http.StatusOK)
+	}
+	if gotContentType != "application/json" {
+		t.Fatalf("content-type = %q, want %q", gotContentType, "application/json")
+	}
+
+	var decoded struct {
+		Username string `json:"username"`
+		Password string `json:"password"` //nolint:gosec // struct field name, not a hardcoded credential
+	}
+	if err := json.Unmarshal([]byte(gotBody), &decoded); err != nil {
+		t.Fatalf("received login body is not valid JSON: %v (body=%q)", err, gotBody)
+	}
+	if decoded.Password != password {
+		t.Fatalf("decoded password = %q, want %q (raw body=%q)", decoded.Password, password, gotBody)
+	}
+	if decoded.Username != "admin" {
+		t.Fatalf("decoded username = %q, want %q", decoded.Username, "admin")
 	}
 }
 

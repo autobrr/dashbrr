@@ -8,7 +8,7 @@ import { toast } from "react-hot-toast";
 import type { CustomServiceConfig } from "../../../types/service";
 import { Button } from "../../ui/Button";
 import { testGeneralService, type GeneralTestResult } from "../../../api/general";
-import { parseCustomServiceConfigJSON } from "./customServiceConfig";
+import { parseCustomServiceConfigJSON, redactForExport } from "./customServiceConfig";
 import { TextAreaField } from "./fields";
 
 interface CustomServiceJsonToolsProps {
@@ -47,15 +47,15 @@ export const CustomServiceJsonTools: React.FC<CustomServiceJsonToolsProps> = ({
   };
 
   const handleExport = async () => {
-    const json = JSON.stringify(config, null, 2);
+    const json = JSON.stringify(redactForExport(config), null, 2);
     try {
       await navigator.clipboard.writeText(json);
-      toast.success("Copied definition JSON to clipboard");
+      toast.success("Copied definition JSON to clipboard (credentials excluded)");
     } catch {
       // Clipboard API may be unavailable (permissions, non-secure context);
       // fall back to showing it in the import box so it can be selected.
       setImportText(json);
-      toast("Clipboard unavailable - definition JSON shown below");
+      toast("Clipboard unavailable - definition JSON (credentials excluded) shown below");
     }
   };
 
@@ -103,7 +103,13 @@ export const CustomServiceJsonTools: React.FC<CustomServiceJsonToolsProps> = ({
         <Button type="button" variant="secondary" size="sm" onClick={handleImport}>
           Validate &amp; import
         </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={handleExport}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={handleExport}
+          title="Credentials (auth password/token, login body) are excluded from the exported JSON"
+        >
           Export JSON
         </Button>
         <Button

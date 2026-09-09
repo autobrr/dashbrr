@@ -204,6 +204,27 @@ export const validateCustomServiceConfig = (
   return { ok: true, config: value as CustomServiceConfig, errors: [] };
 };
 
+// Returns a copy of config with credential fields blanked out, safe to copy
+// to the clipboard or display in the (unencrypted, easy-to-mis-share)
+// import textarea. Mirrors the fields models.CustomServiceConfig.Redacted()
+// blanks on the backend: auth.password, auth.token, and login.body (the
+// login body commonly embeds the raw {{username}}/{{password}} template
+// values via substitution, and can carry other secrets too).
+export const redactForExport = (
+  config: CustomServiceConfig
+): CustomServiceConfig => {
+  const redacted: CustomServiceConfig = { ...config };
+
+  if (redacted.auth) {
+    redacted.auth = { ...redacted.auth, password: "", token: "" };
+  }
+  if (redacted.login) {
+    redacted.login = { ...redacted.login, body: "" };
+  }
+
+  return redacted;
+};
+
 // Parses and validates a JSON string (as pasted into the "Import JSON" box).
 export const parseCustomServiceConfigJSON = (
   input: string

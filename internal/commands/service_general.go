@@ -156,6 +156,7 @@ func parseGeneralStatFlag(raw string) (models.CustomStatConfig, error) {
 type generalTestResult struct {
 	Status  string
 	Version string
+	Message string
 	Stats   map[string]general.StatValue
 	Error   string
 }
@@ -164,7 +165,20 @@ func runGeneralTest(ctx context.Context, serviceURL, apiKey string, cfg *models.
 	service := general.NewGeneralService().(*general.GeneralService)
 
 	health, _ := service.Engine.CheckHealth(ctx, serviceURL, apiKey, cfg)
-	result := generalTestResult{Status: health.Status, Version: health.Version}
+	result := generalTestResult{Status: health.Status, Version: health.Version, Message: health.Message}
+
+	// A non-ok status (e.g. "offline") is a test failure even when
+	// FetchStats itself doesn't error - without this, an unreachable or
+	// unhealthy service prints "Status: offline" and still exits 0, so a
+	// calling script has no way to detect the failure.
+	if health.Status != "online" && health.Status != "warning" {
+		if health.Message != "" {
+			result.Error = health.Message
+		} else {
+			result.Error = fmt.Sprintf("service reported status %q", health.Status)
+		}
+		return result
+	}
 
 	stats, err := service.FetchStats(ctx, serviceURL, apiKey, cfg)
 	if err != nil {
@@ -351,6 +365,9 @@ func ServiceGeneralTestCommand() *cobra.Command {
 		fmt.Printf("Status: %s\n", result.Status)
 		if result.Version != "" {
 			fmt.Printf("Version: %s\n", result.Version)
+		}
+		if result.Message != "" {
+			fmt.Printf("Message: %s\n", result.Message)
 		}
 		if result.Error != "" {
 			fmt.Printf("Error: %s\n", result.Error)

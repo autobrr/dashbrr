@@ -1,18 +1,23 @@
 package presets_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"testing"
+
+	"github.com/autobrr/dashbrr/internal/models"
 )
 
 // allowedTopLevelKeys mirrors the CustomServiceConfig JSON schema in the
-// models package. This package is deliberately standalone (no imports from
-// the rest of the module), so the schema is checked structurally rather
-// than by unmarshalling into the real Go type.
+// models package. Kept as a structural check alongside
+// TestPresetsValidateThroughProductionModel below - unlike that test, this
+// one flags a stray/misspelled top-level key, which decoding into the real
+// Go type (with the production decoder's default lenient unmarshalling)
+// would otherwise silently ignore.
 var allowedTopLevelKeys = map[string]bool{
 	"auth":           true,
 	"login":          true,
@@ -121,6 +126,68 @@ func TestPresetsStatsAndActionsLimits(t *testing.T) {
 						t.Errorf("%s: action id %q does not match %s", name, a.ID, actionIDPattern.String())
 					}
 				}
+			}
+		})
+	}
+}
+
+// TestPresetsValidateThroughProductionModel decodes each preset the same
+// way production code does (plain json.Unmarshal into
+// models.CustomServiceConfig, no DisallowUnknownFields) and runs it through
+// the real cfg.Validate(). This catches required-nested-field gaps (e.g.
+// "auth": {} missing mode, or a "stats" entry missing label/path) that the
+// hand-rolled top-level-key/limits checks above never enforced, and which
+// would otherwise only surface when a user imports the preset via
+// `--config presets/...` or the UI's Import JSON.
+func TestPresetsValidateThroughProductionModel(t *testing.T) {
+	for _, name := range presetFiles(t) {
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				t.Fatalf("failed to read %s: %v", name, err)
+			}
+
+			var cfg models.CustomServiceConfig
+			if err := json.Unmarshal(data, &cfg); err != nil {
+				t.Fatalf("%s: failed to unmarshal into models.CustomServiceConfig: %v", name, err)
+			}
+
+			if err := cfg.Validate(); err != nil {
+				t.Errorf("%s: failed production validation: %v", name, err)
+			}
+		})
+	}
+}
+
+// TestPresetsStrictDecodeRejectsUnknownFields decodes every shipped preset
+// with json.Decoder.DisallowUnknownFields, catching a misspelled/stray key
+// ANYWHERE in the document - including nested one level or more down (e.g.
+// "health": {"okValeus": [...]}) - that TestPresetsOnlyAllowedTopLevelKeys
+// only ever checked at the top level, and that
+// TestPresetsValidateThroughProductionModel can't catch either: a plain
+// json.Unmarshal (what production actually uses, and what that test
+// deliberately mirrors per the bot's own guidance not to add
+// DisallowUnknownFields there) silently drops unknown fields at every
+// nesting level instead of erroring.
+//
+// This is test-only strictness for repo-shipped presets, not a claim about
+// what dashbrr accepts at runtime - it exists purely to catch a shipped
+// preset with a nested typo (a field that silently does nothing, e.g. an
+// "okValeus" that never matches health.okValues) before it reaches a user.
+// It is deliberately stricter than the production decoder.
+func TestPresetsStrictDecodeRejectsUnknownFields(t *testing.T) {
+	for _, name := range presetFiles(t) {
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				t.Fatalf("failed to read %s: %v", name, err)
+			}
+
+			var cfg models.CustomServiceConfig
+			dec := json.NewDecoder(bytes.NewReader(data))
+			dec.DisallowUnknownFields()
+			if err := dec.Decode(&cfg); err != nil {
+				t.Errorf("%s: strict decode found an unknown field (possible typo, incl. nested): %v", name, err)
 			}
 		})
 	}

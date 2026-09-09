@@ -4,7 +4,6 @@
  */
 
 import { api } from "../utils/api";
-import { readErrorMessage } from "../utils/http";
 import type { CustomServiceConfig, GeneralStatValue } from "../types/service";
 
 export interface GeneralTestRequest {
@@ -51,34 +50,18 @@ export const testGeneralService = (
 // POST /api/general/{instanceId}/actions/{actionId} - runs a configured
 // action. Actions with `confirm: true` require the X-Confirm header, or the
 // server responds 428 Precondition Required.
-export const runGeneralAction = async (
+//
+// Goes through the shared `api` helper (rather than a raw fetch) so this
+// call gets the same session-expiry redirect, 429 retry/backoff, and
+// timeout handling as every other API call in the app.
+export const runGeneralAction = (
   instanceId: string,
   actionId: string,
   confirm: boolean
-): Promise<GeneralActionResult> => {
-  const response = await fetch(
+): Promise<GeneralActionResult> =>
+  api.post<GeneralActionResult>(
     `/api/general/${instanceId}/actions/${actionId}`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(confirm ? { "X-Confirm": "yes" } : {}),
-      },
-    }
+    undefined,
+    undefined,
+    confirm ? { "X-Confirm": "yes" } : undefined
   );
-
-  if (!response.ok) {
-    throw new Error(
-      (await readErrorMessage(response)) ||
-        `HTTP error! status: ${response.status}`
-    );
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    return (await response.json()) as GeneralActionResult;
-  }
-
-  return { status: response.status };
-};
