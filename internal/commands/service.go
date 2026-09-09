@@ -8,9 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// initializeDatabase opens the database for CLI commands using the same
+// DASHBRR__DB_* environment variables the server honours, falling back to the
+// default sqlite path (./data/dashbrr.db) when none are set.
 func initializeDatabase() (*database.DB, error) {
-	dbPath := "./data/dashbrr.db"
-	db, err := database.InitDB(dbPath)
+	db, err := database.InitDBWithConfig(database.NewConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %v", err)
 	}
