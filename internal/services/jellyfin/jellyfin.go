@@ -70,8 +70,8 @@ func (s *JellyfinService) GetHealthEndpoint(baseURL string) string {
 
 func (s *JellyfinService) getHeaders(apiKey string) map[string]string {
 	return map[string]string{
-		"Accept":       "application/json",
-		"X-Emby-Token": apiKey,
+		"Accept":        "application/json",
+		"Authorization": fmt.Sprintf("MediaBrowser Token=%q", apiKey),
 	}
 }
 
