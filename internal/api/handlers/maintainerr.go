@@ -74,8 +74,7 @@ func handleHTTPStatusCode(code int) (int, string) {
 
 // determineErrorResponse maps errors to appropriate HTTP status codes and user-friendly messages
 func determineErrorResponse(err error) (int, string) {
-	var maintErr *maintainerr.ErrMaintainerr
-	if errors.As(err, &maintErr) {
+	if maintErr, ok := errors.AsType[*maintainerr.ErrMaintainerr](err); ok {
 		if maintErr.HttpCode > 0 {
 			return handleHTTPStatusCode(maintErr.HttpCode)
 		}

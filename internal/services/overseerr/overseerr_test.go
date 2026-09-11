@@ -17,11 +17,11 @@ import (
 func TestGetRequests_DoesNotPerformPerRequestLookups(t *testing.T) {
 	clearTitleCache()
 
-	var requestCalls int32
+	var requestCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/request":
-			atomic.AddInt32(&requestCalls, 1)
+			requestCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 
 			response := types.RequestsResponse{
@@ -92,7 +92,7 @@ func TestGetRequests_DoesNotPerformPerRequestLookups(t *testing.T) {
 	if stats.Requests[0].Media.Title != "Movie A" || stats.Requests[1].Media.Title != "Show B" {
 		t.Fatalf("expected titles preserved from Overseerr payload, got %+v", stats.Requests)
 	}
-	if got := atomic.LoadInt32(&requestCalls); got != 1 {
+	if got := requestCalls.Load(); got != 1 {
 		t.Fatalf("request endpoint calls = %d, want 1", got)
 	}
 }

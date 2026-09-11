@@ -17,7 +17,7 @@ import (
 )
 
 type testArrHealthChecker struct {
-	updateCalls int32
+	updateCalls atomic.Int32
 	updateValue bool
 	updateErr   error
 }
@@ -27,7 +27,7 @@ func (t *testArrHealthChecker) GetSystemStatus(_ context.Context, _, _ string) (
 }
 
 func (t *testArrHealthChecker) CheckForUpdates(_ context.Context, _, _ string) (bool, error) {
-	atomic.AddInt32(&t.updateCalls, 1)
+	t.updateCalls.Add(1)
 	if t.updateErr != nil {
 		return false, t.updateErr
 	}
@@ -83,7 +83,7 @@ func TestPerformHealthCheck_SkipsUpdateCheckWhenCached(t *testing.T) {
 		t.Fatalf("performHealthCheck failed: %v", err)
 	}
 
-	if calls := atomic.LoadInt32(&checker.updateCalls); calls != 0 {
+	if calls := checker.updateCalls.Load(); calls != 0 {
 		t.Fatalf("expected no update-check call when cached, got %d", calls)
 	}
 }
@@ -113,7 +113,7 @@ func TestPerformHealthCheck_CachesAsyncUpdateResult(t *testing.T) {
 		t.Fatalf("expected async update status to be cached as true")
 	}
 
-	if calls := atomic.LoadInt32(&checker.updateCalls); calls != 1 {
+	if calls := checker.updateCalls.Load(); calls != 1 {
 		t.Fatalf("expected exactly one update-check call, got %d", calls)
 	}
 }
@@ -145,7 +145,7 @@ func TestPerformHealthCheck_CachesFallbackOnUpdateError(t *testing.T) {
 		t.Fatalf("second performHealthCheck failed: %v", err)
 	}
 
-	if calls := atomic.LoadInt32(&checker.updateCalls); calls != 1 {
+	if calls := checker.updateCalls.Load(); calls != 1 {
 		t.Fatalf("expected cached fallback to prevent repeat update checks, got %d calls", calls)
 	}
 }

@@ -145,6 +145,9 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 
 	req, err := http.NewRequestWithContext(reqCtx, method, url, bodyReader)
 	if err != nil {
+		if cancel != nil {
+			cancel()
+		}
 		log.Error().Err(err).Str("url", url).Msg("Failed to create request")
 		return nil, err
 	}
