@@ -21,8 +21,9 @@ func TestGetSessions_UsesSessionEndpointAndFiltersNowPlaying(t *testing.T) {
 		if got := r.URL.Query().Get("ActiveWithinSeconds"); got != "300" {
 			t.Fatalf("ActiveWithinSeconds = %q, want 300", got)
 		}
-		if got := r.Header.Get("X-Emby-Token"); got != "abc123" {
-			t.Fatalf("X-Emby-Token = %q, want abc123", got)
+		if r.Header.Get("Authorization") != `MediaBrowser Token="abc123"` {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -35,7 +36,7 @@ func TestGetSessions_UsesSessionEndpointAndFiltersNowPlaying(t *testing.T) {
 	defer server.Close()
 
 	service := NewJellyfinService().(*JellyfinService)
-	sessions, err := service.GetSessions(context.Background(), server.URL, "abc123")
+	sessions, err := service.GetSessions(t.Context(), server.URL, "abc123")
 	if err != nil {
 		t.Fatalf("GetSessions error: %v", err)
 	}
@@ -89,18 +90,23 @@ func TestCheckHealth_ReturnsOnlineWithVersion(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		// Jellyfin 12 disables legacy token headers, including X-Emby-Token.
+		if r.Header.Get("Authorization") != `MediaBrowser Token="abc123"` {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ServerName":"Media","Version":"10.10.7","ProductName":"Jellyfin Server"}`))
 	}))
 	defer server.Close()
 
 	service := NewJellyfinService().(*JellyfinService)
-	health, statusCode := service.CheckHealth(context.Background(), server.URL, "abc123")
+	health, statusCode := service.CheckHealth(t.Context(), server.URL, "abc123")
 	if statusCode != http.StatusOK {
 		t.Fatalf("statusCode = %d, want %d", statusCode, http.StatusOK)
 	}
 	if health.Status != "online" {
-		t.Fatalf("health.Status = %q, want online", health.Status)
+		t.Fatalf("health.Status = %q, want online: %s", health.Status, health.Message)
 	}
 	if health.Version != "10.10.7" {
 		t.Fatalf("health.Version = %q, want 10.10.7", health.Version)
