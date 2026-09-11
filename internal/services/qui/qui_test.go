@@ -175,7 +175,7 @@ func TestGetAggregatedTransferInfo_FallsBackToSessionData(t *testing.T) {
 func TestGetAggregatedTransferInfo_UsesCachedAllTimeTotalsOnTransientFailure(t *testing.T) {
 	t.Parallel()
 
-	var torrentsRequests int32
+	var torrentsRequests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-API-Key") != "test-key" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -195,7 +195,7 @@ func TestGetAggregatedTransferInfo_UsesCachedAllTimeTotalsOnTransientFailure(t *
 				"up_rate_limit":0
 			}`))
 		case "/api/instances/1/torrents":
-			current := atomic.AddInt32(&torrentsRequests, 1)
+			current := torrentsRequests.Add(1)
 			if current == 1 {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{

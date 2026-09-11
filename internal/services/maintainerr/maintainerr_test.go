@@ -111,8 +111,7 @@ func TestGetCollections_NonArrayResponseErrors(t *testing.T) {
 
 	service := NewMaintainerrService().(*MaintainerrService)
 	_, err := service.GetCollections(context.Background(), server.URL, "key")
-	var typeErr *json.UnmarshalTypeError
-	if !errors.As(err, &typeErr) {
+	if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
 		t.Fatalf("GetCollections() error = %v, want wrapped *json.UnmarshalTypeError", err)
 	}
 }

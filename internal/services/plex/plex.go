@@ -28,13 +28,11 @@ func init() {
 
 func NewPlexService() models.ServiceHealthChecker {
 	service := &PlexService{
-		ServiceCore: core.ServiceCore{
-			Type:           "plex",
-			DisplayName:    "Plex",
-			Description:    "Monitor and manage your Plex Media Server",
-			DefaultURL:     "http://localhost:32400",
-			HealthEndpoint: "/identity",
-		},
+		Type:           "plex",
+		DisplayName:    "Plex",
+		Description:    "Monitor and manage your Plex Media Server",
+		DefaultURL:     "http://localhost:32400",
+		HealthEndpoint: "/identity",
 	}
 	service.SetTimeout(core.DefaultTimeout)
 	return service
