@@ -35,7 +35,47 @@ type SettingsHandler struct {
 
 func sanitizeServiceConfig(c models.ServiceConfiguration) models.ServiceConfiguration {
 	c.APIKey = ""
+	if c.Config != nil {
+		redacted := c.Config.Redacted()
+		c.Config = &redacted
+	}
 	return c
+}
+
+// mergeCustomConfigSecrets preserves write-only secret fields (auth.password,
+// auth.token, login.body) from the stored config when the incoming config
+// omits them, mirroring the "keep existing if omitted" rule applied to
+// APIKey in SaveSettings. Everything else is taken from incoming.
+func mergeCustomConfigSecrets(stored, incoming *models.CustomServiceConfig) *models.CustomServiceConfig {
+	if incoming == nil {
+		return stored
+	}
+	if stored == nil {
+		return incoming
+	}
+
+	merged := *incoming
+
+	if incoming.Auth != nil && stored.Auth != nil {
+		authCopy := *incoming.Auth
+		if authCopy.Password == "" {
+			authCopy.Password = stored.Auth.Password
+		}
+		if authCopy.Token == "" {
+			authCopy.Token = stored.Auth.Token
+		}
+		merged.Auth = &authCopy
+	}
+
+	if incoming.Login != nil && stored.Login != nil {
+		loginCopy := *incoming.Login
+		if loginCopy.Body == "" {
+			loginCopy.Body = stored.Login.Body
+		}
+		merged.Login = &loginCopy
+	}
+
+	return &merged
 }
 
 func NewSettingsHandler(db *database.DB, cache cache.Store, poller *Poller) *SettingsHandler {
@@ -119,6 +159,14 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	config.InstanceID = instanceID
 	config.URL = strings.TrimRight(config.URL, "/")
 
+	if config.Config != nil {
+		if err := config.Config.Validate(); err != nil {
+			log.Error().Err(err).Str("instance", instanceID).Msg("Invalid custom service configuration")
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	log.Debug().
 		Str("instance", instanceID).
 		Str("url", config.URL).
@@ -138,6 +186,14 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	// API keys are write-only. If omitted on update, keep existing.
 	if existing != nil && config.APIKey == "" {
 		config.APIKey = existing.APIKey
+	}
+
+	// Custom service secrets (auth.password, auth.token, login.body) are
+	// write-only for the same reason: GetSettings/SaveSettings only ever
+	// return the redacted form, so an omitted or redacted-empty secret on
+	// update means "unchanged", not "cleared".
+	if existing != nil {
+		config.Config = mergeCustomConfigSecrets(existing.Config, config.Config)
 	}
 
 	var saveErr error

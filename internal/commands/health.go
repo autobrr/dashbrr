@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,7 +14,7 @@ import (
 	// Service registration (init side effects).
 	_ "github.com/autobrr/dashbrr/internal/services/autobrr"
 	_ "github.com/autobrr/dashbrr/internal/services/bazarr"
-	_ "github.com/autobrr/dashbrr/internal/services/general"
+	"github.com/autobrr/dashbrr/internal/services/general"
 	_ "github.com/autobrr/dashbrr/internal/services/jellyfin"
 	_ "github.com/autobrr/dashbrr/internal/services/lidarr"
 	_ "github.com/autobrr/dashbrr/internal/services/maintainerr"
@@ -110,7 +111,7 @@ func HealthCommand() *cobra.Command {
 						checkers[serviceType] = checker
 					}
 
-					health, _ := checker.CheckHealth(ctx, service.URL, service.APIKey)
+					health, _ := checkServiceHealth(ctx, checker, serviceType, service)
 					status.Services[service.InstanceID] = health.Status == "online" || health.Status == "warning"
 				}
 			}
@@ -128,6 +129,24 @@ func HealthCommand() *cobra.Command {
 	}
 
 	return command
+}
+
+// checkServiceHealth runs the health check for one configured service. For a
+// "general" (custom) instance with a stored CustomServiceConfig, it drives
+// the config-aware engine directly - the same pattern used by the `service
+// generic add`/`test` connectivity gate - instead of the registry's 3-arg
+// models.ServiceHealthChecker interface, which cannot carry service.Config
+// and always falls back to the nil-config legacy probe (GET the base URL,
+// apiKey as Bearer). Every other service type, and a general instance with
+// no config yet, keeps using the registry's checker unchanged.
+func checkServiceHealth(ctx context.Context, checker models.ServiceHealthChecker, serviceType string, service models.ServiceConfiguration) (models.ServiceHealth, int) {
+	if serviceType == "general" && service.Config != nil {
+		if generalChecker, ok := checker.(*general.GeneralService); ok {
+			return generalChecker.Engine.CheckHealth(ctx, service.URL, service.APIKey, service.Config)
+		}
+	}
+
+	return checker.CheckHealth(ctx, service.URL, service.APIKey)
 }
 
 func checkDatabase(status *HealthStatus) error {

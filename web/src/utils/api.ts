@@ -12,10 +12,14 @@ const getDefaultHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
 });
 
-const createRequest = (method: string, data?: unknown): RequestInit => {
+const createRequest = (
+  method: string,
+  data?: unknown,
+  extraHeaders?: Record<string, string>
+): RequestInit => {
   const options: RequestInit = {
     method,
-    headers: getDefaultHeaders(),
+    headers: { ...getDefaultHeaders(), ...extraHeaders },
     credentials: "include",
   };
 
@@ -152,8 +156,13 @@ export const api = {
     return handleRequest<T>(path, createRequest("GET"), 0, timeout);
   },
 
-  post: async <T>(path: string, data?: unknown, timeout?: number): Promise<T> => {
-    return handleRequest<T>(path, createRequest("POST", data), 0, timeout);
+  post: async <T>(
+    path: string,
+    data?: unknown,
+    timeout?: number,
+    headers?: Record<string, string>
+  ): Promise<T> => {
+    return handleRequest<T>(path, createRequest("POST", data, headers), 0, timeout);
   },
 
   put: async <T>(path: string, data: unknown, timeout?: number): Promise<T> => {

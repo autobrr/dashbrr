@@ -170,6 +170,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
   {
     name: "General Service",
     displayName: "",
+    description: "Any JSON API — configurable auth, stats and actions",
     type: "general",
     status: "offline",
     url: "",

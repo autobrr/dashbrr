@@ -27,6 +27,24 @@ export type ServiceType =
   | "general"
   | "other";
 
+// General ("custom") service: stats/actions carried on the poller's internal
+// "general_stats" event, nested under Stats["general"] (see
+// buildGeneralServiceUpdate in service_payload_builders.go) - merged by
+// hooks/serviceData/merge.ts into service.stats.general. The legacy
+// key/value list from the health job stays at the top-level
+// details.general (see ServiceDetails below), untouched by this.
+export interface GeneralStatValue {
+  display: string;
+  raw?: number | string | boolean | null;
+  unit?: string;
+}
+
+export interface GeneralActionDescriptor {
+  id: string;
+  label: string;
+  confirm?: boolean;
+}
+
 export interface ServiceHealth {
   status: ServiceStatus;
   message: string;
@@ -47,6 +65,7 @@ export interface Service {
   instanceId: string;
   name: string;
   displayName: string;
+  description?: string;
   type: ServiceType;
   status: ServiceStatus;
   url: string;
@@ -958,6 +977,10 @@ export interface ServiceStats {
     transfers?: QuiInstanceTransfer[];
     crossSeed?: QuiCrossSeedStatus;
   };
+  general?: {
+    stats?: Record<string, GeneralStatValue>;
+    actions?: GeneralActionDescriptor[];
+  };
 }
 
 // Service Details Union Type
@@ -1096,4 +1119,70 @@ export interface ServiceDetails {
       nextRunAt?: string;
     };
   };
+}
+
+// Custom ("general") service definition types.
+// Mirrors internal/models/custom.go (models.CustomServiceConfig) exactly -
+// keep field names/shape in lockstep with the backend schema.
+export type CustomAuthMode = "none" | "header" | "query" | "basic" | "bearer";
+
+export interface CustomAuthConfig {
+  mode: CustomAuthMode | "";
+  headerName?: string;
+  queryParam?: string;
+  username?: string;
+  password?: string;
+  token?: string;
+}
+
+export type CustomHttpMethod = "GET" | "POST";
+
+export interface CustomLoginConfig {
+  method?: CustomHttpMethod | "";
+  path?: string;
+  contentType?: string;
+  body?: string;
+  captureCookie?: string;
+  captureJSONPath?: string;
+  injectAs?: "header" | "query" | "cookie" | "bearer" | "";
+  injectName?: string;
+}
+
+export interface CustomHealthConfig {
+  method?: CustomHttpMethod | "";
+  path: string;
+  body?: string;
+  statusPath?: string;
+  okValues?: string[];
+  warnValues?: string[];
+  versionPath?: string;
+}
+
+export type CustomStatFormat = "number" | "bytes" | "duration" | "percent" | "text";
+
+export interface CustomStatConfig {
+  label: string;
+  path: string;
+  unit?: string;
+  format?: CustomStatFormat | "";
+}
+
+export type CustomActionMethod = "GET" | "POST" | "PUT" | "DELETE";
+
+export interface CustomActionConfig {
+  id: string;
+  label: string;
+  method?: CustomActionMethod | "";
+  path: string;
+  body?: string;
+  confirm?: boolean;
+}
+
+export interface CustomServiceConfig {
+  auth?: CustomAuthConfig;
+  login?: CustomLoginConfig;
+  health?: CustomHealthConfig;
+  stats?: CustomStatConfig[];
+  actions?: CustomActionConfig[];
+  timeoutSeconds?: number;
 }

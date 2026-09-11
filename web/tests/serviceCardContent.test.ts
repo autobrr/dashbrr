@@ -64,6 +64,43 @@ test("autobrr always keeps full spacing for stat tiles", () => {
   assert.equal(hasMeaningfulServiceContent(service), true);
 });
 
+test("general service with no stats/actions/legacy details compacts body", () => {
+  const service = makeService({ type: "general" });
+
+  assert.equal(hasMeaningfulServiceContent(service), false);
+});
+
+// Regression test: a general service using the legacy no-Health-section
+// probe only ever populates details.general (key/value fields from the
+// response body), never stats.general.stats/actions - it was previously
+// misclassified as having no meaningful content.
+test("general service with only legacy details.general keeps full spacing", () => {
+  const service = makeService({
+    type: "general",
+    details: { general: { uptime: "3d", version: "1.2.3" } },
+  });
+
+  assert.equal(hasMeaningfulServiceContent(service), true);
+});
+
+test("general service with only configured stats keeps full spacing", () => {
+  const service = makeService({
+    type: "general",
+    stats: { general: { stats: { Uptime: { display: "3d" } } } },
+  });
+
+  assert.equal(hasMeaningfulServiceContent(service), true);
+});
+
+test("general service with only configured actions keeps full spacing", () => {
+  const service = makeService({
+    type: "general",
+    stats: { general: { actions: [{ id: "restart", label: "Restart" }] } },
+  });
+
+  assert.equal(hasMeaningfulServiceContent(service), true);
+});
+
 test("service card layout snapshot stays stable", () => {
   assert.deepEqual(SERVICE_CARD_LAYOUT, {
     compact: {

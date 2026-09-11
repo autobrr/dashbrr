@@ -93,7 +93,19 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
       );
     case "tailscale":
       return (service.stats?.tailscale?.devices?.length ?? 0) > 0;
-    case "general":
+    case "general": {
+      const generalStats = service.stats?.general ?? service.health?.stats?.general;
+      return (
+        // The legacy key/value fields (details.general, from the
+        // no-Health-section CustomServiceConfig probe) are meaningful
+        // GeneralStats content on their own - a general service that only
+        // has those (no configured stats/actions) was otherwise
+        // misclassified as empty.
+        Object.keys(service.details?.general ?? {}).length > 0 ||
+        Object.keys(generalStats?.stats ?? {}).length > 0 ||
+        (generalStats?.actions?.length ?? 0) > 0
+      );
+    }
     case "other":
     default:
       return false;

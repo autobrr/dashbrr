@@ -38,20 +38,16 @@ func UserCreateCommand() *cobra.Command {
 		Example: `  dashbrr user create <username> <password>
   dashbrr user create --help`,
 		//SilenceUsage: true,
-		Args: cobra.MinimumNArgs(2),
+		Args: cobra.RangeArgs(2, 3),
 	}
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		//if len(args) < 3 {
-		//	return errors.New("usage: user create <username> <password>")
-		//}
+		username := args[0]
+		password := args[1]
 
-		username := args[1]
-		password := args[2]
-
-		email := fmt.Sprintf("%s@dashbrr.local", args[1])
+		email := username + "@dashbrr.local"
 		if len(args) >= 3 {
-			email = args[3]
+			email = args[2]
 		}
 
 		// Validate username and password
@@ -122,8 +118,8 @@ func UserChangePasswordCommand() *cobra.Command {
 	}
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		username := args[1]
-		newPassword := args[2]
+		username := args[0]
+		newPassword := args[1]
 
 		// Validate new password
 		if len(newPassword) < 8 {

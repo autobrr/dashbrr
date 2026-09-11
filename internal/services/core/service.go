@@ -11,6 +11,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -112,10 +113,73 @@ func (s *ServiceCore) initCache(ctx context.Context) error {
 	return nil
 }
 
+// redactRequestURL returns rawURL with every query-parameter value replaced
+// by "***" and any userinfo (a "user:password@" or "user@" prefix on the
+// host - some custom-service URLs use this for HTTP basic auth) replaced by
+// "REDACTED@", so log lines can safely include the request URL without
+// leaking secrets (API keys, tokens, basic-auth credentials, etc.).
+// Parameter names, the path, and the host are preserved. It never panics:
+// if rawURL doesn't parse as a URL, everything from the first "?" onward is
+// masked instead (userinfo can't be reliably located in an unparseable
+// URL). The userinfo replacement text is "REDACTED" rather than "***": Go's
+// url.User escapes "*" to "%2A" when the URL is restringified, which would
+// otherwise make the masked marker unrecognizable in a log line.
+func redactRequestURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		if idx := strings.IndexByte(rawURL, '?'); idx != -1 {
+			return rawURL[:idx] + "?***"
+		}
+		return rawURL
+	}
+
+	if parsed.User == nil && parsed.RawQuery == "" {
+		return rawURL
+	}
+
+	if parsed.User != nil {
+		parsed.User = url.User("REDACTED")
+	}
+
+	if parsed.RawQuery != "" {
+		pairs := strings.Split(parsed.RawQuery, "&")
+		for i, pair := range pairs {
+			if pair == "" {
+				continue
+			}
+			key := pair
+			if idx := strings.IndexByte(pair, '='); idx != -1 {
+				key = pair[:idx]
+			}
+			pairs[i] = key + "=***"
+		}
+		parsed.RawQuery = strings.Join(pairs, "&")
+	}
+
+	return parsed.String()
+}
+
+// redactRequestError redacts the URL embedded in a *url.Error - the type
+// http.NewRequestWithContext and http.Client.Do both return when the
+// failure carries a URL (a parse error, a dial/DNS failure, etc.) - so
+// neither a logged error nor one returned to a caller (which for DoRequest
+// can end up in a health-check message shown in the UI) leaks query-string
+// secrets. The underlying cause (Err) is kept exactly as-is and unwrapped,
+// so errors.Is/errors.As against it (e.g. syscall.ECONNREFUSED, *net.OpError)
+// still work on the redacted error. Errors that aren't a *url.Error - or nil -
+// are returned unchanged.
+func redactRequestError(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return &url.Error{Op: urlErr.Op, URL: redactRequestURL(urlErr.URL), Err: urlErr.Err}
+	}
+	return err
+}
+
 // DoRequest makes an HTTP request with the provided context, method, and optional body.
 // Uses the shared HTTP client pool + service-specific timeout.
-func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, headers map[string]string, body []byte) (*http.Response, error) {
-	if url == "" {
+func (s *ServiceCore) DoRequest(ctx context.Context, method string, requestURL string, headers map[string]string, body []byte) (*http.Response, error) {
+	if requestURL == "" {
 		log.Error().Msg("Service is not configured")
 		return nil, ErrServiceNotConfigured
 	}
@@ -143,9 +207,10 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(reqCtx, method, url, bodyReader)
+	req, err := http.NewRequestWithContext(reqCtx, method, requestURL, bodyReader)
 	if err != nil {
-		log.Error().Err(err).Str("url", url).Msg("Failed to create request")
+		err = redactRequestError(err)
+		log.Error().Err(err).Str("url", redactRequestURL(requestURL)).Msg("Failed to create request")
 		return nil, err
 	}
 
@@ -164,8 +229,9 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		if cancel != nil {
 			cancel()
 		}
+		err = redactRequestError(err)
 		log.Error().Err(err).
-			Str("url", url).
+			Str("url", redactRequestURL(requestURL)).
 			Dur("timeout", timeout).
 			Msg("Request failed")
 		return nil, err
@@ -174,7 +240,7 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		if cancel != nil {
 			cancel()
 		}
-		log.Error().Str("url", url).Msg("Received nil response from server")
+		log.Error().Str("url", redactRequestURL(requestURL)).Msg("Received nil response from server")
 		return nil, ErrNilResponse
 	}
 	if cancel != nil {
@@ -188,7 +254,7 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
 		resp.Body.Close()
 		err := errors.New("received redirect response, possible authentication issue")
-		log.Error().Err(err).Str("url", url).Int("status", resp.StatusCode).Msg("Authentication error")
+		log.Error().Err(err).Str("url", redactRequestURL(requestURL)).Int("status", resp.StatusCode).Msg("Authentication error")
 		return nil, err
 	}
 
