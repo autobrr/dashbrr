@@ -13,14 +13,7 @@ func TestInitializeDatabaseHonoursEnvPath(t *testing.T) {
 	t.Setenv("DASHBRR__DB_PATH", dbPath)
 
 	// Run from a scratch cwd so a regression back to ./data would be visible.
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	t.Chdir(dir)
 
 	db, err := initializeDatabase()
 	if err != nil {
@@ -41,14 +34,7 @@ func TestInitializeDatabaseDefaultPath(t *testing.T) {
 	t.Setenv("DASHBRR__DB_TYPE", "")
 	t.Setenv("DASHBRR__DB_PATH", "")
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	t.Chdir(dir)
 
 	db, err := initializeDatabase()
 	if err != nil {

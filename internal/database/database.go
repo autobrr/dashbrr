@@ -95,15 +95,6 @@ func (config *Config) ApplyEnvOverrides() {
 	}
 }
 
-// InitDB initializes the database connection and performs migrations
-func InitDB(dbPath string) (*DB, error) {
-	config := NewConfig()
-	if config.Driver == "sqlite" {
-		config.Path = dbPath
-	}
-	return InitDBWithConfig(config)
-}
-
 // InitDBWithConfig initializes the database with the provided configuration
 func InitDBWithConfig(config *Config) (*DB, error) {
 	db := &DB{
