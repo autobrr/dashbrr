@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -16,6 +17,132 @@ import (
 func newQuiTestService() *QuiService {
 	service := NewQuiService().(*QuiService)
 	return service
+}
+
+func TestCheckHealth_InstancesAPIOnly(t *testing.T) {
+	t.Parallel()
+
+	for _, suffix := range []string{"", "/", "/qui", "/qui/"} {
+		t.Run("url="+suffix, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != strings.TrimRight(suffix, "/")+"/api/instances" {
+					_, _ = w.Write([]byte("<html>qui</html>"))
+					return
+				}
+				if r.Header.Get("X-API-Key") != "test-key" {
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`[{"id":1,"name":"Main","connected":true,"isActive":true}]`))
+			}))
+			defer server.Close()
+
+			health, statusCode := newQuiTestService().CheckHealth(t.Context(), server.URL+suffix, "test-key")
+			if statusCode != http.StatusOK || health.Status != "online" || health.Message != "1/1 active instances connected" {
+				t.Fatalf("statusCode = %d, health = %#v", statusCode, health)
+			}
+		})
+	}
+}
+
+func TestCheckHealth_InstanceWarnings(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		body    string
+		message string
+	}{
+		{"empty", `[]`, "Connected to qui, but no instances are configured"},
+		{"inactive", `[{"isActive":false,"connected":true}]`, "Connected to qui, but no active instances are enabled"},
+		{"disconnected", `[{"isActive":true,"connected":false}]`, "0/1 active instances connected"},
+		{"credentials", `[{"isActive":true,"connected":true,"hasDecryptionError":true}]`, "1/1 active instances connected (1 with credential errors)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/qui/api/instances" {
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			health, statusCode := newQuiTestService().CheckHealth(t.Context(), server.URL+"/qui/", "test-key")
+			if statusCode != http.StatusOK || health.Status != "warning" || health.Message != tc.message {
+				t.Fatalf("statusCode = %d, health = %#v", statusCode, health)
+			}
+		})
+	}
+}
+
+func TestCheckHealth_APIFailures(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		apiStatus  int
+		body       string
+		wantStatus string
+		wantCode   int
+		message    string
+	}{
+		{"unauthorized", http.StatusUnauthorized, "unauthorized", "error", http.StatusUnauthorized, "Invalid API key"},
+		{"forbidden", http.StatusForbidden, "forbidden", "error", http.StatusForbidden, "Invalid API key"},
+		{"missing route", http.StatusNotFound, "not found", "warning", http.StatusOK, "required API endpoint was not found"},
+		{"server error", http.StatusInternalServerError, "internal error", "warning", http.StatusOK, "failed to query instances"},
+		{"html", http.StatusOK, "<html>qui</html>", "warning", http.StatusOK, "failed to parse response"},
+		{"wrong shape", http.StatusOK, `{"status":"ok"}`, "warning", http.StatusOK, "failed to parse response"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/qui/api/instances" {
+					http.NotFound(w, r)
+					return
+				}
+				w.WriteHeader(tc.apiStatus)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			health, statusCode := newQuiTestService().CheckHealth(t.Context(), server.URL+"/qui", "test-key")
+			if statusCode != tc.wantCode || health.Status != tc.wantStatus || !strings.Contains(health.Message, tc.message) {
+				t.Fatalf("statusCode = %d, health = %#v", statusCode, health)
+			}
+		})
+	}
+}
+
+func TestCheckHealth_ConfigurationAndConnectionErrors(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+
+	for _, tc := range []struct {
+		name       string
+		url        string
+		apiKey     string
+		wantStatus string
+		wantCode   int
+		message    string
+	}{
+		{"missing URL", " ", "test-key", "error", http.StatusBadRequest, "Service not configured: missing URL"},
+		{"missing key", server.URL, " ", "error", http.StatusBadRequest, "Service not configured: missing API key"},
+		{"unreachable", server.URL, "test-key", "offline", http.StatusOK, "Failed to connect to qui:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			health, statusCode := newQuiTestService().CheckHealth(t.Context(), tc.url, tc.apiKey)
+			if statusCode != tc.wantCode || health.Status != tc.wantStatus || !strings.HasPrefix(health.Message, tc.message) {
+				t.Fatalf("statusCode = %d, health = %#v", statusCode, health)
+			}
+		})
+	}
 }
 
 func TestCheckHealth_InvalidAPIKey(t *testing.T) {
