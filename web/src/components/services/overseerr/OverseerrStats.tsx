@@ -27,6 +27,7 @@ import {
   OVERSEERR_REQUEST_STATUS,
   resolveRequestStatus
 } from "./status";
+import { requestLink } from "./requestLink";
 
 interface OverseerrStatsProps {
   instanceId: string;
@@ -186,6 +187,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
     const statusMeta = status.meta;
     const isPendingRequest =
       status.requestStatus === OVERSEERR_REQUEST_STATUS.PENDING;
+    const titleLink = requestLink(service, request.media);
 
     return (
       <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5 hover:bg-gray-850/80 transition-colors">
@@ -245,14 +247,18 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
               </div>
             ) : (
               <a
-                href={request.media.serviceUrl}
+                href={titleLink ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-medium text-gray-200 truncate hover:text-blue-400 transition-colors flex items-center"
-                title="View Details"
+                className={`text-xs font-medium text-gray-200 truncate flex items-center ${
+                  titleLink ? "hover:text-blue-400 transition-colors" : ""
+                }`}
+                title={titleLink ? "View Details" : getMediaTitle(request)}
               >
                 {getMediaTitle(request)}
-                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 ml-1 text-blue-400" />
+                {titleLink && (
+                  <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 ml-1 text-blue-400" />
+                )}
               </a>
             )}
           </div>
