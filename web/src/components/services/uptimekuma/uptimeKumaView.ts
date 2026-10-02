@@ -17,56 +17,6 @@ export interface UptimeKumaMonitorView {
   monitors: UptimeKumaMonitor[];
 }
 
-const parseUptimeKumaBaseURL = (
-  baseURL: string | null | undefined
-): URL | null => {
-  const candidate = baseURL?.trim();
-  if (!candidate) return null;
-
-  try {
-    const url = new URL(candidate);
-    return url.protocol === "http:" || url.protocol === "https:" ? url : null;
-  } catch {
-    return null;
-  }
-};
-
-const buildUptimeKumaURL = (
-  baseURL: string | null | undefined,
-  path: string
-): string | null => {
-  const url = parseUptimeKumaBaseURL(baseURL);
-  if (!url) return null;
-
-  const basePath = url.pathname.replace(/\/+$/, "");
-  url.pathname = `${basePath}${path}`;
-  url.search = "";
-  url.hash = "";
-  return url.toString();
-};
-
-export const resolveUptimeKumaBaseURL = (
-  accessURL: string | null | undefined,
-  serviceURL: string | null | undefined
-): string | null => {
-  for (const candidate of [accessURL, serviceURL]) {
-    if (parseUptimeKumaBaseURL(candidate)) return candidate?.trim() ?? null;
-  }
-
-  return null;
-};
-
-export const buildUptimeKumaDashboardURL = (
-  baseURL: string | null | undefined
-): string | null =>
-  buildUptimeKumaURL(baseURL, "/dashboard");
-
-export const buildUptimeKumaMonitorURL = (
-  baseURL: string | null | undefined,
-  monitorID: string
-): string | null =>
-  buildUptimeKumaURL(baseURL, `/dashboard/${encodeURIComponent(monitorID)}`);
-
 const issuePriority = (monitor: UptimeKumaMonitor): number =>
   monitor.status === "down" ? 0 : 1;
 

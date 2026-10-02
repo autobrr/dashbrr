@@ -11,6 +11,7 @@ import { FormInput } from "../ui/FormInput";
 import { toast } from "react-hot-toast";
 import { api } from "../../utils/api";
 import { usePlexPinAuth } from "../../hooks/usePlexPinAuth";
+import { serviceLink } from "../../utils/serviceLink";
 
 interface ConfigurationFormProps {
   instanceId: string;
@@ -139,11 +140,8 @@ export const ConfigurationForm = ({
     }
   };
 
-  const getSettingsUrl = (path: string): string | null => {
-    if (!url) return null;
-    const baseUrl = accessUrl || url;
-    return `${baseUrl}${path}`;
-  };
+  const getSettingsUrl = (path: string): string | null =>
+    serviceLink({ url, accessUrl }, path);
 
   const getApiKeyHelp = () => {
     switch (serviceType) {

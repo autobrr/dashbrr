@@ -28,7 +28,7 @@ createRoot(app).render(
       className="@container rounded-lg border border-zinc-700 bg-zinc-800 p-4"
     >
       <UptimeKumaStatsView
-        baseURL="https://kuma.example/internal"
+        link={{ url: "https://kuma.example/internal" }}
         counts={{ total: 9, up: 1, down: 6, pending: 1, maintenance: 1 }}
         summary={{ monitors }}
       />
@@ -38,7 +38,7 @@ createRoot(app).render(
       className="@container rounded-lg border border-zinc-700 bg-zinc-800 p-4"
     >
       <UptimeKumaStatsView
-        baseURL={null}
+        link={{}}
         counts={{ total: 1, up: 1, down: 0, pending: 0, maintenance: 0 }}
         summary={{ monitors: monitors.slice(0, 1) }}
       />
@@ -48,7 +48,7 @@ createRoot(app).render(
       className="@container w-72 rounded-lg border border-zinc-700 bg-zinc-800 p-4"
     >
       <UptimeKumaStatsView
-        baseURL={null}
+        link={{}}
         counts={{ total: 9, up: 1, down: 6, pending: 1, maintenance: 1 }}
         summary={{ monitors }}
       />

@@ -13,6 +13,7 @@ import AnimatedModal from "./AnimatedModal";
 import { StatusIcon, StatusType } from "./StatusIcon";
 import { repoUrls } from "../../config/repoUrls";
 import { ServiceStatus } from "../../types/service";
+import { serviceLink } from "../../utils/serviceLink";
 
 interface ServiceHeaderProps {
   displayName: string;
@@ -62,8 +63,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
     return repoUrls[serviceKey];
   };
 
-  // Use accessUrl if available, otherwise fall back to url
-  const openUrl = accessUrl || url;
+  const openUrl = serviceLink({ url, accessUrl }) ?? undefined;
 
   return (
     <>

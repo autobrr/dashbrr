@@ -7,6 +7,7 @@ import React from "react";
 import { useServiceData } from "../../../hooks/useServiceData";
 import { ArrowTopRightOnSquareIcon, ClockIcon, FilmIcon } from "@heroicons/react/24/outline";
 import { StatsSkeleton } from "../../ui/StatsSkeleton";
+import { serviceLink } from "../../../utils/serviceLink";
 
 interface Props {
   instanceId: string;
@@ -26,6 +27,8 @@ export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
     return null;
   }
 
+  const collectionsUrl = serviceLink(service, "collections");
+
   return (
     <>
       <div className="text-xs mb-2 pt-2 font-semibold text-gray-700 dark:text-gray-300 cursor-default">
@@ -36,15 +39,19 @@ export const MaintainerrCollections: React.FC<Props> = ({ instanceId }) => {
           <div className="text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 p-3.5  transition-colors">
             <div>
               <span className="font-medium text-gray-200 truncate">
-                <a
-                  href={`${service?.url}/collections`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-white hover:text-blue-400 flex items-center group"
-                >
-                  {collection.title}
-                  <ArrowTopRightOnSquareIcon className="ml-1 w-3 h-3 text-blue-400 group-hover:text-blue-400" />
-                </a>
+                {collectionsUrl ? (
+                  <a
+                    href={collectionsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-white hover:text-blue-400 flex items-center group"
+                  >
+                    {collection.title}
+                    <ArrowTopRightOnSquareIcon className="ml-1 w-3 h-3 text-blue-400 group-hover:text-blue-400" />
+                  </a>
+                ) : (
+                  <span className="font-medium text-white">{collection.title}</span>
+                )}
               </span>
             </div>
             <div className="flex items-center gap-4 mt-1">

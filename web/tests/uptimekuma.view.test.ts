@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  buildUptimeKumaDashboardURL,
-  buildUptimeKumaMonitorURL,
   getUptimeKumaMonitorView,
-  resolveUptimeKumaBaseURL,
   type UptimeKumaFilter
 } from "../src/components/services/uptimekuma/uptimeKumaView.ts";
 import type { UptimeKumaMonitor } from "../src/types/service.ts";
@@ -62,44 +59,4 @@ test("default monitor view prioritizes down before pending", () => {
     view.monitors.map((monitor) => monitor.id),
     ["3", "2", "1"]
   );
-});
-
-test("monitor links preserve the configured base path", () => {
-  assert.equal(
-    buildUptimeKumaMonitorURL(
-      "https://kuma.example/internal/status/?view=all#summary",
-      "42/a"
-    ),
-    "https://kuma.example/internal/status/dashboard/42%2Fa"
-  );
-});
-
-test("dashboard links preserve the configured base path", () => {
-  assert.equal(
-    buildUptimeKumaDashboardURL(
-      "https://kuma.example/internal/status/?view=all#summary"
-    ),
-    "https://kuma.example/internal/status/dashboard"
-  );
-});
-
-test("base URL resolution rejects unsafe URLs and falls back to the service URL", () => {
-  const serviceURL = "https://kuma.internal";
-
-  assert.equal(
-    resolveUptimeKumaBaseURL(" https://kuma.example ", serviceURL),
-    "https://kuma.example"
-  );
-  assert.equal(resolveUptimeKumaBaseURL("not a URL", serviceURL), serviceURL);
-  assert.equal(
-    resolveUptimeKumaBaseURL("javascript:alert(1)", serviceURL),
-    serviceURL
-  );
-  assert.equal(resolveUptimeKumaBaseURL("  ", serviceURL), serviceURL);
-  assert.equal(resolveUptimeKumaBaseURL("ftp://kuma.example", ""), null);
-});
-
-test("link builders return null for invalid or unsafe base URLs", () => {
-  assert.equal(buildUptimeKumaDashboardURL("not a URL"), null);
-  assert.equal(buildUptimeKumaMonitorURL("javascript:alert(1)", "42"), null);
 });
