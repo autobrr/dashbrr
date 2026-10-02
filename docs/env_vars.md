@@ -62,6 +62,7 @@ Only needed if you serve the web UI from a different origin than the API (differ
   - Note: This variable works alone. You do not need to set `DASHBRR__DB_TYPE` or `DASHBRR__LISTEN_ADDR` with it. A relative value is relative to the working directory.
   - Priority: `--db-file` flag > this environment variable > `[database] path` in the config file > `<config directory>/data/dashbrr.db`
   - Note: A relative `[database] path` in the config file is relative to the directory of the config file.
+  - Note: If the config directory is read-only, set this variable to a writable location. Else SQLite cannot create the default database.
 
 ### PostgreSQL Configuration
 

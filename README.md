@@ -154,7 +154,7 @@ Dashbrr uses a simple TOML configuration file. The `serve` command and all CLI c
 3. `config.toml` in your user config directory (for example `~/.config/dashbrr`), then in `/config`
 4. `./config.toml`
 
-If the config file does not exist, dashbrr tries to write a default file there. If it cannot write the file, it logs a warning and starts with the defaults and the environment variables. Environment variables always override the values in the config file.
+If the config file does not exist, dashbrr tries to write a default file there. If it cannot write the file, it logs a warning and starts with the defaults and the environment variables. If the config directory is read-only, set `DASHBRR__DB_PATH` to a writable location, because the default database is also in that directory. Environment variables always override the values in the config file.
 
 ```toml
 [server]
