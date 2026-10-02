@@ -181,6 +181,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             <div className="pr-8 @md:pr-10">
               <ServiceHeader
                 displayName={currentConfig?.displayName || service.displayName}
+                serviceType={service.type}
                 url={currentConfig?.url || service.url}
                 accessUrl={currentConfig?.accessUrl || service.accessUrl}
                 version={service.version}
