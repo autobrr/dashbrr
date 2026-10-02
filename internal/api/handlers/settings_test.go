@@ -30,6 +30,7 @@ func TestServiceURLsValid(t *testing.T) {
 		{name: "empty url", url: "", want: false},
 		{name: "ftp scheme", url: "ftp://host", want: false},
 		{name: "no host", url: "http://", want: false},
+		{name: "port without host name", url: "http://:8080", want: false},
 		{name: "invalid access url", url: "http://autobrr:7474", accessURL: "autobrr:74747", want: false},
 	}
 

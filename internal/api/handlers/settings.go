@@ -117,7 +117,7 @@ func serviceURLsValid(config models.ServiceConfiguration) bool {
 
 func isHTTPURL(raw string) bool {
 	u, err := url.Parse(raw)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != ""
 }
 
 func (h *SettingsHandler) SaveSettings(c *gin.Context) {
