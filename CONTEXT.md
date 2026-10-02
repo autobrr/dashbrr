@@ -31,3 +31,13 @@ _Avoid_: stats job, poll task
 **Service payload**:
 The data for one service instance that the UI receives over SSE.
 _Avoid_: stats, service data
+
+### *arr apps
+
+***arr app**:
+A service with a download queue that dashbrr shows and can remove items from: Sonarr, Radarr, Lidarr, Readarr, or Whisparr. Prowlarr and Bazarr are not *arr apps, because they have no download queue.
+_Avoid_: arr service, Starr app
+
+**Queue item**:
+One entry in the download queue of an *arr app.
+_Avoid_: queue record
