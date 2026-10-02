@@ -14,15 +14,8 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/arr"
 )
 
-type queueDeleteQueryOptions struct {
-	RemoveFromClient bool
-	Blocklist        bool
-	SkipRedownload   bool
-	ChangeCategory   bool
-}
-
-func queueDeleteOptionsFromQuery(c *gin.Context) queueDeleteQueryOptions {
-	return queueDeleteQueryOptions{
+func queueDeleteOptionsFromQuery(c *gin.Context) arr.QueueDeleteOptions {
+	return arr.QueueDeleteOptions{
 		RemoveFromClient: c.Query("removeFromClient") == "true",
 		Blocklist:        c.Query("blocklist") == "true",
 		SkipRedownload:   c.Query("skipRedownload") == "true",

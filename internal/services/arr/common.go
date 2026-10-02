@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -207,79 +206,4 @@ func ExtractMessageField(body []byte) string {
 		return ""
 	}
 	return payload.Message
-}
-
-func DeleteQueueItemWithVersion(
-	ctx context.Context,
-	service, apiVersion, baseURL, apiKey, queueID string,
-	options QueueDeleteOptions,
-	readBody func(*http.Response) ([]byte, error),
-) error {
-	if baseURL == "" {
-		return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("URL is required")}
-	}
-	if apiKey == "" {
-		return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("API key is required")}
-	}
-
-	deleteURL := BuildQueueDeleteURLWithVersion(baseURL, apiVersion, queueID, options)
-	log.Info().
-		Str("service", service).
-		Str("url", deleteURL).
-		Str("queueId", queueID).
-		Bool("removeFromClient", options.RemoveFromClient).
-		Bool("blocklist", options.Blocklist).
-		Bool("skipRedownload", options.SkipRedownload).
-		Bool("changeCategory", options.ChangeCategory).
-		Msg("Attempting to delete queue item")
-
-	resp, err := MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Str("service", service).
-			Str("url", deleteURL).
-			Str("queueId", queueID).
-			Msg("Failed to execute delete request")
-		return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var body []byte
-		if readBody != nil {
-			body, _ = readBody(resp)
-		} else {
-			body, _ = io.ReadAll(resp.Body)
-		}
-
-		log.Error().
-			Str("service", service).
-			Int("statusCode", resp.StatusCode).
-			Str("url", deleteURL).
-			Str("queueId", queueID).
-			Str("response", string(body)).
-			Msg("Delete request failed")
-
-		if msg := ExtractMessageField(body); msg != "" {
-			return &ErrArr{Service: service, Op: "delete_queue", Err: fmt.Errorf("%s", msg), HttpCode: resp.StatusCode}
-		}
-		return &ErrArr{Service: service, Op: "delete_queue", HttpCode: resp.StatusCode}
-	}
-
-	log.Info().
-		Str("service", service).
-		Str("queueId", queueID).
-		Msg("Successfully deleted queue item")
-
-	return nil
-}
-
-func DeleteQueueItem(
-	ctx context.Context,
-	service, baseURL, apiKey, queueID string,
-	options QueueDeleteOptions,
-	readBody func(*http.Response) ([]byte, error),
-) error {
-	return DeleteQueueItemWithVersion(ctx, service, "v3", baseURL, apiKey, queueID, options, readBody)
 }

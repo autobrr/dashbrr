@@ -5,9 +5,9 @@
 
 import React from "react";
 
-import { ServiceStats } from "../../../types/service";
+import { ArrQueue, ArrQueueItem, ServiceStats } from "../../../types/service";
 import { ArrMessage } from "./ArrMessage";
-import { ArrQueueRecord, ArrQueueStatsBase } from "./ArrQueueStatsBase";
+import { ArrQueueStatsBase } from "./ArrQueueStatsBase";
 
 type ArrQueueServiceType =
   | "sonarr"
@@ -29,14 +29,12 @@ type ArrQueueStatsConfig = {
     | "/api/radarr/queue"
     | "/api/lidarr/queue"
     | "/api/readarr/queue";
-  getQueue: (
-    stats: ServiceStats
-  ) => { totalRecords: number; records: ArrQueueRecord[] } | undefined;
-  canManageRecord: (record: ArrQueueRecord) => boolean;
-  getManageDisabledReason: (record: ArrQueueRecord) => string;
+  getQueue: (stats: ServiceStats) => ArrQueue | undefined;
+  canManageRecord: (record: ArrQueueItem) => boolean;
+  getManageDisabledReason: (record: ArrQueueItem) => string;
 };
 
-const canManageBlockedOrPending = (record: ArrQueueRecord) =>
+const canManageBlockedOrPending = (record: ArrQueueItem) =>
   record.trackedDownloadState === "importBlocked" ||
   record.trackedDownloadState === "importPending";
 

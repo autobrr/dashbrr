@@ -10,9 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/lidarr"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type LidarrHandler struct {
@@ -36,13 +35,7 @@ func (h *LidarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	queryOptions := queueDeleteOptionsFromQuery(c)
-	options := types.LidarrQueueDeleteOptions{
-		RemoveFromClient: queryOptions.RemoveFromClient,
-		Blocklist:        queryOptions.Blocklist,
-		SkipRedownload:   queryOptions.SkipRedownload,
-		ChangeCategory:   queryOptions.ChangeCategory,
-	}
+	options := queueDeleteOptionsFromQuery(c)
 
 	ctx := c.Request.Context()
 	err := resilience.RetryWithBackoff(ctx, func() error {
@@ -60,13 +53,12 @@ func (h *LidarrHandler) DeleteQueueItem(c *gin.Context) {
 func (h *LidarrHandler) deleteQueueItem(
 	ctx context.Context,
 	instanceID, queueID string,
-	options types.LidarrQueueDeleteOptions,
+	options arr.QueueDeleteOptions,
 ) error {
 	lidarrConfig, err := requireServiceConfig(ctx, h.db, instanceID, "lidarr")
 	if err != nil {
 		return err
 	}
 
-	service := &lidarr.LidarrService{}
-	return service.DeleteQueueItem(ctx, lidarrConfig.URL, lidarrConfig.APIKey, queueID, options)
+	return arr.Lidarr.DeleteQueueItem(ctx, lidarrConfig.URL, lidarrConfig.APIKey, queueID, options)
 }

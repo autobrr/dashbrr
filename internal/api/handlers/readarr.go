@@ -10,9 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/readarr"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type ReadarrHandler struct {
@@ -36,13 +35,7 @@ func (h *ReadarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	queryOptions := queueDeleteOptionsFromQuery(c)
-	options := types.ReadarrQueueDeleteOptions{
-		RemoveFromClient: queryOptions.RemoveFromClient,
-		Blocklist:        queryOptions.Blocklist,
-		SkipRedownload:   queryOptions.SkipRedownload,
-		ChangeCategory:   queryOptions.ChangeCategory,
-	}
+	options := queueDeleteOptionsFromQuery(c)
 
 	ctx := c.Request.Context()
 	err := resilience.RetryWithBackoff(ctx, func() error {
@@ -60,13 +53,12 @@ func (h *ReadarrHandler) DeleteQueueItem(c *gin.Context) {
 func (h *ReadarrHandler) deleteQueueItem(
 	ctx context.Context,
 	instanceID, queueID string,
-	options types.ReadarrQueueDeleteOptions,
+	options arr.QueueDeleteOptions,
 ) error {
 	readarrConfig, err := requireServiceConfig(ctx, h.db, instanceID, "readarr")
 	if err != nil {
 		return err
 	}
 
-	service := &readarr.ReadarrService{}
-	return service.DeleteQueueItem(ctx, readarrConfig.URL, readarrConfig.APIKey, queueID, options)
+	return arr.Readarr.DeleteQueueItem(ctx, readarrConfig.URL, readarrConfig.APIKey, queueID, options)
 }

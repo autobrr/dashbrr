@@ -11,9 +11,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/services/sonarr"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type SonarrHandler struct {
@@ -38,13 +37,7 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	queryOptions := queueDeleteOptionsFromQuery(c)
-	options := types.SonarrQueueDeleteOptions{
-		RemoveFromClient: queryOptions.RemoveFromClient,
-		Blocklist:        queryOptions.Blocklist,
-		SkipRedownload:   queryOptions.SkipRedownload,
-		ChangeCategory:   queryOptions.ChangeCategory,
-	}
+	options := queueDeleteOptionsFromQuery(c)
 
 	ctx := c.Request.Context()
 
@@ -61,15 +54,11 @@ func (h *SonarrHandler) DeleteQueueItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }
 
-func (h *SonarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options types.SonarrQueueDeleteOptions) error {
+func (h *SonarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options arr.QueueDeleteOptions) error {
 	sonarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "sonarr")
 	if err != nil {
 		return err
 	}
 
-	// Create Sonarr service instance
-	service := &sonarr.SonarrService{}
-
-	// Call the service method to delete the queue item
-	return service.DeleteQueueItem(ctx, sonarrConfig.URL, sonarrConfig.APIKey, queueId, options)
+	return arr.Sonarr.DeleteQueueItem(ctx, sonarrConfig.URL, sonarrConfig.APIKey, queueId, options)
 }

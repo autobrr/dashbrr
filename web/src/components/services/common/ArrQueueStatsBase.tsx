@@ -13,7 +13,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import { useServiceData } from "../../../hooks/useServiceData";
-import { ServiceStats, ServiceStatus } from "../../../types/service";
+import { ArrQueue, ArrQueueItem, ServiceStats, ServiceStatus } from "../../../types/service";
 import { api } from "../../../utils/api";
 import Toast from "../../../components/Toast";
 import AnimatedModal from "../../ui/AnimatedModal";
@@ -27,17 +27,6 @@ import {
   getBlocklistText,
   getRemovalMethodText
 } from "./ArrQueueDelete";
-
-export type ArrQueueRecord = {
-  id: number;
-  title: string;
-  protocol: string;
-  indexer?: string;
-  customFormatScore: number;
-  downloadClient: string;
-  trackedDownloadState?: string;
-  statusMessages?: { title: string; messages: string[] }[];
-};
 
 type SelectOption<T extends string> = {
   value: T;
@@ -118,12 +107,10 @@ type Props = {
     | "/api/lidarr/queue"
     | "/api/readarr/queue";
   // service.stats[serviceKey].queue
-  getQueue: (
-    stats: ServiceStats
-  ) => { totalRecords: number; records: ArrQueueRecord[] } | undefined;
+  getQueue: (stats: ServiceStats) => ArrQueue | undefined;
   // allow Radarr importPending as well
-  canManageRecord: (record: ArrQueueRecord) => boolean;
-  getManageDisabledReason: (record: ArrQueueRecord) => string;
+  canManageRecord: (record: ArrQueueItem) => boolean;
+  getManageDisabledReason: (record: ArrQueueItem) => string;
   renderMessage: (props: { status: ServiceStatus; message?: string }) => React.ReactNode;
 };
 
@@ -146,7 +133,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   const isLoading = service?.status === "loading";
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<ArrQueueRecord | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ArrQueueItem | null>(null);
   const [deleteOptions, setDeleteOptions] = useState<ArrQueueDeleteOptions>({
     removeFromClient: "change",
     blocklist: "none",

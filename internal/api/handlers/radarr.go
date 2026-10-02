@@ -10,9 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/radarr"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type RadarrHandler struct {
@@ -37,13 +36,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	queryOptions := queueDeleteOptionsFromQuery(c)
-	options := types.RadarrQueueDeleteOptions{
-		RemoveFromClient: queryOptions.RemoveFromClient,
-		Blocklist:        queryOptions.Blocklist,
-		SkipRedownload:   queryOptions.SkipRedownload,
-		ChangeCategory:   queryOptions.ChangeCategory,
-	}
+	options := queueDeleteOptionsFromQuery(c)
 
 	ctx := c.Request.Context()
 
@@ -60,15 +53,11 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }
 
-func (h *RadarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options types.RadarrQueueDeleteOptions) error {
+func (h *RadarrHandler) deleteQueueItem(ctx context.Context, instanceId, queueId string, options arr.QueueDeleteOptions) error {
 	radarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "radarr")
 	if err != nil {
 		return err
 	}
 
-	// Create Radarr service instance
-	service := &radarr.RadarrService{}
-
-	// Call the service method to delete the queue item
-	return service.DeleteQueueItem(ctx, radarrConfig.URL, radarrConfig.APIKey, queueId, options)
+	return arr.Radarr.DeleteQueueItem(ctx, radarrConfig.URL, radarrConfig.APIKey, queueId, options)
 }

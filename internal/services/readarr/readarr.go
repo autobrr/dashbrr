@@ -11,7 +11,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type ReadarrService struct {
@@ -36,35 +35,6 @@ func NewReadarrService() models.ServiceHealthChecker {
 func (s *ReadarrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/api/v1/health", baseURL)
-}
-
-func (s *ReadarrService) DeleteQueueItem(
-	ctx context.Context,
-	baseURL, apiKey, queueID string,
-	options types.ReadarrQueueDeleteOptions,
-) error {
-	return arr.DeleteQueueItemWithVersion(ctx, "readarr", "v1", baseURL, apiKey, queueID, arr.QueueDeleteOptions{
-		RemoveFromClient: options.RemoveFromClient,
-		Blocklist:        options.Blocklist,
-		SkipRedownload:   options.SkipRedownload,
-		ChangeCategory:   options.ChangeCategory,
-	}, s.ReadBody)
-}
-
-func (s *ReadarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.ReadarrQueueItem, error) {
-	return arr.FetchQueueRecordsWithVersion[types.ReadarrQueueItem](
-		ctx,
-		"readarr",
-		"v1",
-		url,
-		apiKey,
-		"page=1&pageSize=10&includeUnknownAuthorItems=false&includeAuthor=true&includeBook=true",
-		s.ReadBody,
-	)
-}
-
-func (s *ReadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.ReadarrQueueItem, error) {
-	return s.getQueueRecords(ctx, url, apiKey)
 }
 
 func (s *ReadarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {

@@ -10,9 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
-	"github.com/autobrr/dashbrr/internal/services/whisparr"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type WhisparrHandler struct {
@@ -36,13 +35,7 @@ func (h *WhisparrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	queryOptions := queueDeleteOptionsFromQuery(c)
-	options := types.WhisparrQueueDeleteOptions{
-		RemoveFromClient: queryOptions.RemoveFromClient,
-		Blocklist:        queryOptions.Blocklist,
-		SkipRedownload:   queryOptions.SkipRedownload,
-		ChangeCategory:   queryOptions.ChangeCategory,
-	}
+	options := queueDeleteOptionsFromQuery(c)
 
 	ctx := c.Request.Context()
 	err := resilience.RetryWithBackoff(ctx, func() error {
@@ -60,13 +53,12 @@ func (h *WhisparrHandler) DeleteQueueItem(c *gin.Context) {
 func (h *WhisparrHandler) deleteQueueItem(
 	ctx context.Context,
 	instanceID, queueID string,
-	options types.WhisparrQueueDeleteOptions,
+	options arr.QueueDeleteOptions,
 ) error {
 	whisparrConfig, err := requireServiceConfig(ctx, h.db, instanceID, "whisparr")
 	if err != nil {
 		return err
 	}
 
-	service := &whisparr.WhisparrService{}
-	return service.DeleteQueueItem(ctx, whisparrConfig.URL, whisparrConfig.APIKey, queueID, options)
+	return arr.Whisparr.DeleteQueueItem(ctx, whisparrConfig.URL, whisparrConfig.APIKey, queueID, options)
 }

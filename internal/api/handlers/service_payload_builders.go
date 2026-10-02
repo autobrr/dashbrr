@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -263,65 +264,14 @@ func countUptimeKumaStates(monitors []types.UptimeKumaMonitor) (total, up, down,
 	return total, up, down, pending, maintenance
 }
 
-func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQueueResponse) models.ServiceHealth {
+func buildArrQueueServiceUpdate(app arr.App, instanceID string, page arr.QueuePage) models.ServiceHealth {
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
-		Message:   "radarr_queue",
+		Message:   app.Name + "_queue",
 		Stats: map[string]any{
-			"radarr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-	}
-}
-
-func buildLidarrQueueServiceUpdate(instanceID string, queueResp *types.LidarrQueueResponse) models.ServiceHealth {
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "lidarr_queue",
-		Stats: map[string]any{
-			"lidarr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-	}
-}
-
-func buildReadarrQueueServiceUpdate(instanceID string, queueResp *types.ReadarrQueueResponse) models.ServiceHealth {
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "readarr_queue",
-		Stats: map[string]any{
-			"readarr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-	}
-}
-
-func buildWhisparrQueueServiceUpdate(instanceID string, queueResp *types.WhisparrQueueResponse) models.ServiceHealth {
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "whisparr_queue",
-		Stats: map[string]any{
-			"whisparr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-	}
-}
-func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQueueResponse) models.ServiceHealth {
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "sonarr_queue",
-		Stats: map[string]any{
-			"sonarr": map[string]any{
-				"queue": queueResp,
+			app.Name: map[string]any{
+				"queue": page,
 			},
 		},
 	}

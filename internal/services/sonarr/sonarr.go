@@ -11,7 +11,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type SonarrService struct {
@@ -36,36 +35,6 @@ func NewSonarrService() models.ServiceHealthChecker {
 func (s *SonarrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/api/v3/health", baseURL)
-}
-
-// DeleteQueueItem deletes a queue item with the specified options
-func (s *SonarrService) DeleteQueueItem(ctx context.Context, baseURL, apiKey string, queueId string, options types.SonarrQueueDeleteOptions) error {
-	return arr.DeleteQueueItem(ctx, "sonarr", baseURL, apiKey, queueId, arr.QueueDeleteOptions{
-		RemoveFromClient: options.RemoveFromClient,
-		Blocklist:        options.Blocklist,
-		SkipRedownload:   options.SkipRedownload,
-		ChangeCategory:   options.ChangeCategory,
-	}, s.ReadBody)
-}
-
-func (s *SonarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
-	records, err := arr.FetchQueueRecords[types.QueueRecord](
-		ctx,
-		"sonarr",
-		url,
-		apiKey,
-		"page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
-		s.ReadBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return records, nil
-}
-
-// GetQueueForHealth is a wrapper around GetQueue that returns []types.QueueRecord
-func (s *SonarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.QueueRecord, error) {
-	return s.getQueueRecords(ctx, url, apiKey)
 }
 
 // GetSystemStatus fetches the system status from Sonarr

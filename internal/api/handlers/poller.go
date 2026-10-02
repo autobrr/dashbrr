@@ -17,24 +17,20 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/bazarr"
 	"github.com/autobrr/dashbrr/internal/services/jellyfin"
-	"github.com/autobrr/dashbrr/internal/services/lidarr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/nzbget"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
 	"github.com/autobrr/dashbrr/internal/services/prowlarr"
 	"github.com/autobrr/dashbrr/internal/services/qui"
-	"github.com/autobrr/dashbrr/internal/services/radarr"
-	"github.com/autobrr/dashbrr/internal/services/readarr"
 	"github.com/autobrr/dashbrr/internal/services/sabnzbd"
-	"github.com/autobrr/dashbrr/internal/services/sonarr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/services/traefik"
 	"github.com/autobrr/dashbrr/internal/services/uptimekuma"
-	"github.com/autobrr/dashbrr/internal/services/whisparr"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -123,19 +119,19 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 			{name: "overseerr_requests", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runOverseerrRequests},
 		},
 		"radarr": {
-			{name: "radarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runRadarrQueue},
+			{name: "radarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: arrQueueJob(arr.Radarr)},
 		},
 		"lidarr": {
-			{name: "lidarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runLidarrQueue},
+			{name: "lidarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: arrQueueJob(arr.Lidarr)},
 		},
 		"readarr": {
-			{name: "readarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runReadarrQueue},
+			{name: "readarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: arrQueueJob(arr.Readarr)},
 		},
 		"sonarr": {
-			{name: "sonarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runSonarrQueue},
+			{name: "sonarr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: arrQueueJob(arr.Sonarr)},
 		},
 		"whisparr": {
-			{name: "whisparr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runWhisparrQueue},
+			{name: "whisparr_queue", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: arrQueueJob(arr.Whisparr)},
 		},
 		"prowlarr": {
 			{name: "prowlarr_stats", interval: 120 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runProwlarrStats},
@@ -676,98 +672,17 @@ func (p *Poller) runOverseerrRequests(ctx context.Context, svc models.ServiceCon
 	return nil
 }
 
-func (p *Poller) runRadarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
-	service := &radarr.RadarrService{}
-	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
-	if err != nil {
-		return err
-	}
-	if records == nil {
-		records = []types.RadarrQueueRecord{}
-	}
+// arrQueueJob returns the queue job of one *arr app.
+func arrQueueJob(app arr.App) jobRunner {
+	return func(p *Poller, ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+		page, err := app.FetchQueue(ctx, svc.URL, svc.APIKey)
+		if err != nil {
+			return err
+		}
 
-	resp := &types.RadarrQueueResponse{
-		Records:      records,
-		TotalRecords: len(records),
+		publishInternalServiceUpdate(p.bc, buildArrQueueServiceUpdate(app, svc.InstanceID, page))
+		return nil
 	}
-
-	publishInternalServiceUpdate(p.bc, buildRadarrQueueServiceUpdate(svc.InstanceID, resp))
-	return nil
-}
-
-func (p *Poller) runLidarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
-	service := &lidarr.LidarrService{}
-	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
-	if err != nil {
-		return err
-	}
-	if records == nil {
-		records = []types.LidarrQueueItem{}
-	}
-
-	resp := &types.LidarrQueueResponse{
-		Records:      records,
-		TotalRecords: len(records),
-	}
-
-	publishInternalServiceUpdate(p.bc, buildLidarrQueueServiceUpdate(svc.InstanceID, resp))
-	return nil
-}
-
-func (p *Poller) runReadarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
-	service := &readarr.ReadarrService{}
-	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
-	if err != nil {
-		return err
-	}
-	if records == nil {
-		records = []types.ReadarrQueueItem{}
-	}
-
-	resp := &types.ReadarrQueueResponse{
-		Records:      records,
-		TotalRecords: len(records),
-	}
-
-	publishInternalServiceUpdate(p.bc, buildReadarrQueueServiceUpdate(svc.InstanceID, resp))
-	return nil
-}
-
-func (p *Poller) runWhisparrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
-	service := &whisparr.WhisparrService{}
-	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
-	if err != nil {
-		return err
-	}
-	if records == nil {
-		records = []types.WhisparrQueueItem{}
-	}
-
-	resp := &types.WhisparrQueueResponse{
-		Records:      records,
-		TotalRecords: len(records),
-	}
-
-	publishInternalServiceUpdate(p.bc, buildWhisparrQueueServiceUpdate(svc.InstanceID, resp))
-	return nil
-}
-func (p *Poller) runSonarrQueue(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
-	service := &sonarr.SonarrService{}
-	records, err := service.GetQueueForHealth(ctx, svc.URL, svc.APIKey)
-	if err != nil {
-		return err
-	}
-	if records == nil {
-		records = []types.QueueRecord{}
-	}
-
-	resp := &types.SonarrQueueResponse{
-		Records:      records,
-		TotalRecords: len(records),
-	}
-
-	publishInternalServiceUpdate(p.bc, buildSonarrQueueServiceUpdate(svc.InstanceID, resp))
-	return nil
 }
 
 func (p *Poller) runProwlarrStats(ctx context.Context, svc models.ServiceConfiguration, _ string) error {

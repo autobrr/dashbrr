@@ -4,8 +4,14 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/arr"
+	"github.com/autobrr/dashbrr/internal/sse"
 )
 
 func TestNewPoller_AutobrrJobsAreSplit(t *testing.T) {
@@ -74,33 +80,50 @@ func TestNewPoller_TraefikJobsAreSummaryOnly(t *testing.T) {
 	}
 }
 
-func TestNewPoller_LidarrJobsAreQueueOnly(t *testing.T) {
+func TestArrQueueJobs_PublishQueuePage(t *testing.T) {
 	t.Parallel()
 
-	poller := NewPoller(nil, nil)
-	jobs := poller.jobs["lidarr"]
+	for _, app := range arr.Apps {
+		t.Run(app.Name, func(t *testing.T) {
+			t.Parallel()
 
-	if len(jobs) != 1 {
-		t.Fatalf("lidarr job count = %d, want 1", len(jobs))
-	}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/"+app.APIVersion+"/queue" {
+					t.Errorf("path = %q", r.URL.Path)
+				}
+				_, _ = w.Write([]byte(`{"totalRecords":37,"records":[{"id":1,"title":"one"}]}`))
+			}))
+			t.Cleanup(srv.Close)
 
-	if jobs[0].name != "lidarr_queue" {
-		t.Fatalf("lidarr job[0] = %q, want %q", jobs[0].name, "lidarr_queue")
-	}
-}
+			bc := NewBroadcaster(sse.NewHub())
+			p := NewPoller(nil, bc)
+			jobs := p.jobs[app.Name]
+			if len(jobs) != 1 || jobs[0].name != app.Name+"_queue" {
+				t.Fatalf("jobs = %+v, want one %s_queue job", jobs, app.Name)
+			}
 
-func TestNewPoller_ReadarrJobsAreQueueOnly(t *testing.T) {
-	t.Parallel()
+			instanceID := app.Name + "-1"
+			svc := models.ServiceConfiguration{InstanceID: instanceID, URL: srv.URL, APIKey: "key"}
+			if err := jobs[0].run(p, t.Context(), svc, ""); err != nil {
+				t.Fatalf("run: %v", err)
+			}
 
-	poller := NewPoller(nil, nil)
-	jobs := poller.jobs["readarr"]
-
-	if len(jobs) != 1 {
-		t.Fatalf("readarr job count = %d, want 1", len(jobs))
-	}
-
-	if jobs[0].name != "readarr_queue" {
-		t.Fatalf("readarr job[0] = %q, want %q", jobs[0].name, "readarr_queue")
+			health := bc.latest[instanceID]
+			if health.Message != app.Name+"_queue" {
+				t.Fatalf("Message = %q, want %s_queue", health.Message, app.Name)
+			}
+			stats, ok := health.Stats[app.Name].(map[string]any)
+			if !ok {
+				t.Fatalf("Stats[%q] missing: %+v", app.Name, health.Stats)
+			}
+			page, ok := stats["queue"].(arr.QueuePage)
+			if !ok {
+				t.Fatalf("queue = %T, want arr.QueuePage", stats["queue"])
+			}
+			if page.TotalRecords != 37 || len(page.Records) != 1 {
+				t.Fatalf("queue = %+v, want totalRecords 37 with 1 record", page)
+			}
+		})
 	}
 }
 
