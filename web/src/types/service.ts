@@ -412,178 +412,30 @@ export interface OverseerrStats {
   updateAvailable?: boolean;
 }
 
-// Sonarr Types
-export interface SonarrStatusMessage {
-  title: string;
-  messages: string[];
-}
-
-export interface SonarrQueueItem {
+// *arr queue types (Sonarr, Radarr, Lidarr, Readarr, Whisparr)
+export interface ArrQueueItem {
   id: number;
   title: string;
   status: string;
-  protocol: string; // "usenet" or "torrent"
-  indexer?: string;
-  customFormatScore: number;
-  downloadClient: string;
-  timeLeft?: string;
-  trackedDownloadState?: string;
-  trackedDownloadStatus?: string;
-  errorMessage?: string;
-  statusMessages?: SonarrStatusMessage[];
   size: number;
-  episodes: { id: number; episodeNumber: number; seasonNumber: number }[];
-}
-
-export interface SonarrQueue {
-  totalRecords: number;
-  records: SonarrQueueItem[];
-  stats?: SonarrStats;
-  version?: string;
-}
-
-export interface SonarrStats {
-  episodeCount: number;
-  episodeFileCount: number;
-  monitored: number;
-  unmonitored: number;
-  queuedCount: number;
-  missingCount: number;
-}
-
-// Radarr Types
-export interface RadarrMovie {
-  title: string;
-  originalTitle: string;
-  year: number;
-  folderPath: string;
-  customFormats: RadarrCustomFormat[];
-}
-
-export interface RadarrCustomFormat {
-  id: number;
-  name: string;
-}
-
-export interface RadarrStatusMessage {
-  title: string;
-  messages: string[];
-}
-
-export interface RadarrQueueItem {
-  id: number;
-  title: string;
-  status: string;
+  sizeleft: number;
+  timeleft: string;
+  estimatedCompletionTime: string;
   protocol: string; // "usenet" or "torrent"
-  indexer?: string;
-  customFormatScore: number;
+  indexer: string;
   downloadClient: string;
-  timeLeft?: string;
-  trackedDownloadState?: string;
-  trackedDownloadStatus?: string;
-  errorMessage?: string;
-  movie: RadarrMovie;
-  movieId: number;
-  statusMessages?: RadarrStatusMessage[];
-  size: number;
-}
-export interface RadarrQueue {
-  totalRecords: number;
-  records: RadarrQueueItem[];
-}
-
-// Whisparr Types (V2 is a Sonarr fork, so records share the Sonarr shape)
-export interface WhisparrStatusMessage {
-  title: string;
-  messages: string[];
-}
-
-// Whisparr models releases as scenes: no episodeNumber, and seasonNumber
-// carries the release year. The API returns one episode object per queue
-// item, not an array.
-export interface WhisparrEpisode {
-  id: number;
-  seriesId?: number;
-  title?: string;
-  seasonNumber?: number;
-  releaseDate?: string;
-  hasFile?: boolean;
-}
-
-export interface WhisparrQueueItem {
-  id: number;
-  title: string;
-  status: string;
-  protocol: string; // "usenet" or "torrent"
-  indexer?: string;
   customFormatScore: number;
-  downloadClient: string;
-  timeLeft?: string;
-  trackedDownloadState?: string;
-  trackedDownloadStatus?: string;
-  errorMessage?: string;
-  statusMessages?: WhisparrStatusMessage[];
-  size: number;
-  episodeId?: number;
-  episode?: WhisparrEpisode;
+  trackedDownloadStatus: string;
+  trackedDownloadState: string;
+  statusMessages: { title: string; messages: string[] }[] | null;
+  errorMessage: string;
+  downloadId: string;
 }
 
-export interface WhisparrQueue {
+// totalRecords counts the full queue; records holds the first page only.
+export interface ArrQueue {
   totalRecords: number;
-  records: WhisparrQueueItem[];
-}
-// Lidarr Types
-export interface LidarrStatusMessage {
-  title: string;
-  messages: string[];
-}
-
-export interface LidarrQueueItem {
-  id: number;
-  title: string;
-  status: string;
-  protocol: string; // "usenet" or "torrent"
-  indexer?: string;
-  customFormatScore: number;
-  downloadClient: string;
-  timeLeft?: string;
-  trackedDownloadState?: string;
-  trackedDownloadStatus?: string;
-  errorMessage?: string;
-  statusMessages?: LidarrStatusMessage[];
-  size: number;
-}
-
-export interface LidarrQueue {
-  totalRecords: number;
-  records: LidarrQueueItem[];
-}
-
-// Readarr Types
-export interface ReadarrStatusMessage {
-  title: string;
-  messages: string[];
-}
-
-export interface ReadarrQueueItem {
-  id: number;
-  title: string;
-  status: string;
-  protocol: string; // "usenet" or "torrent"
-  indexer?: string;
-  customFormatScore: number;
-  downloadClient: string;
-  timeLeft?: string;
-  trackedDownloadState?: string;
-  trackedDownloadStatus?: string;
-  errorMessage?: string;
-  statusMessages?: ReadarrStatusMessage[];
-  size: number;
-}
-
-export interface ReadarrQueue {
-  totalRecords: number;
-  records: ReadarrQueueItem[];
+  records: ArrQueueItem[];
 }
 
 // Bazarr Types
@@ -914,21 +766,19 @@ export interface ServiceStats {
   };
   overseerr?: OverseerrStats;
   sonarr?: {
-    queue: SonarrQueue;
-    stats?: SonarrStats;
-    version?: string;
+    queue: ArrQueue;
   };
   radarr?: {
-    queue: RadarrQueue;
+    queue: ArrQueue;
   };
   whisparr?: {
-    queue: WhisparrQueue;
+    queue: ArrQueue;
   };
   lidarr?: {
-    queue: LidarrQueue;
+    queue: ArrQueue;
   };
   readarr?: {
-    queue: ReadarrQueue;
+    queue: ArrQueue;
   };
   bazarr?: {
     summary: BazarrSummary;
@@ -993,40 +843,6 @@ export interface ServiceDetails {
     lastRequestDate?: Date;
     totalRequests?: number;
     pendingCount?: number;
-  };
-  sonarr?: {
-    queueCount: number;
-    monitored: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    episodeCount?: number;
-    totalSize?: number;
-    version?: string;
-  };
-  radarr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    totalSize?: number;
-  };
-  whisparr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    episodeCount?: number;
-    totalSize?: number;
-  };
-  lidarr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    totalSize?: number;
-  };
-  readarr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    totalSize?: number;
   };
   bazarr?: {
     episodeBacklog: number;

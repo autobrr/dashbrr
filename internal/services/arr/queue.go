@@ -5,11 +5,77 @@ package arr
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
+
+// App describes one *arr app. The name and the API version are the only
+// values that differ between *arr apps.
+type App struct {
+	Name       string // service type, for example "sonarr"
+	APIVersion string // path segment, for example "v3"
+}
+
+var (
+	Sonarr   = App{Name: "sonarr", APIVersion: "v3"}
+	Radarr   = App{Name: "radarr", APIVersion: "v3"}
+	Lidarr   = App{Name: "lidarr", APIVersion: "v1"}
+	Readarr  = App{Name: "readarr", APIVersion: "v1"}
+	Whisparr = App{Name: "whisparr", APIVersion: "v3"}
+)
+
+// Apps holds one App for each *arr app.
+var Apps = []App{Sonarr, Radarr, Lidarr, Readarr, Whisparr}
+
+// AppFor returns the descriptor row for a service type. It returns false
+// when the service type is not an *arr app.
+func AppFor(serviceType string) (App, bool) {
+	i := slices.IndexFunc(Apps, func(app App) bool { return app.Name == serviceType })
+	if i < 0 {
+		return App{}, false
+	}
+	return Apps[i], true
+}
+
+// QueuePage is the first page of the download queue of an *arr app.
+// TotalRecords counts the full queue, not only the items in Records.
+type QueuePage struct {
+	TotalRecords int         `json:"totalRecords"`
+	Records      []QueueItem `json:"records"`
+}
+
+// QueueItem holds the fields that all *arr apps send with the same name.
+type QueueItem struct {
+	ID                      int             `json:"id"`
+	Title                   string          `json:"title"`
+	Status                  string          `json:"status"`
+	Size                    int64           `json:"size"`
+	SizeLeft                int64           `json:"sizeleft"`
+	TimeLeft                string          `json:"timeleft"`
+	EstimatedCompletionTime string          `json:"estimatedCompletionTime"`
+	Protocol                string          `json:"protocol"`
+	Indexer                 string          `json:"indexer"`
+	DownloadClient          string          `json:"downloadClient"`
+	CustomFormatScore       int             `json:"customFormatScore"`
+	TrackedDownloadStatus   string          `json:"trackedDownloadStatus"`
+	TrackedDownloadState    string          `json:"trackedDownloadState"`
+	StatusMessages          []StatusMessage `json:"statusMessages"`
+	ErrorMessage            string          `json:"errorMessage"`
+	DownloadID              string          `json:"downloadId"`
+}
+
+type StatusMessage struct {
+	Title    string   `json:"title"`
+	Messages []string `json:"messages"`
+}
 
 type QueueDeleteOptions struct {
 	RemoveFromClient bool
@@ -18,122 +84,108 @@ type QueueDeleteOptions struct {
 	ChangeCategory   bool
 }
 
-func BuildQueueDeleteURLWithVersion(baseURL, apiVersion, queueID string, opts QueueDeleteOptions) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	if apiVersion == "" {
-		apiVersion = "v3"
-	}
-
-	deleteURL := fmt.Sprintf("%s/api/%s/queue/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
-		baseURL,
-		apiVersion,
-		queueID,
-		opts.RemoveFromClient,
-		opts.Blocklist,
-		opts.SkipRedownload,
-	)
-
-	if opts.ChangeCategory {
-		deleteURL += "&changeCategory=true"
-	}
-
-	return deleteURL
+func (a App) queueURL(baseURL string) string {
+	return fmt.Sprintf("%s/api/%s/queue", strings.TrimRight(baseURL, "/"), a.APIVersion)
 }
 
-func BuildQueueDeleteURL(baseURL, queueID string, opts QueueDeleteOptions) string {
-	return BuildQueueDeleteURLWithVersion(baseURL, "v3", queueID, opts)
-}
-
-func BuildQueueURLWithVersion(baseURL, apiVersion, rawQuery string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	if apiVersion == "" {
-		apiVersion = "v3"
-	}
-
-	queueURL := fmt.Sprintf("%s/api/%s/queue", baseURL, apiVersion)
-	query := strings.TrimLeft(rawQuery, "?")
-	if query != "" {
-		queueURL += "?" + query
-	}
-	return queueURL
-}
-
-func BuildQueueURL(baseURL, rawQuery string) string {
-	return BuildQueueURLWithVersion(baseURL, "v3", rawQuery)
-}
-
-func FetchQueueBodyWithVersion(
-	ctx context.Context,
-	service, apiVersion, baseURL, apiKey, rawQuery string,
-	readBody func(*http.Response) ([]byte, error),
-) ([]byte, error) {
+func (a App) requireConfig(op, baseURL, apiKey string) error {
 	if baseURL == "" {
-		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("URL is required")}
+		return &ErrArr{Service: a.Name, Op: op, Err: errors.New("URL is required")}
 	}
-
 	if apiKey == "" {
-		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("API key is required")}
+		return &ErrArr{Service: a.Name, Op: op, Err: errors.New("API key is required")}
+	}
+	return nil
+}
+
+// FetchQueue returns the first page of the download queue.
+func (a App) FetchQueue(ctx context.Context, baseURL, apiKey string) (QueuePage, error) {
+	if err := a.requireConfig("get_queue", baseURL, apiKey); err != nil {
+		return QueuePage{}, err
 	}
 
-	if readBody == nil {
-		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("readBody function is required")}
-	}
-
-	queueURL := BuildQueueURLWithVersion(baseURL, apiVersion, rawQuery)
-	resp, err := MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
+	resp, err := MakeArrRequest(ctx, http.MethodGet, a.queueURL(baseURL)+"?page=1&pageSize=10", apiKey, nil)
 	if err != nil {
-		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
+		return QueuePage{}, &ErrArr{Service: a.Name, Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &ErrArr{Service: service, Op: "get_queue", HttpCode: resp.StatusCode}
+		return QueuePage{}, &ErrArr{Service: a.Name, Op: "get_queue", HttpCode: resp.StatusCode}
 	}
 
-	body, err := readBody(resp)
+	var page QueuePage
+	if err := json.UnmarshalRead(resp.Body, &page); err != nil {
+		return QueuePage{}, &ErrArr{Service: a.Name, Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
+	}
+	if page.Records == nil {
+		page.Records = []QueueItem{}
+	}
+
+	return page, nil
+}
+
+// DeleteQueueItem removes one queue item. For a download that holds several
+// queue items, the *arr app removes the whole download.
+func (a App) DeleteQueueItem(ctx context.Context, baseURL, apiKey, queueID string, opts QueueDeleteOptions) error {
+	if err := a.requireConfig("delete_queue", baseURL, apiKey); err != nil {
+		return err
+	}
+
+	deleteURL := fmt.Sprintf("%s/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
+		a.queueURL(baseURL),
+		url.PathEscape(queueID),
+		opts.RemoveFromClient,
+		opts.Blocklist,
+		opts.SkipRedownload,
+	)
+	if opts.ChangeCategory {
+		deleteURL += "&changeCategory=true"
+	}
+
+	log.Info().
+		Str("service", a.Name).
+		Str("url", deleteURL).
+		Str("queueId", queueID).
+		Bool("removeFromClient", opts.RemoveFromClient).
+		Bool("blocklist", opts.Blocklist).
+		Bool("skipRedownload", opts.SkipRedownload).
+		Bool("changeCategory", opts.ChangeCategory).
+		Msg("Attempting to delete queue item")
+
+	resp, err := MakeArrRequest(ctx, http.MethodDelete, deleteURL, apiKey, nil)
 	if err != nil {
-		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("failed to read response: %w", err)}
+		log.Error().
+			Err(err).
+			Str("service", a.Name).
+			Str("url", deleteURL).
+			Str("queueId", queueID).
+			Msg("Failed to execute delete request")
+		return &ErrArr{Service: a.Name, Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+
+		log.Error().
+			Str("service", a.Name).
+			Int("statusCode", resp.StatusCode).
+			Str("url", deleteURL).
+			Str("queueId", queueID).
+			Str("response", string(body)).
+			Msg("Delete request failed")
+
+		if msg := ExtractMessageField(body); msg != "" {
+			return &ErrArr{Service: a.Name, Op: "delete_queue", Err: errors.New(msg), HttpCode: resp.StatusCode}
+		}
+		return &ErrArr{Service: a.Name, Op: "delete_queue", HttpCode: resp.StatusCode}
 	}
 
-	return body, nil
-}
+	log.Info().
+		Str("service", a.Name).
+		Str("queueId", queueID).
+		Msg("Successfully deleted queue item")
 
-func FetchQueueBody(
-	ctx context.Context,
-	service, baseURL, apiKey, rawQuery string,
-	readBody func(*http.Response) ([]byte, error),
-) ([]byte, error) {
-	return FetchQueueBodyWithVersion(ctx, service, "v3", baseURL, apiKey, rawQuery, readBody)
-}
-
-func FetchQueueRecordsWithVersion[T any](
-	ctx context.Context,
-	service, apiVersion, baseURL, apiKey, rawQuery string,
-	readBody func(*http.Response) ([]byte, error),
-) ([]T, error) {
-	body, err := FetchQueueBodyWithVersion(ctx, service, apiVersion, baseURL, apiKey, rawQuery, readBody)
-	if err != nil {
-		return nil, err
-	}
-
-	var payload struct {
-		Records []T `json:"records"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, &ErrArr{Service: service, Op: "get_queue", Err: fmt.Errorf("failed to parse response: %w", err)}
-	}
-
-	if payload.Records == nil {
-		return []T{}, nil
-	}
-
-	return payload.Records, nil
-}
-
-func FetchQueueRecords[T any](
-	ctx context.Context,
-	service, baseURL, apiKey, rawQuery string,
-	readBody func(*http.Response) ([]byte, error),
-) ([]T, error) {
-	return FetchQueueRecordsWithVersion[T](ctx, service, "v3", baseURL, apiKey, rawQuery, readBody)
+	return nil
 }

@@ -13,7 +13,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import { useServiceData } from "../../../hooks/useServiceData";
-import { ServiceStats, ServiceStatus } from "../../../types/service";
+import { ArrQueue, ArrQueueItem, ServiceStats, ServiceStatus } from "../../../types/service";
 import { api } from "../../../utils/api";
 import Toast from "../../../components/Toast";
 import AnimatedModal from "../../ui/AnimatedModal";
@@ -24,20 +24,11 @@ import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import {
   ArrQueueDeleteOptions,
   buildArrQueueDeleteQueryParams,
+  canRemoveQueueItem,
   getBlocklistText,
-  getRemovalMethodText
+  getRemovalMethodText,
+  QUEUE_REMOVE_DISABLED_REASON
 } from "./ArrQueueDelete";
-
-export type ArrQueueRecord = {
-  id: number;
-  title: string;
-  protocol: string;
-  indexer?: string;
-  customFormatScore: number;
-  downloadClient: string;
-  trackedDownloadState?: string;
-  statusMessages?: { title: string; messages: string[] }[];
-};
 
 type SelectOption<T extends string> = {
   value: T;
@@ -111,29 +102,15 @@ type Props = {
   instanceId: string;
   // stable labels for copy/links/api
   serviceName: "Sonarr" | "Whisparr" | "Radarr" | "Lidarr" | "Readarr";
-  queuePath:
-    | "/api/sonarr/queue"
-    | "/api/whisparr/queue"
-    | "/api/radarr/queue"
-    | "/api/lidarr/queue"
-    | "/api/readarr/queue";
   // service.stats[serviceKey].queue
-  getQueue: (
-    stats: ServiceStats
-  ) => { totalRecords: number; records: ArrQueueRecord[] } | undefined;
-  // allow Radarr importPending as well
-  canManageRecord: (record: ArrQueueRecord) => boolean;
-  getManageDisabledReason: (record: ArrQueueRecord) => string;
+  getQueue: (stats: ServiceStats) => ArrQueue | undefined;
   renderMessage: (props: { status: ServiceStatus; message?: string }) => React.ReactNode;
 };
 
 export const ArrQueueStatsBase: React.FC<Props> = ({
   instanceId,
   serviceName,
-  queuePath,
   getQueue,
-  canManageRecord,
-  getManageDisabledReason,
   renderMessage,
 }) => {
   const { getService } = useServiceData();
@@ -146,7 +123,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   const isLoading = service?.status === "loading";
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<ArrQueueRecord | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ArrQueueItem | null>(null);
   const [deleteOptions, setDeleteOptions] = useState<ArrQueueDeleteOptions>({
     removeFromClient: "change",
     blocklist: "none",
@@ -183,7 +160,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
     try {
       const queryParams = buildArrQueueDeleteQueryParams(instanceId, deleteOptions);
 
-      await api.delete(`${queuePath}/${selectedItem.id}?${queryParams.toString()}`);
+      await api.delete(`/api/arr/queue/${selectedItem.id}?${queryParams.toString()}`);
 
       setShowDeleteModal(false);
       setSelectedItem(null);
@@ -246,16 +223,16 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                         setSelectedItem(record);
                         setShowDeleteModal(true);
                       }}
-                      disabled={!canManageRecord(record)}
+                      disabled={!canRemoveQueueItem(record)}
                       className={`p-1.5 rounded-md transition-colors ${
-                        canManageRecord(record)
+                        canRemoveQueueItem(record)
                           ? "hover:bg-zinc-700 dark:hover:bg-zinc-700"
                           : "opacity-50 cursor-not-allowed"
                       }`}
                       title={
-                        canManageRecord(record)
+                        canRemoveQueueItem(record)
                           ? "Manage queue"
-                          : getManageDisabledReason(record)
+                          : QUEUE_REMOVE_DISABLED_REASON
                       }
                     >
                       <Cog6ToothIcon className="h-4 w-4 text-zinc-400" />

@@ -3,6 +3,19 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+import type { ArrQueueItem } from "../../../types/service";
+
+// Every *arr app uses the same rule. Readarr and Whisparr do not have the
+// importBlocked state, so for them only importPending matches.
+export const canRemoveQueueItem = (
+  item: Pick<ArrQueueItem, "trackedDownloadState">
+) =>
+  item.trackedDownloadState === "importBlocked" ||
+  item.trackedDownloadState === "importPending";
+
+export const QUEUE_REMOVE_DISABLED_REASON =
+  "Can only remove items that are import blocked or pending";
+
 export type ArrQueueDeleteOptions = {
   removeFromClient: "remove" | "change" | "ignore";
   blocklist: "none" | "blocklist" | "blocklistAndSearch";

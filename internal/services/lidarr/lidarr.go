@@ -11,7 +11,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type LidarrService struct {
@@ -36,43 +35,6 @@ func NewLidarrService() models.ServiceHealthChecker {
 func (s *LidarrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/api/v1/health", baseURL)
-}
-
-func (s *LidarrService) DeleteQueueItem(
-	ctx context.Context,
-	baseURL, apiKey, queueID string,
-	options types.LidarrQueueDeleteOptions,
-) error {
-	return arr.DeleteQueueItemWithVersion(ctx, "lidarr", "v1", baseURL, apiKey, queueID, arr.QueueDeleteOptions{
-		RemoveFromClient: options.RemoveFromClient,
-		Blocklist:        options.Blocklist,
-		SkipRedownload:   options.SkipRedownload,
-		ChangeCategory:   options.ChangeCategory,
-	}, s.ReadBody)
-}
-
-func (s *LidarrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.LidarrQueueItem, error) {
-	return arr.FetchQueueRecordsWithVersion[types.LidarrQueueItem](
-		ctx,
-		"lidarr",
-		"v1",
-		url,
-		apiKey,
-		"page=1&pageSize=10&includeUnknownArtistItems=false&includeArtist=true&includeAlbum=true",
-		s.ReadBody,
-	)
-}
-
-func (s *LidarrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
-	records, err := s.getQueueRecords(ctx, url, apiKey)
-	if err != nil {
-		return nil, err
-	}
-	return records, nil
-}
-
-func (s *LidarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.LidarrQueueItem, error) {
-	return s.getQueueRecords(ctx, url, apiKey)
 }
 
 func (s *LidarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {

@@ -10,7 +10,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/core"
-	"github.com/autobrr/dashbrr/internal/types"
 )
 
 //nolint:revive // named for consistency with every sibling *arr service (SonarrService, LidarrService, ...)
@@ -36,42 +35,6 @@ func NewWhisparrService() models.ServiceHealthChecker {
 func (s *WhisparrService) GetHealthEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return baseURL + "/api/v3/health"
-}
-
-func (s *WhisparrService) DeleteQueueItem(
-	ctx context.Context,
-	baseURL, apiKey, queueID string,
-	options types.WhisparrQueueDeleteOptions,
-) error {
-	return arr.DeleteQueueItem(ctx, "whisparr", baseURL, apiKey, queueID, arr.QueueDeleteOptions{
-		RemoveFromClient: options.RemoveFromClient,
-		Blocklist:        options.Blocklist,
-		SkipRedownload:   options.SkipRedownload,
-		ChangeCategory:   options.ChangeCategory,
-	}, s.ReadBody)
-}
-
-func (s *WhisparrService) getQueueRecords(ctx context.Context, url, apiKey string) ([]types.WhisparrQueueItem, error) {
-	return arr.FetchQueueRecords[types.WhisparrQueueItem](
-		ctx,
-		"whisparr",
-		url,
-		apiKey,
-		"page=1&pageSize=10&includeUnknownSeriesItems=false&includeSeries=true&includeEpisode=true",
-		s.ReadBody,
-	)
-}
-
-func (s *WhisparrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
-	records, err := s.getQueueRecords(ctx, url, apiKey)
-	if err != nil {
-		return nil, err
-	}
-	return records, nil
-}
-
-func (s *WhisparrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.WhisparrQueueItem, error) {
-	return s.getQueueRecords(ctx, url, apiKey)
 }
 
 func (s *WhisparrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {

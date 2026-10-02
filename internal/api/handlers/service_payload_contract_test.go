@@ -5,8 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/autobrr/dashbrr/internal/services/arr"
 )
 
 var canonicalServiceMessageKeys = []string{
@@ -14,11 +17,6 @@ var canonicalServiceMessageKeys = []string{
 	"jellyfin_summary",
 	"uptimekuma_summary",
 	"overseerr_requests",
-	"radarr_queue",
-	"lidarr_queue",
-	"readarr_queue",
-	"sonarr_queue",
-	"whisparr_queue",
 	"prowlarr_stats",
 	"prowlarr_indexers",
 	"traefik_summary",
@@ -33,9 +31,19 @@ var canonicalServiceMessageKeys = []string{
 	"qui_overview",
 }
 
+// arrQueueMessageKeys come from buildArrQueueServiceUpdate, one per *arr app.
+var arrQueueMessageKeys = []string{
+	"radarr_queue",
+	"lidarr_queue",
+	"readarr_queue",
+	"sonarr_queue",
+	"whisparr_queue",
+}
+
 func canonicalMessageAssignmentPattern() *regexp.Regexp {
+	keys := append(slices.Clone(canonicalServiceMessageKeys), arrQueueMessageKeys...)
 	return regexp.MustCompile(
-		fmt.Sprintf(`Message:\s+"(?:%s)"`, strings.Join(canonicalServiceMessageKeys, "|")),
+		fmt.Sprintf(`Message:\s+"(?:%s)"`, strings.Join(keys, "|")),
 	)
 }
 
@@ -87,5 +95,16 @@ func TestCanonicalServicePayloadMessagesDeclaredOnceInBuilder(t *testing.T) {
 		if len(matches) != 1 {
 			t.Fatalf("expected Message %q exactly once in %s, got %d", key, builderPath, len(matches))
 		}
+	}
+}
+
+func TestArrQueueMessagesComeFromBuilder(t *testing.T) {
+	got := make([]string, 0, len(arr.Apps))
+	for _, app := range arr.Apps {
+		got = append(got, buildArrQueueServiceUpdate(app, app.Name+"-1", arr.QueuePage{}).Message)
+	}
+
+	if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(arrQueueMessageKeys))) {
+		t.Fatalf("arr queue messages = %v, want %v", got, arrQueueMessageKeys)
 	}
 }

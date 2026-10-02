@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -263,117 +264,14 @@ func countUptimeKumaStates(monitors []types.UptimeKumaMonitor) (total, up, down,
 	return total, up, down, pending, maintenance
 }
 
-func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQueueResponse) models.ServiceHealth {
-	downloading, totalSize := summarizeRadarrQueue(queueResp.Records)
-
+func buildArrQueueServiceUpdate(app arr.App, instanceID string, page arr.QueuePage) models.ServiceHealth {
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
-		Message:   "radarr_queue",
+		Message:   app.Name + "_queue",
 		Stats: map[string]any{
-			"radarr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-		Details: map[string]any{
-			"radarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
-	}
-}
-
-func buildLidarrQueueServiceUpdate(instanceID string, queueResp *types.LidarrQueueResponse) models.ServiceHealth {
-	downloading, totalSize := summarizeLidarrQueue(queueResp.Records)
-
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "lidarr_queue",
-		Stats: map[string]any{
-			"lidarr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-		Details: map[string]any{
-			"lidarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
-	}
-}
-
-func buildReadarrQueueServiceUpdate(instanceID string, queueResp *types.ReadarrQueueResponse) models.ServiceHealth {
-	downloading, totalSize := summarizeReadarrQueue(queueResp.Records)
-
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "readarr_queue",
-		Stats: map[string]any{
-			"readarr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-		Details: map[string]any{
-			"readarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
-	}
-}
-
-func buildWhisparrQueueServiceUpdate(instanceID string, queueResp *types.WhisparrQueueResponse) models.ServiceHealth {
-	downloading, episodeCount, totalSize := summarizeWhisparrQueue(queueResp.Records)
-
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "whisparr_queue",
-		Stats: map[string]any{
-			"whisparr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-		Details: map[string]any{
-			"whisparr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"episodeCount":     episodeCount,
-				"totalSize":        totalSize,
-			},
-		},
-	}
-}
-func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQueueResponse) models.ServiceHealth {
-	downloading, episodeCount, totalSize := summarizeSonarrQueue(queueResp.Records)
-
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "sonarr_queue",
-		Stats: map[string]any{
-			"sonarr": map[string]any{
-				"queue": queueResp,
-			},
-		},
-		Details: map[string]any{
-			"sonarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"episodeCount":     episodeCount,
-				"totalSize":        totalSize,
+			app.Name: map[string]any{
+				"queue": page,
 			},
 		},
 	}
