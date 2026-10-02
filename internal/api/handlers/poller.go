@@ -180,9 +180,9 @@ func (p *Poller) Start(ctx context.Context) {
 //
 // ponytail: maybeRun skips a forced run while the same detail job is in flight, so
 // the running job can publish data from before the user action. The stale item stays
-// until the next scheduled run of that job: about one interval, plus up to 10% jitter
-// (about 66s for queues). If users report it, mark the job dirty and run it again when
-// the current run finishes.
+// until the next scheduled run of that job: one interval plus up to 5s of jitter
+// (about 65s for queues). If users report it, mark the job dirty and run it again
+// when the current run finishes.
 func (p *Poller) Refresh(instanceID string) {
 	select {
 	case p.refreshCh <- refreshReq{instanceID: instanceID}:
