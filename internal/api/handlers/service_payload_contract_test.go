@@ -18,7 +18,6 @@ var canonicalServiceMessageKeys = []string{
 	"lidarr_queue",
 	"readarr_queue",
 	"sonarr_queue",
-	"sonarr_stats",
 	"whisparr_queue",
 	"prowlarr_stats",
 	"prowlarr_indexers",

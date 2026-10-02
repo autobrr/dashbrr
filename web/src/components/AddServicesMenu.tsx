@@ -8,7 +8,6 @@ import { Fragment, useState, useEffect, useMemo } from "react";
 import { ServiceType } from "../types/service";
 import AnimatedModal from "./ui/AnimatedModal";
 import { FormInput } from "./ui/FormInput";
-import { api } from "../utils/api";
 import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
@@ -220,7 +219,6 @@ export function AddServicesMenu({
   const [url, setUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { configurations } = useConfiguration();
   const { isAuthenticating, authenticate } = usePlexPinAuth();
@@ -261,39 +259,13 @@ export function AddServicesMenu({
     }
   }, [showServiceConfig, pendingService]);
 
-  const validateTailscaleApiToken = async (token: string) => {
-    try {
-      const response = await api.get<{ status: string; error?: string }>(
-        `/api/tailscale/devices?apiKey=${token}`
-      );
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return true;
-    } catch (err) {
-      console.error("Validation error:", err);
-      if (err instanceof Error) {
-        throw err;
-      }
-      throw new Error("Failed to validate API token", { cause: err });
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
 
     try {
       if (isPlexService && apiKey.trim() === "") {
         throw new Error("Authenticate with Plex first");
-      }
-
-      // Special handling for Tailscale
-      if (pendingService?.type === "tailscale") {
-        await validateTailscaleApiToken(apiKey);
       }
 
       onConfirmService(
@@ -308,8 +280,6 @@ export function AddServicesMenu({
       toast.error(errorMessage);
       setError(errorMessage);
       console.error("Configuration error:", err);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -523,7 +493,7 @@ export function AddServicesMenu({
                       setError(message);
                     }
                   }}
-                  disabled={isSubmitting || isAuthenticating}
+                  disabled={isAuthenticating}
                 >
                   {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
                 </button>
@@ -545,16 +515,14 @@ export function AddServicesMenu({
               type="button"
               onClick={onCancelService}
               className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-600"
-              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              disabled={isSubmitting}
             >
-              {isSubmitting ? "Adding..." : "Add Service"}
+              Add Service
             </button>
           </div>
         </form>

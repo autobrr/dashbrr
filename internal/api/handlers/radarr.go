@@ -6,106 +6,22 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/radarr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const (
-	radarrQueuePrefix       = "radarr:queue:"
-	radarrStaleDataDuration = 5 * time.Minute
-)
-
 type RadarrHandler struct {
-	db              *database.DB
-	cache           cache.Store
-	bc              *Broadcaster
-	circuitBreaker  *resilience.CircuitBreaker
-	lastQueueHash   map[string]string
-	lastQueueHashMu sync.Mutex
+	db     *database.DB
+	poller *Poller
 }
 
-func NewRadarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *RadarrHandler {
-	return &RadarrHandler{
-		db:             db,
-		cache:          cache,
-		bc:             bc,
-		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute), // 5 failures within 1 minute will open the circuit
-		lastQueueHash:  make(map[string]string),
-	}
-}
-
-func (h *RadarrHandler) GetQueue(c *gin.Context) {
-	instanceId, ok := requireInstanceID(c, "radarr", "Radarr")
-	if !ok {
-		return
-	}
-
-	cacheKey := radarrQueuePrefix + instanceId
-	ctx := c.Request.Context()
-
-	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.RadarrQueueResponse]{
-		Store:          h.cache,
-		CircuitBreaker: h.circuitBreaker,
-		Key:            cacheKey,
-		FreshTTL:       middleware.CacheDurations.RadarrStatus,
-		StaleTTL:       radarrStaleDataDuration,
-		Fetch: func() (types.RadarrQueueResponse, error) {
-			return h.fetchQueue(ctx, instanceId)
-		},
-	})
-
-	if err != nil {
-		if handleArrFetchError(c, err, "Radarr", instanceId, "queue") {
-			return
-		}
-		return
-	}
-
-	compareAndLogArrQueueChanges(
-		h.lastQueueHash,
-		&h.lastQueueHashMu,
-		"Radarr",
-		instanceId,
-		result.TotalRecords,
-		wrapRadarrQueue(&result),
-	)
-
-	if result.Records != nil {
-		publishInternalServiceUpdate(h.bc, buildRadarrQueueServiceUpdate(instanceId, &result))
-	}
-
-	c.JSON(http.StatusOK, result)
-}
-
-func (h *RadarrHandler) fetchQueue(ctx context.Context, instanceId string) (types.RadarrQueueResponse, error) {
-	radarrConfig, err := requireServiceConfig(ctx, h.db, instanceId, "radarr")
-	if err != nil {
-		return types.RadarrQueueResponse{}, err
-	}
-
-	// Create Radarr service instance
-	service := &radarr.RadarrService{}
-
-	// Get queue records using the service
-	records, err := service.GetQueueForHealth(ctx, radarrConfig.URL, radarrConfig.APIKey)
-	if err != nil {
-		return types.RadarrQueueResponse{}, err
-	}
-
-	// Create response
-	return types.RadarrQueueResponse{
-		Records:      records,
-		TotalRecords: len(records),
-	}, nil
+func NewRadarrHandler(db *database.DB, poller *Poller) *RadarrHandler {
+	return &RadarrHandler{db: db, poller: poller}
 }
 
 // DeleteQueueItem handles the deletion of a queue item with specified options
@@ -139,23 +55,7 @@ func (h *RadarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	cacheKey := radarrQueuePrefix + instanceId
-	refreshQueueAfterDelete(
-		ctx,
-		h.cache,
-		h.circuitBreaker,
-		cacheKey,
-		middleware.CacheDurations.RadarrStatus,
-		radarrStaleDataDuration,
-		func() (types.RadarrQueueResponse, error) {
-			return h.fetchQueue(ctx, instanceId)
-		},
-		func(result *types.RadarrQueueResponse) {
-			publishInternalServiceUpdate(h.bc, buildRadarrQueueServiceUpdate(instanceId, result))
-		},
-		"Radarr",
-		instanceId,
-	)
+	h.poller.Refresh(instanceId)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }

@@ -110,13 +110,6 @@ func (s *Server) Handler() http.Handler {
 	healthRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "health:") // 30 health checks per minute
 	authRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "auth:")     // 30 auth requests per minute
 
-	// Special rate limiter for Tailscale services
-	tailscaleRateLimiter := middleware.NewRateLimiter(s.cache, 2*time.Minute, 20, "tailscale:") // 20 requests per 2 minutes
-
-	// Create cache middleware (now handles TTLs internally)
-	cacheMiddleware := middleware.NewCacheMiddleware(s.cache)
-
-	// Initialize handlers with cache
 	bc := handlers.NewBroadcaster(s.hub)
 	// Background polling will publish SSE updates.
 	if s.poller == nil {
@@ -130,24 +123,13 @@ func (s *Server) Handler() http.Handler {
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
 	healthHandler := handlers.NewHealthHandler(s.db)
 	eventsHandler := handlers.NewEventsHandler(s.hub, bc)
-	autobrrHandler := handlers.NewAutobrrHandler(s.db, s.cache, bc)
-	maintainerrHandler := handlers.NewMaintainerrHandler(s.db, s.cache, bc)
-	plexHandler := handlers.NewPlexHandler(s.db, s.cache, bc)
-	jellyfinHandler := handlers.NewJellyfinHandler(s.db, s.cache, bc)
-	uptimeKumaHandler := handlers.NewUptimeKumaHandler(s.db, s.cache, bc)
 	plexAuthHandler := handlers.NewPlexAuthHandler()
-	tailscaleHandler := handlers.NewTailscaleHandler(s.db, s.cache)
-	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.cache, bc)
-	sonarrHandler := handlers.NewSonarrHandler(s.db, s.cache, bc)
-	radarrHandler := handlers.NewRadarrHandler(s.db, s.cache, bc)
-	lidarrHandler := handlers.NewLidarrHandler(s.db, s.cache, bc)
-	readarrHandler := handlers.NewReadarrHandler(s.db, s.cache, bc)
-	whisparrHandler := handlers.NewWhisparrHandler(s.db, s.cache, bc)
-	prowlarrHandler := handlers.NewProwlarrHandler(s.db, s.cache, bc)
-	traefikHandler := handlers.NewTraefikHandler(s.db, s.cache, bc)
-	bazarrHandler := handlers.NewBazarrHandler(s.db, s.cache, bc)
-	sabnzbdHandler := handlers.NewSabnzbdHandler(s.db, s.cache, bc)
-	nzbgetHandler := handlers.NewNzbgetHandler(s.db, s.cache, bc)
+	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.poller)
+	sonarrHandler := handlers.NewSonarrHandler(s.db, s.poller)
+	radarrHandler := handlers.NewRadarrHandler(s.db, s.poller)
+	lidarrHandler := handlers.NewLidarrHandler(s.db, s.poller)
+	readarrHandler := handlers.NewReadarrHandler(s.db, s.poller)
+	whisparrHandler := handlers.NewWhisparrHandler(s.db, s.poller)
 	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
 	// Initialize auth handlers and middleware
@@ -259,125 +241,16 @@ func (s *Server) Handler() http.Handler {
 		// SSE events (preferred)
 		api.GET("/events", eventsHandler.Stream)
 
-		//serviceRoutes := api.Group("/services")
-		//serviceRoutes.Use(cacheMiddleware.Cache())
-		//{
-		//
-		//	serviceRoutes.POST("/", serviceHandler.Create)
-		//
-		//	autobrr := serviceRoutes.Group("/autobrr/:id")
-		//	autobrr.GET("/stats", autobrrHandler.GetAutobrrReleaseStats)
-		//	autobrr.GET("/irc", autobrrHandler.GetAutobrrIRCStatus)
-		//	autobrr.GET("/releases", autobrrHandler.GetAutobrrReleases)
-		//}
-
-		// Service endpoints with specific rate limits and caches
-		services := api.Group("")
+		// Service actions. Each action asks the poller for fresh data; SSE carries the result.
+		actions := api.Group("")
+		actions.Use(apiRateLimiter.RateLimit())
 		{
-			// Regular services with standard rate limit
-			regularServices := services.Group("")
-			regularServices.Use(apiRateLimiter.RateLimit())
-			regularServices.Use(cacheMiddleware.Cache())
-			{
-				regularServices.GET("/autobrr/stats", autobrrHandler.GetAutobrrReleaseStats)
-				regularServices.GET("/autobrr/irc", autobrrHandler.GetAutobrrIRCStatus)
-				regularServices.GET("/autobrr/releases", autobrrHandler.GetAutobrrReleases)
-				regularServices.GET("/plex/sessions", plexHandler.GetPlexSessions)
-				regularServices.GET("/jellyfin/summary", jellyfinHandler.GetSummary)
-				regularServices.GET("/uptimekuma/summary", uptimeKumaHandler.GetSummary)
-				regularServices.GET("/maintainerr/collections", maintainerrHandler.GetMaintainerrCollections)
-
-				// Overseerr endpoints
-				overseerr := regularServices.Group("/overseerr")
-				{
-					overseerr.GET("/requests", overseerrHandler.GetRequests)
-				}
-
-				// Sonarr endpoints
-				sonarr := regularServices.Group("/sonarr")
-				{
-					sonarr.GET("/queue", sonarrHandler.GetQueue)
-					sonarr.GET("/stats", sonarrHandler.GetStats)
-					sonarr.DELETE("/queue/:id", sonarrHandler.DeleteQueueItem)
-				}
-
-				// Radarr endpoints
-				radarr := regularServices.Group("/radarr")
-				{
-					radarr.GET("/queue", radarrHandler.GetQueue)
-					radarr.DELETE("/queue/:id", radarrHandler.DeleteQueueItem)
-				}
-
-				// Lidarr endpoints
-				lidarr := regularServices.Group("/lidarr")
-				{
-					lidarr.GET("/queue", lidarrHandler.GetQueue)
-					lidarr.DELETE("/queue/:id", lidarrHandler.DeleteQueueItem)
-				}
-
-				// Readarr endpoints
-				readarr := regularServices.Group("/readarr")
-				{
-					readarr.GET("/queue", readarrHandler.GetQueue)
-					readarr.DELETE("/queue/:id", readarrHandler.DeleteQueueItem)
-				}
-
-				// Whisparr endpoints
-				whisparr := regularServices.Group("/whisparr")
-				{
-					whisparr.GET("/queue", whisparrHandler.GetQueue)
-					whisparr.DELETE("/queue/:id", whisparrHandler.DeleteQueueItem)
-				}
-				// Prowlarr endpoints
-				prowlarr := regularServices.Group("/prowlarr")
-				{
-					prowlarr.GET("/stats", prowlarrHandler.GetStats)
-					prowlarr.GET("/indexers", prowlarrHandler.GetIndexers)
-				}
-
-				// Traefik endpoints
-				traefik := regularServices.Group("/traefik")
-				{
-					traefik.GET("/summary", traefikHandler.GetSummary)
-				}
-
-				// Bazarr endpoints
-				bazarr := regularServices.Group("/bazarr")
-				{
-					bazarr.GET("/summary", bazarrHandler.GetSummary)
-				}
-
-				// SABnzbd endpoints
-				sabnzbd := regularServices.Group("/sabnzbd")
-				{
-					sabnzbd.GET("/summary", sabnzbdHandler.GetSummary)
-				}
-
-				// NZBGet endpoints
-				nzbget := regularServices.Group("/nzbget")
-				{
-					nzbget.GET("/summary", nzbgetHandler.GetSummary)
-				}
-			}
-
-			// Tailscale services with special rate limit
-			tailscaleServices := services.Group("")
-			tailscaleServices.Use(tailscaleRateLimiter.RateLimit())
-			tailscaleServices.Use(cacheMiddleware.Cache())
-			{
-				tailscaleServices.GET("/tailscale/devices", tailscaleHandler.GetTailscaleDevices)
-			}
-
-			// Service action endpoints that require instanceId
-			serviceActions := services.Group("/services/:instanceId")
-			serviceActions.Use(apiRateLimiter.RateLimit())
-			{
-				// Overseerr action endpoints
-				overseerrActions := serviceActions.Group("/overseerr")
-				{
-					overseerrActions.POST("/request/:requestId/:status", overseerrHandler.UpdateRequestStatus)
-				}
-			}
+			actions.DELETE("/sonarr/queue/:id", sonarrHandler.DeleteQueueItem)
+			actions.DELETE("/radarr/queue/:id", radarrHandler.DeleteQueueItem)
+			actions.DELETE("/lidarr/queue/:id", lidarrHandler.DeleteQueueItem)
+			actions.DELETE("/readarr/queue/:id", readarrHandler.DeleteQueueItem)
+			actions.DELETE("/whisparr/queue/:id", whisparrHandler.DeleteQueueItem)
+			actions.POST("/services/:instanceId/overseerr/request/:requestId/:status", overseerrHandler.UpdateRequestStatus)
 		}
 	}
 

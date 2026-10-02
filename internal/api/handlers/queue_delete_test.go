@@ -4,19 +4,17 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/resilience"
 )
 
 func TestQueueDeleteOptionsFromQuery(t *testing.T) {
@@ -90,70 +88,62 @@ func TestHandleQueueDeleteError_Generic(t *testing.T) {
 	}
 }
 
-func TestRefreshQueueAfterDelete_BroadcastsFreshData(t *testing.T) {
-	t.Parallel()
+func TestDeleteQueueItem_RefreshesPoller(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 
-	ctx := context.Background()
-	store := cache.NewMemoryStore(ctx, t.TempDir())
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
 
-	type payload struct {
-		Value int `json:"value"`
+	tests := []struct {
+		service    string
+		newHandler func(*database.DB, *Poller) gin.HandlerFunc
+	}{
+		{"sonarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewSonarrHandler(db, p).DeleteQueueItem }},
+		{"radarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewRadarrHandler(db, p).DeleteQueueItem }},
+		{"lidarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewLidarrHandler(db, p).DeleteQueueItem }},
+		{"readarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewReadarrHandler(db, p).DeleteQueueItem }},
+		{"whisparr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewWhisparrHandler(db, p).DeleteQueueItem }},
 	}
 
-	var got payload
-	called := false
+	for _, tt := range tests {
+		t.Run(tt.service, func(t *testing.T) {
+			db, cleanup := setupUIPreferencesTestDB(t)
+			defer cleanup()
 
-	refreshQueueAfterDelete(
-		ctx,
-		store,
-		resilience.NewCircuitBreaker(5, time.Minute),
-		"sonarr:queue:sonarr-1",
-		time.Minute,
-		2*time.Minute,
-		func() (payload, error) {
-			return payload{Value: 42}, nil
-		},
-		func(p *payload) {
-			called = true
-			got = *p
-		},
-		"Sonarr",
-		"sonarr-1",
-	)
+			instanceID := tt.service + "-1"
+			if err := db.CreateService(t.Context(), &models.ServiceConfiguration{
+				InstanceID: instanceID,
+				URL:        upstream.URL,
+				APIKey:     "key",
+			}); err != nil {
+				t.Fatalf("create service: %v", err)
+			}
 
-	if !called {
-		t.Fatal("expected broadcast callback to be called")
-	}
-	if got.Value != 42 {
-		t.Fatalf("broadcast payload value = %d, want 42", got.Value)
+			poller := NewPoller(db, nil)
+			r := gin.New()
+			r.DELETE("/queue/:id", tt.newHandler(db, poller))
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/queue/7?instanceId="+instanceID, nil))
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+			}
+			assertRefreshed(t, poller, instanceID)
+		})
 	}
 }
 
-func TestRefreshQueueAfterDelete_SkipsBroadcastOnFetchError(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	store := cache.NewMemoryStore(ctx, t.TempDir())
-
-	called := false
-	refreshQueueAfterDelete(
-		ctx,
-		store,
-		resilience.NewCircuitBreaker(5, time.Minute),
-		"radarr:queue:radarr-1",
-		time.Minute,
-		2*time.Minute,
-		func() (map[string]int, error) {
-			return nil, errors.New("fetch failed")
-		},
-		func(_ *map[string]int) {
-			called = true
-		},
-		"Radarr",
-		"radarr-1",
-	)
-
-	if called {
-		t.Fatal("expected broadcast callback to be skipped")
+func assertRefreshed(t *testing.T, poller *Poller, instanceID string) {
+	t.Helper()
+	select {
+	case req := <-poller.refreshCh:
+		if req.instanceID != instanceID {
+			t.Fatalf("Refresh instanceID = %q, want %q", req.instanceID, instanceID)
+		}
+	default:
+		t.Fatal("expected Poller.Refresh after a successful action")
 	}
 }

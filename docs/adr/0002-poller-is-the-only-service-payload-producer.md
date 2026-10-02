@@ -1,0 +1,3 @@
+# The poller is the only producer of service payloads
+
+The web UI gets service payloads only from the SSE stream, and the poller is the only component that publishes them. dashbrr has no REST route that returns service data. Before this decision, about 20 GET routes also fetched data and published it to SSE, and each route had its own cache, circuit breaker, and payload rules, so the two producers did not agree. We removed the routes, although external tools could no longer read the data. These routes needed a session token, so an external caller was unlikely. A user action that changes service data, for example a queue delete or an Overseerr approval, calls `Poller.Refresh` and does not publish data itself.

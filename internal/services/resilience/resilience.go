@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"sync"
 	"time"
 )
 
@@ -16,56 +15,6 @@ const (
 	InitialBackoff = 100 * time.Millisecond
 	MaxBackoff     = 2 * time.Second
 )
-
-// CircuitBreaker implements a simple circuit breaker pattern
-type CircuitBreaker struct {
-	failures     int
-	lastFailure  time.Time
-	mutex        sync.RWMutex
-	maxFailures  int
-	resetTimeout time.Duration
-}
-
-func NewCircuitBreaker(maxFailures int, resetTimeout time.Duration) *CircuitBreaker {
-	return &CircuitBreaker{
-		maxFailures:  maxFailures,
-		resetTimeout: resetTimeout,
-	}
-}
-
-func (cb *CircuitBreaker) IsOpen() bool {
-	cb.mutex.RLock()
-	defer cb.mutex.RUnlock()
-
-	if cb.failures >= cb.maxFailures {
-		if time.Since(cb.lastFailure) > cb.resetTimeout {
-			// Reset circuit breaker after timeout
-			cb.mutex.RUnlock()
-			cb.mutex.Lock()
-			cb.failures = 0
-			cb.mutex.Unlock()
-			cb.mutex.RLock()
-			return false
-		}
-		return true
-	}
-	return false
-}
-
-func (cb *CircuitBreaker) RecordFailure() {
-	cb.mutex.Lock()
-	defer cb.mutex.Unlock()
-
-	cb.failures++
-	cb.lastFailure = time.Now()
-}
-
-func (cb *CircuitBreaker) RecordSuccess() {
-	cb.mutex.Lock()
-	defer cb.mutex.Unlock()
-
-	cb.failures = 0
-}
 
 // RetryWithBackoff implements exponential backoff retry logic
 func RetryWithBackoff(ctx context.Context, fn func() error) error {

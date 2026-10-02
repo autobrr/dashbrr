@@ -6,100 +6,22 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/readarr"
 	"github.com/autobrr/dashbrr/internal/services/resilience"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-const (
-	readarrQueuePrefix       = "readarr:queue:"
-	readarrStaleDataDuration = 5 * time.Minute
-)
-
 type ReadarrHandler struct {
-	db              *database.DB
-	cache           cache.Store
-	bc              *Broadcaster
-	circuitBreaker  *resilience.CircuitBreaker
-	lastQueueHash   map[string]string
-	lastQueueHashMu sync.Mutex
+	db     *database.DB
+	poller *Poller
 }
 
-func NewReadarrHandler(db *database.DB, cache cache.Store, bc *Broadcaster) *ReadarrHandler {
-	return &ReadarrHandler{
-		db:             db,
-		cache:          cache,
-		bc:             bc,
-		circuitBreaker: resilience.NewCircuitBreaker(5, 1*time.Minute),
-		lastQueueHash:  make(map[string]string),
-	}
-}
-
-func (h *ReadarrHandler) GetQueue(c *gin.Context) {
-	instanceID, ok := requireInstanceID(c, "readarr", "Readarr")
-	if !ok {
-		return
-	}
-
-	cacheKey := readarrQueuePrefix + instanceID
-	ctx := c.Request.Context()
-
-	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[types.ReadarrQueueResponse]{
-		Store:          h.cache,
-		CircuitBreaker: h.circuitBreaker,
-		Key:            cacheKey,
-		FreshTTL:       middleware.CacheDurations.ReadarrStatus,
-		StaleTTL:       readarrStaleDataDuration,
-		Fetch: func() (types.ReadarrQueueResponse, error) {
-			return h.fetchQueue(ctx, instanceID)
-		},
-	})
-	if err != nil {
-		if handleArrFetchError(c, err, "Readarr", instanceID, "queue") {
-			return
-		}
-		return
-	}
-
-	compareAndLogArrQueueChanges(
-		h.lastQueueHash,
-		&h.lastQueueHashMu,
-		"Readarr",
-		instanceID,
-		result.TotalRecords,
-		wrapReadarrQueue(&result),
-	)
-	if result.Records != nil {
-		publishInternalServiceUpdate(h.bc, buildReadarrQueueServiceUpdate(instanceID, &result))
-	}
-
-	c.JSON(http.StatusOK, result)
-}
-
-func (h *ReadarrHandler) fetchQueue(ctx context.Context, instanceID string) (types.ReadarrQueueResponse, error) {
-	readarrConfig, err := requireServiceConfig(ctx, h.db, instanceID, "readarr")
-	if err != nil {
-		return types.ReadarrQueueResponse{}, err
-	}
-
-	service := &readarr.ReadarrService{}
-	records, err := service.GetQueueForHealth(ctx, readarrConfig.URL, readarrConfig.APIKey)
-	if err != nil {
-		return types.ReadarrQueueResponse{}, err
-	}
-
-	return types.ReadarrQueueResponse{
-		Records:      records,
-		TotalRecords: len(records),
-	}, nil
+func NewReadarrHandler(db *database.DB, poller *Poller) *ReadarrHandler {
+	return &ReadarrHandler{db: db, poller: poller}
 }
 
 func (h *ReadarrHandler) DeleteQueueItem(c *gin.Context) {
@@ -130,23 +52,7 @@ func (h *ReadarrHandler) DeleteQueueItem(c *gin.Context) {
 		return
 	}
 
-	cacheKey := readarrQueuePrefix + instanceID
-	refreshQueueAfterDelete(
-		ctx,
-		h.cache,
-		h.circuitBreaker,
-		cacheKey,
-		middleware.CacheDurations.ReadarrStatus,
-		readarrStaleDataDuration,
-		func() (types.ReadarrQueueResponse, error) {
-			return h.fetchQueue(ctx, instanceID)
-		},
-		func(result *types.ReadarrQueueResponse) {
-			publishInternalServiceUpdate(h.bc, buildReadarrQueueServiceUpdate(instanceID, result))
-		},
-		"Readarr",
-		instanceID,
-	)
+	h.poller.Refresh(instanceID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Queue item deleted successfully"})
 }
