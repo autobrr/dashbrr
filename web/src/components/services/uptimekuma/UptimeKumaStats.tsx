@@ -11,11 +11,9 @@ import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { ArrMessage } from "../common/ArrMessage";
 import { combineServiceMessage } from "../../../utils/serviceMessage";
 import type { UptimeKumaSummary } from "../../../types/service";
+import { serviceLink, type ServiceLinkTarget } from "../../../utils/serviceLink";
 import {
-  buildUptimeKumaDashboardURL,
-  buildUptimeKumaMonitorURL,
   getUptimeKumaMonitorView,
-  resolveUptimeKumaBaseURL,
   type UptimeKumaFilter
 } from "./uptimeKumaView";
 
@@ -32,7 +30,7 @@ interface UptimeKumaCounts {
 }
 
 interface UptimeKumaStatsViewProps {
-  baseURL: string | null;
+  link: ServiceLinkTarget;
   counts: UptimeKumaCounts;
   summary: UptimeKumaSummary;
 }
@@ -93,7 +91,7 @@ const statusBadgeClass = (status: string): string => {
 };
 
 export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
-  baseURL,
+  link,
   counts,
   summary,
 }) => {
@@ -105,7 +103,7 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
     ? selectedFilter
     : null;
   const monitorView = getUptimeKumaMonitorView(summary.monitors, activeFilter);
-  const dashboardURL = buildUptimeKumaDashboardURL(baseURL);
+  const dashboardURL = serviceLink(link, "dashboard");
 
   return (
     <div className="space-y-4">
@@ -165,7 +163,10 @@ export const UptimeKumaStatsView: React.FC<UptimeKumaStatsViewProps> = ({
           </div>
           <div className="max-h-80 overflow-y-auto scrollbar-small divide-y divide-zinc-700/60 border-y border-zinc-700/60">
             {monitorView.monitors.map((monitor) => {
-              const monitorURL = buildUptimeKumaMonitorURL(baseURL, monitor.id);
+              const monitorURL = serviceLink(
+                link,
+                `dashboard/${encodeURIComponent(monitor.id)}`
+              );
               const rowClassName =
                 "flex items-center justify-between gap-3 px-1 py-2.5 text-xs";
               const rowContent = (
@@ -252,13 +253,12 @@ export const UptimeKumaStats: React.FC<UptimeKumaStatsProps> = ({ instanceId }) 
   const maintenance =
     service.details?.uptimekuma?.maintenance ??
     countByStatus(summary, "maintenance");
-  const baseURL = resolveUptimeKumaBaseURL(service.accessUrl, service.url);
 
   return (
     <div className="space-y-4">
       <ArrMessage status={service.status} message={message} />
       <UptimeKumaStatsView
-        baseURL={baseURL}
+        link={service}
         counts={{ total, up, down, pending, maintenance }}
         summary={summary}
       />

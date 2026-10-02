@@ -26,6 +26,7 @@ import { StatsSkeleton } from "../../ui/StatsSkeleton";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import { serviceLink } from "../../../utils/serviceLink";
 
 interface AutobrrStatsProps {
   instanceId: string;
@@ -64,16 +65,12 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
 
   const showMessage = service.message || service.status !== "online";
 
-  const baseUrl = service?.accessUrl || service?.url || "";
-
-  // Function to construct the full URL for releases
-  const getReleasesUrl = (actionStatus?: string) => {
-    const url = new URL("releases", baseUrl);
-    if (actionStatus) {
-      url.searchParams.set("action_status", actionStatus);
-    }
-    return url.toString();
-  };
+  const statTiles = [
+    { label: "Total", count: stats.total_count, valueClass: "text-gray-200" },
+    { label: "Approved", count: stats.push_approved_count, valueClass: "text-green-500", actionStatus: "PUSH_APPROVED" },
+    { label: "Rejected", count: stats.push_rejected_count, valueClass: "text-blue-400", actionStatus: "PUSH_REJECTED" },
+    { label: "Errors", count: stats.push_error_count, valueClass: "text-red-500", actionStatus: "PUSH_ERROR" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -111,65 +108,42 @@ export const AutobrrStats: React.FC<AutobrrStatsProps> = ({ instanceId }) => {
             Stats:
           </div>
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            <a
-              href={getReleasesUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Total</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-gray-200">{stats.total_count || 0}</span>
-                <LinkIcon className="h-3 w-3 text-gray-400" />
-              </div>
-            </a>
+            {statTiles.map(({ label, count, valueClass, actionStatus }) => {
+              const href = serviceLink(
+                service,
+                "releases",
+                actionStatus ? { action_status: actionStatus } : undefined
+              );
+              const content = (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-normal text-gray-200">{label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${valueClass}`}>{count || 0}</span>
+                    {href && <LinkIcon className="h-3 w-3 text-gray-400" />}
+                  </div>
+                </>
+              );
+              const className =
+                "flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2";
 
-            <a
-              href={getReleasesUrl("PUSH_APPROVED")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Approved</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-green-500">{stats.push_approved_count || 0}</span>
-                <LinkIcon className="h-3 w-3 text-gray-400" />
-              </div>
-            </a>
-
-            <a
-              href={getReleasesUrl("PUSH_REJECTED")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Rejected</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-blue-400">{stats.push_rejected_count || 0}</span>
-                <LinkIcon className="h-3 w-3 text-gray-400" />
-              </div>
-            </a>
-
-            <a
-              href={getReleasesUrl("PUSH_ERROR")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between text-xs rounded-md text-gray-600 dark:text-gray-400 bg-gray-850/95 px-3.5 py-2 hover:bg-gray-850/70 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-normal text-gray-200">Errors</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-red-500">{stats.push_error_count || 0}</span>
-                <LinkIcon className="h-3 w-3 text-gray-400" />
-              </div>
-            </a>
+              return href ? (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${className} hover:bg-gray-850/70 transition-colors`}
+                >
+                  {content}
+                </a>
+              ) : (
+                <div key={label} className={className}>
+                  {content}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

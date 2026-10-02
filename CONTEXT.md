@@ -18,6 +18,14 @@ _Avoid_: data directory, working directory
 The location of the SQLite database file. The default is `data/dashbrr.db` in the config directory.
 _Avoid_: db file, data path
 
+**URL**:
+The address that dashbrr uses to reach a service. It must be an absolute `http://` or `https://` address with a host name.
+_Avoid_: service address, endpoint
+
+**Access URL**:
+The address that the user's browser uses to open a service. It is optional. When it is set, links to the service use the access URL. Else they use the URL.
+_Avoid_: external URL, public URL
+
 ### Service data
 
 **Poller**:

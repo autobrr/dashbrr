@@ -22,6 +22,7 @@ import { QuiStats } from "./qui/QuiStats";
 import { GeneralStats } from "./general/GeneralStats";
 import { ArrQueueStats } from "./common/ArrQueueStats";
 import AnimatedModal from "../ui/AnimatedModal";
+import { ErrorBoundary } from "../shared/ErrorBoundary";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { useConfiguration } from "../../contexts/useConfiguration";
@@ -214,7 +215,10 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             ) : (
               serviceSpecificControls && (
                 <div className={layoutClasses.bodyMarginClass}>
-                  {serviceSpecificControls}
+                  {/* The key resets the boundary when the user saves new URLs. */}
+                  <ErrorBoundary key={`${service.url}|${service.accessUrl}`}>
+                    {serviceSpecificControls}
+                  </ErrorBoundary>
                 </div>
               )
             )}

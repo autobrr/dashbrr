@@ -29,6 +29,7 @@ import {
   getRemovalMethodText,
   QUEUE_REMOVE_DISABLED_REASON
 } from "./ArrQueueDelete";
+import { serviceLink } from "../../../utils/serviceLink";
 
 type SelectOption<T extends string> = {
   value: T;
@@ -131,7 +132,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
 
   const queue = service?.stats ? getQueue(service.stats) : undefined;
 
-  const openUrl = service?.accessUrl || service?.url;
+  const queueUrl = service ? serviceLink(service, "activity/queue") : null;
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
     setSelectedItem(null);
@@ -206,9 +207,9 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                   </div>
 
                   <div className="flex-shrink-0 flex items-center space-x-1">
-                    {openUrl && (
+                    {queueUrl && (
                       <a
-                        href={`${openUrl}/activity/queue`}
+                        href={queueUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-1.5 rounded-md hover:bg-zinc-700 dark:hover:bg-zinc-700 transition-colors"
@@ -305,9 +306,9 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
           </p>
 
           <p className="text-xs">
-            {openUrl ? (
+            {queueUrl ? (
               <a
-                href={`${openUrl}/activity/queue`}
+                href={queueUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-bold px-2 py-1 rounded-md bg-zinc-800 text-zinc-100 dark:text-zinc-200 break-all inline-block hover:bg-zinc-700 transition-colors"

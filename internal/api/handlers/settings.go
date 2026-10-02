@@ -6,6 +6,8 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -106,6 +108,25 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, configMap)
 }
 
+const invalidServiceURLMessage = "URL must start with http:// or https://"
+
+// serviceURLsValid reports whether the URL, and the access URL when set,
+// are absolute http or https URLs with a host.
+func serviceURLsValid(config models.ServiceConfiguration) bool {
+	return isHTTPURL(config.URL) && (config.AccessURL == "" || isHTTPURL(config.AccessURL))
+}
+
+func isHTTPURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return false
+	}
+	// net/url accepts any digits as a port, but browsers reject ports above 65535.
+	p := u.Port()
+	_, err = strconv.ParseUint(p, 10, 16)
+	return p == "" || err == nil
+}
+
 func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
 
@@ -118,6 +139,11 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 
 	config.InstanceID = instanceID
 	config.URL = strings.TrimRight(config.URL, "/")
+
+	if !serviceURLsValid(config) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": invalidServiceURLMessage})
+		return
+	}
 
 	log.Debug().
 		Str("instance", instanceID).

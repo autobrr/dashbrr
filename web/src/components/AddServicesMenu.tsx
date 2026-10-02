@@ -11,6 +11,7 @@ import { FormInput } from "./ui/FormInput";
 import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
+import { serviceLink } from "../utils/serviceLink";
 
 interface AddServicesMenuProps {
   serviceTemplates: Array<{
@@ -236,11 +237,8 @@ export function AddServicesMenu({
 
   const [accessUrl, setAccessUrl] = useState("");
 
-  const getSettingsUrl = (path: string): string | null => {
-    if (!url) return null;
-    const baseUrl = accessUrl || url;
-    return `${baseUrl}${path}`;
-  };
+  const getSettingsUrl = (path: string): string | null =>
+    serviceLink({ url, accessUrl }, path);
 
   // Reset form fields when modal is opened/closed or when pending service changes
   useEffect(() => {
