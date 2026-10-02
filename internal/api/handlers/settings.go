@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -117,7 +118,13 @@ func serviceURLsValid(config models.ServiceConfiguration) bool {
 
 func isHTTPURL(raw string) bool {
 	u, err := url.Parse(raw)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != ""
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return false
+	}
+	// net/url accepts any digits as a port, but browsers reject ports above 65535.
+	p := u.Port()
+	_, err = strconv.ParseUint(p, 10, 16)
+	return p == "" || err == nil
 }
 
 func (h *SettingsHandler) SaveSettings(c *gin.Context) {
