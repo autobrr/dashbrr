@@ -62,14 +62,6 @@ func (s *WhisparrService) getQueueRecords(ctx context.Context, url, apiKey strin
 	)
 }
 
-func (s *WhisparrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
-	records, err := s.getQueueRecords(ctx, url, apiKey)
-	if err != nil {
-		return nil, err
-	}
-	return records, nil
-}
-
 func (s *WhisparrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.WhisparrQueueItem, error) {
 	return s.getQueueRecords(ctx, url, apiKey)
 }

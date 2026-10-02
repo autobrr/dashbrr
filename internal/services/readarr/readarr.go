@@ -63,14 +63,6 @@ func (s *ReadarrService) getQueueRecords(ctx context.Context, url, apiKey string
 	)
 }
 
-func (s *ReadarrService) GetQueue(ctx context.Context, url, apiKey string) (any, error) {
-	records, err := s.getQueueRecords(ctx, url, apiKey)
-	if err != nil {
-		return nil, err
-	}
-	return records, nil
-}
-
 func (s *ReadarrService) GetQueueForHealth(ctx context.Context, url, apiKey string) ([]types.ReadarrQueueItem, error) {
 	return s.getQueueRecords(ctx, url, apiKey)
 }
