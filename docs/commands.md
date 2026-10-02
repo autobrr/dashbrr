@@ -2,29 +2,48 @@
 
 This document outlines all available CLI commands in Dashbrr.
 
-## Startup Flags
+## Global Flags
 
-When starting Dashbrr, you can use the following flags to control its configuration:
+All commands (`serve`, `service`, `user`, `config`, and `health`) accept these flags. They select the same config file and database in every command:
 
 ```bash
-# Start Dashbrr with default settings
-dashbrr serve
-
 # Specify a custom config file location
 dashbrr serve --config=/path/to/config.toml
+dashbrr user create admin password123 --config=/path/to/config.toml
 
 # Specify a custom database location
 dashbrr serve --db-file=/path/to/database.db
+```
 
+## Startup Flags
+
+`serve` also accepts:
+
+```bash
 # Specify a custom listen address
 dashbrr serve --listen-addr=:8081
 ```
 
-By default:
+The config file is the first of these that applies:
 
-- The config file is loaded from `./config.toml`
-- The database file is created in the same directory as the config file at `<config_dir>/data/dashbrr.db`
-- The server listens on port 8080
+1. `--config`
+2. `DASHBRR__CONFIG_PATH`
+3. The first config file in the user config directory, then in `/config`
+4. `./config.toml`
+
+The database path is the first of these that applies:
+
+1. `--db-file`
+2. `DASHBRR__DB_PATH`
+3. `[database] path` in the config file. A relative value is relative to the config directory.
+4. `<config_dir>/data/dashbrr.db`
+
+The listen address is the first of these that applies:
+
+1. `--listen-addr`
+2. `DASHBRR__LISTEN_ADDR`
+3. `[server] listen_addr` in the config file
+4. `:8080`
 
 For example:
 

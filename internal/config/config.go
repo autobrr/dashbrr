@@ -4,7 +4,10 @@
 package config
 
 import (
+	"cmp"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -88,71 +91,68 @@ func shortenPath(path string) string {
 	return strings.Replace(filepath.Clean(path), home, "~", 1)
 }
 
-// HasRequiredEnvVars checks if all required environment variables are set
-func HasRequiredEnvVars() bool {
-	// Check server config
-	if os.Getenv("DASHBRR__LISTEN_ADDR") == "" {
-		return false
-	}
-
-	// Check database config - either SQLite or PostgreSQL must be configured
-	dbType := os.Getenv("DASHBRR__DB_TYPE")
-	if dbType == "" {
-		return false
-	}
-
-	switch dbType {
-	case "sqlite":
-		if os.Getenv("DASHBRR__DB_PATH") == "" {
-			return false
-		}
-	case "postgres":
-		if os.Getenv("DASHBRR__DB_DSN") != "" {
-			return true
-		}
-		requiredVars := []string{
-			"DASHBRR__DB_HOST",
-			"DASHBRR__DB_PORT",
-			"DASHBRR__DB_USER",
-			"DASHBRR__DB_PASSWORD",
-			"DASHBRR__DB_NAME",
-		}
-		for _, v := range requiredVars {
-			if os.Getenv(v) == "" {
-				return false
-			}
-		}
-	default:
-		return false
-	}
-
-	return true
+// Flags holds the command-line values that override the config file and the
+// environment. An empty value means that the user did not set the flag.
+type Flags struct {
+	ConfigPath string
+	DBPath     string
+	ListenAddr string
 }
 
-// LoadConfig loads the configuration from environment variables or TOML file
-func LoadConfig(path string) (*Config, error) {
-	config := &Config{}
+// Load selects the config file, loads it, and applies the flags. The serve
+// command and the CLI commands all use it, so they open the same database.
+// It returns the path of the config file that it selected.
+func Load(flags Flags) (*Config, string, error) {
+	path := findConfigFile(flags.ConfigPath)
 
-	// A PostgreSQL DSN takes priority over complete separate environment
-	// fields. Other complete environment configurations keep bypassing the file.
-	if HasRequiredEnvVars() {
-		if os.Getenv("DASHBRR__DB_TYPE") == "postgres" {
-			data, err := os.ReadFile(path)
-			fileConfig := DefaultConfig()
-			if err == nil && toml.Unmarshal(data, fileConfig) == nil && fileConfig.Database.DSN != "" {
-				config.Database.DSN = fileConfig.Database.DSN
-			}
-		}
-
-		if err := LoadEnvOverrides(config); err != nil {
-			return nil, fmt.Errorf("error loading environment variables: %w", err)
-		}
-		return config, nil
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		return nil, path, err
 	}
 
-	config = DefaultConfig()
+	if flags.DBPath != "" {
+		cfg.Database.Path = flags.DBPath
+	}
+	if flags.ListenAddr != "" {
+		cfg.Server.ListenAddr = flags.ListenAddr
+	}
 
-	// Otherwise try to load from config file
+	return cfg, path, nil
+}
+
+// findConfigFile returns the --config value, else DASHBRR__CONFIG_PATH, else
+// the first config file in the user config directory or /config, else
+// ./config.toml.
+func findConfigFile(flagPath string) string {
+	if path := cmp.Or(flagPath, os.Getenv(EnvConfigPath)); path != "" {
+		return path
+	}
+
+	var dirs []string
+	if dir, err := os.UserConfigDir(); err == nil {
+		dirs = append(dirs, filepath.Join(dir, "dashbrr"))
+	}
+	dirs = append(dirs, "/config")
+
+	for _, dir := range dirs {
+		for _, name := range []string{"config.toml", "config.yaml", "config.yml"} {
+			path := filepath.Join(dir, name)
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
+		}
+	}
+
+	return "config.toml"
+}
+
+// LoadConfig reads the config file at path and then applies the environment
+// variables. When the file is missing, it tries to write a default file there
+// and continues with the defaults if that fails. A relative database path from
+// the file is relative to the config directory.
+func LoadConfig(path string) (*Config, error) {
+	config := DefaultConfig()
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("error resolving config path: %w", err)
@@ -161,44 +161,42 @@ func LoadConfig(path string) (*Config, error) {
 	displayPath := shortenPath(absPath)
 
 	data, err := os.ReadFile(absPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Create default config
-			// Ensure directory exists
-			if dir := filepath.Dir(absPath); dir != "" {
-				if err := os.MkdirAll(dir, 0755); err != nil {
-					return nil, fmt.Errorf("error creating config directory %s: %w", shortenPath(dir), err)
-				}
-			}
-
-			// Marshal config to TOML
-			data, err := toml.Marshal(config)
-			if err != nil {
-				return nil, fmt.Errorf("error encoding default config: %w", err)
-			}
-
-			// Write config file
-			if err := os.WriteFile(absPath, data, 0644); err != nil {
-				return nil, fmt.Errorf("error writing default config to %s: %w", displayPath, err)
-			}
-			log.Info().Str("path", displayPath).Msg("Configuration file not found, creating with default values")
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		if err := writeDefaultConfig(absPath, config); err != nil {
+			log.Warn().Err(err).Str("path", displayPath).Msg("Configuration file not found and could not be created, using defaults and environment variables")
 		} else {
-			return nil, fmt.Errorf("error reading config file %s: %w", displayPath, err)
+			log.Info().Str("path", displayPath).Msg("Configuration file not found, creating with default values")
 		}
-	} else {
-		// Parse existing config file
+	case err != nil:
+		return nil, fmt.Errorf("error reading config file %s: %w", displayPath, err)
+	default:
 		if err := toml.Unmarshal(data, config); err != nil {
 			return nil, fmt.Errorf("error decoding config file %s: %w", displayPath, err)
 		}
 		log.Debug().Str("path", displayPath).Msg("Loaded existing configuration file")
 	}
 
-	// Override with any environment variables that are set
+	if !filepath.IsAbs(config.Database.Path) {
+		config.Database.Path = filepath.Join(filepath.Dir(absPath), config.Database.Path)
+	}
+
 	if err := LoadEnvOverrides(config); err != nil {
 		return nil, fmt.Errorf("error loading environment variables: %w", err)
 	}
 
 	return config, nil
+}
+
+func writeDefaultConfig(path string, config *Config) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	data, err := toml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0600)
 }
 
 // LoadEnvOverrides loads configuration from environment variables

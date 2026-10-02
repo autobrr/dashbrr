@@ -1,12 +1,12 @@
 package commands
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 
@@ -64,23 +64,22 @@ func HealthCommand() *cobra.Command {
 			Services: make(map[string]bool),
 		}
 
-		db, err := initializeDatabase()
+		cfg, configPath, err := ConfigFromFlags(cmd)
+		status.System.Config.Path = configPath
 		if err != nil {
-			return fmt.Errorf("failed to initialize database: %v", err)
+			status.System.Config.Error = err.Error()
+			return printHealth(outputJson, true, false, status, err)
 		}
+		status.System.Config.Valid = true
+		status.System.Database.Type = cfg.Database.Driver
 
-		// System health checks
-		if checkSystem {
-			// Check database
-			if err := checkDatabase(&status); err != nil {
-				status.System.Database.Error = err.Error()
-			}
-
-			// Check config
-			if err := checkConfig(&status); err != nil {
-				status.System.Config.Error = err.Error()
-			}
+		db, err := database.InitDBWithConfig(&cfg.Database)
+		if err != nil {
+			status.System.Database.Error = err.Error()
+			return printHealth(outputJson, true, false, status, err)
 		}
+		defer db.Close()
+		status.System.Database.Connected = true
 
 		ctx := cmd.Context()
 
@@ -116,56 +115,13 @@ func HealthCommand() *cobra.Command {
 			}
 		}
 
-		if outputJson {
-			return outputJSON(status)
-		} else {
-			healthOutputText(checkSystem, checkServices, status)
-		}
-
-		//return outputText(status)
-
-		return nil
+		return printHealth(outputJson, checkSystem, checkServices, status, nil)
 	}
 
 	return command
 }
 
-func checkDatabase(status *HealthStatus) error {
-	// Get database configuration
-	dbConfig := database.NewConfig()
-	status.System.Database.Type = dbConfig.Driver
-
-	// Try to connect to the database
-	var db *database.DB
-	var err error
-
-	// Connect using config regardless of driver type
-	db, err = database.InitDBWithConfig(dbConfig)
-
-	if err != nil {
-		status.System.Database.Connected = false
-		return err
-	}
-	defer db.Close()
-
-	status.System.Database.Connected = true
-	return nil
-}
-
-func checkConfig(status *HealthStatus) error {
-	_, err := config.LoadConfig("config.toml")
-	if err != nil {
-		status.System.Config.Valid = false
-		status.System.Config.Path = "config.toml"
-		return err
-	}
-
-	status.System.Config.Valid = true
-	status.System.Config.Path = "config.toml"
-	return nil
-}
-
-func healthOutputText(checkSystem, checkServices bool, status HealthStatus) error {
+func healthOutputText(checkSystem, checkServices bool, status HealthStatus) {
 	if checkSystem {
 		fmt.Println("System Health:")
 		fmt.Printf("  Database:\n")
@@ -190,8 +146,15 @@ func healthOutputText(checkSystem, checkServices bool, status HealthStatus) erro
 			fmt.Printf("  %s: %v\n", service, healthy)
 		}
 	}
+}
 
-	return nil
+// printHealth prints the status and then returns err, so a failed check still exits non-zero.
+func printHealth(asJSON, checkSystem, checkServices bool, status HealthStatus, err error) error {
+	if asJSON {
+		return cmp.Or(outputJSON(status), err)
+	}
+	healthOutputText(checkSystem, checkServices, status)
+	return err
 }
 
 func outputJSON(data any) error {

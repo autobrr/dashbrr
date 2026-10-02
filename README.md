@@ -147,7 +147,14 @@ sudo systemctl enable -q --now dashbrr@$USER
 
 ### Configuration File
 
-Dashbrr uses a simple TOML configuration file. Default location: `./config.toml`
+Dashbrr uses a simple TOML configuration file. The `serve` command and all CLI commands select the config file in the same way. Highest priority first:
+
+1. The `--config` flag
+2. The `DASHBRR__CONFIG_PATH` environment variable
+3. The first `config.toml`, `config.yaml`, or `config.yml` in your user config directory (for example `~/.config/dashbrr`), then in `/config`
+4. `./config.toml`
+
+If the config file does not exist, dashbrr tries to write a default file there. If it cannot write the file, it logs a warning and starts with the defaults and the environment variables. Environment variables always override the values in the config file.
 
 ```toml
 [server]
@@ -176,12 +183,12 @@ level = "info"
 # redirect_url = "http://localhost:3000/api/auth/oidc/callback"
 ```
 
-By default, the database file will be created in the same directory as your configuration file. For example:
+A relative `[database] path` is relative to the directory of the config file, not to the working directory. By default, the database file is `data/dashbrr.db` in that directory. For example:
 
 - If your config is at `/home/user/.config/dashbrr/config.toml`, the database will be at `/home/user/.config/dashbrr/data/dashbrr.db`
 - If your config is at `/etc/dashbrr/config.toml`, the database will be at `/etc/dashbrr/data/dashbrr.db`
 
-You can override this behavior by using the `--db-file` flag to specify a different database location:
+To use a different database location, set `--db-file`, `DASHBRR__DB_PATH`, or `[database] path`. The flag has the highest priority, then the environment variable, then the config file. A relative value in `--db-file` or `DASHBRR__DB_PATH` is relative to the working directory:
 
 ```bash
 dashbrr serve --config=/etc/dashbrr/config.toml --db-file=/var/lib/dashbrr/dashbrr.db

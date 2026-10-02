@@ -45,13 +45,8 @@ Only needed if you serve the web UI from a different origin than the API (differ
 
 - `DASHBRR__CONFIG_PATH`
   - Purpose: Path to the configuration file
-  - Default: `config.toml`
-  - Priority: Environment variable > User config directory > Command line flag > Default value
-  - Note: The application will check the following locations for the configuration file:
-    1. The path specified by the `DASHBRR__CONFIG_PATH` environment variable.
-    2. The user config directory (e.g., `~/.config/dashbrr`).
-    3. The current working directory for `config.toml`, `config.yaml`, or `config.yml`.
-    4. The `--config` command line flag can also be used to specify a different path.
+  - Priority: `--config` flag > this environment variable > user config directory > `/config` > `./config.toml`
+  - Note: Without `--config` and this variable, dashbrr uses the first `config.toml`, `config.yaml`, or `config.yml` in the user config directory (for example `~/.config/dashbrr`), then in `/config`. If it finds none, it uses `./config.toml`.
 
 ## Database Configuration
 
@@ -64,11 +59,9 @@ Only needed if you serve the web UI from a different origin than the API (differ
 - `DASHBRR__DB_PATH`
   - Purpose: Path to SQLite database file
   - Example: `/data/dashbrr.db`
-  - Note: If not set, the database will be created in a 'data' subdirectory of the config file's location. This can be overridden by:
-    1. Using the `--db-file` flag when starting dashbrr
-    2. Setting this environment variable
-    3. Specifying the path in the config file
-  - Priority: Command line flag > Environment variable > Config file > Default location
+  - Note: This variable works alone. You do not need to set `DASHBRR__DB_TYPE` or `DASHBRR__LISTEN_ADDR` with it. A relative value is relative to the working directory.
+  - Priority: `--db-file` flag > this environment variable > `[database] path` in the config file > `<config directory>/data/dashbrr.db`
+  - Note: A relative `[database] path` in the config file is relative to the directory of the config file.
 
 ### PostgreSQL Configuration
 

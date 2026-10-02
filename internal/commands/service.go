@@ -3,14 +3,37 @@ package commands
 import (
 	"fmt"
 
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 
 	"github.com/spf13/cobra"
 )
 
-// initializeDatabase opens the CLI database from DASHBRR__DB_* env, else the default.
-func initializeDatabase() (*database.DB, error) {
-	db, err := database.InitDBWithConfig(database.NewConfig())
+// ConfigFromFlags resolves the config file, database path, and listen address from
+// the flags of cmd and the environment. Serve and every CLI command use it.
+func ConfigFromFlags(cmd *cobra.Command) (*config.Config, string, error) {
+	return config.Load(config.Flags{
+		ConfigPath: changedFlag(cmd, "config"),
+		DBPath:     changedFlag(cmd, "db-file"),
+		ListenAddr: changedFlag(cmd, "listen-addr"),
+	})
+}
+
+// changedFlag returns the flag value only when the user set it on the command line.
+func changedFlag(cmd *cobra.Command, name string) string {
+	if f := cmd.Flags().Lookup(name); f != nil && f.Changed {
+		return f.Value.String()
+	}
+	return ""
+}
+
+// initializeDatabase opens the database that serve uses with the same flags and environment.
+func initializeDatabase(cmd *cobra.Command) (*database.DB, error) {
+	cfg, _, err := ConfigFromFlags(cmd)
+	if err != nil {
+		return nil, err
+	}
+	db, err := database.InitDBWithConfig(&cfg.Database)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %v", err)
 	}

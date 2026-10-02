@@ -54,7 +54,7 @@ func ConfigImportCommand() *cobra.Command {
 			return fmt.Errorf("failed to import config: %v", err)
 		}
 
-		db, err := initializeDatabase()
+		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
@@ -110,7 +110,7 @@ func ConfigExportCommand() *cobra.Command {
 			return fmt.Errorf("unsupported format: %s (use yaml or json)", format)
 		}
 
-		db, err := initializeDatabase()
+		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
@@ -164,7 +164,7 @@ func ConfigDiscoverCommand() *cobra.Command {
 			useK8s = true
 		}
 
-		db, err := initializeDatabase()
+		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
