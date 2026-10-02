@@ -79,7 +79,7 @@ func handleQueueDeleteError(c *gin.Context, err error, serviceName, instanceID, 
 		return true
 	}
 
-	if arrErr, ok := err.(*arr.ErrArr); ok {
+	if arrErr, ok := errors.AsType[*arr.ErrArr](err); ok {
 		log.Error().
 			Err(arrErr).
 			Str("instanceId", instanceID).
