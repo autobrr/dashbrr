@@ -264,8 +264,6 @@ func countUptimeKumaStates(monitors []types.UptimeKumaMonitor) (total, up, down,
 }
 
 func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQueueResponse) models.ServiceHealth {
-	downloading, totalSize := summarizeRadarrQueue(queueResp.Records)
-
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
@@ -275,20 +273,10 @@ func buildRadarrQueueServiceUpdate(instanceID string, queueResp *types.RadarrQue
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]any{
-			"radarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
 	}
 }
 
 func buildLidarrQueueServiceUpdate(instanceID string, queueResp *types.LidarrQueueResponse) models.ServiceHealth {
-	downloading, totalSize := summarizeLidarrQueue(queueResp.Records)
-
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
@@ -298,20 +286,10 @@ func buildLidarrQueueServiceUpdate(instanceID string, queueResp *types.LidarrQue
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]any{
-			"lidarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
 	}
 }
 
 func buildReadarrQueueServiceUpdate(instanceID string, queueResp *types.ReadarrQueueResponse) models.ServiceHealth {
-	downloading, totalSize := summarizeReadarrQueue(queueResp.Records)
-
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
@@ -321,20 +299,10 @@ func buildReadarrQueueServiceUpdate(instanceID string, queueResp *types.ReadarrQ
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]any{
-			"readarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"totalSize":        totalSize,
-			},
-		},
 	}
 }
 
 func buildWhisparrQueueServiceUpdate(instanceID string, queueResp *types.WhisparrQueueResponse) models.ServiceHealth {
-	downloading, episodeCount, totalSize := summarizeWhisparrQueue(queueResp.Records)
-
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
@@ -344,20 +312,9 @@ func buildWhisparrQueueServiceUpdate(instanceID string, queueResp *types.Whispar
 				"queue": queueResp,
 			},
 		},
-		Details: map[string]any{
-			"whisparr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"episodeCount":     episodeCount,
-				"totalSize":        totalSize,
-			},
-		},
 	}
 }
 func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQueueResponse) models.ServiceHealth {
-	downloading, episodeCount, totalSize := summarizeSonarrQueue(queueResp.Records)
-
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
@@ -365,15 +322,6 @@ func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQue
 		Stats: map[string]any{
 			"sonarr": map[string]any{
 				"queue": queueResp,
-			},
-		},
-		Details: map[string]any{
-			"sonarr": map[string]any{
-				"queueCount":       queueResp.TotalRecords,
-				"totalRecords":     queueResp.TotalRecords,
-				"downloadingCount": downloading,
-				"episodeCount":     episodeCount,
-				"totalSize":        totalSize,
 			},
 		},
 	}

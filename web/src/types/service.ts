@@ -994,40 +994,6 @@ export interface ServiceDetails {
     totalRequests?: number;
     pendingCount?: number;
   };
-  sonarr?: {
-    queueCount: number;
-    monitored: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    episodeCount?: number;
-    totalSize?: number;
-    version?: string;
-  };
-  radarr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    totalSize?: number;
-  };
-  whisparr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    episodeCount?: number;
-    totalSize?: number;
-  };
-  lidarr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    totalSize?: number;
-  };
-  readarr?: {
-    queueCount: number;
-    totalRecords?: number;
-    downloadingCount?: number;
-    totalSize?: number;
-  };
   bazarr?: {
     episodeBacklog: number;
     movieBacklog: number;

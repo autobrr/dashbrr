@@ -257,16 +257,6 @@ func TestBuildRadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("queue.TotalRecords = %d, want 2", queue.TotalRecords)
 	}
 
-	details, ok := health.Details["radarr"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected radarr details object")
-	}
-	if got := details["downloadingCount"]; got != 1 {
-		t.Fatalf("downloadingCount = %v, want 1", got)
-	}
-	if got := details["totalSize"]; got != int64(150) {
-		t.Fatalf("totalSize = %v, want 150", got)
-	}
 }
 
 func TestBuildLidarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
@@ -296,16 +286,6 @@ func TestBuildLidarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("queue.TotalRecords = %d, want 2", queue.TotalRecords)
 	}
 
-	details, ok := health.Details["lidarr"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected lidarr details object")
-	}
-	if got := details["downloadingCount"]; got != 1 {
-		t.Fatalf("downloadingCount = %v, want 1", got)
-	}
-	if got := details["totalSize"]; got != int64(50) {
-		t.Fatalf("totalSize = %v, want 50", got)
-	}
 }
 
 func TestBuildReadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
@@ -335,16 +315,6 @@ func TestBuildReadarrQueueServiceUpdate_DetailsAndStats(t *testing.T) {
 		t.Fatalf("queue.TotalRecords = %d, want 2", queue.TotalRecords)
 	}
 
-	details, ok := health.Details["readarr"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected readarr details object")
-	}
-	if got := details["downloadingCount"]; got != 1 {
-		t.Fatalf("downloadingCount = %v, want 1", got)
-	}
-	if got := details["totalSize"]; got != int64(100) {
-		t.Fatalf("totalSize = %v, want 100", got)
-	}
 }
 
 func TestBuildBazarrSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
