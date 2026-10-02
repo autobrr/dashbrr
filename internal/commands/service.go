@@ -33,12 +33,8 @@ func changedFlag(cmd *cobra.Command, name string) string {
 // InitCache starts the session cache in the directory of the database, so
 // serve and the CLI commands use the same cache files.
 func InitCache(ctx context.Context, dbPath string) cache.Store {
-	dataDir := filepath.Dir(dbPath)
-	if dataDir == "." {
-		dataDir = "./data"
-	}
 	// cache.InitCache never returns an error.
-	store, _ := cache.InitCache(ctx, cache.Config{DataDir: dataDir})
+	store, _ := cache.InitCache(ctx, cache.Config{DataDir: filepath.Dir(dbPath)})
 	return store
 }
 
