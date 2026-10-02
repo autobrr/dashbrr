@@ -125,11 +125,7 @@ func (s *Server) Handler() http.Handler {
 	eventsHandler := handlers.NewEventsHandler(s.hub, bc)
 	plexAuthHandler := handlers.NewPlexAuthHandler()
 	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.poller)
-	sonarrHandler := handlers.NewSonarrHandler(s.db, s.poller)
-	radarrHandler := handlers.NewRadarrHandler(s.db, s.poller)
-	lidarrHandler := handlers.NewLidarrHandler(s.db, s.poller)
-	readarrHandler := handlers.NewReadarrHandler(s.db, s.poller)
-	whisparrHandler := handlers.NewWhisparrHandler(s.db, s.poller)
+	arrQueueHandler := handlers.NewArrQueueHandler(s.db, s.poller)
 	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
 	// Initialize auth handlers and middleware
@@ -245,11 +241,7 @@ func (s *Server) Handler() http.Handler {
 		actions := api.Group("")
 		actions.Use(apiRateLimiter.RateLimit())
 		{
-			actions.DELETE("/sonarr/queue/:id", sonarrHandler.DeleteQueueItem)
-			actions.DELETE("/radarr/queue/:id", radarrHandler.DeleteQueueItem)
-			actions.DELETE("/lidarr/queue/:id", lidarrHandler.DeleteQueueItem)
-			actions.DELETE("/readarr/queue/:id", readarrHandler.DeleteQueueItem)
-			actions.DELETE("/whisparr/queue/:id", whisparrHandler.DeleteQueueItem)
+			actions.DELETE("/arr/queue/:id", arrQueueHandler.DeleteQueueItem)
 			actions.POST("/services/:instanceId/overseerr/request/:requestId/:status", overseerrHandler.UpdateRequestStatus)
 		}
 	}

@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 )
@@ -88,50 +87,75 @@ func TestHandleQueueDeleteError_Generic(t *testing.T) {
 	}
 }
 
-func TestDeleteQueueItem_RefreshesPoller(t *testing.T) {
+func TestArrQueueDelete(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var gotPath string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(upstream.Close)
 
-	tests := []struct {
-		service    string
-		newHandler func(*database.DB, *Poller) gin.HandlerFunc
-	}{
-		{"sonarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewSonarrHandler(db, p).DeleteQueueItem }},
-		{"radarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewRadarrHandler(db, p).DeleteQueueItem }},
-		{"lidarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewLidarrHandler(db, p).DeleteQueueItem }},
-		{"readarr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewReadarrHandler(db, p).DeleteQueueItem }},
-		{"whisparr", func(db *database.DB, p *Poller) gin.HandlerFunc { return NewWhisparrHandler(db, p).DeleteQueueItem }},
+	db, cleanup := setupUIPreferencesTestDB(t)
+	t.Cleanup(cleanup)
+	for _, instanceID := range []string{"sonarr-1", "radarr-1", "lidarr-1", "readarr-1", "whisparr-1", "plex-1"} {
+		if err := db.CreateService(t.Context(), &models.ServiceConfiguration{
+			InstanceID: instanceID,
+			URL:        upstream.URL,
+			APIKey:     "key",
+		}); err != nil {
+			t.Fatalf("create service: %v", err)
+		}
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.service, func(t *testing.T) {
-			db, cleanup := setupUIPreferencesTestDB(t)
-			defer cleanup()
+	poller := NewPoller(db, nil)
+	r := gin.New()
+	r.DELETE("/api/arr/queue/:id", NewArrQueueHandler(db, poller).DeleteQueueItem)
 
-			instanceID := tt.service + "-1"
-			if err := db.CreateService(t.Context(), &models.ServiceConfiguration{
-				InstanceID: instanceID,
-				URL:        upstream.URL,
-				APIKey:     "key",
-			}); err != nil {
-				t.Fatalf("create service: %v", err)
-			}
+	deleteQueueItem := func(query string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/api/arr/queue/7"+query, nil))
+		return w
+	}
 
-			poller := NewPoller(db, nil)
-			r := gin.New()
-			r.DELETE("/queue/:id", tt.newHandler(db, poller))
-
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/queue/7?instanceId="+instanceID, nil))
-
+	for _, app := range arr.Apps {
+		t.Run(app.Name, func(t *testing.T) {
+			instanceID := app.Name + "-1"
+			w := deleteQueueItem("?instanceId=" + instanceID)
 			if w.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
 			}
+			if want := "/api/" + app.APIVersion + "/queue/7"; gotPath != want {
+				t.Fatalf("upstream path = %q, want %q", gotPath, want)
+			}
 			assertRefreshed(t, poller, instanceID)
+		})
+	}
+
+	errorCases := []struct {
+		name     string
+		query    string
+		wantCode int
+		wantErr  string
+	}{
+		{name: "missing instance", query: "", wantCode: http.StatusBadRequest, wantErr: "instanceId is required"},
+		{name: "unknown instance", query: "?instanceId=sonarr-9", wantCode: http.StatusNotFound, wantErr: "sonarr-9 is not configured"},
+		{name: "not an arr app", query: "?instanceId=plex-1", wantCode: http.StatusBadRequest, wantErr: "instance is not an *arr app"},
+	}
+	for _, tt := range errorCases {
+		t.Run(tt.name, func(t *testing.T) {
+			w := deleteQueueItem(tt.query)
+			if w.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d: %s", w.Code, tt.wantCode, w.Body.String())
+			}
+			var body map[string]string
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if body["error"] != tt.wantErr {
+				t.Fatalf("error = %q, want %q", body["error"], tt.wantErr)
+			}
 		})
 	}
 }

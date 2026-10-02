@@ -100,12 +100,6 @@ type Props = {
   instanceId: string;
   // stable labels for copy/links/api
   serviceName: "Sonarr" | "Whisparr" | "Radarr" | "Lidarr" | "Readarr";
-  queuePath:
-    | "/api/sonarr/queue"
-    | "/api/whisparr/queue"
-    | "/api/radarr/queue"
-    | "/api/lidarr/queue"
-    | "/api/readarr/queue";
   // service.stats[serviceKey].queue
   getQueue: (stats: ServiceStats) => ArrQueue | undefined;
   // allow Radarr importPending as well
@@ -117,7 +111,6 @@ type Props = {
 export const ArrQueueStatsBase: React.FC<Props> = ({
   instanceId,
   serviceName,
-  queuePath,
   getQueue,
   canManageRecord,
   getManageDisabledReason,
@@ -170,7 +163,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
     try {
       const queryParams = buildArrQueueDeleteQueryParams(instanceId, deleteOptions);
 
-      await api.delete(`${queuePath}/${selectedItem.id}?${queryParams.toString()}`);
+      await api.delete(`/api/arr/queue/${selectedItem.id}?${queryParams.toString()}`);
 
       setShowDeleteModal(false);
       setSelectedItem(null);

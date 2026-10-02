@@ -23,12 +23,6 @@ interface ArrQueueStatsProps {
 
 type ArrQueueStatsConfig = {
   serviceName: "Sonarr" | "Whisparr" | "Radarr" | "Lidarr" | "Readarr";
-  queuePath:
-    | "/api/sonarr/queue"
-    | "/api/whisparr/queue"
-    | "/api/radarr/queue"
-    | "/api/lidarr/queue"
-    | "/api/readarr/queue";
   getQueue: (stats: ServiceStats) => ArrQueue | undefined;
   canManageRecord: (record: ArrQueueItem) => boolean;
   getManageDisabledReason: (record: ArrQueueItem) => string;
@@ -41,7 +35,6 @@ const canManageBlockedOrPending = (record: ArrQueueItem) =>
 const ARR_QUEUE_STATS_CONFIG: Record<ArrQueueServiceType, ArrQueueStatsConfig> = {
   sonarr: {
     serviceName: "Sonarr",
-    queuePath: "/api/sonarr/queue",
     getQueue: (stats) => stats.sonarr?.queue,
     canManageRecord: (record) => record.trackedDownloadState === "importBlocked",
     getManageDisabledReason: () =>
@@ -49,7 +42,6 @@ const ARR_QUEUE_STATS_CONFIG: Record<ArrQueueServiceType, ArrQueueStatsConfig> =
   },
   whisparr: {
     serviceName: "Whisparr",
-    queuePath: "/api/whisparr/queue",
     getQueue: (stats) => stats.whisparr?.queue,
     canManageRecord: (record) => record.trackedDownloadState === "importBlocked",
     getManageDisabledReason: () =>
@@ -57,7 +49,6 @@ const ARR_QUEUE_STATS_CONFIG: Record<ArrQueueServiceType, ArrQueueStatsConfig> =
   },
   radarr: {
     serviceName: "Radarr",
-    queuePath: "/api/radarr/queue",
     getQueue: (stats) => stats.radarr?.queue,
     canManageRecord: canManageBlockedOrPending,
     getManageDisabledReason: () =>
@@ -65,7 +56,6 @@ const ARR_QUEUE_STATS_CONFIG: Record<ArrQueueServiceType, ArrQueueStatsConfig> =
   },
   lidarr: {
     serviceName: "Lidarr",
-    queuePath: "/api/lidarr/queue",
     getQueue: (stats) => stats.lidarr?.queue,
     canManageRecord: canManageBlockedOrPending,
     getManageDisabledReason: () =>
@@ -73,7 +63,6 @@ const ARR_QUEUE_STATS_CONFIG: Record<ArrQueueServiceType, ArrQueueStatsConfig> =
   },
   readarr: {
     serviceName: "Readarr",
-    queuePath: "/api/readarr/queue",
     getQueue: (stats) => stats.readarr?.queue,
     canManageRecord: canManageBlockedOrPending,
     getManageDisabledReason: () =>
@@ -90,7 +79,6 @@ export const ArrQueueStats: React.FC<ArrQueueStatsProps> = ({
     <ArrQueueStatsBase
       instanceId={instanceId}
       serviceName={config.serviceName}
-      queuePath={config.queuePath}
       getQueue={config.getQueue}
       canManageRecord={config.canManageRecord}
       getManageDisabledReason={config.getManageDisabledReason}
