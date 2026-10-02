@@ -15,6 +15,9 @@ const PATH_ORIGIN = "http://path.invalid";
  * Builds a link to a service for the user's browser. It uses the access URL
  * when it is set, else the URL. It returns null when that URL is empty or is
  * not an http or https URL. It never throws.
+ *
+ * `path` must be a trusted relative path. A `..` segment removes part of the
+ * base path, and encodeURIComponent does not encode dots.
  */
 export const serviceLink = (
   { url, accessUrl }: ServiceLinkTarget,
