@@ -77,8 +77,8 @@ test("drops query and fragment from the base URL", () => {
 
 test("without a path, returns the base URL", () => {
   assert.equal(
-    serviceLink({ url: " https://host/autobrr?x=1 " }),
-    "https://host/autobrr/"
+    serviceLink({ url: " https://gateway/service?token=abc#overview " }),
+    "https://gateway/service?token=abc#overview"
   );
   assert.equal(serviceLink({ url: "http://autobrr:7474" }), "http://autobrr:7474/");
 });

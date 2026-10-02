@@ -35,6 +35,9 @@ export const serviceLink = (
   }
   if (link.protocol !== "http:" && link.protocol !== "https:") return null;
 
+  // Without a path or params, link to the URL as configured.
+  if (!path && !params) return link.toString();
+
   const basePath = link.pathname.replace(/\/+$/, "");
   const relative = new URL(path.replace(/^\/+/, ""), `${PATH_ORIGIN}/`);
   link.pathname = `${basePath}${relative.pathname}`;
