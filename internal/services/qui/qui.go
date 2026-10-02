@@ -347,16 +347,11 @@ func (s *QuiService) CheckHealth(ctx context.Context, url, apiKey string) (model
 		return s.CreateHealthResponse(startTime, "error", "Service not configured: missing API key"), http.StatusBadRequest
 	}
 
-	baseURL := strings.TrimRight(url, "/")
-
-	var healthResp types.QuiHealthResponse
-	if _, err := s.requestJSON(ctx, fmt.Sprintf("%s/health", baseURL), "", false, &healthResp); err != nil {
-		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect to qui: %v", err)), http.StatusOK
-	}
-
-	instances, statusCode, err := s.getInstances(ctx, baseURL, apiKey)
+	instances, statusCode, err := s.getInstances(ctx, url, apiKey)
 	if err != nil {
 		switch statusCode {
+		case 0:
+			return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect to qui: %v", err)), http.StatusOK
 		case http.StatusUnauthorized, http.StatusForbidden:
 			return s.CreateHealthResponse(startTime, "error", "Invalid API key"), statusCode
 		case http.StatusNotFound:
