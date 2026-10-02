@@ -6,6 +6,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,16 +51,29 @@ func TestHandleQueueDeleteError_ArrHTTPCode(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
-	err := &arr.ErrArr{Service: "sonarr", Op: "delete_queue_item", HttpCode: http.StatusNotFound}
-	handled := handleQueueDeleteError(c, err, "Sonarr", "sonarr-1", "123")
-	if !handled {
-		t.Fatal("expected handled=true")
+	tests := []struct {
+		upstream int
+		want     int
+	}{
+		{upstream: http.StatusBadRequest, want: http.StatusBadRequest},
+		{upstream: http.StatusNotFound, want: http.StatusBadGateway},
 	}
-	if w.Code != http.StatusBadGateway {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadGateway)
+	for _, tt := range tests {
+		t.Run(http.StatusText(tt.upstream), func(t *testing.T) {
+			t.Parallel()
+
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			// Wrap the error the way resilience.RetryWithBackoff does.
+			err := fmt.Errorf("failed after 3 retries: %w", &arr.ErrArr{Service: "sonarr", Op: "delete_queue_item", HttpCode: tt.upstream})
+			if !handleQueueDeleteError(c, err, "Sonarr", "sonarr-1", "123") {
+				t.Fatal("expected handled=true")
+			}
+			if w.Code != tt.want {
+				t.Fatalf("status = %d, want %d", w.Code, tt.want)
+			}
+		})
 	}
 }
 
