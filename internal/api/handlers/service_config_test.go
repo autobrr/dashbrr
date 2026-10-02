@@ -63,14 +63,3 @@ func TestRequireServiceConfig_NotConfigured(t *testing.T) {
 		t.Fatalf("expected ErrServiceNotConfigured for empty URL, got %v", err)
 	}
 }
-
-func TestRequireServiceConfigLegacy_NotConfigured(t *testing.T) {
-	db, cleanup := setupUIPreferencesTestDB(t)
-	defer cleanup()
-
-	ctx := context.Background()
-
-	if _, err := requireServiceConfigLegacy(ctx, db, "autobrr-1"); !errors.Is(err, ErrServiceNotConfigured) {
-		t.Fatalf("expected ErrServiceNotConfigured, got %v", err)
-	}
-}

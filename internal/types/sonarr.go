@@ -105,19 +105,6 @@ type StatusMessage struct {
 	Messages []string `json:"messages"`
 }
 
-// SonarrStatsResponse represents the stats response from Sonarr API
-type SonarrStatsResponse struct {
-	MovieCount       int   `json:"movieCount"`
-	EpisodeCount     int   `json:"episodeCount"`
-	EpisodeFileCount int   `json:"episodeFileCount"`
-	FreeSpaceBytes   int64 `json:"freeSpaceBytes"`
-	TotalSpaceBytes  int64 `json:"totalSpaceBytes"`
-	Monitored        int   `json:"monitored"`
-	Unmonitored      int   `json:"unmonitored"`
-	QueuedCount      int   `json:"queuedCount"`
-	MissingCount     int   `json:"missingCount"`
-}
-
 // SonarrUpdateResponse represents an update response from Sonarr
 type SonarrUpdateResponse struct {
 	Version     string `json:"version"`

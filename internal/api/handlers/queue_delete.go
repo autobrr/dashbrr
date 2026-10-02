@@ -4,18 +4,14 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/services/arr"
-	"github.com/autobrr/dashbrr/internal/services/cache"
-	"github.com/autobrr/dashbrr/internal/services/resilience"
 )
 
 type queueDeleteQueryOptions struct {
@@ -59,38 +55,4 @@ func handleQueueDeleteError(c *gin.Context, err error, serviceName, instanceID, 
 
 	c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete queue item: %v", err)})
 	return true
-}
-
-func refreshQueueAfterDelete[T any](
-	ctx context.Context,
-	store cache.Store,
-	circuitBreaker *resilience.CircuitBreaker,
-	cacheKey string,
-	freshTTL time.Duration,
-	staleTTL time.Duration,
-	fetch func() (T, error),
-	broadcast func(*T),
-	serviceName string,
-	instanceID string,
-) {
-	if err := DeleteSWRCacheKeys(ctx, store, cacheKey); err != nil {
-		log.Warn().
-			Err(err).
-			Str("instanceId", instanceID).
-			Msgf("[%s] Failed to clear queue cache", serviceName)
-	}
-
-	result, err := FetchWithSWRCache(ctx, SWRCacheOptions[T]{
-		Store:          store,
-		CircuitBreaker: circuitBreaker,
-		Key:            cacheKey,
-		FreshTTL:       freshTTL,
-		StaleTTL:       staleTTL,
-		Fetch:          fetch,
-	})
-	if err != nil {
-		return
-	}
-
-	broadcast(&result)
 }

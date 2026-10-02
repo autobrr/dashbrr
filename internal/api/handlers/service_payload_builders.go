@@ -379,27 +379,6 @@ func buildSonarrQueueServiceUpdate(instanceID string, queueResp *types.SonarrQue
 	}
 }
 
-func buildSonarrStatsServiceUpdate(instanceID string, statsResp *types.SonarrStatsResponse, version string) models.ServiceHealth {
-	return models.ServiceHealth{
-		ServiceID: instanceID,
-		Status:    "online",
-		Message:   "sonarr_stats",
-		Stats: map[string]any{
-			"sonarr": map[string]any{
-				"stats":   statsResp,
-				"version": version,
-			},
-		},
-		Details: map[string]any{
-			"sonarr": map[string]any{
-				"monitored":  statsResp.Monitored,
-				"version":    version,
-				"queueCount": statsResp.QueuedCount,
-			},
-		},
-	}
-}
-
 func buildProwlarrStatsServiceUpdate(instanceID string, stats types.ProwlarrStatsResponse) models.ServiceHealth {
 	return models.ServiceHealth{
 		ServiceID: instanceID,

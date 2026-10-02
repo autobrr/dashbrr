@@ -27,16 +27,3 @@ func requireServiceConfig(ctx context.Context, db *database.DB, instanceID, serv
 
 	return cfg, nil
 }
-
-func requireServiceConfigLegacy(ctx context.Context, db *database.DB, instanceID string) (*models.ServiceConfiguration, error) {
-	cfg, err := findServiceConfig(ctx, db, instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	if cfg == nil || cfg.URL == "" {
-		return nil, ErrServiceNotConfigured
-	}
-
-	return cfg, nil
-}
