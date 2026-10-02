@@ -67,6 +67,11 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	var err error
 
 	if url != "" {
+		if !isHTTPURL(url) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": invalidServiceURLMessage})
+			return
+		}
+
 		service = &models.ServiceConfiguration{
 			InstanceID: serviceID,
 			URL:        url,
