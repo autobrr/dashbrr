@@ -1,10 +1,13 @@
 package commands
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services/cache"
 
 	"github.com/spf13/cobra"
 )
@@ -27,7 +30,20 @@ func changedFlag(cmd *cobra.Command, name string) string {
 	return ""
 }
 
-// initializeDatabase opens the database that serve uses with the same flags and environment.
+// InitCache starts the session cache in the directory of the database, so
+// serve and the CLI commands use the same cache files.
+func InitCache(ctx context.Context, dbPath string) cache.Store {
+	dataDir := filepath.Dir(dbPath)
+	if dataDir == "." {
+		dataDir = "./data"
+	}
+	// cache.InitCache never returns an error.
+	store, _ := cache.InitCache(ctx, cache.Config{DataDir: dataDir})
+	return store
+}
+
+// initializeDatabase opens the database and the cache that serve uses with the
+// same flags and environment.
 func initializeDatabase(cmd *cobra.Command) (*database.DB, error) {
 	cfg, _, err := ConfigFromFlags(cmd)
 	if err != nil {
@@ -37,6 +53,7 @@ func initializeDatabase(cmd *cobra.Command) (*database.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %v", err)
 	}
+	InitCache(cmd.Context(), cfg.Database.Path)
 	return db, nil
 }
 

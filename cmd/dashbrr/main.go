@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/autobrr/dashbrr/internal/api"
@@ -16,7 +15,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -91,24 +89,8 @@ func startServer(cmd *cobra.Command) error {
 	}
 	defer db.Close()
 
-	// Create a root context for cache initialization
-	ctx := context.Background()
-
-	// Initialize cache with database directory for session storage
-	cacheConfig := cache.Config{
-		DataDir: filepath.Dir(cfg.Database.Path),
-	}
-	if cacheConfig.DataDir == "." || cacheConfig.DataDir == "" {
-		cacheConfig.DataDir = "./data"
-	}
+	store := commands.InitCache(context.Background(), cfg.Database.Path)
 	log.Debug().Msg("Cache initialized")
-
-	store, err := cache.InitCache(ctx, cacheConfig)
-	if err != nil {
-		// This should never happen as InitCache always returns a valid store
-		log.Error().Err(err).Msg("Failed to initialize cache")
-		return err
-	}
 
 	srv := api.NewServer(cfg, db, store)
 

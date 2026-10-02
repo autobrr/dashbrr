@@ -19,7 +19,7 @@ func TestInitializeDatabaseHonoursEnvPath(t *testing.T) {
 	// Run from a scratch cwd so a regression back to ./data would be visible.
 	t.Chdir(dir)
 
-	db, err := initializeDatabase(&cobra.Command{})
+	db, err := initializeDatabase(testCommand(t))
 	if err != nil {
 		t.Fatalf("initializeDatabase: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestInitializeDatabaseDefaultPath(t *testing.T) {
 
 	t.Chdir(dir)
 
-	db, err := initializeDatabase(&cobra.Command{})
+	db, err := initializeDatabase(testCommand(t))
 	if err != nil {
 		t.Fatalf("initializeDatabase: %v", err)
 	}
@@ -86,4 +86,10 @@ func TestInitializeDatabaseUsesConfigFlag(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(configDir, "db", "cli.db")); err != nil {
 		t.Fatalf("expected database next to the --config file: %v", err)
 	}
+}
+
+func testCommand(t *testing.T) *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.SetContext(t.Context())
+	return cmd
 }

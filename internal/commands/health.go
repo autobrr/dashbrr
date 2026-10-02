@@ -82,6 +82,7 @@ func HealthCommand() *cobra.Command {
 		status.System.Database.Connected = true
 
 		ctx := cmd.Context()
+		InitCache(ctx, cfg.Database.Path)
 
 		// Service health checks
 		if checkServices {
