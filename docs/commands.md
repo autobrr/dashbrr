@@ -28,7 +28,7 @@ The config file is the first of these that applies:
 
 1. `--config`
 2. `DASHBRR__CONFIG_PATH`
-3. The first config file in the user config directory, then in `/config`
+3. `config.toml` in the user config directory, then in `/config`
 4. `./config.toml`
 
 The database path is the first of these that applies:

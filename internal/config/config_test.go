@@ -200,10 +200,8 @@ func TestLoadConfigFilePriority(t *testing.T) {
 
 func TestLoadFallsBackToWorkingDirectory(t *testing.T) {
 	isolateConfigSearch(t)
-	for _, name := range []string{"config.toml", "config.yaml", "config.yml"} {
-		if _, err := os.Stat(filepath.Join("/config", name)); err == nil {
-			t.Skip("/config has a config file on this host")
-		}
+	if _, err := os.Stat("/config/config.toml"); err == nil {
+		t.Skip("/config has a config file on this host")
 	}
 
 	cfg, path, err := Load(Flags{})

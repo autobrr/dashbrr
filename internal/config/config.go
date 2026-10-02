@@ -121,8 +121,7 @@ func Load(flags Flags) (*Config, string, error) {
 }
 
 // findConfigFile returns the --config value, else DASHBRR__CONFIG_PATH, else
-// the first config file in the user config directory or /config, else
-// ./config.toml.
+// config.toml in the user config directory or /config, else ./config.toml.
 func findConfigFile(flagPath string) string {
 	if path := cmp.Or(flagPath, os.Getenv(EnvConfigPath)); path != "" {
 		return path
@@ -135,11 +134,9 @@ func findConfigFile(flagPath string) string {
 	dirs = append(dirs, "/config")
 
 	for _, dir := range dirs {
-		for _, name := range []string{"config.toml", "config.yaml", "config.yml"} {
-			path := filepath.Join(dir, name)
-			if _, err := os.Stat(path); err == nil {
-				return path
-			}
+		path := filepath.Join(dir, "config.toml")
+		if _, err := os.Stat(path); err == nil {
+			return path
 		}
 	}
 

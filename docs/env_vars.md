@@ -46,7 +46,7 @@ Only needed if you serve the web UI from a different origin than the API (differ
 - `DASHBRR__CONFIG_PATH`
   - Purpose: Path to the configuration file
   - Priority: `--config` flag > this environment variable > user config directory > `/config` > `./config.toml`
-  - Note: Without `--config` and this variable, dashbrr uses the first `config.toml`, `config.yaml`, or `config.yml` in the user config directory (for example `~/.config/dashbrr`), then in `/config`. If it finds none, it uses `./config.toml`.
+  - Note: Without `--config` and this variable, dashbrr uses `config.toml` in the user config directory (for example `~/.config/dashbrr`), then in `/config`. If it finds none, it uses `./config.toml`.
 
 ## Database Configuration
 
