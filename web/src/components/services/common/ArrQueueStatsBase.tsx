@@ -24,8 +24,10 @@ import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
 import {
   ArrQueueDeleteOptions,
   buildArrQueueDeleteQueryParams,
+  canRemoveQueueItem,
   getBlocklistText,
-  getRemovalMethodText
+  getRemovalMethodText,
+  QUEUE_REMOVE_DISABLED_REASON
 } from "./ArrQueueDelete";
 
 type SelectOption<T extends string> = {
@@ -102,9 +104,6 @@ type Props = {
   serviceName: "Sonarr" | "Whisparr" | "Radarr" | "Lidarr" | "Readarr";
   // service.stats[serviceKey].queue
   getQueue: (stats: ServiceStats) => ArrQueue | undefined;
-  // allow Radarr importPending as well
-  canManageRecord: (record: ArrQueueItem) => boolean;
-  getManageDisabledReason: (record: ArrQueueItem) => string;
   renderMessage: (props: { status: ServiceStatus; message?: string }) => React.ReactNode;
 };
 
@@ -112,8 +111,6 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
   instanceId,
   serviceName,
   getQueue,
-  canManageRecord,
-  getManageDisabledReason,
   renderMessage,
 }) => {
   const { getService } = useServiceData();
@@ -226,16 +223,16 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
                         setSelectedItem(record);
                         setShowDeleteModal(true);
                       }}
-                      disabled={!canManageRecord(record)}
+                      disabled={!canRemoveQueueItem(record)}
                       className={`p-1.5 rounded-md transition-colors ${
-                        canManageRecord(record)
+                        canRemoveQueueItem(record)
                           ? "hover:bg-zinc-700 dark:hover:bg-zinc-700"
                           : "opacity-50 cursor-not-allowed"
                       }`}
                       title={
-                        canManageRecord(record)
+                        canRemoveQueueItem(record)
                           ? "Manage queue"
-                          : getManageDisabledReason(record)
+                          : QUEUE_REMOVE_DISABLED_REASON
                       }
                     >
                       <Cog6ToothIcon className="h-4 w-4 text-zinc-400" />
