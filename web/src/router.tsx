@@ -18,7 +18,7 @@ import { ServiceDataProvider } from "./hooks/useServiceData";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 const rootRoute = createRootRoute({
-  // The providers use router hooks, so they render inside the router.
+  // AuthProvider uses a router hook, so the providers render inside the router.
   component: () => (
     <AuthProvider>
       <ConfigurationProvider>
@@ -82,7 +82,8 @@ export const router = createRouter({
     authLoginRoute,
     catchAllRoute,
   ]),
-  // Shown while a lazy route component loads.
+  // The router shows this at once while a lazy route component loads.
+  defaultPendingMs: 0,
   defaultPendingComponent: () => (
     <div className="min-h-screen bg-color pattern flex items-center justify-center">
       <div className="text-sm text-gray-400">Loading...</div>
