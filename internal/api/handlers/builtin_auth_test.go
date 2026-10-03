@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -36,7 +37,7 @@ func newBuiltinAuthRouter(t *testing.T, store cache.Store) *gin.Engine {
 	r.POST("/register", h.Register)
 	r.POST("/login", h.Login)
 	r.POST("/logout", h.Logout)
-	r.GET("/verify", h.Verify)
+	r.GET("/verify", middleware.NewAuthMiddleware(store).RequireAuth(), h.Verify)
 	r.GET("/userinfo", h.GetUserInfo)
 	return r
 }
@@ -129,33 +130,36 @@ func TestBuiltinAuth_UserInfoWithOIDCSession(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "User not found")
 }
 
-// Each verifier must reject a session of the other login type. The web UI
-// probes the OIDC verifier first and takes a 200 as an OIDC login.
-func TestVerifiersRejectOtherAuthType(t *testing.T) {
+func TestVerifyReportsLoginType(t *testing.T) {
 	store := newBuiltinMemoryStore(t)
 	require.NoError(t, store.Set(t.Context(), "session:builtin-token", types.SessionData{UserID: 1, AuthType: "builtin"}, session.TTL))
 	require.NoError(t, store.Set(t.Context(), "session:oidc-token", types.SessionData{AuthType: "oidc"}, session.TTL))
-
 	r := newBuiltinAuthRouter(t, store)
-	oidc := NewAuthHandler(&types.AuthConfig{}, store)
-	r.GET("/oidc/verify", oidc.VerifyToken)
-	r.GET("/oidc/userinfo", oidc.UserInfo)
 
 	for _, tc := range []struct {
-		path  string
-		token string
-		want  int
+		name       string
+		token      string
+		bypass     string
+		wantStatus int
+		wantBody   string
 	}{
-		{path: "/oidc/verify", token: "builtin-token", want: http.StatusUnauthorized},
-		{path: "/oidc/userinfo", token: "builtin-token", want: http.StatusUnauthorized},
-		{path: "/verify", token: "oidc-token", want: http.StatusUnauthorized},
-		{path: "/oidc/verify", token: "oidc-token", want: http.StatusOK},
-		{path: "/oidc/userinfo", token: "oidc-token", want: http.StatusOK},
-		{path: "/verify", token: "builtin-token", want: http.StatusOK},
+		{name: "builtin session", token: "builtin-token", bypass: "false", wantStatus: http.StatusOK, wantBody: `{"auth_type":"builtin","message":"Token is valid","user_id":1}`},
+		{name: "oidc session", token: "oidc-token", bypass: "false", wantStatus: http.StatusOK, wantBody: `{"auth_type":"oidc","message":"Token is valid","user_id":0}`},
+		{name: "auth bypass", bypass: "true", wantStatus: http.StatusOK, wantBody: `{"auth_type":"builtin","message":"Token is valid","user_id":1}`},
+		{name: "no session", bypass: "false", wantStatus: http.StatusUnauthorized},
 	} {
-		t.Run(tc.path+" "+tc.token, func(t *testing.T) {
-			w := serve(t, r, http.MethodGet, tc.path, "", &http.Cookie{Name: session.CookieName, Value: tc.token}) //nolint:gosec // request cookie; attributes don't apply
-			assert.Equal(t, tc.want, w.Code, w.Body.String())
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DASHBRR_AUTH_BYPASS", tc.bypass)
+			var cookie *http.Cookie
+			if tc.token != "" {
+				cookie = &http.Cookie{Name: session.CookieName, Value: tc.token} //nolint:gosec // request cookie; attributes don't apply
+			}
+
+			w := serve(t, r, http.MethodGet, "/verify", "", cookie)
+			assert.Equal(t, tc.wantStatus, w.Code, w.Body.String())
+			if tc.wantBody != "" {
+				assert.JSONEq(t, tc.wantBody, w.Body.String())
+			}
 		})
 	}
 }

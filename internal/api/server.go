@@ -183,7 +183,6 @@ func (s *Server) Handler() http.Handler {
 			builtinAuth.POST("/register", builtinAuthHandler.Register)
 			builtinAuth.POST("/login", builtinAuthHandler.Login)
 			builtinAuth.POST("/logout", builtinAuthHandler.Logout)
-			builtinAuth.GET("/verify", builtinAuthHandler.Verify)
 		}
 	}
 
@@ -192,13 +191,7 @@ func (s *Server) Handler() http.Handler {
 	protectedAuth.Use(authMiddleware.RequireAuth())
 	protectedAuth.Use(authRateLimiter.RateLimit())
 	{
-		if oidcAuthHandler != nil {
-			oidc := protectedAuth.Group("/oidc")
-			{
-				oidc.GET("/verify", oidcAuthHandler.VerifyToken)
-				oidc.GET("/userinfo", oidcAuthHandler.UserInfo)
-			}
-		}
+		protectedAuth.GET("/verify", builtinAuthHandler.Verify)
 		protectedAuth.GET("/userinfo", builtinAuthHandler.GetUserInfo)
 	}
 

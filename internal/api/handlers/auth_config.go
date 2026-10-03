@@ -20,7 +20,6 @@ func AuthConfig(hasOIDC bool) gin.HandlerFunc {
 					"oidc":    false,
 				},
 				"default": "builtin",
-				"bypass":  true,
 			})
 			return
 		}
@@ -36,7 +35,6 @@ func AuthConfig(hasOIDC bool) gin.HandlerFunc {
 				"oidc":    hasOIDC,
 			},
 			"default": defaultMethod,
-			"bypass":  false,
 		})
 	}
 }

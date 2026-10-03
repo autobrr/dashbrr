@@ -22,7 +22,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -409,44 +408,4 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	logoutURL := buildLogoutURL(h.config.Issuer, h.config.ClientID, frontendUrl)
 	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
-}
-
-// loadSessionOfType loads the session and rejects a session of another login
-// type. The web UI probes the OIDC verifier first and takes a 200 as an OIDC
-// login, so a builtin session must fail there.
-func loadSessionOfType(c *gin.Context, sessions *session.Manager, authType string) (types.SessionData, bool) {
-	_, sessionData, err := sessions.Load(c)
-	if err != nil {
-		middleware.AbortWithSessionError(c, err)
-		return types.SessionData{}, false
-	}
-	if sessionData.AuthType != authType {
-		// Answer as for a missing session: 401 "Invalid or expired session".
-		middleware.AbortWithSessionError(c, cache.ErrKeyNotFound)
-		return types.SessionData{}, false
-	}
-	return sessionData, true
-}
-
-func (h *AuthHandler) VerifyToken(c *gin.Context) {
-	if _, ok := loadSessionOfType(c, h.sessions, "oidc"); !ok {
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Token is valid",
-	})
-}
-
-func (h *AuthHandler) UserInfo(c *gin.Context) {
-	sessionData, ok := loadSessionOfType(c, h.sessions, "oidc")
-	if !ok {
-		return
-	}
-
-	// Just return the basic session info we already have
-	c.JSON(http.StatusOK, gin.H{
-		"user_id":   sessionData.UserID,
-		"auth_type": sessionData.AuthType,
-	})
 }

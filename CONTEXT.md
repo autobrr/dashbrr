@@ -36,6 +36,10 @@ _Avoid_: login, auth session
 The random string that identifies a session. The browser sends it in the `dashbrr_user_session` cookie. API clients send it as a Bearer token.
 _Avoid_: session ID, access token
 
+**Login type**:
+How a session was created: builtin (username and password) or OIDC. The API field is `auth_type`.
+_Avoid_: auth type, auth method
+
 ### Service data
 
 **Poller**:

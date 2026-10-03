@@ -5,20 +5,6 @@
 
 import { AuthConfig } from "../config/auth";
 
-export interface User {
-  id?: number;
-  sub?: string;
-  email?: string;
-  name?: string;
-  picture?: string;
-  given_name?: string;
-  family_name?: string;
-  preferred_username?: string;
-  email_verified?: boolean;
-  username?: string;
-  auth_type?: "oidc" | "builtin";
-}
-
 export interface LoginCredentials {
   username: string;
   password: string;
@@ -30,7 +16,6 @@ export interface RegisterCredentials extends LoginCredentials {
 
 export interface AuthState {
   isAuthenticated: boolean;
-  user: User | null;
   loading: boolean;
   authConfig: AuthConfig | null;
 }
