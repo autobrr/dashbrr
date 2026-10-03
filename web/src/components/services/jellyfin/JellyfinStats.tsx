@@ -285,7 +285,7 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                         <span className={isPaused ? "text-yellow-500" : "text-blue-500"}>
                           {getMediaTypeIcon(session.NowPlayingItem?.Type, isPaused)}
                         </span>
-                        <div className="flex items-center justify-between flex-1 gap-2">
+                        <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
                           <span
                             className="text-xs font-medium text-gray-200 truncate"
                             title={getSessionTitle(
@@ -299,12 +299,12 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
                             )}
                           </span>
                           {isTranscodingSession(session) && (
-                            <div className="flex items-center gap-1 ml-2 text-amber-500 dark:text-amber-400">
+                            <div className="flex shrink-0 items-center gap-1 ml-2 text-amber-500 dark:text-amber-400">
                               <FaExchangeAlt className="h-3 w-3" />
                               <span className="text-[10px]">Transcoding</span>
                             </div>
                           )}
-                          <span className="text-[10px] text-zinc-400 ml-1">
+                          <span className="shrink-0 text-[10px] text-zinc-400 ml-1">
                             {isPaused ? (
                               <span className="inline-flex items-center gap-1">
                                 <FaPause className="h-2.5 w-2.5" /> Paused
