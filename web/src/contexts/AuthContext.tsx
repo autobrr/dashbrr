@@ -12,7 +12,7 @@ import {
 } from "../types/auth";
 import { AUTH_URLS, getAuthConfig, AuthConfig } from "../config/auth";
 import { readErrorMessage } from "../utils/http";
-import { LoginType, loginTypeFrom } from "../utils/loginType";
+import { loginTypeFrom } from "../utils/loginType";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -55,12 +55,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
-  const [loginType, setLoginType] = useState<LoginType | null>(null);
 
   const clearAuth = useCallback(() => {
     debug("[AuthProvider] Clearing authentication state");
     setIsAuthenticated(false);
-    setLoginType(null);
   }, []);
 
   const checkAuthStatus = useCallback(async () => {
@@ -77,7 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setLoginType(verified);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("[AuthProvider] Auth check failed:", error);
@@ -190,25 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     debug("[AuthProvider] Initiating logout");
     try {
-      const currentLoginType = loginType || "builtin";
-      const logoutUrl =
-        currentLoginType === "oidc"
-          ? AUTH_URLS.oidc.logout
-          : AUTH_URLS.builtin.logout;
-
-      debug(
-        "[AuthProvider] Logging out with auth type:",
-        currentLoginType
-      );
-
-      if (currentLoginType === "oidc") {
-        // Must be a navigation to follow provider redirects.
-        clearAuth();
-        window.location.href = logoutUrl;
-        return;
-      }
-
-      const response = await fetch(logoutUrl, {
+      const response = await fetch(AUTH_URLS.logout, {
         method: "POST",
         credentials: "include",
       });
