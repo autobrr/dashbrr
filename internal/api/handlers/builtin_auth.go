@@ -177,9 +177,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 
 // Verify verifies the session token
 func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
-	_, sessionData, err := h.sessions.Load(c)
-	if err != nil {
-		middleware.AbortWithSessionError(c, err)
+	sessionData, ok := loadSessionOfType(c, h.sessions, "builtin")
+	if !ok {
 		return
 	}
 

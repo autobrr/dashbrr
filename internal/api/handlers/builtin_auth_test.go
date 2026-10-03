@@ -128,3 +128,34 @@ func TestBuiltinAuth_UserInfoWithOIDCSession(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.Contains(t, w.Body.String(), "User not found")
 }
+
+// Each verifier must reject a session of the other login type. The web UI
+// probes the OIDC verifier first and takes a 200 as an OIDC login.
+func TestVerifiersRejectOtherAuthType(t *testing.T) {
+	store := newBuiltinMemoryStore(t)
+	require.NoError(t, store.Set(t.Context(), "session:builtin-token", types.SessionData{UserID: 1, AuthType: "builtin"}, session.TTL))
+	require.NoError(t, store.Set(t.Context(), "session:oidc-token", types.SessionData{AuthType: "oidc"}, session.TTL))
+
+	r := newBuiltinAuthRouter(t, store)
+	oidc := NewAuthHandler(&types.AuthConfig{}, store)
+	r.GET("/oidc/verify", oidc.VerifyToken)
+	r.GET("/oidc/userinfo", oidc.UserInfo)
+
+	for _, tc := range []struct {
+		path  string
+		token string
+		want  int
+	}{
+		{path: "/oidc/verify", token: "builtin-token", want: http.StatusUnauthorized},
+		{path: "/oidc/userinfo", token: "builtin-token", want: http.StatusUnauthorized},
+		{path: "/verify", token: "oidc-token", want: http.StatusUnauthorized},
+		{path: "/oidc/verify", token: "oidc-token", want: http.StatusOK},
+		{path: "/oidc/userinfo", token: "oidc-token", want: http.StatusOK},
+		{path: "/verify", token: "builtin-token", want: http.StatusOK},
+	} {
+		t.Run(tc.path+" "+tc.token, func(t *testing.T) {
+			w := serve(t, r, http.MethodGet, tc.path, "", &http.Cookie{Name: session.CookieName, Value: tc.token}) //nolint:gosec // request cookie; attributes don't apply
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+		})
+	}
+}

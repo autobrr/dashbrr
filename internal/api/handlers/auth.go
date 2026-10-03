@@ -411,9 +411,25 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
 }
 
-func (h *AuthHandler) VerifyToken(c *gin.Context) {
-	if _, _, err := h.sessions.Load(c); err != nil {
+// loadSessionOfType loads the session and rejects a session of another login
+// type. The web UI probes the OIDC verifier first and takes a 200 as an OIDC
+// login, so a builtin session must fail there.
+func loadSessionOfType(c *gin.Context, sessions *session.Manager, authType string) (types.SessionData, bool) {
+	_, sessionData, err := sessions.Load(c)
+	if err != nil {
 		middleware.AbortWithSessionError(c, err)
+		return types.SessionData{}, false
+	}
+	if sessionData.AuthType != authType {
+		// Answer as for a missing session: 401 "Invalid or expired session".
+		middleware.AbortWithSessionError(c, cache.ErrKeyNotFound)
+		return types.SessionData{}, false
+	}
+	return sessionData, true
+}
+
+func (h *AuthHandler) VerifyToken(c *gin.Context) {
+	if _, ok := loadSessionOfType(c, h.sessions, "oidc"); !ok {
 		return
 	}
 
@@ -423,9 +439,8 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 }
 
 func (h *AuthHandler) UserInfo(c *gin.Context) {
-	_, sessionData, err := h.sessions.Load(c)
-	if err != nil {
-		middleware.AbortWithSessionError(c, err)
+	sessionData, ok := loadSessionOfType(c, h.sessions, "oidc")
+	if !ok {
 		return
 	}
 
