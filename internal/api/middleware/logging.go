@@ -5,22 +5,10 @@ package middleware
 
 import (
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
-
-func init() {
-	// Enable console writer with colors
-	output := zerolog.ConsoleWriter{
-		Out:     os.Stdout,
-		NoColor: false,
-	}
-	log.Logger = zerolog.New(output).With().Timestamp().Logger()
-}
 
 // Logger returns a gin middleware for logging HTTP requests with zerolog
 func Logger() gin.HandlerFunc {

@@ -24,7 +24,7 @@ func Init() {
 	}
 
 	output := zerolog.ConsoleWriter{
-		Out:     os.Stdout,
+		Out:     os.Stderr,
 		NoColor: false,
 		FormatLevel: func(i any) string {
 			level, ok := i.(string)
