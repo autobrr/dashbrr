@@ -97,6 +97,9 @@ type Flags struct {
 	ConfigPath string
 	DBPath     string
 	ListenAddr string
+	// ReadOnly stops Load from writing a default config file when the file
+	// is missing.
+	ReadOnly bool
 }
 
 // Load selects the config file, loads it, and applies the flags. The serve
@@ -105,7 +108,7 @@ type Flags struct {
 func Load(flags Flags) (*Config, string, error) {
 	path := findConfigFile(flags.ConfigPath)
 
-	cfg, err := LoadConfig(path)
+	cfg, err := loadConfig(path, !flags.ReadOnly)
 	if err != nil {
 		return nil, path, err
 	}
@@ -148,6 +151,10 @@ func findConfigFile(flagPath string) string {
 // and continues with the defaults if that fails. A relative database path from
 // the file is relative to the config directory.
 func LoadConfig(path string) (*Config, error) {
+	return loadConfig(path, true)
+}
+
+func loadConfig(path string, writeDefault bool) (*Config, error) {
 	config := DefaultConfig()
 
 	absPath, err := filepath.Abs(path)
@@ -159,6 +166,8 @@ func LoadConfig(path string) (*Config, error) {
 
 	data, err := os.ReadFile(absPath)
 	switch {
+	case errors.Is(err, fs.ErrNotExist) && !writeDefault:
+		log.Debug().Str("path", displayPath).Msg("Configuration file not found, using defaults and environment variables")
 	case errors.Is(err, fs.ErrNotExist):
 		if err := writeDefaultConfig(absPath, config); err != nil {
 			log.Warn().Err(err).Str("path", displayPath).Msg("Configuration file not found and could not be created, using defaults and environment variables")
