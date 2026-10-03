@@ -4,6 +4,7 @@
  */
 
 import { readErrorMessage } from "./http";
+import { basePath } from ".";
 
 const DEFAULT_TIMEOUT_MS = 8000;
 const HEALTH_CHECK_TIMEOUT_MS = 12000;
@@ -27,8 +28,7 @@ const createRequest = (method: string, data?: unknown): RequestInit => {
 };
 
 const getTimeoutForPath = (path: string): number => {
-  const apiPath = path.startsWith("/api") ? path : `/api${path}`;
-  if (apiPath.startsWith("/api/health/")) {
+  if (path.startsWith("/health/")) {
     return HEALTH_CHECK_TIMEOUT_MS;
   }
   return DEFAULT_TIMEOUT_MS;
@@ -49,13 +49,13 @@ const isNoRedirectOn401Endpoint = (path: string): boolean => {
   // Endpoints where a 401 should be surfaced to the caller (bad creds, etc),
   // not treated as "session expired, redirect to /login".
   const paths = [
-    "/api/auth/login",
-    "/api/auth/register",
-    "/api/auth/registration-status",
-    "/api/auth/config",
-    "/api/auth/oidc/login",
+    "/auth/login",
+    "/auth/register",
+    "/auth/registration-status",
+    "/auth/config",
+    "/auth/oidc/login",
   ];
-  return paths.some((p) => path.includes(p));
+  return paths.some((p) => path.startsWith(p));
 };
 
 // Track auth state changes to prevent cascading 401 handlers
@@ -70,8 +70,8 @@ const handleRequest = async <T>(
   const timeout = customTimeout ?? getTimeoutForPath(path);
 
   try {
-    const apiPath = path.startsWith("/api") ? path : `/api${path}`;
-    const url = apiPath;
+    // Relative, so that the browser resolves it against <base>.
+    const url = `api${path}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -94,7 +94,7 @@ const handleRequest = async <T>(
         throw new Error("Authentication in progress");
       }
 
-      if (isNoRedirectOn401Endpoint(apiPath)) {
+      if (isNoRedirectOn401Endpoint(path)) {
         throw new Error((await readErrorMessage(response)) || "Unauthorized");
       }
 
@@ -106,7 +106,7 @@ const handleRequest = async <T>(
         await unregisterServiceWorker();
       }
 
-      window.location.href = "/login";
+      window.location.href = basePath() + "/login";
       throw new Error("Authentication required");
     }
 

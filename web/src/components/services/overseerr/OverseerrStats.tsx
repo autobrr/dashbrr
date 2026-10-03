@@ -101,7 +101,7 @@ export const OverseerrStats: React.FC<OverseerrStatsProps> = ({
     try {
       const status = modalAction === "approve" ? 2 : 3; // 2 for approved, 3 for declined
       await api.post(
-        `/api/services/${instanceId}/overseerr/request/${selectedRequest.id}/${status}`
+        `/services/${instanceId}/overseerr/request/${selectedRequest.id}/${status}`
       );
 
       // Optimistic UI: override status locally; SSE refresh will reconcile.

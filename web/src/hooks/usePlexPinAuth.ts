@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { api } from "../utils/api";
+import { basePath } from "../utils";
 
 type PlexPinCreateResponse = {
   pinId: number;
@@ -97,9 +98,9 @@ export const usePlexPinAuth = () => {
       setIsAuthenticating(true);
       try {
         const response = await api.post<PlexPinCreateResponse>(
-          "/api/plex/auth/pin",
+          "/plex/auth/pin",
           {
-            forwardUrl: `${window.location.origin}/plex-auth-complete.html`,
+            forwardUrl: `${window.location.origin}${basePath()}/plex-auth-complete.html`,
           }
         );
 
@@ -120,7 +121,7 @@ export const usePlexPinAuth = () => {
         const poll = async () => {
           try {
             const status = await api.get<PlexPinStatusResponse>(
-              `/api/plex/auth/pin/${response.pinId}?code=${encodeURIComponent(
+              `/plex/auth/pin/${response.pinId}?code=${encodeURIComponent(
                 response.code
               )}&clientIdentifier=${encodeURIComponent(response.clientIdentifier)}`
             );
