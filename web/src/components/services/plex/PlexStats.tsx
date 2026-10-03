@@ -203,21 +203,23 @@ export const PlexStats: React.FC<PlexStatsProps> = ({ instanceId }) => {
                           session.Player?.state?.toLowerCase() === "paused"
                         )}
                       </span>
-                      <div className="flex items-center justify-between flex-1">
-                        <span className="text-xs font-medium text-gray-200 truncate" title={session.title}>
-                          {session.type?.toLowerCase() === "movie"
-                            ? session.grandparentTitle
-                              ? `${session.grandparentTitle} - ${session.title}`
-                              : session.title
-                            : session.grandparentTitle
-                              ? `${session.grandparentTitle} - ${session.title}`
-                              : session.title ?? ""}
+                      <div className="flex items-center justify-between flex-1 min-w-0">
+                        <span className="flex min-w-0 items-center text-xs font-medium text-gray-200">
+                          <span className="truncate" title={session.title}>
+                            {session.type?.toLowerCase() === "movie"
+                              ? session.grandparentTitle
+                                ? `${session.grandparentTitle} - ${session.title}`
+                                : session.title
+                              : session.grandparentTitle
+                                ? `${session.grandparentTitle} - ${session.title}`
+                                : session.title ?? ""}
+                          </span>
                           {session.type?.toLowerCase() === "clip" && (
-                            <span className="text-purple-400 ml-1">(Trailer)</span>
+                            <span className="text-purple-400 ml-1 shrink-0">(Trailer)</span>
                           )}
                         </span>
                         {isTranscoding(session) && (
-                          <div className="flex items-center gap-1 ml-4 text-amber-500 dark:text-amber-400">
+                          <div className="flex shrink-0 items-center gap-1 ml-4 text-amber-500 dark:text-amber-400">
                             <FaExchangeAlt className="h-3 w-3" />
                             <span className="text-[10px]">Transcoding</span>
                           </div>
