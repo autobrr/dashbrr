@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "../../hooks/useAuth";
 import { RegisterCredentials } from "../../types/auth";
 import { toast } from "react-hot-toast";
@@ -47,7 +47,6 @@ export function LoginPage() {
     authConfig,
   } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [registrationEnabled, setRegistrationEnabled] =
@@ -63,10 +62,6 @@ export function LoginPage() {
     confirmPassword: "",
     email: "", // Will be set during registration
   });
-
-  // Get the return URL from location state, or default to '/'
-  const from =
-    (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
 
   const passwordValidation = useMemo<PasswordValidation>(() => {
     const password = formData.password;
@@ -126,11 +121,10 @@ export function LoginPage() {
   }, [authConfig]);
 
   useEffect(() => {
-    // If already authenticated, redirect to the return URL
     if (isAuthenticated && !loading) {
-      navigate(from, { replace: true });
+      navigate({ to: "/", replace: true });
     }
-  }, [isAuthenticated, loading, navigate, from]);
+  }, [isAuthenticated, loading, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

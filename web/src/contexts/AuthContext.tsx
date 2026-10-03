@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@tanstack/react-router";
 import {
   AuthContextType,
   LoginCredentials,
@@ -199,11 +199,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       debug("[AuthProvider] Logout successful");
       clearAuth();
-      navigate("/login", { replace: true });
+      navigate({ to: "/login", replace: true });
     } catch (error) {
       console.error("[AuthProvider] Logout error:", error);
       clearAuth();
-      navigate("/login", { replace: true });
+      navigate({ to: "/login", replace: true });
     }
   };
 

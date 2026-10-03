@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "@tanstack/react-router";
 import { useAuth } from "../../hooks/useAuth";
 
 interface ProtectedRouteProps {
@@ -13,7 +13,6 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, loading } = useAuth();
-  const location = useLocation();
 
   if (loading) {
     return (
@@ -24,8 +23,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!isAuthenticated) {
-    // Redirect to login page with the return url
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
