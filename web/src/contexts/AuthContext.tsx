@@ -7,12 +7,12 @@ import React, { createContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AuthContextType,
-  User,
   LoginCredentials,
   RegisterCredentials
 } from "../types/auth";
 import { AUTH_URLS, getAuthConfig, AuthConfig } from "../config/auth";
 import { readErrorMessage } from "../utils/http";
+import { LoginType, loginTypeFrom } from "../utils/loginType";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -53,62 +53,31 @@ const debug = (...args: unknown[]) => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
-  const [authType, setAuthType] = useState<"oidc" | "builtin" | null>(null);
+  const [loginType, setLoginType] = useState<LoginType | null>(null);
 
   const clearAuth = useCallback(() => {
     debug("[AuthProvider] Clearing authentication state");
-    setUser(null);
     setIsAuthenticated(false);
-    setAuthType(null);
+    setLoginType(null);
   }, []);
 
-  const checkAuthStatus = useCallback(async (config?: AuthConfig | null) => {
+  const checkAuthStatus = useCallback(async () => {
     debug("[AuthProvider] Checking auth status");
     setLoading(true);
 
-    // Only probe the OIDC endpoint when OIDC is configured; the route does not
-    // exist otherwise and the browser logs a 404.
-    const candidates: Array<"oidc" | "builtin"> =
-      config?.methods.oidc === true ? ["oidc", "builtin"] : ["builtin"];
-
-    const baseRequest: RequestInit = {
-      credentials: "include",
-    };
-
-    const verify = async (url: string): Promise<boolean> => {
-      const response = await fetchWith429Retry(url, baseRequest);
-      return response.ok;
-    };
-
     try {
-      let detected: "oidc" | "builtin" | null = null;
-      for (const t of candidates) {
-        const verifyUrl = t === "oidc" ? AUTH_URLS.oidc.verify : AUTH_URLS.builtin.verify;
-        if (await verify(verifyUrl)) {
-          detected = t;
-          break;
-        }
-      }
-
-      if (!detected) {
+      const response = await fetchWith429Retry(AUTH_URLS.verify, {
+        credentials: "include",
+      });
+      const verified = response.ok ? loginTypeFrom(await response.json()) : null;
+      if (!verified) {
         clearAuth();
         return;
       }
 
-      setAuthType(detected);
-
-      const userInfoUrl = detected === "oidc" ? AUTH_URLS.oidc.userInfo : AUTH_URLS.userInfo;
-      const userInfoResponse = await fetchWith429Retry(userInfoUrl, baseRequest);
-      if (!userInfoResponse.ok) {
-        clearAuth();
-        return;
-      }
-
-      const userData = await userInfoResponse.json();
-      setUser({ ...userData, auth_type: detected });
+      setLoginType(verified);
       setIsAuthenticated(true);
     } catch (error) {
       console.error("[AuthProvider] Auth check failed:", error);
@@ -129,22 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       debug("[AuthProvider] Received auth config:", config);
       setAuthConfig(config);
 
-      if (config.bypass) {
-        debug("[AuthProvider] Auth bypass enabled");
-        setAuthType("builtin");
-        setUser({
-          id: 1,
-          username: "auth-bypass",
-          email: "bypass@dashbrr.local",
-          auth_type: "builtin",
-        });
-        setIsAuthenticated(true);
-        setLoading(false);
-        return;
-      }
-
       // Always check once: supports cookie-only sessions.
-      await checkAuthStatus(config);
+      await checkAuthStatus();
     };
 
     void init();
@@ -202,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       await response.json();
       debug("[AuthProvider] Login successful");
-      await checkAuthStatus(authConfig);
+      await checkAuthStatus();
     } catch (error) {
       console.error("[AuthProvider] Login error:", error);
       throw error;
@@ -235,19 +190,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     debug("[AuthProvider] Initiating logout");
     try {
-      const currentAuthType =
-        authType || user?.auth_type || "builtin";
+      const currentLoginType = loginType || "builtin";
       const logoutUrl =
-        currentAuthType === "oidc"
+        currentLoginType === "oidc"
           ? AUTH_URLS.oidc.logout
           : AUTH_URLS.builtin.logout;
 
       debug(
         "[AuthProvider] Logging out with auth type:",
-        currentAuthType
+        currentLoginType
       );
 
-      if (currentAuthType === "oidc") {
+      if (currentLoginType === "oidc") {
         // Must be a navigation to follow provider redirects.
         clearAuth();
         window.location.href = logoutUrl;
@@ -276,7 +230,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value: AuthContextType = {
     isAuthenticated,
-    user,
     login,
     loginWithOIDC,
     register,

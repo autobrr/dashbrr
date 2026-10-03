@@ -12,15 +12,13 @@ const getFrontendUrl = () => {
 // Common auth endpoints
 const COMMON_ENDPOINTS = {
   config: "/api/auth/config",
-  userInfo: "/api/auth/userinfo",
+  verify: "/api/auth/verify",
 };
 
 // OIDC-specific endpoints
 const OIDC_ENDPOINTS = {
   login: `/api/auth/oidc/login?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
   logout: `/api/auth/oidc/logout?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
-  verify: "/api/auth/oidc/verify",
-  userInfo: "/api/auth/oidc/userinfo",
 };
 
 // Built-in auth endpoints
@@ -28,7 +26,6 @@ const BUILTIN_ENDPOINTS = {
   login: "/api/auth/login",
   register: "/api/auth/register",
   logout: "/api/auth/logout",
-  verify: "/api/auth/verify",
 };
 
 export const AUTH_URLS = {
@@ -43,7 +40,6 @@ export interface AuthConfig {
     oidc: boolean;
   };
   default: "builtin" | "oidc";
-  bypass?: boolean;
 }
 
 export async function getAuthConfig(): Promise<AuthConfig> {
@@ -62,7 +58,6 @@ export async function getAuthConfig(): Promise<AuthConfig> {
         oidc: false,
       },
       default: "builtin",
-      bypass: false,
     };
   }
 }

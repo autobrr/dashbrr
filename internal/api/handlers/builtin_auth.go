@@ -175,16 +175,14 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 	})
 }
 
-// Verify verifies the session token
+// Verify reports the login type of the session that RequireAuth attached.
 func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
-	sessionData, ok := loadSessionOfType(c, h.sessions, "builtin")
-	if !ok {
-		return
-	}
+	sessionData := c.MustGet("session").(types.SessionData)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Token is valid",
-		"user_id": sessionData.UserID,
+		"message":   "Token is valid",
+		"user_id":   sessionData.UserID,
+		"auth_type": sessionData.AuthType,
 	})
 }
 
