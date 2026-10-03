@@ -81,15 +81,18 @@ changelog:
       - Merge branch
       - go mod tidy
   groups:
-    - title: "New Features"
-      regexp: "^.*feat[(\\w)]*!?:+.*$"
+    - title: "Breaking Changes"
+      regexp: "^\\w+(\\([^)]*\\))?!:.*$"
       order: 0
-    - title: "Bug Fixes"
-      regexp: "^.*fix[(\\w)]*!?:+.*$"
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
       order: 10
-    - title: "Other Changes"
-      regexp: "^.*(chore|docs|style|refactor|test|perf|security|build|ci)[(\\w)]*!?:+.*$"
+    - title: "Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
       order: 20
+    - title: "Other Changes"
+      regexp: "^.*(chore|docs|style|refactor|test|perf|security|build|ci)[(\\w)]*:+.*$"
+      order: 30
 
 nfpms:
   - package_name: dashbrr
