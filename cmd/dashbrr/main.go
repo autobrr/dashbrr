@@ -8,16 +8,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/autobrr/dashbrr/internal/api"
 	"github.com/autobrr/dashbrr/internal/buildinfo"
 	"github.com/autobrr/dashbrr/internal/commands"
-	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -35,6 +32,9 @@ func main() {
 			cmd.Help()
 		},
 	}
+
+	rootCmd.PersistentFlags().String("config", "", "path to config file")
+	rootCmd.PersistentFlags().String("db-file", "", "path to database file")
 
 	rootCmd.AddCommand(commands.ConfigCommand())
 	rootCmd.AddCommand(commands.ServiceCommand())
@@ -59,83 +59,28 @@ func ServeCommand() *cobra.Command {
 		//SilenceUsage: true,
 	}
 
-	var (
-		configPath = "config.toml"
-		listenAddr = ":8080"
-		dbFile     = ""
-	)
-
-	command.Flags().StringVar(&configPath, "config", "config.toml", "path to config file")
-	command.Flags().StringVar(&listenAddr, "listen-addr", listenAddr, "address to listen on")
-	command.Flags().StringVar(&dbFile, "db-file", "", "path to database file")
+	command.Flags().String("listen-addr", ":8080", "address to listen on")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		return startServer(configPath, listenAddr, dbFile)
+		return startServer(cmd)
 	}
 
 	return command
 }
 
-func startServer(configPath string, listenAddr string, origDBPath string) error {
+func startServer(cmd *cobra.Command) error {
 	log.Info().
 		Str("version", buildinfo.Version).
 		Str("commit", buildinfo.Commit).
 		Str("build_date", buildinfo.Date).
 		Msg("Starting dashbrr")
 
-	// Check environment variable first, then fall back to flag
-	defaultConfigPath := "config.toml"
-	if envPath := os.Getenv(config.EnvConfigPath); envPath != "" {
-		defaultConfigPath = envPath
-	} else {
-		// Check user config directory
-		userConfigDir, err := os.UserConfigDir()
-		if err != nil {
-			log.Error().Err(err).Msg("failed to get user config directory")
-		}
-
-		base := []string{filepath.Join(userConfigDir, "dashbrr"), "/config"}
-		configs := []string{"config.toml", "config.yaml", "config.yml"}
-
-		for _, b := range base {
-			for _, c := range configs {
-				p := filepath.Join(b, c)
-				if _, err := os.Stat(p); err == nil {
-					defaultConfigPath = p
-					break
-				}
-			}
-			if defaultConfigPath != "config.toml" {
-				break
-			}
-		}
-	}
-
-	// Store original flag values to detect changes
-	origListenAddr := ":8080"
-
-	// If dbPath wasn't set via flag, use config directory
-	if origDBPath == "" {
-		configDir := filepath.Dir(configPath)
-		origDBPath = filepath.Join(configDir, "data", "dashbrr.db")
-	}
-
-	hasRequiredEnvVars := config.HasRequiredEnvVars()
-	log.Debug().Str("path", configPath).Msg("Loading config file")
-
-	cfg, err := config.LoadConfig(configPath)
+	cfg, configPath, err := commands.ConfigFromFlags(cmd)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load or create configuration")
 		return err
 	}
-
-	// Override with command line flags if they differ from defaults
-	if !hasRequiredEnvVars && listenAddr != origListenAddr {
-		cfg.Server.ListenAddr = listenAddr
-	}
-	if !hasRequiredEnvVars && origDBPath != "" {
-		cfg.Database.Path = origDBPath
-	}
+	log.Debug().Str("path", configPath).Str("database", cfg.Database.Path).Msg("Loaded config")
 
 	db, err := database.InitDBWithConfig(&cfg.Database)
 	if err != nil {
@@ -144,24 +89,8 @@ func startServer(configPath string, listenAddr string, origDBPath string) error 
 	}
 	defer db.Close()
 
-	// Create a root context for cache initialization
-	ctx := context.Background()
-
-	// Initialize cache with database directory for session storage
-	cacheConfig := cache.Config{
-		DataDir: filepath.Dir(cfg.Database.Path),
-	}
-	if cacheConfig.DataDir == "." || cacheConfig.DataDir == "" {
-		cacheConfig.DataDir = "./data"
-	}
+	store := commands.InitCache(context.Background(), cfg.Database.Path)
 	log.Debug().Msg("Cache initialized")
-
-	store, err := cache.InitCache(ctx, cacheConfig)
-	if err != nil {
-		// This should never happen as InitCache always returns a valid store
-		log.Error().Err(err).Msg("Failed to initialize cache")
-		return err
-	}
 
 	srv := api.NewServer(cfg, db, store)
 

@@ -62,7 +62,7 @@ func UserCreateCommand() *cobra.Command {
 			return errors.New("password must be at least 8 characters long")
 		}
 
-		db, err := initializeDatabase()
+		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
@@ -130,7 +130,7 @@ func UserChangePasswordCommand() *cobra.Command {
 			return errors.New("new password must be at least 8 characters long")
 		}
 
-		db, err := initializeDatabase()
+		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}

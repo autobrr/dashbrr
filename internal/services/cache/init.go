@@ -28,6 +28,14 @@ func createCache(ctx context.Context, cfg Config) Store {
 	return NewMemoryStore(ctx, cfg.DataDir)
 }
 
+// Global returns the cache that InitCache started, or nil before the first
+// InitCache call.
+func Global() Store {
+	mu.RLock()
+	defer mu.RUnlock()
+	return globalCache
+}
+
 // InitCache initializes the global in-memory cache instance.
 func InitCache(ctx context.Context, cfg Config) (Store, error) {
 	// For testing, bypass singleton pattern.

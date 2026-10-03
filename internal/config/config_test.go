@@ -83,9 +83,6 @@ func TestDatabaseDSNTakesPriorityOverSeparateEnvironmentFields(t *testing.T) {
 	if got := cfg.Database.DSN; got != want {
 		t.Errorf("database DSN = %q, want %q", got, want)
 	}
-	if cfg.Auth.OIDC.IsConfigured() {
-		t.Error("unrelated TOML settings loaded with the database DSN")
-	}
 }
 
 func TestPostgresConfigKeepsDefaultsAndEmptyPassword(t *testing.T) {
@@ -108,53 +105,6 @@ func TestPostgresConfigKeepsDefaultsAndEmptyPassword(t *testing.T) {
 	}
 	if cfg.Database.Password != "" {
 		t.Errorf("database password = %q, want explicit empty value", cfg.Database.Password)
-	}
-}
-
-func TestHasRequiredEnvVarsWithDatabaseDSN(t *testing.T) {
-	t.Setenv("DASHBRR__LISTEN_ADDR", ":8080")
-	t.Setenv("DASHBRR__DB_TYPE", "postgres")
-	t.Setenv("DASHBRR__DB_DSN", "postgres://db.example/dashbrr?sslmode=require")
-	t.Setenv("DASHBRR__DB_HOST", "")
-	t.Setenv("DASHBRR__DB_PORT", "")
-	t.Setenv("DASHBRR__DB_USER", "")
-	t.Setenv("DASHBRR__DB_PASSWORD", "")
-	t.Setenv("DASHBRR__DB_NAME", "")
-
-	if !HasRequiredEnvVars() {
-		t.Error("HasRequiredEnvVars() = false, want true for PostgreSQL DSN")
-	}
-}
-
-func TestCompleteSQLiteEnvironmentIgnoresConfigFile(t *testing.T) {
-	t.Setenv("DASHBRR__LISTEN_ADDR", ":8080")
-	t.Setenv("DASHBRR__DB_TYPE", "sqlite")
-	t.Setenv("DASHBRR__DB_PATH", "/data/env.db")
-
-	cfg, err := LoadConfig(writeConfig(t, "not valid toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := cfg.Database.Path; got != "/data/env.db" {
-		t.Errorf("database path = %q, want the value from the environment", got)
-	}
-}
-
-func TestCompletePostgresEnvironmentIgnoresTOMLWithoutDSN(t *testing.T) {
-	t.Setenv("DASHBRR__LISTEN_ADDR", ":8080")
-	t.Setenv("DASHBRR__DB_TYPE", "postgres")
-	t.Setenv("DASHBRR__DB_HOST", "env-db.example")
-	t.Setenv("DASHBRR__DB_PORT", "5432")
-	t.Setenv("DASHBRR__DB_USER", "env-user")
-	t.Setenv("DASHBRR__DB_PASSWORD", "env-password")
-	t.Setenv("DASHBRR__DB_NAME", "env-database")
-
-	cfg, err := LoadConfig(writeConfig(t, oidcTOML))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Auth.OIDC.IsConfigured() {
-		t.Error("OIDC config loaded from TOML in a complete environment-only setup")
 	}
 }
 
@@ -192,5 +142,171 @@ func TestOIDCIsConfigured(t *testing.T) {
 				t.Errorf("IsConfigured() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// isolateConfigSearch keeps the tests away from a real config file in the
+// user config directory and from the database environment variables.
+// It returns the user config directory.
+func isolateConfigSearch(t *testing.T) string {
+	t.Helper()
+	userConfigDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", userConfigDir)
+	t.Setenv(EnvConfigPath, "")
+	t.Setenv("DASHBRR__DB_PATH", "")
+	t.Setenv("DASHBRR__DB_TYPE", "")
+	t.Setenv("DASHBRR__LISTEN_ADDR", "")
+	t.Chdir(t.TempDir())
+	return userConfigDir
+}
+
+func TestLoadConfigFilePriority(t *testing.T) {
+	userDir := filepath.Join(isolateConfigSearch(t), "dashbrr")
+	if err := os.MkdirAll(userDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	userPath := filepath.Join(userDir, "config.toml")
+	if err := os.WriteFile(userPath, []byte("[server]\nlisten_addr = \":1\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	envPath := writeConfig(t, "[server]\nlisten_addr = \":2\"\n")
+	flagPath := writeConfig(t, "[server]\nlisten_addr = \":3\"\n")
+
+	_, path, err := Load(Flags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != userPath {
+		t.Errorf("without flag or env, path = %q, want the user config dir file %q", path, userPath)
+	}
+
+	t.Setenv(EnvConfigPath, envPath)
+	cfg, path, err := Load(Flags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != envPath || cfg.Server.ListenAddr != ":2" {
+		t.Errorf("with %s, got path %q listen %q, want %q :2", EnvConfigPath, path, cfg.Server.ListenAddr, envPath)
+	}
+
+	cfg, path, err = Load(Flags{ConfigPath: flagPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != flagPath || cfg.Server.ListenAddr != ":3" {
+		t.Errorf("with --config, got path %q listen %q, want %q :3", path, cfg.Server.ListenAddr, flagPath)
+	}
+}
+
+func TestLoadFallsBackToWorkingDirectory(t *testing.T) {
+	isolateConfigSearch(t)
+	if _, err := os.Stat("/config/config.toml"); err == nil {
+		t.Skip("/config has a config file on this host")
+	}
+
+	cfg, path, err := Load(Flags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "config.toml" {
+		t.Errorf("path = %q, want config.toml", path)
+	}
+	wd, _ := os.Getwd()
+	if want := filepath.Join(wd, "data", "dashbrr.db"); cfg.Database.Path != want {
+		t.Errorf("database path = %q, want %q", cfg.Database.Path, want)
+	}
+}
+
+func TestLoadDatabasePath(t *testing.T) {
+	abs := filepath.Join(t.TempDir(), "abs.db")
+
+	tests := []struct {
+		name string
+		toml string
+		env  string
+		flag string
+		want func(configDir, wd string) string
+	}{
+		{"default is in config dir", "", "", "", func(c, _ string) string { return filepath.Join(c, "data", "dashbrr.db") }},
+		{"relative file value is relative to config dir", "[database]\npath = \"./db/x.db\"\n", "", "", func(c, _ string) string { return filepath.Join(c, "db", "x.db") }},
+		{"absolute file value", "[database]\npath = \"" + abs + "\"\n", "", "", func(_, _ string) string { return abs }},
+		{"env alone wins over file", "[database]\npath = \"./db/x.db\"\n", "env.db", "", func(_, wd string) string { return filepath.Join(wd, "env.db") }},
+		{"flag wins over env", "", "env.db", "flag.db", func(_, wd string) string { return filepath.Join(wd, "flag.db") }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateConfigSearch(t)
+			t.Setenv("DASHBRR__DB_PATH", tt.env)
+			path := writeConfig(t, tt.toml)
+			wd, _ := os.Getwd()
+
+			cfg, _, err := Load(Flags{ConfigPath: path, DBPath: tt.flag})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, _ := filepath.Abs(cfg.Database.Path)
+			if want := tt.want(filepath.Dir(path), wd); got != want {
+				t.Errorf("database path = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestLoadListenAddr(t *testing.T) {
+	isolateConfigSearch(t)
+	path := writeConfig(t, "[server]\nlisten_addr = \":1\"\n")
+
+	cfg, _, err := Load(Flags{ConfigPath: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.ListenAddr != ":1" {
+		t.Errorf("listen = %q, want the config file value", cfg.Server.ListenAddr)
+	}
+
+	t.Setenv("DASHBRR__LISTEN_ADDR", ":2")
+	cfg, _, err = Load(Flags{ConfigPath: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.ListenAddr != ":2" {
+		t.Errorf("listen = %q, want the env value", cfg.Server.ListenAddr)
+	}
+
+	// The flag wins even when it holds the default value.
+	cfg, _, err = Load(Flags{ConfigPath: path, ListenAddr: ":8080"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.ListenAddr != ":8080" {
+		t.Errorf("listen = %q, want the flag value", cfg.Server.ListenAddr)
+	}
+}
+
+func TestLoadMissingConfigInReadOnlyDir(t *testing.T) {
+	isolateConfigSearch(t)
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+	t.Setenv("DASHBRR__LISTEN_ADDR", ":9")
+
+	path := filepath.Join(dir, "config.toml")
+	if f, err := os.Create(path); err == nil {
+		f.Close()
+		t.Skip("directory is writable, probably running as root")
+	}
+
+	cfg, _, err := Load(Flags{ConfigPath: path})
+	if err != nil {
+		t.Fatalf("Load returned %v, want a warning only", err)
+	}
+	if cfg.Server.ListenAddr != ":9" {
+		t.Errorf("listen = %q, want the env value", cfg.Server.ListenAddr)
+	}
+	if want := filepath.Join(dir, "data", "dashbrr.db"); cfg.Database.Path != want {
+		t.Errorf("database path = %q, want %q", cfg.Database.Path, want)
 	}
 }

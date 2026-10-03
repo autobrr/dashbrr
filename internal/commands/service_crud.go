@@ -41,7 +41,7 @@ func newServiceListCommand(spec serviceSpec) *cobra.Command {
 		Long:    "list",
 		Example: fmt.Sprintf("  dashbrr service %s list\n  dashbrr service %s list --help", spec.Use, spec.Use),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			db, err := initializeDatabase()
+			db, err := initializeDatabase(cmd)
 			if err != nil {
 				return fmt.Errorf("failed to initialize database: %v", err)
 			}
@@ -98,7 +98,7 @@ func newServiceAddCommand(spec serviceSpec) *cobra.Command {
 	command.Flags().BoolVar(&dry, "dry-run", false, "Dry run, don't write changes")
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		db, err := initializeDatabase()
+		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
@@ -185,7 +185,7 @@ func newServiceRemoveCommand(spec serviceSpec) *cobra.Command {
 		Example: fmt.Sprintf("  dashbrr service %s remove <URL>\n  dashbrr service %s remove --help", spec.Use, spec.Use),
 		Args:    cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initializeDatabase()
+			db, err := initializeDatabase(cmd)
 			if err != nil {
 				return fmt.Errorf("failed to initialize database: %v", err)
 			}

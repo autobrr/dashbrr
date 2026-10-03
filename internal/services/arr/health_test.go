@@ -8,13 +8,29 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
+
+// TestMain starts the global cache, as serve does, so ServiceCore can cache
+// update results.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "dashbrr-arr-test")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+	if _, err := cache.InitCache(context.Background(), cache.Config{DataDir: dir}); err != nil {
+		panic(err)
+	}
+	m.Run()
+}
 
 type testArrHealthChecker struct {
 	updateCalls atomic.Int32
