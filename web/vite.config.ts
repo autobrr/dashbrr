@@ -168,8 +168,9 @@ export default defineConfig(({ mode }) => {
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg}'
         ],
-        // No navigateFallback: page loads go to the network. A cached app
-        // shell would also answer navigations to other apps on the origin.
+        // No navigateFallback and no runtime cache for pages: page loads go
+        // to the network. At the root, the service worker scope is the whole
+        // origin, so either one would also answer pages of other apps.
         navigateFallback: null,
         runtimeCaching: [
           {
@@ -180,20 +181,6 @@ export default defineConfig(({ mode }) => {
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /^(?!.*api).*$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'app-shell',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
               },
               cacheableResponse: {
                 statuses: [0, 200]
