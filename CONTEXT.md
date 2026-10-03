@@ -22,6 +22,10 @@ _Avoid_: db file, data path
 The address that dashbrr uses to reach a service. It must be an absolute `http://` or `https://` address with a host name.
 _Avoid_: service address, endpoint
 
+**Base path**:
+The URL path prefix that dashbrr is served under, for example `/dashbrr`. With no base path, dashbrr is served at the root of the host.
+_Avoid_: base URL, sub-path, URL prefix
+
 **Access URL**:
 The address that the user's browser uses to open a service. It is optional. When it is set, links to the service use the access URL. Else they use the URL.
 _Avoid_: external URL, public URL

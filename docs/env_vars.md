@@ -7,6 +7,12 @@
   - Format: `<host>:<port>`
   - Default: `0.0.0.0:8080`
 
+- `DASHBRR__BASE_PATH`
+  - Purpose: The URL path prefix that dashbrr is served under, for example `/dashbrr`. Use it when a reverse proxy sends `https://example.com/dashbrr/` to dashbrr.
+  - Format: a path, not a URL. Dashbrr adds a leading `/` and removes a trailing `/`.
+  - Default: unset (dashbrr is served at the root of the host)
+  - Note: The OIDC redirect URL must include the base path. See [Base path](config_management.md#base-path).
+
 ### CORS (Optional)
 
 Only needed if you serve the web UI from a different origin than the API (different host/port).
@@ -115,5 +121,6 @@ You can also set these four values in `config.toml`, under `[auth.oidc]`, as `is
 
 - `DASHBRR__OIDC_REDIRECT_URL`
   - Purpose: Callback URL for OIDC authentication
-  - Example: `http://localhost:3000/api/auth/oidc/callback` (legacy `/api/auth/callback` also works)
-  - Required if using OIDC
+  - Example: `https://dash.example.com/api/auth/oidc/callback` (legacy `/api/auth/callback` also works)
+  - With a base path, include it: `https://example.com/dashbrr/api/auth/oidc/callback`
+  - Required if using OIDC. If OIDC is configured and this value is empty, dashbrr does not start.

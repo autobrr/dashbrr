@@ -13,6 +13,37 @@ Reference files:
 - Service matrix: [`docs/services_matrix.md`](services_matrix.md)
 - Kubernetes manifest bundle: [`docs/k8s_discovery_example.yaml`](k8s_discovery_example.yaml)
 
+## Base path
+
+By default, dashbrr is served at the root of the host. To serve it below a path, for example `https://example.com/dashbrr/`, set `base_path`:
+
+```toml
+[server]
+base_path = "/dashbrr"
+```
+
+You can also set `DASHBRR__BASE_PATH=/dashbrr`. Dashbrr reads the value at start. To change it, restart dashbrr.
+
+With a base path:
+
+- All pages and API routes are below the base path. `/` and `/dashbrr` send a `307` redirect to `/dashbrr/`.
+- `/health` answers at the root and below the base path.
+- The OIDC `redirect_url` must include the base path, for example `https://example.com/dashbrr/api/auth/oidc/callback`. Use the same URL in your OIDC provider.
+
+The reverse proxy must send the full path to dashbrr. Do not remove the prefix. An nginx example:
+
+```nginx
+location /dashbrr/ {
+    # No path after the port, so nginx keeps /dashbrr/ in the request.
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    # Live updates use server-sent events. Do not buffer them.
+    proxy_buffering off;
+}
+```
+
 ## Command Usage
 
 ### Service Discovery
