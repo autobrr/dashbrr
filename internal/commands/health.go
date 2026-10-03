@@ -30,6 +30,7 @@ import (
 	_ "github.com/autobrr/dashbrr/internal/services/uptimekuma"
 	_ "github.com/autobrr/dashbrr/internal/services/whisparr"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -93,7 +94,7 @@ func HealthCommand() *cobra.Command {
 			services, err := db.GetAllServices(ctx)
 			if err != nil {
 				// Log error but continue with empty services map
-				fmt.Printf("Failed to retrieve checkServices: %v\n", err)
+				log.Error().Err(err).Msg("Failed to retrieve services")
 			} else {
 				for _, service := range services {
 					serviceType, _, _ := strings.Cut(service.InstanceID, "-")
