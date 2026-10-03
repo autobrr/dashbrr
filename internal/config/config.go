@@ -217,11 +217,13 @@ func (b BasePath) Path(p string) string {
 // HTML attribute, so characters that are not safe there are an error.
 func normalizeBasePath(raw string) (BasePath, error) {
 	p := strings.TrimSpace(raw)
-	if strings.Contains(p, "://") {
+	// A browser reads "//host" as another site, the same as "http://host".
+	if strings.Contains(p, "://") || strings.HasPrefix(p, "//") {
 		return "", fmt.Errorf("base_path %q is a path, not a URL: use a value such as /dashbrr", raw)
 	}
-	if strings.ContainsAny(p, "\"'<>` \t\n") {
-		return "", fmt.Errorf("base_path %q has a character that is not permitted (quote, backtick, <, >, or white space)", raw)
+	// A browser also reads "?" and "#" as the start of a query or a fragment, and "\" as "/".
+	if strings.ContainsAny(p, "\"'<>` \t\n?#\\") {
+		return "", fmt.Errorf("base_path %q has a character that is not permitted (quote, backtick, <, >, ?, #, \\, or white space)", raw)
 	}
 	p = strings.TrimRight(p, "/")
 	if p == "" {
