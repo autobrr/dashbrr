@@ -40,6 +40,10 @@ _Avoid_: session ID, access token
 How a session was created: builtin (username and password) or OIDC. The API field is `auth_type`.
 _Avoid_: auth type, auth method
 
+**Logout**:
+Ending the user's session in dashbrr. It is the same for both login types. It does not end the user's session at the OIDC provider.
+_Avoid_: sign out, provider logout
+
 ### Service data
 
 **Poller**:

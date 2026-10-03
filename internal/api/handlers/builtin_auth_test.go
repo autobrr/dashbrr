@@ -111,6 +111,19 @@ func TestBuiltinAuth_SessionLifecycle(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+func TestLogoutClearsOIDCSession(t *testing.T) {
+	store := newBuiltinMemoryStore(t)
+	r := newBuiltinAuthRouter(t, store)
+	require.NoError(t, store.Set(t.Context(), "session:oidc-token", types.SessionData{AuthType: "oidc"}, session.TTL))
+	cookie := &http.Cookie{Name: session.CookieName, Value: "oidc-token"} //nolint:gosec // request cookie; attributes don't apply
+
+	w := serve(t, r, http.MethodPost, "/logout", "", cookie)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	w = serve(t, r, http.MethodGet, "/verify", "", cookie)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
 func TestBuiltinAuth_CacheErrorGives503(t *testing.T) {
 	store := new(MockStore)
 	store.On("Get", mock.Anything, "session:token", mock.Anything).Return(errors.New("cache down"))

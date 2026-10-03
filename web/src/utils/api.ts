@@ -54,7 +54,6 @@ const isNoRedirectOn401Endpoint = (path: string): boolean => {
     "/api/auth/registration-status",
     "/api/auth/config",
     "/api/auth/oidc/login",
-    "/api/auth/oidc/logout",
   ];
   return paths.some((p) => path.includes(p));
 };

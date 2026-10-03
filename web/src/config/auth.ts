@@ -7,19 +7,18 @@
 const COMMON_ENDPOINTS = {
   config: "/api/auth/config",
   verify: "/api/auth/verify",
+  logout: "/api/auth/logout",
 };
 
 // OIDC-specific endpoints
 const OIDC_ENDPOINTS = {
   login: "/api/auth/oidc/login",
-  logout: "/api/auth/oidc/logout",
 };
 
 // Built-in auth endpoints
 const BUILTIN_ENDPOINTS = {
   login: "/api/auth/login",
   register: "/api/auth/register",
-  logout: "/api/auth/logout",
 };
 
 export const AUTH_URLS = {
