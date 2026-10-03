@@ -117,7 +117,7 @@ func (s *MemoryStore) persistSessions() {
 
 	for key, item := range s.local.items {
 		// Only persist session data (not rate limiting or other cache items)
-		if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+		if strings.HasPrefix(key, "session:") {
 			// Only persist non-expired sessions
 			if now.Before(item.expiration) {
 				items[key] = persistedItem{
@@ -206,7 +206,7 @@ func (s *MemoryStore) Set(_ context.Context, key string, value any, expiration t
 	s.local.Unlock()
 
 	// Persist sessions when they're updated
-	if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+	if strings.HasPrefix(key, "session:") {
 		s.persistSessions()
 	}
 
@@ -227,7 +227,7 @@ func (s *MemoryStore) Delete(ctx context.Context, key string) error {
 	s.local.Unlock()
 
 	// Persist sessions when they're deleted
-	if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+	if strings.HasPrefix(key, "session:") {
 		s.persistSessions()
 	}
 
@@ -343,7 +343,7 @@ func (s *MemoryStore) Expire(ctx context.Context, key string, expiration time.Du
 	if item, exists := s.local.items[key]; exists {
 		item.expiration = time.Now().Add(expiration)
 		// Persist sessions when their expiration is updated
-		if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+		if strings.HasPrefix(key, "session:") {
 			s.persistSessions()
 		}
 	}
@@ -389,7 +389,7 @@ func (s *MemoryStore) localCacheCleanup() {
 			for key, item := range s.local.items {
 				if now.After(item.expiration) {
 					delete(s.local.items, key)
-					if strings.HasPrefix(key, "session:") || strings.HasPrefix(key, "oidc:session:") {
+					if strings.HasPrefix(key, "session:") {
 						needsPersist = true
 					}
 				}

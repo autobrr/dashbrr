@@ -4,15 +4,13 @@
 package handlers
 
 import (
-	"context"
-	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -20,54 +18,15 @@ import (
 )
 
 type BuiltinAuthHandler struct {
-	db    *database.DB
-	cache cache.Store
+	db       *database.DB
+	sessions *session.Manager
 }
 
-func NewBuiltinAuthHandler(db *database.DB, cache cache.Store) *BuiltinAuthHandler {
+func NewBuiltinAuthHandler(db *database.DB, store cache.Store) *BuiltinAuthHandler {
 	return &BuiltinAuthHandler{
-		db:    db,
-		cache: cache,
+		db:       db,
+		sessions: session.New(store),
 	}
-}
-
-func sessionCacheKey(sessionToken string) string {
-	return fmt.Sprintf("session:%s", sessionToken)
-}
-
-func isSecureRequest(c *gin.Context) bool {
-	return c.GetHeader("X-Forwarded-Proto") == "https"
-}
-
-func (h *BuiltinAuthHandler) getSession(ctx context.Context, sessionToken string) (types.SessionData, error) {
-	var sessionData types.SessionData
-	if err := h.cache.Get(ctx, sessionCacheKey(sessionToken), &sessionData); err != nil {
-		return types.SessionData{}, err
-	}
-	return sessionData, nil
-}
-
-func (h *BuiltinAuthHandler) requireSession(c *gin.Context, cacheMissMessage string) (string, types.SessionData, bool) {
-	ctx := c.Request.Context()
-
-	sessionToken, err := getSessionToken(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
-		return "", types.SessionData{}, false
-	}
-
-	sessionData, err := h.getSession(ctx, sessionToken)
-	if err != nil {
-		if err == cache.ErrKeyNotFound {
-			log.Debug().Msg("session not found or expired")
-		} else {
-			log.Error().Err(err).Msg("failed to get session from cache")
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": cacheMissMessage})
-		return "", types.SessionData{}, false
-	}
-
-	return sessionToken, sessionData, true
 }
 
 // CheckRegistrationStatus checks if registration is allowed (no users exist)
@@ -194,44 +153,20 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Generate session token
-	sessionToken, err := utils.GenerateSecureToken(32)
+	sessionToken, err := h.sessions.Issue(c, types.SessionData{
+		UserID:   user.ID,
+		AuthType: "builtin",
+	})
 	if err != nil {
-		log.Error().Err(err).Msg("failed to generate session token")
+		log.Error().Err(err).Msg("failed to create session")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
-
-	// Create session
-	expiresAt := time.Now().Add(sessionTTL)
-	sessionData := types.SessionData{
-		ExpiresAt: expiresAt,
-		UserID:    user.ID,
-		AuthType:  "builtin",
-	}
-
-	// Store session in cache
-	if err := h.cache.Set(ctx, sessionCacheKey(sessionToken), sessionData, sessionTTL); err != nil {
-		log.Error().Err(err).Msg("failed to store session in cache")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
-
-	// Set session cookie
-	c.SetCookie(
-		middleware.SessionCookieName,
-		sessionToken,
-		int(sessionTTL.Seconds()),
-		"/",
-		"",
-		isSecureRequest(c), // Secure
-		true,               // HttpOnly
-	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"access_token": sessionToken,
 		"token_type":   "Bearer",
-		"expires_in":   int(sessionTTL.Seconds()),
+		"expires_in":   int(session.TTL.Seconds()),
 		"user": gin.H{
 			"id":       user.ID,
 			"username": user.Username,
@@ -242,17 +177,8 @@ func (h *BuiltinAuthHandler) Login(c *gin.Context) {
 
 // Verify verifies the session token
 func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	sessionToken, sessionData, ok := h.requireSession(c, "Session not found or expired")
+	sessionData, ok := loadSessionOfType(c, h.sessions, "builtin")
 	if !ok {
-		return
-	}
-
-	// Check if session is expired
-	if time.Now().After(sessionData.ExpiresAt) {
-		_ = h.cache.Delete(ctx, sessionCacheKey(sessionToken))
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
 		return
 	}
 
@@ -264,44 +190,23 @@ func (h *BuiltinAuthHandler) Verify(c *gin.Context) {
 
 // Logout handles user logout
 func (h *BuiltinAuthHandler) Logout(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	sessionToken, err := getSessionToken(c)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "Already logged out"})
-		return
-	}
-
-	// Delete session from cache
-	if err := h.cache.Delete(ctx, sessionCacheKey(sessionToken)); err != nil && err != cache.ErrKeyNotFound {
+	if err := h.sessions.Clear(c); err != nil {
 		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
-
-	// Clear session cookie
-	c.SetCookie(
-		middleware.SessionCookieName,
-		"",
-		-1,
-		"/",
-		"",
-		isSecureRequest(c),
-		true,
-	)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
 // GetUserInfo returns the current user's information
 func (h *BuiltinAuthHandler) GetUserInfo(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	_, sessionData, ok := h.requireSession(c, "Session not found")
-	if !ok {
+	_, sessionData, err := h.sessions.Load(c)
+	if err != nil {
+		middleware.AbortWithSessionError(c, err)
 		return
 	}
 
 	// Get user from database
-	user, err := h.db.FindUser(ctx, types.FindUserParams{ID: sessionData.UserID})
+	user, err := h.db.FindUser(c.Request.Context(), types.FindUserParams{ID: sessionData.UserID})
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})

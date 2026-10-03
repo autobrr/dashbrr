@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -70,7 +71,7 @@ func TestRequireAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T) 
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
-	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
+	req.AddCookie(&http.Cookie{Name: session.CookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -101,7 +102,7 @@ func TestOptionalAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T)
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
-	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
+	req.AddCookie(&http.Cookie{Name: session.CookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -148,7 +149,7 @@ func TestRequireAuth_DoesNotMaskSessionLookupErrorsAsUnauthorized(t *testing.T) 
 
 	store := &fakeAuthStore{
 		getFn: func(_ context.Context, key string, _ any) error {
-			if key == "oidc:session:test-token" {
+			if key == "session:test-token" {
 				return errors.New("cache unavailable")
 			}
 			return cache.ErrKeyNotFound
@@ -163,7 +164,7 @@ func TestRequireAuth_DoesNotMaskSessionLookupErrorsAsUnauthorized(t *testing.T) 
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/protected", nil)
-	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
+	req.AddCookie(&http.Cookie{Name: session.CookieName, Value: "test-token"}) //nolint:gosec // request cookie; attributes don't apply
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
