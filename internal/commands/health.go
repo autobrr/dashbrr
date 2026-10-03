@@ -3,10 +3,13 @@ package commands
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 
@@ -64,7 +67,10 @@ func HealthCommand() *cobra.Command {
 			Services: make(map[string]bool),
 		}
 
-		cfg, configPath, err := ConfigFromFlags(cmd)
+		// Health is a probe, so it must not create a config file or a database.
+		flags := flagsFromCmd(cmd)
+		flags.ReadOnly = true
+		cfg, configPath, err := config.Load(flags)
 		status.System.Config.Path = configPath
 		if err != nil {
 			status.System.Config.Error = err.Error()
@@ -72,6 +78,14 @@ func HealthCommand() *cobra.Command {
 		}
 		status.System.Config.Valid = true
 		status.System.Database.Type = cfg.Database.Driver
+
+		if cfg.Database.Driver == "sqlite" {
+			if _, err := os.Stat(cfg.Database.Path); errors.Is(err, fs.ErrNotExist) {
+				err = fmt.Errorf("database not found: %s", cfg.Database.Path)
+				status.System.Database.Error = err.Error()
+				return printHealth(outputJson, true, false, status, err)
+			}
+		}
 
 		db, err := database.InitDBWithConfig(&cfg.Database)
 		if err != nil {

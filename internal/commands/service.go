@@ -15,11 +15,15 @@ import (
 // ConfigFromFlags resolves the config file, database path, and listen address from
 // the flags of cmd and the environment. Serve and every CLI command use it.
 func ConfigFromFlags(cmd *cobra.Command) (*config.Config, string, error) {
-	return config.Load(config.Flags{
+	return config.Load(flagsFromCmd(cmd))
+}
+
+func flagsFromCmd(cmd *cobra.Command) config.Flags {
+	return config.Flags{
 		ConfigPath: changedFlag(cmd, "config"),
 		DBPath:     changedFlag(cmd, "db-file"),
 		ListenAddr: changedFlag(cmd, "listen-addr"),
-	})
+	}
 }
 
 // changedFlag returns the flag value only when the user set it on the command line.
