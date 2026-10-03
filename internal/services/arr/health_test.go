@@ -26,7 +26,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	defer os.RemoveAll(dir)
-	cache.InitCache(context.Background(), cache.Config{DataDir: dir})
+	if _, err := cache.InitCache(context.Background(), cache.Config{DataDir: dir}); err != nil {
+		panic(err)
+	}
 	m.Run()
 }
 
