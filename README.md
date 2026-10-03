@@ -186,6 +186,8 @@ level = "info"
 # redirect_url = "https://dash.example.com/api/auth/oidc/callback"
 ```
 
+To serve dashbrr below a path behind a reverse proxy, see [Base path](docs/config_management.md#base-path).
+
 A relative `[database] path` is relative to the directory of the config file, not to the working directory. By default, the database file is `data/dashbrr.db` in that directory. For example:
 
 - If your config is at `/home/user/.config/dashbrr/config.toml`, the database will be at `/home/user/.config/dashbrr/data/dashbrr.db`
