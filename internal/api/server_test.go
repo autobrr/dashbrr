@@ -103,3 +103,14 @@ func TestRoutesAtRoot(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, request(t, h, http.MethodGet, "/api/settings", "").Code)
 	assert.NotEqual(t, http.StatusTemporaryRedirect, request(t, h, http.MethodGet, "/", "").Code)
 }
+
+func TestDevServerUnderBasePath(t *testing.T) {
+	// The dev server proxy is root only. Below a base path, it must not register a second GET /.
+	t.Setenv("GIN_MODE", "debug")
+	t.Setenv("DASHBRR_WEB_DEV_SERVER", "http://127.0.0.1:1")
+	h := newTestHandler(t, "/dashbrr")
+
+	w := request(t, h, http.MethodGet, "/", "")
+	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+	assert.Equal(t, "/dashbrr/", w.Header().Get("Location"))
+}

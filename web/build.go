@@ -72,7 +72,8 @@ const baseTag = `<base href="/" />`
 func ServeStatic(r *gin.Engine, base config.BasePath) {
 	// Dev UX: optionally proxy all non-API requests to a local Vite dev server.
 	// This avoids stale `web/dist` embeds and keeps `http://localhost:8080` usable.
-	if gin.Mode() == gin.DebugMode {
+	// The dev server operates at the root only, so a base path uses the embedded dist.
+	if gin.Mode() == gin.DebugMode && base == "" {
 		if devServer := strings.TrimSpace(os.Getenv("DASHBRR_WEB_DEV_SERVER")); devServer != "" {
 			target, err := url.Parse(devServer)
 			if err == nil && target.Scheme != "" && target.Host != "" {
