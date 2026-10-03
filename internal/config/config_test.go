@@ -6,6 +6,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -130,8 +131,8 @@ func TestOIDCIsConfigured(t *testing.T) {
 		oidc OIDCConfig
 		want bool
 	}{
-		{"complete", OIDCConfig{Issuer: "i", ClientID: "c", ClientSecret: "s"}, true},
-		{"no redirect url is still complete", OIDCConfig{Issuer: "i", ClientID: "c", ClientSecret: "s"}, true},
+		{"complete", OIDCConfig{Issuer: "i", ClientID: "c", ClientSecret: "s", RedirectURL: "r"}, true},
+		{"no redirect url is still configured", OIDCConfig{Issuer: "i", ClientID: "c", ClientSecret: "s"}, true},
 		{"no secret", OIDCConfig{Issuer: "i", ClientID: "c"}, false},
 		{"empty", OIDCConfig{}, false},
 	}
@@ -308,5 +309,107 @@ func TestLoadMissingConfigInReadOnlyDir(t *testing.T) {
 	}
 	if want := filepath.Join(dir, "data", "dashbrr.db"); cfg.Database.Path != want {
 		t.Errorf("database path = %q, want %q", cfg.Database.Path, want)
+	}
+}
+
+func TestNormalizeBasePath(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    BasePath
+		wantErr bool
+	}{
+		{in: "", want: ""},
+		{in: "/", want: ""},
+		{in: "dashbrr", want: "/dashbrr"},
+		{in: "/dashbrr", want: "/dashbrr"},
+		{in: "/dashbrr/", want: "/dashbrr"},
+		{in: " /dashbrr ", want: "/dashbrr"},
+		{in: "/a/b", want: "/a/b"},
+		{in: "http://x/y", wantErr: true},
+		{in: `/a"b`, wantErr: true},
+		{in: "/a'b", wantErr: true},
+		{in: "/a<b>", wantErr: true},
+		{in: "/a b", wantErr: true},
+		{in: "/dash?x", wantErr: true},
+		{in: "/dash#x", wantErr: true},
+		{in: `/\example.com`, wantErr: true},
+		{in: "//example.com", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, err := normalizeBasePath(tt.in)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("normalizeBasePath(%q) = %q, want an error", tt.in, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("normalizeBasePath(%q) error: %v", tt.in, err)
+			}
+			if got != tt.want {
+				t.Errorf("normalizeBasePath(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBasePathPath(t *testing.T) {
+	tests := []struct {
+		name string
+		base BasePath
+		in   string
+		want string
+	}{
+		{"root redirect at root", "", "/", "/"},
+		{"root redirect and cookie path under prefix", "/dashbrr", "/", "/dashbrr/"},
+		{"OIDC error redirect at root", "", "/login?error=no_code", "/login?error=no_code"},
+		{"OIDC error redirect under prefix", "/dashbrr", "/login?error=no_code", "/dashbrr/login?error=no_code"},
+		{"nested prefix", "/a/b", "/login", "/a/b/login"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.base.Path(tt.in); got != tt.want {
+				t.Errorf("BasePath(%q).Path(%q) = %q, want %q", tt.base, tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBasePathFromTOMLAndEnv(t *testing.T) {
+	path := writeConfig(t, "[server]\nbase_path = \"dashbrr/\"\n")
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.BasePath != "/dashbrr" {
+		t.Errorf("base_path from file = %q, want /dashbrr", cfg.Server.BasePath)
+	}
+
+	t.Setenv("DASHBRR__BASE_PATH", "/env/")
+	cfg, err = LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.BasePath != "/env" {
+		t.Errorf("base_path from env = %q, want /env", cfg.Server.BasePath)
+	}
+}
+
+func TestBasePathRejectsURL(t *testing.T) {
+	_, err := LoadConfig(writeConfig(t, "[server]\nbase_path = \"https://example.com/dashbrr\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "path, not a URL") {
+		t.Fatalf("LoadConfig error = %v, want one that says base_path is a path, not a URL", err)
+	}
+}
+
+func TestOIDCWithoutRedirectURLFails(t *testing.T) {
+	body := strings.Replace(oidcTOML, `redirect_url = "https://toml.example.com/callback"`, "", 1)
+	_, err := LoadConfig(writeConfig(t, body))
+	if err == nil || !strings.Contains(err.Error(), "redirect_url") {
+		t.Fatalf("LoadConfig error = %v, want one that names redirect_url", err)
 	}
 }

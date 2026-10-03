@@ -40,6 +40,7 @@ type LogConfig struct {
 // ServerConfig holds server-related configuration
 type ServerConfig struct {
 	ListenAddr  string   `toml:"listen_addr" env:"DASHBRR__LISTEN_ADDR"`
+	BasePath    BasePath `toml:"base_path" env:"DASHBRR__BASE_PATH"`
 	CORSOrigins []string `toml:"cors_origins" env:"DASHBRR__CORS_ORIGINS"`
 	CORSHeaders []string `toml:"cors_headers" env:"DASHBRR__CORS_HEADERS"`
 	CORSMethods []string `toml:"cors_methods" env:"DASHBRR__CORS_METHODS"`
@@ -60,8 +61,8 @@ type OIDCConfig struct {
 	RedirectURL  string `toml:"redirect_url" env:"DASHBRR__OIDC_REDIRECT_URL"`
 }
 
-// IsConfigured reports whether OIDC has the three values that it needs. The
-// redirect URL has a default, so it is not part of this test.
+// IsConfigured reports whether OIDC is enabled. The redirect URL
+// is not part of this test: validation rejects a configured OIDC without it.
 func (c OIDCConfig) IsConfigured() bool {
 	return c.Issuer != "" && c.ClientID != "" && c.ClientSecret != ""
 }
@@ -191,7 +192,47 @@ func loadConfig(path string, writeDefault bool) (*Config, error) {
 		return nil, fmt.Errorf("error loading environment variables: %w", err)
 	}
 
+	if config.Server.BasePath, err = normalizeBasePath(string(config.Server.BasePath)); err != nil {
+		return nil, err
+	}
+
+	if config.Auth.OIDC.IsConfigured() && config.Auth.OIDC.RedirectURL == "" {
+		return nil, errors.New("OIDC is configured but redirect_url (DASHBRR__OIDC_REDIRECT_URL) is empty: set it to the callback URL, for example https://example.com/dashbrr/api/auth/oidc/callback")
+	}
+
 	return config, nil
+}
+
+// BasePath is the URL path prefix that dashbrr is served under. It is "" at
+// the root of the host, or a path such as "/dashbrr" with no trailing slash.
+type BasePath string
+
+// Path puts the base path in front of p, an in-app path that starts with "/".
+func (b BasePath) Path(p string) string {
+	return string(b) + p
+}
+
+// normalizeBasePath gives "" for an empty value or "/". Otherwise, it gives a
+// path with a leading slash and no trailing slash. The server writes the value into an
+// HTML attribute, so characters that are not safe there are an error.
+func normalizeBasePath(raw string) (BasePath, error) {
+	p := strings.TrimSpace(raw)
+	// A browser reads "//host" as another site, the same as "http://host".
+	if strings.Contains(p, "://") || strings.HasPrefix(p, "//") {
+		return "", fmt.Errorf("base_path %q is a path, not a URL: use a value such as /dashbrr", raw)
+	}
+	// A browser also reads "?" and "#" as the start of a query or a fragment, and "\" as "/".
+	if strings.ContainsAny(p, "\"'<>` \t\n?#\\") {
+		return "", fmt.Errorf("base_path %q has a character that is not permitted (quote, backtick, <, >, ?, #, \\, or white space)", raw)
+	}
+	p = strings.TrimRight(p, "/")
+	if p == "" {
+		return "", nil
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return BasePath(p), nil
 }
 
 func writeDefaultConfig(path string, config *Config) error {
@@ -210,6 +251,9 @@ func LoadEnvOverrides(config *Config) error {
 	// Server
 	if env := os.Getenv("DASHBRR__LISTEN_ADDR"); env != "" {
 		config.Server.ListenAddr = env
+	}
+	if env := os.Getenv("DASHBRR__BASE_PATH"); env != "" {
+		config.Server.BasePath = BasePath(env)
 	}
 	if env := os.Getenv("DASHBRR__CORS_ORIGINS"); env != "" {
 		// comma-separated list (e.g. "http://localhost:3000,https://dash.example.com")

@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/autobrr/dashbrr/internal/api/session"
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -81,7 +83,7 @@ func TestNewAuthHandler(t *testing.T) {
 	}
 	mockStore := new(MockStore)
 
-	handler := NewAuthHandler(config, mockStore)
+	handler := NewAuthHandler(config, "", mockStore, session.New(mockStore, "/"))
 
 	assert.NotNil(t, handler)
 	assert.Equal(t, config, handler.config)
@@ -120,7 +122,7 @@ func TestAuthHandlerEnsureProviderConfig(t *testing.T) {
 	}
 	mockStore := new(MockStore)
 
-	handler := NewAuthHandler(config, mockStore)
+	handler := NewAuthHandler(config, "", mockStore, session.New(mockStore, "/"))
 	assert.NotNil(t, handler)
 	assert.Nil(t, handler.oauth2Config)
 
@@ -150,7 +152,7 @@ func TestAuthHandlerEnsureProviderConfig_DiscoveryFailed(t *testing.T) {
 	}
 	mockStore := new(MockStore)
 
-	handler := NewAuthHandler(config, mockStore)
+	handler := NewAuthHandler(config, "", mockStore, session.New(mockStore, "/"))
 	assert.NotNil(t, handler)
 
 	err := handler.ensureProviderConfig(context.Background())
@@ -190,7 +192,8 @@ func TestAuthHandlerEnsureProviderConfig_ConcurrentDiscoverySingleflight(t *test
 		ClientSecret: "test-client-secret",
 		RedirectURL:  "http://localhost:3000/callback",
 	}
-	handler := NewAuthHandler(config, new(MockStore))
+	store := new(MockStore)
+	handler := NewAuthHandler(config, "", store, session.New(store, "/"))
 
 	const workers = 12
 	var wg sync.WaitGroup
@@ -367,14 +370,15 @@ func writeToken(w http.ResponseWriter, idToken string) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-func newOIDCTestHandler(t *testing.T, issuer string) *AuthHandler {
+func newOIDCTestHandler(t *testing.T, issuer string, base config.BasePath) *AuthHandler {
 	t.Helper()
+	store := newBuiltinMemoryStore(t)
 	return NewAuthHandler(&types.AuthConfig{
 		Issuer:       issuer,
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
 		RedirectURL:  "https://dashbrr.example.test:8443/api/auth/callback",
-	}, newBuiltinMemoryStore(t))
+	}, base, store, session.New(store, base.Path("/")))
 }
 
 func newOIDCTestRouter(h *AuthHandler) *gin.Engine {
@@ -406,7 +410,7 @@ func TestOIDCLoginIgnoresFrontendURL(t *testing.T) {
 	} {
 		t.Run(target, func(t *testing.T) {
 			p := newStubProvider(t)
-			r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL))
+			r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL, ""))
 
 			state := login(t, r, p, target)
 			w := serve(t, r, http.MethodGet, "/api/auth/callback?code=abc&state="+url.QueryEscape(state), "", nil)
@@ -457,7 +461,7 @@ func TestOIDCCallbackErrorsRedirectToRelativeLogin(t *testing.T) {
 			if tt.tokenResponse != nil {
 				p.tokenResponse = tt.tokenResponse
 			}
-			r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL))
+			r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL, ""))
 
 			state := "unknown"
 			if !tt.skipLogin {
@@ -469,4 +473,25 @@ func TestOIDCCallbackErrorsRedirectToRelativeLogin(t *testing.T) {
 			assert.Equal(t, tt.want, w.Header().Get("Location"))
 		})
 	}
+}
+
+func TestOIDCCallbackUnderBasePath(t *testing.T) {
+	p := newStubProvider(t)
+	r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL, "/dashbrr"))
+
+	w := serve(t, r, http.MethodGet, "/api/auth/callback?code=abc&state=unknown", "", nil)
+	assert.Equal(t, "/dashbrr/login?error=invalid_state", w.Header().Get("Location"))
+
+	state := login(t, r, p, "/api/auth/oidc/login")
+	w = serve(t, r, http.MethodGet, "/api/auth/callback?code=abc&state="+url.QueryEscape(state), "", nil)
+	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+	assert.Equal(t, "/dashbrr/", w.Header().Get("Location"))
+
+	var cookiePath string
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Name == session.CookieName {
+			cookiePath = cookie.Path
+		}
+	}
+	assert.Equal(t, "/dashbrr/", cookiePath)
 }

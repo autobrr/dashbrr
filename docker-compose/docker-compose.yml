@@ -22,7 +22,7 @@ services:
       #- DASHBRR__OIDC_ISSUER=optional
       #- DASHBRR__OIDC_CLIENT_ID=optional
       #- DASHBRR__OIDC_CLIENT_SECRET=optional
-      #- DASHBRR__OIDC_REDIRECT_URL=optional
+      #- DASHBRR__OIDC_REDIRECT_URL=required-with-oidc
     volumes:
       - ./data:/data
     depends_on:

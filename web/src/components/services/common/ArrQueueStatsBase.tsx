@@ -161,7 +161,7 @@ export const ArrQueueStatsBase: React.FC<Props> = ({
     try {
       const queryParams = buildArrQueueDeleteQueryParams(instanceId, deleteOptions);
 
-      await api.delete(`/api/arr/queue/${selectedItem.id}?${queryParams.toString()}`);
+      await api.delete(`/arr/queue/${selectedItem.id}?${queryParams.toString()}`);
 
       setShowDeleteModal(false);
       setSelectedItem(null);

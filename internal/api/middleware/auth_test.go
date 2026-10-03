@@ -59,7 +59,7 @@ func TestRequireAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T) 
 		},
 	}
 
-	auth := NewAuthMiddleware(store)
+	auth := NewAuthMiddleware(session.New(store, "/"))
 	router := gin.New()
 	router.Use(auth.RequireAuth())
 
@@ -90,7 +90,7 @@ func TestOptionalAuth_DoesNotInjectLookupTimeoutIntoRequestContext(t *testing.T)
 		},
 	}
 
-	auth := NewAuthMiddleware(store)
+	auth := NewAuthMiddleware(session.New(store, "/"))
 	router := gin.New()
 	router.Use(auth.OptionalAuth())
 
@@ -121,7 +121,7 @@ func TestOptionalAuth_AcceptsBearerAuthorization(t *testing.T) {
 		},
 	}
 
-	auth := NewAuthMiddleware(store)
+	auth := NewAuthMiddleware(session.New(store, "/"))
 	router := gin.New()
 	router.Use(auth.OptionalAuth())
 
@@ -156,7 +156,7 @@ func TestRequireAuth_DoesNotMaskSessionLookupErrorsAsUnauthorized(t *testing.T) 
 		},
 	}
 
-	auth := NewAuthMiddleware(store)
+	auth := NewAuthMiddleware(session.New(store, "/"))
 	router := gin.New()
 	router.Use(auth.RequireAuth())
 	router.GET("/api/protected", func(c *gin.Context) {

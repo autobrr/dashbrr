@@ -52,7 +52,7 @@ export const ConfigurationForm = ({
       const health = await api.get<{
         status: string;
         message?: string;
-      }>(`/api/health/${instanceId}?${queryParams}`);
+      }>(`/health/${instanceId}?${queryParams}`);
 
       if (health.status === "error" || health.status === "offline") {
         throw new Error(health.message || "Failed to validate configuration");

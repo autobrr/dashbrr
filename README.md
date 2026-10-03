@@ -159,6 +159,8 @@ If the config file does not exist, dashbrr tries to write a default file there. 
 ```toml
 [server]
 listen_addr = ":8080"
+# Optional: serve dashbrr below a path, for example https://example.com/dashbrr/
+# base_path = "/dashbrr"
 # Optional: if UI is served from a different origin than the API
 # cors_origins = ["http://localhost:3000", "https://dash.example.com"]
 # cors_allow_credentials = true
@@ -180,8 +182,11 @@ level = "info"
 # issuer = "https://your-provider.com"
 # client_id = "your-client-id"
 # client_secret = "your-client-secret"
-# redirect_url = "http://localhost:3000/api/auth/oidc/callback"
+# Required with OIDC. Include the base path, if you set one.
+# redirect_url = "https://dash.example.com/api/auth/oidc/callback"
 ```
+
+To serve dashbrr below a path behind a reverse proxy, see [Base path](docs/config_management.md#base-path).
 
 A relative `[database] path` is relative to the directory of the config file, not to the working directory. By default, the database file is `data/dashbrr.db` in that directory. For example:
 

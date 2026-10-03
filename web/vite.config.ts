@@ -55,7 +55,7 @@ export default defineConfig(({ mode }) => {
   const swKiller = devServiceWorkerKiller(!pwaDevEnabled)
 
   return {
-  base: "/",
+  base: "./",
   build: {
     outDir: 'dist',
     manifest: true,
@@ -127,47 +127,51 @@ export default defineConfig(({ mode }) => {
         display: 'standalone',
         icons: [
           {
-            src: '/pwa-192x192.png',
+            src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/pwa-512x512.png',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
           },
           {
-            src: '/apple-touch-icon-iphone-60x60.png',
+            src: 'apple-touch-icon-iphone-60x60.png',
             sizes: '60x60',
             type: 'image/png'
           },
           {
-            src: '/apple-touch-icon-ipad-76x76.png',
+            src: 'apple-touch-icon-ipad-76x76.png',
             sizes: '76x76',
             type: 'image/png'
           },
           {
-            src: '/apple-touch-icon-iphone-retina-120x120.png',
+            src: 'apple-touch-icon-iphone-retina-120x120.png',
             sizes: '120x120',
             type: 'image/png'
           },
           {
-            src: '/apple-touch-icon-ipad-retina-152x152.png',
+            src: 'apple-touch-icon-ipad-retina-152x152.png',
             sizes: '152x152',
             type: 'image/png'
           }
         ],
-        start_url: '/',
-        scope: '/'
+        // Relative values resolve against the manifest URL, so they follow the
+        // base path with no server rewrite.
+        start_url: './',
+        scope: './'
       },
       workbox: mode === 'production' ? {
         globDirectory: 'dist',
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg}'
         ],
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        // No navigateFallback and no runtime cache for pages: page loads go
+        // to the network. At the root, the service worker scope is the whole
+        // origin, so either one would also answer pages of other apps.
+        navigateFallback: null,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -177,20 +181,6 @@ export default defineConfig(({ mode }) => {
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /^(?!.*api).*$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'app-shell',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -208,7 +198,6 @@ export default defineConfig(({ mode }) => {
         // directives, making the app look "unstyled". Opt-in via env when needed.
         enabled: pwaDevEnabled,
         type: 'module',
-        navigateFallback: '/index.html',
         suppressWarnings: true
       }
     })

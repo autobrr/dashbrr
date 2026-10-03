@@ -123,7 +123,7 @@ const useProvideServiceData = (): ServiceDataContextValue => {
 
     cleanupSSE();
 
-    const es = createEventSource("/api/events");
+    const es = createEventSource("api/events");
     eventSourceRef.current = es;
 
     es.onopen = () => {
