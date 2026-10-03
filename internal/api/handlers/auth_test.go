@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -208,26 +210,6 @@ func TestAuthHandlerEnsureProviderConfig_ConcurrentDiscoverySingleflight(t *test
 	assert.Equal(t, int32(1), hits.Load())
 }
 
-func TestLogin_NoFrontendURL(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest("GET", "/login", nil)
-	c.Request = req
-
-	mockStore := new(MockStore)
-	// No mock expectations needed for this test as no cache methods are called
-
-	handler := &AuthHandler{
-		cache: mockStore,
-	}
-
-	handler.Login(c)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	mockStore.AssertExpectations(t)
-}
-
 func TestCallback_NoCode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -251,33 +233,7 @@ func TestCallback_NoCode(t *testing.T) {
 	handler.Callback(c)
 
 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
-	assert.Contains(t, w.Header().Get("Location"), "/login?error=no_code")
-	mockStore.AssertExpectations(t)
-}
-
-func TestLogout_NoFrontendURL(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest("GET", "/logout", nil)
-	c.Request = req
-
-	mockStore := new(MockStore)
-	// No mock expectations needed for this test as no cache methods are called
-
-	handler := &AuthHandler{
-		config: &types.AuthConfig{
-			Issuer:       "https://test.auth0.com",
-			ClientID:     "test-client-id",
-			ClientSecret: "test-client-secret",
-			RedirectURL:  "http://localhost:3000/callback",
-		},
-		cache: mockStore,
-	}
-
-	handler.Logout(c)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, "/login?error=no_code", w.Header().Get("Location"))
 	mockStore.AssertExpectations(t)
 }
 
@@ -371,9 +327,9 @@ func TestGetProviderEndpoints(t *testing.T) {
 func TestBuildLogoutURL(t *testing.T) {
 	issuer := "https://test.auth0.com/"
 	clientID := "test-client-id"
-	frontendURL := "http://localhost:3000/login?next=/settings&msg=a b"
+	returnTo := "http://localhost:3000"
 
-	logoutURL := buildLogoutURL(issuer, clientID, frontendURL)
+	logoutURL := buildLogoutURL(issuer, clientID, returnTo)
 
 	parsed, err := url.Parse(logoutURL)
 	assert.NoError(t, err)
@@ -381,5 +337,165 @@ func TestBuildLogoutURL(t *testing.T) {
 	assert.Equal(t, "test.auth0.com", parsed.Host)
 	assert.Equal(t, "/v2/logout", parsed.Path)
 	assert.Equal(t, clientID, parsed.Query().Get("client_id"))
-	assert.Equal(t, frontendURL, parsed.Query().Get("returnTo"))
+	assert.Equal(t, returnTo, parsed.Query().Get("returnTo"))
+}
+
+// stubProvider is an OIDC provider that answers discovery and token requests.
+// tokenResponse builds the token endpoint reply from the nonce that Login sent.
+type stubProvider struct {
+	server        *httptest.Server
+	nonce         string
+	tokenResponse func(w http.ResponseWriter, nonce string)
+}
+
+func newStubProvider(t *testing.T) *stubProvider {
+	t.Helper()
+	p := &stubProvider{
+		tokenResponse: func(w http.ResponseWriter, nonce string) {
+			writeToken(w, idTokenWithNonce(nonce))
+		},
+	}
+	p.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			fmt.Fprintf(w, `{"authorization_endpoint":"%[1]s/authorize","token_endpoint":"%[1]s/token"}`, p.server.URL)
+		case "/token":
+			p.tokenResponse(w, p.nonce)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(p.server.Close)
+	return p
+}
+
+func idTokenWithNonce(nonce string) string {
+	payload := base64.RawURLEncoding.EncodeToString(fmt.Appendf(nil, `{"nonce":%q}`, nonce))
+	return "e30." + payload + ".sig"
+}
+
+func writeToken(w http.ResponseWriter, idToken string) {
+	w.Header().Set("Content-Type", "application/json")
+	body := map[string]string{"access_token": "access", "token_type": "Bearer"}
+	if idToken != "" {
+		body["id_token"] = idToken
+	}
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+func newOIDCTestHandler(t *testing.T, issuer string) *AuthHandler {
+	t.Helper()
+	return NewAuthHandler(&types.AuthConfig{
+		Issuer:       issuer,
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		RedirectURL:  "https://dashbrr.example.test:8443/api/auth/callback",
+	}, newBuiltinMemoryStore(t))
+}
+
+func newOIDCTestRouter(h *AuthHandler) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/api/auth/oidc/login", h.Login)
+	r.GET("/api/auth/callback", h.Callback)
+	r.GET("/api/auth/oidc/logout", h.Logout)
+	return r
+}
+
+// login runs Login and returns the state from the provider redirect.
+// It stores the nonce on the stub provider for the token response.
+func login(t *testing.T, r *gin.Engine, p *stubProvider, target string) string {
+	t.Helper()
+	w := serve(t, r, http.MethodGet, target, "", nil)
+	require.Equal(t, http.StatusTemporaryRedirect, w.Code, w.Body.String())
+
+	authURL, err := url.Parse(w.Header().Get("Location"))
+	require.NoError(t, err)
+	assert.Equal(t, p.server.URL+"/authorize", authURL.Scheme+"://"+authURL.Host+authURL.Path)
+	p.nonce = authURL.Query().Get("nonce")
+	return authURL.Query().Get("state")
+}
+
+func TestOIDCLoginIgnoresFrontendURL(t *testing.T) {
+	for _, target := range []string{
+		"/api/auth/oidc/login?frontendUrl=https://attacker.example",
+		"/api/auth/oidc/login",
+	} {
+		t.Run(target, func(t *testing.T) {
+			p := newStubProvider(t)
+			r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL))
+
+			state := login(t, r, p, target)
+			w := serve(t, r, http.MethodGet, "/api/auth/callback?code=abc&state="+url.QueryEscape(state), "", nil)
+
+			assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+			assert.Equal(t, "/", w.Header().Get("Location"))
+		})
+	}
+}
+
+func TestOIDCCallbackErrorsRedirectToRelativeLogin(t *testing.T) {
+	tests := []struct {
+		name          string
+		tokenResponse func(w http.ResponseWriter, nonce string)
+		skipLogin     bool
+		want          string
+	}{
+		{
+			name:      "unknown state",
+			skipLogin: true,
+			want:      "/login?error=invalid_state",
+		},
+		{
+			name:          "exchange failed",
+			tokenResponse: func(w http.ResponseWriter, _ string) { w.WriteHeader(http.StatusInternalServerError) },
+			want:          "/login?error=exchange_failed",
+		},
+		{
+			name:          "no id_token",
+			tokenResponse: func(w http.ResponseWriter, _ string) { writeToken(w, "") },
+			want:          "/login?error=no_id_token",
+		},
+		{
+			name:          "malformed id_token",
+			tokenResponse: func(w http.ResponseWriter, _ string) { writeToken(w, "garbage") },
+			want:          "/login?error=invalid_nonce",
+		},
+		{
+			name:          "nonce mismatch",
+			tokenResponse: func(w http.ResponseWriter, _ string) { writeToken(w, idTokenWithNonce("other")) },
+			want:          "/login?error=invalid_nonce",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newStubProvider(t)
+			if tt.tokenResponse != nil {
+				p.tokenResponse = tt.tokenResponse
+			}
+			r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL))
+
+			state := "unknown"
+			if !tt.skipLogin {
+				state = login(t, r, p, "/api/auth/oidc/login?frontendUrl=https://attacker.example")
+			}
+			w := serve(t, r, http.MethodGet, "/api/auth/callback?code=abc&state="+url.QueryEscape(state), "", nil)
+
+			assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+			assert.Equal(t, tt.want, w.Header().Get("Location"))
+		})
+	}
+}
+
+func TestOIDCLogoutReturnsToConfiguredOrigin(t *testing.T) {
+	r := newOIDCTestRouter(newOIDCTestHandler(t, "https://provider.example.test"))
+
+	w := serve(t, r, http.MethodGet, "/api/auth/oidc/logout?frontendUrl=https://attacker.example", "", nil)
+
+	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+	logoutURL, err := url.Parse(w.Header().Get("Location"))
+	require.NoError(t, err)
+	assert.Equal(t, "provider.example.test", logoutURL.Host)
+	assert.Equal(t, "https://dashbrr.example.test:8443", logoutURL.Query().Get("returnTo"))
 }
