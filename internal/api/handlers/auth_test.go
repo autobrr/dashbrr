@@ -324,22 +324,6 @@ func TestGetProviderEndpoints(t *testing.T) {
 	}
 }
 
-func TestBuildLogoutURL(t *testing.T) {
-	issuer := "https://test.auth0.com/"
-	clientID := "test-client-id"
-	returnTo := "http://localhost:3000"
-
-	logoutURL := buildLogoutURL(issuer, clientID, returnTo)
-
-	parsed, err := url.Parse(logoutURL)
-	assert.NoError(t, err)
-	assert.Equal(t, "https", parsed.Scheme)
-	assert.Equal(t, "test.auth0.com", parsed.Host)
-	assert.Equal(t, "/v2/logout", parsed.Path)
-	assert.Equal(t, clientID, parsed.Query().Get("client_id"))
-	assert.Equal(t, returnTo, parsed.Query().Get("returnTo"))
-}
-
 // stubProvider is an OIDC provider that answers discovery and token requests.
 // tokenResponse builds the token endpoint reply from the nonce that Login sent.
 type stubProvider struct {
@@ -398,7 +382,6 @@ func newOIDCTestRouter(h *AuthHandler) *gin.Engine {
 	r := gin.New()
 	r.GET("/api/auth/oidc/login", h.Login)
 	r.GET("/api/auth/callback", h.Callback)
-	r.GET("/api/auth/oidc/logout", h.Logout)
 	return r
 }
 
@@ -486,16 +469,4 @@ func TestOIDCCallbackErrorsRedirectToRelativeLogin(t *testing.T) {
 			assert.Equal(t, tt.want, w.Header().Get("Location"))
 		})
 	}
-}
-
-func TestOIDCLogoutReturnsToConfiguredOrigin(t *testing.T) {
-	r := newOIDCTestRouter(newOIDCTestHandler(t, "https://provider.example.test"))
-
-	w := serve(t, r, http.MethodGet, "/api/auth/oidc/logout?frontendUrl=https://attacker.example", "", nil)
-
-	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
-	logoutURL, err := url.Parse(w.Header().Get("Location"))
-	require.NoError(t, err)
-	assert.Equal(t, "provider.example.test", logoutURL.Host)
-	assert.Equal(t, "https://dashbrr.example.test:8443", logoutURL.Query().Get("returnTo"))
 }

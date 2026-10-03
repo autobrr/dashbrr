@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -207,21 +206,6 @@ func extractJWTNonce(rawIDToken string) (string, error) {
 	return claims.Nonce, nil
 }
 
-func buildLogoutURL(issuer string, clientID string, returnTo string) string {
-	logoutBase := strings.TrimRight(issuer, "/") + "/v2/logout"
-	logoutURL, err := url.Parse(logoutBase)
-	if err != nil {
-		return fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s", strings.TrimRight(issuer, "/"), clientID, returnTo)
-	}
-
-	query := logoutURL.Query()
-	query.Set("client_id", clientID)
-	query.Set("returnTo", returnTo)
-	logoutURL.RawQuery = query.Encode()
-
-	return logoutURL.String()
-}
-
 type oidcStateData struct {
 	Timestamp int64  `json:"timestamp"`
 	Nonce     string `json:"nonce"`
@@ -382,19 +366,4 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	// Cookie carries the session; avoid leaking tokens in URLs.
 	c.Redirect(http.StatusTemporaryRedirect, "/")
-}
-
-func (h *AuthHandler) Logout(c *gin.Context) {
-	if err := h.sessions.Clear(c); err != nil {
-		log.Error().Err(err).Msg("failed to delete session from cache")
-	}
-
-	// Return to the origin of the configured redirect URL, never to an address from the request.
-	returnTo := h.config.RedirectURL
-	if u, err := url.Parse(returnTo); err == nil {
-		returnTo = (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
-	}
-
-	logoutURL := buildLogoutURL(h.config.Issuer, h.config.ClientID, returnTo)
-	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
 }
