@@ -3,12 +3,6 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-// Get the current frontend URL
-const getFrontendUrl = () => {
-  // Always use current origin (works for Vite dev server and backend proxy mode).
-  return window.location.origin;
-};
-
 // Common auth endpoints
 const COMMON_ENDPOINTS = {
   config: "/api/auth/config",
@@ -17,8 +11,8 @@ const COMMON_ENDPOINTS = {
 
 // OIDC-specific endpoints
 const OIDC_ENDPOINTS = {
-  login: `/api/auth/oidc/login?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
-  logout: `/api/auth/oidc/logout?frontendUrl=${encodeURIComponent(getFrontendUrl())}`,
+  login: "/api/auth/oidc/login",
+  logout: "/api/auth/oidc/logout",
 };
 
 // Built-in auth endpoints
