@@ -26,6 +26,16 @@ _Avoid_: service address, endpoint
 The address that the user's browser uses to open a service. It is optional. When it is set, links to the service use the access URL. Else they use the URL.
 _Avoid_: external URL, public URL
 
+### Authentication
+
+**Session**:
+The record of a logged-in user that the server keeps after a builtin or OIDC login. It ends at logout or after 30 days.
+_Avoid_: login, auth session
+
+**Session token**:
+The random string that identifies a session. The browser sends it in the `dashbrr_user_session` cookie. API clients send it as a Bearer token.
+_Avoid_: session ID, access token
+
 ### Service data
 
 **Poller**:

@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -30,17 +31,13 @@ import (
 type AuthHandler struct {
 	config       *types.AuthConfig
 	cache        cache.Store
+	sessions     *session.Manager
 	oauth2Config *oauth2.Config
 	httpClient   *http.Client
 	userinfoURL  string
 	mu           sync.RWMutex
 	discoverySF  singleflight.Group
 }
-
-const oidcSessionLookupTimeout = 5 * time.Second
-
-// Independent of the OIDC provider token, which is discarded after login.
-const sessionTTL = 30 * 24 * time.Hour
 
 func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	httpClient := &http.Client{Timeout: 1 * time.Second}
@@ -52,18 +49,9 @@ func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
 	return &AuthHandler{
 		config:     config,
 		cache:      store,
+		sessions:   session.New(store),
 		httpClient: httpClient,
 	}
-}
-
-func (h *AuthHandler) loadOIDCSession(ctx context.Context, sessionID string) (types.SessionData, error) {
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	var sessionData types.SessionData
-	if err := h.cache.Get(ctx, sessionKey, &sessionData); err != nil {
-		return types.SessionData{}, err
-	}
-
-	return sessionData, nil
 }
 
 func (h *AuthHandler) getOAuthConfig() *oauth2.Config {
@@ -397,53 +385,17 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	sessionData := types.SessionData{
-		ExpiresAt: time.Now().Add(sessionTTL),
-		AuthType:  "oidc",
-	}
-
-	// Use a server-generated session ID. Provider access tokens can rotate and should
-	// not be used as stable session identifiers.
-	sessionID, err := generateSecureRandomString(32)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to generate session id")
+	if _, err := h.sessions.Issue(c, types.SessionData{AuthType: "oidc"}); err != nil {
+		log.Error().Err(err).Msg("failed to create session")
 		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
 		return
 	}
-
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	if err := h.cache.Set(ctx, sessionKey, sessionData, sessionTTL); err != nil {
-		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context canceled while storing session")
-			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
-			return
-		}
-		log.Error().Err(err).Msg("failed to store session in cache")
-		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
-		return
-	}
-
-	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
-
-	c.SetCookie(
-		middleware.SessionCookieName,
-		sessionID,
-		int(sessionTTL.Seconds()),
-		"/",
-		"",
-		isSecure,
-		true,
-	)
 
 	// Cookie carries the session; avoid leaking tokens in URLs.
 	c.Redirect(http.StatusTemporaryRedirect, frontendUrl)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	// Create context with timeout for logout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
 	frontendUrl := c.Query("frontendUrl")
 	if frontendUrl == "" {
 		log.Error().Msg("no frontend URL provided")
@@ -451,65 +403,17 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	sessionID, err := getSessionToken(c)
-	if err != nil {
-		log.Error().Err(err).Msg("no session cookie found")
-		c.JSON(http.StatusOK, gin.H{"message": "Already logged out"})
-		return
+	if err := h.sessions.Clear(c); err != nil {
+		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
-
-	sessionKey := fmt.Sprintf("oidc:session:%s", sessionID)
-	if err := h.cache.Delete(ctx, sessionKey); err != nil {
-		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context canceled while deleting session")
-			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-			return
-		}
-		if err != cache.ErrKeyNotFound {
-			log.Error().Err(err).Msg("failed to delete session from cache")
-		}
-	}
-
-	var isSecure = c.GetHeader("X-Forwarded-Proto") == "https"
-
-	c.SetCookie(
-		middleware.SessionCookieName,
-		"",
-		-1,
-		"/",
-		"",
-		isSecure,
-		true,
-	)
 
 	logoutURL := buildLogoutURL(h.config.Issuer, h.config.ClientID, frontendUrl)
 	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
 }
 
 func (h *AuthHandler) VerifyToken(c *gin.Context) {
-	sessionID, err := getSessionToken(c)
-	if err != nil {
-		log.Trace().Msg("no session cookie found")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
-		return
-	}
-
-	// Create context with timeout for token verification
-	ctx, cancel := context.WithTimeout(c.Request.Context(), oidcSessionLookupTimeout)
-	defer cancel()
-
-	if _, err := h.loadOIDCSession(ctx, sessionID); err != nil {
-		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context canceled while verifying token")
-			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-			return
-		}
-		if err == cache.ErrKeyNotFound {
-			log.Trace().Msg("session not found or expired")
-		} else {
-			log.Error().Err(err).Msg("failed to get session from cache")
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
+	if _, _, err := h.sessions.Load(c); err != nil {
+		middleware.AbortWithSessionError(c, err)
 		return
 	}
 
@@ -519,28 +423,9 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 }
 
 func (h *AuthHandler) UserInfo(c *gin.Context) {
-	sessionID, err := getSessionToken(c)
+	_, sessionData, err := h.sessions.Load(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No session found"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), oidcSessionLookupTimeout)
-	defer cancel()
-
-	sessionData, err := h.loadOIDCSession(ctx, sessionID)
-	if err != nil {
-		if ctx.Err() != nil {
-			log.Error().Err(ctx.Err()).Msg("Context canceled while loading user info session")
-			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-			return
-		}
-		if err == cache.ErrKeyNotFound {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
-			return
-		}
-		log.Error().Err(err).Msg("failed to get session from cache")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session"})
+		middleware.AbortWithSessionError(c, err)
 		return
 	}
 

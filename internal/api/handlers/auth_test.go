@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -409,17 +409,17 @@ func TestUserInfo_SessionLookupTimeout(t *testing.T) {
 	defer cancel()
 
 	req := httptest.NewRequest("GET", "/api/auth/oidc/userinfo", nil).WithContext(baseCtx)
-	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: "test-session"}) //nolint:gosec // request cookie; attributes don't apply
+	req.AddCookie(&http.Cookie{Name: session.CookieName, Value: "test-session"}) //nolint:gosec // request cookie; attributes don't apply
 	c.Request = req
 
 	handler := &AuthHandler{
-		cache: blockingStore{},
+		sessions: session.New(blockingStore{}),
 	}
 
 	handler.UserInfo(c)
 
 	assert.Equal(t, http.StatusGatewayTimeout, w.Code)
-	assert.Contains(t, w.Body.String(), "Operation timed out")
+	assert.Contains(t, w.Body.String(), "Authentication check timed out")
 }
 
 func TestUserInfo_SessionExpired(t *testing.T) {
@@ -428,22 +428,22 @@ func TestUserInfo_SessionExpired(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	req := httptest.NewRequest("GET", "/api/auth/oidc/userinfo", nil)
-	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: "test-session"}) //nolint:gosec // request cookie; attributes don't apply
+	req.AddCookie(&http.Cookie{Name: session.CookieName, Value: "test-session"}) //nolint:gosec // request cookie; attributes don't apply
 	c.Request = req
 
 	mockStore := new(MockStore)
 	mockStore.
-		On("Get", mock.Anything, "oidc:session:test-session", mock.AnythingOfType("*types.SessionData")).
+		On("Get", mock.Anything, "session:test-session", mock.AnythingOfType("*types.SessionData")).
 		Return(cache.ErrKeyNotFound).
 		Once()
 
 	handler := &AuthHandler{
-		cache: mockStore,
+		sessions: session.New(mockStore),
 	}
 
 	handler.UserInfo(c)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	assert.Contains(t, w.Body.String(), "Session expired")
+	assert.Contains(t, w.Body.String(), "Invalid or expired session")
 	mockStore.AssertExpectations(t)
 }
