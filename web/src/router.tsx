@@ -41,16 +41,22 @@ const loginRoute = createRoute({
   ),
 });
 
-const AppContent = lazyRouteComponent(() => import("./AppContent"));
-
-const indexRoute = createRoute({
+// A lazy component must be the route's own component, so that the router
+// preloads it. That is why the guard sits on a pathless layout route above it.
+const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/",
+  id: "authenticated",
   component: () => (
     <ProtectedRoute>
-      <AppContent />
+      <Outlet />
     </ProtectedRoute>
   ),
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "/",
+  component: lazyRouteComponent(() => import("./AppContent")),
 });
 
 const authLoginRoute = createRoute({
@@ -72,7 +78,7 @@ const catchAllRoute = createRoute({
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     loginRoute,
-    indexRoute,
+    authenticatedRoute.addChildren([indexRoute]),
     authLoginRoute,
     catchAllRoute,
   ]),
