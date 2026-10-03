@@ -207,25 +207,24 @@ func extractJWTNonce(rawIDToken string) (string, error) {
 	return claims.Nonce, nil
 }
 
-func buildLogoutURL(issuer string, clientID string, frontendURL string) string {
+func buildLogoutURL(issuer string, clientID string, returnTo string) string {
 	logoutBase := strings.TrimRight(issuer, "/") + "/v2/logout"
 	logoutURL, err := url.Parse(logoutBase)
 	if err != nil {
-		return fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s", strings.TrimRight(issuer, "/"), clientID, frontendURL)
+		return fmt.Sprintf("%s/v2/logout?client_id=%s&returnTo=%s", strings.TrimRight(issuer, "/"), clientID, returnTo)
 	}
 
 	query := logoutURL.Query()
 	query.Set("client_id", clientID)
-	query.Set("returnTo", frontendURL)
+	query.Set("returnTo", returnTo)
 	logoutURL.RawQuery = query.Encode()
 
 	return logoutURL.String()
 }
 
 type oidcStateData struct {
-	Timestamp   int64  `json:"timestamp"`
-	FrontendURL string `json:"frontendUrl"`
-	Nonce       string `json:"nonce"`
+	Timestamp int64  `json:"timestamp"`
+	Nonce     string `json:"nonce"`
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -234,13 +233,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	defer cancel()
 
 	log.Info().Msg("initiating login flow")
-
-	frontendUrl := c.Query("frontendUrl")
-	if frontendUrl == "" {
-		log.Error().Msg("no frontend URL provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Frontend URL is required"})
-		return
-	}
 
 	if err := h.ensureProviderConfig(ctx); err != nil {
 		if ctx.Err() != nil {
@@ -271,9 +263,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	stateKey := fmt.Sprintf("oidc:state:%s", state)
 
 	stateData := oidcStateData{
-		Timestamp:   time.Now().Unix(),
-		FrontendURL: frontendUrl,
-		Nonce:       nonce,
+		Timestamp: time.Now().Unix(),
+		Nonce:     nonce,
 	}
 
 	if err := h.cache.Set(ctx, stateKey, stateData, 5*time.Minute); err != nil {
@@ -338,9 +329,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	frontendUrl := stateData.FrontendURL
 	expectedNonce := stateData.Nonce
-	if frontendUrl == "" || expectedNonce == "" {
+	if expectedNonce == "" {
 		log.Error().Msg("invalid state data")
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_state")
 		return
@@ -357,55 +347,54 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	if err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled during token exchange")
-			c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=timeout", frontendUrl))
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
 			return
 		}
 		log.Error().Err(err).Msg("code exchange failed")
-		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=exchange_failed", frontendUrl))
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=exchange_failed")
 		return
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		log.Error().Msg("no id_token in token response")
-		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=no_id_token", frontendUrl))
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=no_id_token")
 		return
 	}
 
 	gotNonce, err := extractJWTNonce(rawIDToken)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to extract nonce from id_token")
-		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_nonce", frontendUrl))
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_nonce")
 		return
 	}
 	if gotNonce != expectedNonce {
 		log.Error().Msg("id_token nonce mismatch")
-		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=invalid_nonce", frontendUrl))
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_nonce")
 		return
 	}
 
 	if _, err := h.sessions.Issue(c, types.SessionData{AuthType: "oidc"}); err != nil {
 		log.Error().Err(err).Msg("failed to create session")
-		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/login?error=session_failed", frontendUrl))
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=session_failed")
 		return
 	}
 
 	// Cookie carries the session; avoid leaking tokens in URLs.
-	c.Redirect(http.StatusTemporaryRedirect, frontendUrl)
+	c.Redirect(http.StatusTemporaryRedirect, "/")
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	frontendUrl := c.Query("frontendUrl")
-	if frontendUrl == "" {
-		log.Error().Msg("no frontend URL provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Frontend URL is required"})
-		return
-	}
-
 	if err := h.sessions.Clear(c); err != nil {
 		log.Error().Err(err).Msg("failed to delete session from cache")
 	}
 
-	logoutURL := buildLogoutURL(h.config.Issuer, h.config.ClientID, frontendUrl)
+	// Return to the origin of the configured redirect URL, never to an address from the request.
+	returnTo := h.config.RedirectURL
+	if u, err := url.Parse(returnTo); err == nil {
+		returnTo = (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
+	}
+
+	logoutURL := buildLogoutURL(h.config.Issuer, h.config.ClientID, returnTo)
 	c.Redirect(http.StatusTemporaryRedirect, logoutURL)
 }
