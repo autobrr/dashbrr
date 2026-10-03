@@ -9,6 +9,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/api/handlers"
 	"github.com/autobrr/dashbrr/internal/api/middleware"
+	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/cache"
@@ -19,9 +20,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
-
-// defaultOIDCCallbackURL is used when the config does not set a redirect URL.
-const defaultOIDCCallbackURL = "http://localhost:3000/api/auth/oidc/callback"
 
 type Server struct {
 	cfg        *config.Config
@@ -128,35 +126,49 @@ func (s *Server) Handler() http.Handler {
 	arrQueueHandler := handlers.NewArrQueueHandler(s.db, s.poller)
 	uiPreferencesHandler := handlers.NewUIPreferencesHandler(s.db)
 
+	base := s.cfg.Server.BasePath
+	// The trailing slash keeps the cookie away from /dashbrrx.
+	sessions := session.New(s.cache, base.Path("/"))
+
 	// Initialize auth handlers and middleware
 	var oidcAuthHandler *handlers.AuthHandler
-	builtinAuthHandler := handlers.NewBuiltinAuthHandler(s.db, s.cache)
-	authMiddleware := middleware.NewAuthMiddleware(s.cache)
+	builtinAuthHandler := handlers.NewBuiltinAuthHandler(s.db, sessions)
+	authMiddleware := middleware.NewAuthMiddleware(sessions)
 
 	// Initialize OIDC if configuration is provided
 	oidc := s.cfg.Auth.OIDC
 	if oidc.IsConfigured() {
-		redirectURL := oidc.RedirectURL
-		if redirectURL == "" {
-			redirectURL = defaultOIDCCallbackURL
-		}
 		authConfig := &types.AuthConfig{
 			Issuer:       oidc.Issuer,
 			ClientID:     oidc.ClientID,
 			ClientSecret: oidc.ClientSecret,
-			RedirectURL:  redirectURL,
+			RedirectURL:  oidc.RedirectURL,
 		}
-		oidcAuthHandler = handlers.NewAuthHandler(authConfig, s.cache)
+		oidcAuthHandler = handlers.NewAuthHandler(authConfig, base, s.cache, sessions)
+	}
+
+	health := func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	}
+	// Health checks reach /health with no base path.
+	r.GET("/health", health)
+
+	// Every other route is below the base path.
+	root := r.Group(string(base))
+	if base != "" {
+		root.GET("/health", health)
+
+		// 307, not 301: a browser keeps a 301 after the base path changes.
+		toBase := func(c *gin.Context) {
+			c.Redirect(http.StatusTemporaryRedirect, base.Path("/"))
+		}
+		r.GET("/", toBase)
+		r.GET(string(base), toBase)
 	}
 
 	// Public routes (no auth required)
-	public := r.Group("")
+	public := root.Group("")
 	{
-		// Health check endpoint
-		public.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
-
 		// Auth configuration endpoint
 		public.GET("/api/auth/config", handlers.AuthConfig(oidc.IsConfigured()))
 
@@ -184,7 +196,7 @@ func (s *Server) Handler() http.Handler {
 	}
 
 	// Protected auth routes
-	protectedAuth := r.Group("/api/auth")
+	protectedAuth := root.Group("/api/auth")
 	protectedAuth.Use(authMiddleware.RequireAuth())
 	protectedAuth.Use(authRateLimiter.RateLimit())
 	{
@@ -193,7 +205,7 @@ func (s *Server) Handler() http.Handler {
 	}
 
 	// API routes group with auth middleware
-	api := r.Group("/api")
+	api := root.Group("/api")
 	api.Use(authMiddleware.RequireAuth())
 	{
 		// Settings endpoints - no caching to ensure fresh data
@@ -236,7 +248,7 @@ func (s *Server) Handler() http.Handler {
 		}
 	}
 
-	web.ServeStatic(r)
+	web.ServeStatic(r, base)
 
 	return r
 }

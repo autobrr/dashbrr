@@ -4,6 +4,7 @@
 package web
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"io"
@@ -17,17 +18,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/autobrr/dashbrr/internal/config"
 )
 
 type defaultFS struct {
 	prefix string
 	fs     fs.FS
-}
-
-type IndexParams struct {
-	Title   string
-	Version string
-	BaseUrl string
 }
 
 var (
@@ -67,8 +64,12 @@ func subFS(currentFs fs.FS, root string) (fs.FS, error) {
 	return fs.Sub(currentFs, root)
 }
 
-// ServeStatic registers static file handlers with Gin
-func ServeStatic(r *gin.Engine) {
+// baseTag is the literal <base> element in web/index.html. ServeStatic writes
+// the base path into it once, at start.
+const baseTag = `<base href="/" />`
+
+// ServeStatic registers static file handlers with Gin, below the base path.
+func ServeStatic(r *gin.Engine, base config.BasePath) {
 	// Dev UX: optionally proxy all non-API requests to a local Vite dev server.
 	// This avoids stale `web/dist` embeds and keeps `http://localhost:8080` usable.
 	if gin.Mode() == gin.DebugMode {
@@ -129,7 +130,6 @@ func ServeStatic(r *gin.Engine) {
 			c.Header("Cache-Control", "no-cache")
 		case name == "sw.js" || name == "registerSW.js":
 			c.Header("Cache-Control", "no-cache")
-			c.Header("Service-Worker-Allowed", "/")
 		case strings.HasSuffix(name, ".html"):
 			// Unhashed pages (plex-auth-complete.html) must not cache for a year.
 			c.Header("Cache-Control", "no-cache")
@@ -143,11 +143,28 @@ func ServeStatic(r *gin.Engine) {
 		return true
 	}
 
-	r.GET("/", serveIndex)
+	// The base path is fixed at start, so the page is too.
+	index, indexErr := fs.ReadFile(DistDirFS, "index.html")
+	index = bytes.Replace(index, []byte(baseTag), []byte(`<base href="`+base.Path("/")+`" />`), 1)
+
+	serveIndex := func(c *gin.Context) {
+		if indexErr != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+		// NoRoute pre-sets 404; deep links are real pages, so Data resets it.
+		c.Data(http.StatusOK, "text/html; charset=utf-8", index)
+	}
+
+	r.GET(base.Path("/"), serveIndex)
 
 	r.NoRoute(func(c *gin.Context) {
-		// Don't serve index.html for API routes
-		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+		rest, ok := strings.CutPrefix(c.Request.URL.Path, base.Path("/"))
+		// Don't serve index.html outside the base path or for API routes
+		if !ok || strings.HasPrefix(rest, "api") {
 			c.AbortWithStatus(http.StatusNotFound)
 			return
 		}
@@ -157,7 +174,7 @@ func ServeStatic(r *gin.Engine) {
 			return
 		}
 
-		name := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
+		name := strings.TrimPrefix(path.Clean("/"+rest), "/")
 		if serveStaticFile(c, name) {
 			return
 		}
@@ -165,23 +182,4 @@ func ServeStatic(r *gin.Engine) {
 		// For all other routes, serve index.html for client-side routing
 		serveIndex(c)
 	})
-}
-
-// serveIndex serves index.html with proper headers
-func serveIndex(c *gin.Context) {
-	file, err := DistDirFS.Open("index.html")
-	if err != nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	defer file.Close()
-
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
-	c.Header("Pragma", "no-cache")
-	c.Header("Expires", "0")
-	// NoRoute pre-sets 404; deep links are real pages, so reset it.
-	c.Status(http.StatusOK)
-
-	io.Copy(c.Writer, file)
 }
