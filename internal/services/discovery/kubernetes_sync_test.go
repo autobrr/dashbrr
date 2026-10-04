@@ -281,4 +281,14 @@ func TestKubernetesSync_KeepsPlexToken(t *testing.T) {
 	if got := servicesByID(t, db)["plex-k8s-media.plex"].APIKey; got != "oauth-token" {
 		t.Fatalf("api key = %q, want %q", got, "oauth-token")
 	}
+
+	// An apikey annotation that does not resolve does not delete the Plex service.
+	annotated.Annotations[GetLabelKey(labelAPIKeyKey)] = "${DASHBRR_TEST_UNSET_PLEX_TOKEN}"
+	if _, err := client.CoreV1().Services("media").Update(ctx, annotated, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("update service: %v", err)
+	}
+	syncOrFail(t, k, db)
+	if got := servicesByID(t, db)["plex-k8s-media.plex"].APIKey; got != "oauth-token" {
+		t.Fatalf("api key = %q, want %q", got, "oauth-token")
+	}
 }

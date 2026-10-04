@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -124,6 +125,12 @@ func (k *KubernetesDiscovery) list(ctx context.Context) ([]models.ServiceConfigu
 func (k *KubernetesDiscovery) parseServiceAnnotations(annotations map[string]string, namespace, serviceName string) (*models.ServiceConfiguration, error) {
 	if annotations[GetLabelKey(labelTypeKey)] == "" {
 		return nil, nil
+	}
+	// Plex gets its token from the Plex sign-in in the UI, so the sync ignores
+	// an apikey annotation on Plex, even one that does not resolve.
+	if annotations[GetLabelKey(labelTypeKey)] == "plex" {
+		annotations = maps.Clone(annotations)
+		delete(annotations, GetLabelKey(labelAPIKeyKey))
 	}
 
 	parsed, err := parseDiscoveryLabels(annotations)
