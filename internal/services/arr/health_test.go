@@ -94,7 +94,7 @@ func TestPerformHealthCheck_SkipsUpdateCheckWhenCached(t *testing.T) {
 	}
 
 	checker := &testArrHealthChecker{updateValue: true}
-	_, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker)
+	_, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker, nil)
 	if err != nil {
 		t.Fatalf("performHealthCheck failed: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestPerformHealthCheck_CachesAsyncUpdateResult(t *testing.T) {
 	serviceCore := newServiceCore(t)
 	checker := &testArrHealthChecker{updateValue: true}
 
-	health, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker)
+	health, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker, nil)
 	if err != nil {
 		t.Fatalf("performHealthCheck failed: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestPerformHealthCheck_CachesFallbackOnUpdateError(t *testing.T) {
 	serviceCore := newServiceCore(t)
 	checker := &testArrHealthChecker{updateErr: errors.New("upstream timeout")}
 
-	_, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker)
+	_, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker, nil)
 	if err != nil {
 		t.Fatalf("performHealthCheck failed: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestPerformHealthCheck_CachesFallbackOnUpdateError(t *testing.T) {
 		t.Fatalf("expected fallback update status to be cached on error")
 	}
 
-	_, err = performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker)
+	_, err = performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker, nil)
 	if err != nil {
 		t.Fatalf("second performHealthCheck failed: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestPerformHealthCheck_DeduplicatesWarningMessages(t *testing.T) {
 	serviceCore := newServiceCore(t)
 	checker := &testArrHealthChecker{}
 
-	health, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker)
+	health, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker, nil)
 	if err != nil {
 		t.Fatalf("performHealthCheck failed: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestPerformHealthCheck_DeduplicatesWarningMessagesAfterWhitespaceNormalizat
 	serviceCore := newServiceCore(t)
 	checker := &testArrHealthChecker{}
 
-	health, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker)
+	health, err := performHealthCheck(context.Background(), serviceCore, server.URL, "apikey", checker, nil)
 	if err != nil {
 		t.Fatalf("performHealthCheck failed: %v", err)
 	}
@@ -231,5 +231,79 @@ func TestPerformHealthCheck_DeduplicatesWarningMessagesAfterWhitespaceNormalizat
 	warningLine := "[IndexerLongTermStatusCheck] Indexers unavailable due to failures for more than 6 hours: MyAnonamouse"
 	if count := strings.Count(health.Message, warningLine); count != 1 {
 		t.Fatalf("warning count = %d, want 1; message=%q", count, health.Message)
+	}
+}
+
+func TestPerformHealthCheck_IgnoredHealthChecks(t *testing.T) {
+	t.Parallel()
+
+	const removed = `{"source":"RemovedSeriesCheck","type":"warning","message":"Series removed from TheTVDB"}`
+	const indexer = `{"source":"IndexerStatusCheck","type":"warning","message":"Indexers unavailable"}`
+
+	tests := []struct {
+		name        string
+		body        string
+		ignored     []string
+		wantStatus  string
+		wantMessage string
+	}{
+		{
+			name:        "empty list",
+			body:        "[" + removed + "]",
+			wantStatus:  "warning",
+			wantMessage: "[RemovedSeriesCheck] Series removed from TheTVDB",
+		},
+		{
+			name:        "one suppressed source",
+			body:        "[" + removed + "]",
+			ignored:     []string{"RemovedSeriesCheck"},
+			wantStatus:  "online",
+			wantMessage: "Healthy",
+		},
+		{
+			name:        "one suppressed and one kept source",
+			body:        "[" + removed + "," + indexer + "]",
+			ignored:     []string{"RemovedSeriesCheck"},
+			wantStatus:  "warning",
+			wantMessage: "[IndexerStatusCheck] Indexers unavailable",
+		},
+		{
+			name:        "case and outer spaces ignored",
+			body:        "[" + removed + "," + indexer + "]",
+			ignored:     []string{"  removedseriescheck "},
+			wantStatus:  "warning",
+			wantMessage: "[IndexerStatusCheck] Indexers unavailable",
+		},
+		{
+			name:        "all sources suppressed",
+			body:        "[" + removed + "," + indexer + "]",
+			ignored:     []string{"RemovedSeriesCheck", "INDEXERSTATUSCHECK"},
+			wantStatus:  "online",
+			wantMessage: "Healthy",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			checker := &testArrHealthChecker{}
+			health, err := performHealthCheck(t.Context(), newServiceCore(t), server.URL, "apikey", checker, newIgnoredSet(tt.ignored))
+			if err != nil {
+				t.Fatalf("performHealthCheck failed: %v", err)
+			}
+			if health.Status != tt.wantStatus {
+				t.Errorf("status = %q, want %q", health.Status, tt.wantStatus)
+			}
+			if health.Message != tt.wantMessage {
+				t.Errorf("message = %q, want %q", health.Message, tt.wantMessage)
+			}
+		})
 	}
 }

@@ -7,3 +7,7 @@ listen_addr = ":8080"
 [database]
 type = "sqlite"
 path = "./data/dashbrr.db"
+
+[arr]
+# Optional: *arr health checks to hide. They do not put a service in the warning state.
+# ignored_health_checks = ["RemovedSeriesCheck", "RemovedMovieCheck"]

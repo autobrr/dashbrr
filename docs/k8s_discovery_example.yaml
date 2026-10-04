@@ -52,6 +52,8 @@ subjects:
 #   env:
 #     - name: DASHBRR__K8S_DISCOVERY_ENABLED
 #       value: "true"
+#     - name: DASHBRR__ARR_IGNORED_HEALTH_CHECKS
+#       value: "RemovedSeriesCheck,RemovedMovieCheck"
 #     - name: DASHBRR_RADARR_API_KEY
 #       valueFrom:
 #         secretKeyRef:

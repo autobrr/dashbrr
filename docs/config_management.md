@@ -233,6 +233,19 @@ services:
       apikey: "${PROWLARR_API_KEY}"
 ```
 
+## Ignored *arr Health Checks
+
+Some *arr health checks report a known state that you want to keep. For example, `RemovedSeriesCheck` reports series that are on disk but no longer in TheTVDB. To stop such a check from putting the service in the warning state, add its name to `config.toml`:
+
+```toml
+[arr]
+ignored_health_checks = ["RemovedSeriesCheck", "RemovedMovieCheck"]
+```
+
+The list applies to all *arr services (Radarr, Sonarr, Lidarr, Readarr, Whisparr, and Prowlarr). The name is the `source` field of the *arr health API. Letter case and outer spaces do not matter. An ignored check does not show in the health message. If dashbrr ignores all checks, the service shows `Healthy`.
+
+You can also set the list with the `DASHBRR__ARR_IGNORED_HEALTH_CHECKS` environment variable, as a comma-separated list. See [`docs/env_vars.md`](env_vars.md).
+
 ## Environment Variables
 
 When using environment variables for API keys/tokens (`${SERVICE_API_KEY}`), the following naming convention is used:

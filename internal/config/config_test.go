@@ -6,6 +6,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -122,6 +123,26 @@ func TestOIDCEnvOverridesTOML(t *testing.T) {
 	}
 	if got := cfg.Auth.OIDC.ClientID; got != "toml-id" {
 		t.Errorf("client_id = %q, want the value from the config file", got)
+	}
+}
+
+func TestArrIgnoredHealthChecks(t *testing.T) {
+	path := writeConfig(t, "[arr]\nignored_health_checks = [\"RemovedSeriesCheck\"]\n")
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Arr.IgnoredHealthChecks; !slices.Equal(got, []string{"RemovedSeriesCheck"}) {
+		t.Errorf("ignored_health_checks = %q, want the value from the config file", got)
+	}
+
+	t.Setenv("DASHBRR__ARR_IGNORED_HEALTH_CHECKS", " HealthCheckA, ,RemovedMovieCheck ")
+	cfg, err = LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := cfg.Arr.IgnoredHealthChecks, []string{"HealthCheckA", "RemovedMovieCheck"}; !slices.Equal(got, want) {
+		t.Errorf("ignored_health_checks = %q, want %q", got, want)
 	}
 }
 

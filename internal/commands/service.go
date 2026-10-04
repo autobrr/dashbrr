@@ -7,6 +7,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
+	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 
 	"github.com/spf13/cobra"
@@ -14,8 +15,15 @@ import (
 
 // ConfigFromFlags resolves the config file, database path, and listen address from
 // the flags of cmd and the environment. Serve and every CLI command use it.
+// It also applies the ignored *arr health checks, so serve and the service
+// commands report the same *arr status.
 func ConfigFromFlags(cmd *cobra.Command) (*config.Config, string, error) {
-	return config.Load(flagsFromCmd(cmd))
+	cfg, path, err := config.Load(flagsFromCmd(cmd))
+	if err != nil {
+		return nil, path, err
+	}
+	arr.SetIgnoredHealthChecks(cfg.Arr.IgnoredHealthChecks)
+	return cfg, path, nil
 }
 
 func flagsFromCmd(cmd *cobra.Command) config.Flags {
