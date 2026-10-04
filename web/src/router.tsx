@@ -16,6 +16,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { UIPreferencesProvider } from "./contexts/UIPreferencesContext";
 import { ServiceDataProvider } from "./hooks/useServiceData";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { basePath } from "./utils";
 
 const rootRoute = createRootRoute({
   // AuthProvider uses a router hook, so the providers render inside the router.
@@ -76,6 +77,7 @@ const catchAllRoute = createRoute({
 });
 
 export const router = createRouter({
+  basepath: basePath() || "/",
   routeTree: rootRoute.addChildren([
     loginRoute,
     authenticatedRoute.addChildren([indexRoute]),

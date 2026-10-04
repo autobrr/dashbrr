@@ -37,11 +37,14 @@ const (
 var ErrNoToken = errors.New("no session token")
 
 type Manager struct {
-	cache cache.Store
+	cache      cache.Store
+	cookiePath string
 }
 
-func New(store cache.Store) *Manager {
-	return &Manager{cache: store}
+// New makes a Manager. cookiePath is the path of the session cookie: "/" at
+// the root, or the base path with a trailing slash, such as "/dashbrr/".
+func New(store cache.Store, cookiePath string) *Manager {
+	return &Manager{cache: store, cookiePath: cookiePath}
 }
 
 // Issue makes a token, stores data with ExpiresAt = now + TTL, and writes the cookie.
@@ -56,13 +59,13 @@ func (m *Manager) Issue(c *gin.Context, data types.SessionData) (string, error) 
 		return "", err
 	}
 
-	setCookie(c, token, int(TTL.Seconds()))
+	m.setCookie(c, token, int(TTL.Seconds()))
 	return token, nil
 }
 
 // Clear deletes the session, if there is one, and expires the cookie.
 func (m *Manager) Clear(c *gin.Context) error {
-	setCookie(c, "", -1)
+	m.setCookie(c, "", -1)
 
 	token, ok := requestToken(c)
 	if !ok {
@@ -106,7 +109,7 @@ func requestToken(c *gin.Context) (string, bool) {
 	return parts[1], true
 }
 
-func setCookie(c *gin.Context, value string, maxAge int) {
+func (m *Manager) setCookie(c *gin.Context, value string, maxAge int) {
 	secure := c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetCookie(CookieName, value, maxAge, "/", "", secure, true)
+	c.SetCookie(CookieName, value, maxAge, m.cookiePath, "", secure, true)
 }

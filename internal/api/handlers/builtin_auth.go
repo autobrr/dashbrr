@@ -12,7 +12,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/api/middleware"
 	"github.com/autobrr/dashbrr/internal/api/session"
 	"github.com/autobrr/dashbrr/internal/database"
-	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/autobrr/dashbrr/internal/utils"
 )
@@ -22,10 +21,10 @@ type BuiltinAuthHandler struct {
 	sessions *session.Manager
 }
 
-func NewBuiltinAuthHandler(db *database.DB, store cache.Store) *BuiltinAuthHandler {
+func NewBuiltinAuthHandler(db *database.DB, sessions *session.Manager) *BuiltinAuthHandler {
 	return &BuiltinAuthHandler{
 		db:       db,
-		sessions: session.New(store),
+		sessions: sessions,
 	}
 }
 

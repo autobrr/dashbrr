@@ -29,9 +29,9 @@ type AuthMiddleware struct {
 	sessions *session.Manager
 }
 
-func NewAuthMiddleware(store cache.Store) *AuthMiddleware {
+func NewAuthMiddleware(sessions *session.Manager) *AuthMiddleware {
 	return &AuthMiddleware{
-		sessions: session.New(store),
+		sessions: sessions,
 	}
 }
 

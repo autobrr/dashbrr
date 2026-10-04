@@ -13,7 +13,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/autobrr",
+    healthEndpoint: "api/health/autobrr",
   },
   {
     name: "Radarr",
@@ -22,7 +22,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/radarr",
+    healthEndpoint: "api/health/radarr",
   },
   {
     name: "Sonarr",
@@ -31,7 +31,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/sonarr",
+    healthEndpoint: "api/health/sonarr",
   },
   {
     name: "Whisparr",
@@ -40,7 +40,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/whisparr",
+    healthEndpoint: "api/health/whisparr",
   },
   {
     name: "Lidarr",
@@ -49,7 +49,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/lidarr",
+    healthEndpoint: "api/health/lidarr",
   },
   {
     name: "Readarr",
@@ -58,7 +58,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/readarr",
+    healthEndpoint: "api/health/readarr",
   },
   {
     name: "Bazarr",
@@ -67,7 +67,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/bazarr",
+    healthEndpoint: "api/health/bazarr",
   },
   {
     name: "SABnzbd",
@@ -76,7 +76,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/sabnzbd",
+    healthEndpoint: "api/health/sabnzbd",
   },
   {
     name: "NZBGet",
@@ -85,7 +85,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/nzbget",
+    healthEndpoint: "api/health/nzbget",
   },
   {
     name: "Prowlarr",
@@ -94,7 +94,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/prowlarr",
+    healthEndpoint: "api/health/prowlarr",
   },
   {
     name: "Traefik",
@@ -103,7 +103,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/traefik",
+    healthEndpoint: "api/health/traefik",
   },
   {
     name: "Overseerr",
@@ -112,7 +112,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/overseerr",
+    healthEndpoint: "api/health/overseerr",
   },
   {
     name: "Plex",
@@ -121,7 +121,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/plex",
+    healthEndpoint: "api/health/plex",
   },
   {
     name: "Jellyfin",
@@ -130,7 +130,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/jellyfin",
+    healthEndpoint: "api/health/jellyfin",
   },
   {
     name: "Uptime Kuma",
@@ -139,7 +139,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/uptimekuma",
+    healthEndpoint: "api/health/uptimekuma",
   },
   {
     name: "Tailscale",
@@ -147,7 +147,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     type: "tailscale",
     status: "offline",
     url: "",
-    healthEndpoint: "/api/health/tailscale",
+    healthEndpoint: "api/health/tailscale",
   },
   {
     name: "Maintainerr",
@@ -156,7 +156,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/maintainerr",
+    healthEndpoint: "api/health/maintainerr",
   },
   {
     name: "Qui",
@@ -165,7 +165,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     status: "offline",
     url: "",
     accessUrl: "",
-    healthEndpoint: "/api/health/qui",
+    healthEndpoint: "api/health/qui",
   },
   {
     name: "General Service",
