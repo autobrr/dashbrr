@@ -253,7 +253,7 @@ func normalizeBasePath(raw string) (BasePath, error) {
 	// changes the path for a browser, gin, or the cookie: "?", "#", "%", "\", ":", "*",
 	// quotes, white space, and non-ASCII.
 	if strings.ContainsFunc(p, func(r rune) bool {
-		return !('a' <= r && r <= 'z' || 'A' <= r && r <= 'Z' || '0' <= r && r <= '9' || strings.ContainsRune("-._~/", r))
+		return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && !strings.ContainsRune("-._~/", r)
 	}) {
 		return "", fmt.Errorf("base_path %q has a character that is not permitted: use only letters, digits, -, ., _, ~, and /", raw)
 	}
