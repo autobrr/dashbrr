@@ -12,7 +12,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 func TestServiceURLsValid(t *testing.T) {
@@ -83,44 +85,90 @@ func TestSaveSettingsRejectsInvalidURL(t *testing.T) {
 	}
 }
 
-func TestSettingsRefuseDiscoveredService(t *testing.T) {
+func TestSettingsDiscoveredService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	ctx := t.Context()
 
-	// The check runs before any database access. The handler has no database,
-	// so a request that reaches the database panics.
-	h := &SettingsHandler{}
+	db, err := database.InitDBWithConfig(&database.Config{Driver: "sqlite", Path: t.TempDir() + "/settings.db"})
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	discovered := models.ServiceConfiguration{
+		InstanceID:  "radarr-k8s-media.radarr",
+		DisplayName: "Movies",
+		URL:         "http://radarr.media.svc.cluster.local:7878",
+		APIKey:      "old-key",
+	}
+	if err := db.CreateService(ctx, &discovered); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	h := NewSettingsHandler(db, newBuiltinMemoryStore(t), nil)
 	router := gin.New()
 	router.POST("/settings/:instance", h.SaveSettings)
 	router.DELETE("/settings/:instance", h.DeleteSettings)
 
-	tests := []struct {
-		name   string
-		method string
-		body   string
-	}{
-		{name: "edit", method: http.MethodPost, body: `{"url":"http://radarr:7878"}`},
-		{name: "delete", method: http.MethodDelete},
+	stored := func(id string) *models.ServiceConfiguration {
+		t.Helper()
+		s, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: id})
+		if err != nil {
+			t.Fatalf("find %s: %v", id, err)
+		}
+		if s != nil {
+			s.ID = 0
+		}
+		return s
+	}
+	wantError := func(rec *httptest.ResponseRecorder) {
+		t.Helper()
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+		}
+		var resp struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if resp.Error != discoveredServiceMessage {
+			t.Fatalf("error = %q, want %q", resp.Error, discoveredServiceMessage)
+		}
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/settings/radarr-k8s-media.radarr", strings.NewReader(tt.body))
-			router.ServeHTTP(rec, req)
+	// A save changes only the API key. Discovery owns the other fields.
+	rec := serve(t, router, http.MethodPost, "/settings/radarr-k8s-media.radarr",
+		`{"displayName":"Changed","url":"http://other:1","accessUrl":"http://other:2","apiKey":"new-key"}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("save status = %d, body %s", rec.Code, rec.Body.String())
+	}
+	want := discovered
+	want.ID = 0
+	want.APIKey = "new-key"
+	if got := stored(want.InstanceID); *got != want {
+		t.Fatalf("after save = %+v, want %+v", *got, want)
+	}
 
-			if rec.Code != http.StatusForbidden {
-				t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
-			}
-			var resp struct {
-				Error string `json:"error"`
-			}
-			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-				t.Fatalf("decode response: %v", err)
-			}
-			if resp.Error != discoveredServiceMessage {
-				t.Fatalf("error = %q, want %q", resp.Error, discoveredServiceMessage)
-			}
-		})
+	// A save without an API key keeps the stored key.
+	rec = serve(t, router, http.MethodPost, "/settings/radarr-k8s-media.radarr", `{"url":"http://other:1"}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("save status = %d, body %s", rec.Code, rec.Body.String())
+	}
+	if got := stored(want.InstanceID); *got != want {
+		t.Fatalf("after empty save = %+v, want %+v", *got, want)
+	}
+
+	// Only discovery creates a discovered service.
+	wantError(serve(t, router, http.MethodPost, "/settings/sonarr-k8s-media.sonarr", `{"url":"http://sonarr:8989","apiKey":"k"}`, nil))
+	if got := stored("sonarr-k8s-media.sonarr"); got != nil {
+		t.Fatalf("created %+v", *got)
+	}
+
+	// A delete fails, and the record does not change.
+	wantError(serve(t, router, http.MethodDelete, "/settings/radarr-k8s-media.radarr", "", nil))
+	if got := stored(want.InstanceID); *got != want {
+		t.Fatalf("after delete = %+v, want %+v", *got, want)
 	}
 }
 

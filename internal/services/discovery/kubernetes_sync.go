@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -49,6 +50,9 @@ func (k *KubernetesDiscovery) Plan(ctx context.Context, db *database.DB) (SyncPl
 	for _, f := range found {
 		seen[f.InstanceID] = true
 		e, ok := existing[f.InstanceID]
+		// Without an apikey annotation, the user sets the key in the UI,
+		// for example with the Plex sign-in. Keep that key.
+		f.APIKey = cmp.Or(f.APIKey, e.APIKey)
 		switch {
 		case !ok:
 			plan.Create = append(plan.Create, f)

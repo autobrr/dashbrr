@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -45,16 +46,6 @@ func serviceConfigResponse(c models.ServiceConfiguration) models.ServiceConfigur
 }
 
 const discoveredServiceMessage = "Kubernetes discovery manages this service. Change its annotations to change it."
-
-// refuseDiscoveredService writes an error and returns true when discovery owns
-// the service. The next sync overwrites any change.
-func refuseDiscoveredService(c *gin.Context, instanceID string) bool {
-	if !models.IsDiscoveredInstanceID(instanceID) {
-		return false
-	}
-	c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
-	return true
-}
 
 func NewSettingsHandler(db *database.DB, cache cache.Store, poller *Poller) *SettingsHandler {
 	return &SettingsHandler{
@@ -151,9 +142,6 @@ func isHTTPURL(raw string) bool {
 
 func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
-	if refuseDiscoveredService(c, instanceID) {
-		return
-	}
 
 	var config models.ServiceConfiguration
 	if err := c.BindJSON(&config); err != nil {
@@ -163,6 +151,24 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	}
 
 	config.InstanceID = instanceID
+
+	// Discovery owns every field of a discovered service except the API key.
+	// The sync keeps that key while the Service has no apikey annotation.
+	if models.IsDiscoveredInstanceID(instanceID) {
+		discovered, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})
+			return
+		}
+		if discovered == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
+			return
+		}
+		apiKey := config.APIKey
+		config = *discovered
+		config.APIKey = apiKey
+	}
 	config.URL = strings.TrimRight(config.URL, "/")
 
 	if !serviceURLsValid(config) {
@@ -226,7 +232,8 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 
 func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
-	if refuseDiscoveredService(c, instanceID) {
+	if models.IsDiscoveredInstanceID(instanceID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
 		return
 	}
 

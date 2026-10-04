@@ -114,13 +114,13 @@ The same settings are available as environment variables. Refer to [`docs/env_va
 The annotations own each discovered service. A discovered service is a service that has an instance ID in the form `<type>-k8s-<namespace>.<service>`. Each sync does these steps:
 
 - It adds a discovered service for each Service that has a `type` annotation.
-- It updates a discovered service when an annotation changes. When you remove an annotation, the field becomes empty or gets its default value.
+- It updates a discovered service when an annotation changes. When you remove an annotation, the field becomes empty or gets its default value. When a Service has no `apikey` annotation, the sync keeps the API key that you set in the UI.
 - It deletes a discovered service when its Service is gone, when its `type` annotation is gone, when its `enabled` annotation is `false`, or when dashbrr no longer scans its namespace.
 - It does not change a service that you added in the UI or imported from a file.
 - If a list from the Kubernetes API fails, it logs the error and changes nothing.
 - If the annotations of a Service are not valid, for example when an env var for `apikey` is not set, it logs a warning and deletes the discovered service. The next sync with valid annotations adds it again.
 
-A discovered service is read-only. The UI shows the Kubernetes icon on its card and has no edit or delete controls for it. The API refuses to edit or delete it. To change a discovered service, change its annotations.
+A discovered service is read-only, except for its API key. The UI shows the Kubernetes icon on its card and has no delete control for it. The gear on the card opens a form that has only the API key, or the Plex sign-in for Plex. The API refuses to delete a discovered service, and a save changes only its API key. To change another field, change its annotations.
 
 `dashbrr config discover --k8s` runs the same sync one time. It shows the changes and asks before it applies them.
 
