@@ -152,9 +152,13 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 
 	config.InstanceID = instanceID
 
-	// Discovery owns every field of a discovered service except the API key.
-	// The sync keeps that key while the Service has no apikey annotation.
+	// Discovery owns every field of a discovered service. The one exception is
+	// the token of a Plex service, which comes from the Plex sign-in in the UI.
 	if models.IsDiscoveredInstanceID(instanceID) {
+		if t, _ := models.ServiceTypeFromInstanceID(instanceID); t != "plex" {
+			c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
+			return
+		}
 		discovered, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")

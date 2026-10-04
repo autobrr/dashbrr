@@ -95,14 +95,24 @@ func TestSettingsDiscoveredService(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
+	// The save starts a Plex fetch, so the URL points at a closed local port.
 	discovered := models.ServiceConfiguration{
+		InstanceID:  "plex-k8s-media.plex",
+		DisplayName: "Plex",
+		URL:         "http://127.0.0.1:1",
+		APIKey:      "old-token",
+	}
+	radarr := models.ServiceConfiguration{
 		InstanceID:  "radarr-k8s-media.radarr",
 		DisplayName: "Movies",
 		URL:         "http://radarr.media.svc.cluster.local:7878",
-		APIKey:      "old-key",
+		APIKey:      "annotated-key",
 	}
-	if err := db.CreateService(ctx, &discovered); err != nil {
-		t.Fatalf("seed: %v", err)
+	for _, s := range []*models.ServiceConfiguration{&discovered, &radarr} {
+		if err := db.CreateService(ctx, s); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		s.ID = 0
 	}
 
 	h := NewSettingsHandler(db, newBuiltinMemoryStore(t), nil)
@@ -137,21 +147,20 @@ func TestSettingsDiscoveredService(t *testing.T) {
 		}
 	}
 
-	// A save changes only the API key. Discovery owns the other fields.
-	rec := serve(t, router, http.MethodPost, "/settings/radarr-k8s-media.radarr",
-		`{"displayName":"Changed","url":"http://other:1","accessUrl":"http://other:2","apiKey":"new-key"}`, nil)
+	// A Plex save changes only the token. Discovery owns the other fields.
+	rec := serve(t, router, http.MethodPost, "/settings/plex-k8s-media.plex",
+		`{"displayName":"Changed","url":"http://other:1","accessUrl":"http://other:2","apiKey":"new-token"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("save status = %d, body %s", rec.Code, rec.Body.String())
 	}
 	want := discovered
-	want.ID = 0
-	want.APIKey = "new-key"
+	want.APIKey = "new-token"
 	if got := stored(want.InstanceID); *got != want {
 		t.Fatalf("after save = %+v, want %+v", *got, want)
 	}
 
-	// A save without an API key keeps the stored key.
-	rec = serve(t, router, http.MethodPost, "/settings/radarr-k8s-media.radarr", `{"url":"http://other:1"}`, nil)
+	// A save without a token keeps the stored token.
+	rec = serve(t, router, http.MethodPost, "/settings/plex-k8s-media.plex", `{"url":"http://other:1"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("save status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -159,14 +168,20 @@ func TestSettingsDiscoveredService(t *testing.T) {
 		t.Fatalf("after empty save = %+v, want %+v", *got, want)
 	}
 
+	// An annotation owns the key of every other type.
+	wantError(serve(t, router, http.MethodPost, "/settings/radarr-k8s-media.radarr", `{"apiKey":"ui-key"}`, nil))
+	if got := stored(radarr.InstanceID); *got != radarr {
+		t.Fatalf("after radarr save = %+v, want %+v", *got, radarr)
+	}
+
 	// Only discovery creates a discovered service.
-	wantError(serve(t, router, http.MethodPost, "/settings/sonarr-k8s-media.sonarr", `{"url":"http://sonarr:8989","apiKey":"k"}`, nil))
-	if got := stored("sonarr-k8s-media.sonarr"); got != nil {
+	wantError(serve(t, router, http.MethodPost, "/settings/plex-k8s-other.plex", `{"url":"http://127.0.0.1:1","apiKey":"k"}`, nil))
+	if got := stored("plex-k8s-other.plex"); got != nil {
 		t.Fatalf("created %+v", *got)
 	}
 
 	// A delete fails, and the record does not change.
-	wantError(serve(t, router, http.MethodDelete, "/settings/radarr-k8s-media.radarr", "", nil))
+	wantError(serve(t, router, http.MethodDelete, "/settings/plex-k8s-media.plex", "", nil))
 	if got := stored(want.InstanceID); *got != want {
 		t.Fatalf("after delete = %+v, want %+v", *got, want)
 	}

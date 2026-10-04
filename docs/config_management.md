@@ -80,7 +80,7 @@ metadata:
   annotations:
     com.dashbrr.service.type: "radarr"
     com.dashbrr.service.url: "http://radarr.media.svc:7878"
-    com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}" # Optional for general/traefik
+    com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}" # Optional for general/traefik. Ignored for Plex: use the Plex sign-in in the UI
     com.dashbrr.service.name: "Movies"
     com.dashbrr.service.access_url: "https://radarr.example.com" # Optional: the URL that your browser opens
     com.dashbrr.service.enabled: "true"
@@ -114,13 +114,15 @@ The same settings are available as environment variables. Refer to [`docs/env_va
 The annotations own each discovered service. A discovered service is a service that has an instance ID in the form `<type>-k8s-<namespace>.<service>`. Each sync does these steps:
 
 - It adds a discovered service for each Service that has a `type` annotation.
-- It updates a discovered service when an annotation changes. When you remove an annotation, the field becomes empty or gets its default value. When a Service has no `apikey` annotation, the sync keeps the API key that you set in the UI.
+- It updates a discovered service when an annotation changes. When you remove an annotation, the field becomes empty or gets its default value. The sync ignores an `apikey` annotation on a Plex Service and keeps the token from the Plex sign-in.
 - It deletes a discovered service when its Service is gone, when its `type` annotation is gone, when its `enabled` annotation is `false`, or when dashbrr no longer scans its namespace.
 - It does not change a service that you added in the UI or imported from a file.
 - If a list from the Kubernetes API fails, it logs the error and changes nothing.
 - If the annotations of a Service are not valid, for example when an env var for `apikey` is not set, it logs a warning and deletes the discovered service. The next sync with valid annotations adds it again.
 
-A discovered service is read-only, except for its API key. The UI shows the Kubernetes icon on its card and has no delete control for it. The gear on the card opens a form that has only the API key, or the Plex sign-in for Plex. The API refuses to delete a discovered service, and a save changes only its API key. To change another field, change its annotations.
+A discovered service is read-only. The UI shows the Kubernetes icon on its card and has no edit or delete controls for it. The API refuses to edit or delete it. To change a discovered service, change its annotations.
+
+A discovered Plex service is the one exception. Plex gets its token from the Plex sign-in in the UI, so its card keeps the gear. The gear opens a form that has only the Plex sign-in. A save changes only the token.
 
 `dashbrr config discover --k8s` runs the same sync one time. It shows the changes and asks before it applies them.
 

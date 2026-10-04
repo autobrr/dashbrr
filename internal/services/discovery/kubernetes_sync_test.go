@@ -243,7 +243,7 @@ func TestResolveNamespaces(t *testing.T) {
 	}
 }
 
-func TestKubernetesSync_KeepsAPIKeyWithoutAnnotation(t *testing.T) {
+func TestKubernetesSync_KeepsPlexToken(t *testing.T) {
 	ctx := t.Context()
 	db := newSyncTestDB(t)
 	client := fake.NewClientset(k8sService("media", "plex", map[string]string{
@@ -267,11 +267,8 @@ func TestKubernetesSync_KeepsAPIKeyWithoutAnnotation(t *testing.T) {
 	if !plan.Empty() {
 		t.Fatalf("expected empty plan, got %+v", plan)
 	}
-	if got := servicesByID(t, db)["plex-k8s-media.plex"].APIKey; got != "oauth-token" {
-		t.Fatalf("api key = %q, want %q", got, "oauth-token")
-	}
 
-	// An apikey annotation replaces the stored key.
+	// The sync ignores an apikey annotation on a Plex Service.
 	annotated := k8sService("media", "plex", map[string]string{
 		GetLabelKey(labelTypeKey):   "plex",
 		GetLabelKey(labelURLKey):    "http://plex.media.svc.cluster.local:32400",
@@ -281,7 +278,7 @@ func TestKubernetesSync_KeepsAPIKeyWithoutAnnotation(t *testing.T) {
 		t.Fatalf("update service: %v", err)
 	}
 	syncOrFail(t, k, db)
-	if got := servicesByID(t, db)["plex-k8s-media.plex"].APIKey; got != "annotated-token" {
-		t.Fatalf("api key = %q, want %q", got, "annotated-token")
+	if got := servicesByID(t, db)["plex-k8s-media.plex"].APIKey; got != "oauth-token" {
+		t.Fatalf("api key = %q, want %q", got, "oauth-token")
 	}
 }
