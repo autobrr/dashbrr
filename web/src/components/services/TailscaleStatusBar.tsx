@@ -120,13 +120,15 @@ export const TailscaleStatusBar: React.FC = () => {
           </div>
           {getStatusDisplay()}
         </button>
-        <button
-          onClick={handleRemoveClick}
-          className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
-          title="Remove Tailscale"
-        >
-          <Cog6ToothIcon className="w-4 h-4" />
-        </button>
+        {!configurations[instanceId]?.discovered && (
+          <button
+            onClick={handleRemoveClick}
+            className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
+            title="Remove Tailscale"
+          >
+            <Cog6ToothIcon className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <TailscaleDeviceModal

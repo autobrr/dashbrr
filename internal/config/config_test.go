@@ -413,3 +413,26 @@ func TestOIDCWithoutRedirectURLFails(t *testing.T) {
 		t.Fatalf("LoadConfig error = %v, want one that names redirect_url", err)
 	}
 }
+
+func TestKubernetesDiscoveryConfig(t *testing.T) {
+	cfg, err := LoadConfig(writeConfig(t, "[discovery.kubernetes]\nenabled = true\nnamespaces = [\"media\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := cfg.Discovery.Kubernetes
+	if !k.Enabled || len(k.Namespaces) != 1 || k.Namespaces[0] != "media" || k.IntervalMinutes != 5 {
+		t.Errorf("from TOML: %+v, want enabled, [media], default interval 5", k)
+	}
+
+	t.Setenv("DASHBRR__K8S_DISCOVERY_ENABLED", "false")
+	t.Setenv("DASHBRR__K8S_DISCOVERY_NAMESPACES", "media, downloads")
+	t.Setenv("DASHBRR__K8S_DISCOVERY_INTERVAL_MINUTES", "10")
+	cfg, err = LoadConfig(writeConfig(t, "[discovery.kubernetes]\nenabled = true\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k = cfg.Discovery.Kubernetes
+	if k.Enabled || len(k.Namespaces) != 2 || k.Namespaces[1] != "downloads" || k.IntervalMinutes != 10 {
+		t.Errorf("from env: %+v, want disabled, [media downloads], interval 10", k)
+	}
+}

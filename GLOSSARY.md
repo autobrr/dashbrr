@@ -30,6 +30,10 @@ _Avoid_: base URL, sub-path, URL prefix
 The address that the user's browser uses to open a service. It is optional. When it is set, links to the service use the access URL. Else they use the URL.
 _Avoid_: external URL, public URL
 
+**Discovered service**:
+A service whose record a discovery source owns. The annotations on its Kubernetes Service set its fields, and a sync adds, changes, and deletes it to agree with them. A service that the user adds in the UI or imports from a file is not a discovered service.
+_Avoid_: auto service, synced service
+
 ### Authentication
 
 **Session**:

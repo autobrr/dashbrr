@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/rs/zerolog/log"
@@ -26,10 +28,24 @@ const (
 
 // Config represents the main configuration structure
 type Config struct {
-	Server   ServerConfig    `toml:"server"`
-	Database database.Config `toml:"database"`
-	Auth     AuthConfig      `toml:"auth"`
-	Log      LogConfig       `toml:"log"`
+	Server    ServerConfig    `toml:"server"`
+	Database  database.Config `toml:"database"`
+	Auth      AuthConfig      `toml:"auth"`
+	Log       LogConfig       `toml:"log"`
+	Discovery DiscoveryConfig `toml:"discovery"`
+}
+
+// DiscoveryConfig holds service discovery configuration
+type DiscoveryConfig struct {
+	Kubernetes KubernetesDiscoveryConfig `toml:"kubernetes"`
+}
+
+// KubernetesDiscoveryConfig holds the settings of the Kubernetes sync in serve.
+type KubernetesDiscoveryConfig struct {
+	Enabled bool `toml:"enabled" env:"DASHBRR__K8S_DISCOVERY_ENABLED"`
+	// Namespaces to scan. "*" scans all namespaces. Empty scans the namespace of the pod.
+	Namespaces      []string `toml:"namespaces" env:"DASHBRR__K8S_DISCOVERY_NAMESPACES"`
+	IntervalMinutes int      `toml:"interval_minutes" env:"DASHBRR__K8S_DISCOVERY_INTERVAL_MINUTES"`
 }
 
 // LogConfig holds logging-related configuration
@@ -61,6 +77,14 @@ type OIDCConfig struct {
 	RedirectURL  string `toml:"redirect_url" env:"DASHBRR__OIDC_REDIRECT_URL"`
 }
 
+// Interval returns the time between two syncs. The default is 5 minutes.
+func (c KubernetesDiscoveryConfig) Interval() time.Duration {
+	if c.IntervalMinutes <= 0 {
+		return 5 * time.Minute
+	}
+	return time.Duration(c.IntervalMinutes) * time.Minute
+}
+
 // IsConfigured reports whether OIDC is enabled. The redirect URL
 // is not part of this test: validation rejects a configured OIDC without it.
 func (c OIDCConfig) IsConfigured() bool {
@@ -80,6 +104,9 @@ func DefaultConfig() *Config {
 		},
 		Database: *database.DefaultConfig(),
 		Log:      LogConfig{Level: "info"},
+		Discovery: DiscoveryConfig{
+			Kubernetes: KubernetesDiscoveryConfig{IntervalMinutes: 5},
+		},
 	}
 }
 
@@ -305,6 +332,24 @@ func LoadEnvOverrides(config *Config) error {
 	// Log
 	if env := os.Getenv("DASHBRR__LOG_LEVEL"); env != "" {
 		config.Log.Level = env
+	}
+
+	// Kubernetes discovery
+	if env := os.Getenv("DASHBRR__K8S_DISCOVERY_ENABLED"); env != "" {
+		if b, err := strconv.ParseBool(strings.TrimSpace(env)); err == nil {
+			config.Discovery.Kubernetes.Enabled = b
+		}
+	}
+	if env := os.Getenv("DASHBRR__K8S_DISCOVERY_NAMESPACES"); env != "" {
+		// A comma-separated list, for example "media,downloads". "*" means all namespaces.
+		config.Discovery.Kubernetes.Namespaces = strings.FieldsFunc(env, func(r rune) bool {
+			return r == ',' || unicode.IsSpace(r)
+		})
+	}
+	if env := os.Getenv("DASHBRR__K8S_DISCOVERY_INTERVAL_MINUTES"); env != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(env)); err == nil && n > 0 {
+			config.Discovery.Kubernetes.IntervalMinutes = n
+		}
 	}
 
 	// Auth OIDC

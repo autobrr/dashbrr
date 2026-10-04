@@ -9,12 +9,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/autobrr/dashbrr/internal/api"
+	"github.com/autobrr/dashbrr/internal/api/handlers"
 	"github.com/autobrr/dashbrr/internal/buildinfo"
 	"github.com/autobrr/dashbrr/internal/commands"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
+	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/discovery"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -92,6 +96,17 @@ func startServer(cmd *cobra.Command) error {
 	store := commands.InitCache(context.Background(), cfg.Database.Path)
 	log.Debug().Msg("Cache initialized")
 
+	syncCtx, stopSync := context.WithCancel(context.Background())
+	if k := cfg.Discovery.Kubernetes; k.Enabled {
+		k8s, err := discovery.NewKubernetesDiscovery(k.Namespaces)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to start Kubernetes discovery")
+			stopSync()
+			return err
+		}
+		go runKubernetesSync(syncCtx, k8s, db, store, k.Interval())
+	}
+
 	srv := api.NewServer(cfg, db, store)
 
 	errorChannel := make(chan error)
@@ -115,6 +130,8 @@ func startServer(cmd *cobra.Command) error {
 	//ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	//defer cancel()
 
+	stopSync()
+
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Error().Err(err).Msg("got error during graceful http shutdown")
 
@@ -128,4 +145,36 @@ func startServer(cmd *cobra.Command) error {
 	os.Exit(0)
 
 	return nil
+}
+
+// runKubernetesSync syncs the discovered services at once and then at each
+// interval, until ctx ends.
+func runKubernetesSync(ctx context.Context, k8s *discovery.KubernetesDiscovery, db *database.DB, store cache.Store, interval time.Duration) {
+	log.Info().Dur("interval", interval).Msg("Kubernetes discovery sync started")
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		plan, err := k8s.Sync(ctx, db)
+		if err != nil {
+			log.Error().Err(err).Msg("Kubernetes discovery sync failed")
+		}
+		if !plan.Empty() {
+			log.Info().
+				Int("created", len(plan.Create)).
+				Int("updated", len(plan.Update)).
+				Int("deleted", len(plan.Delete)).
+				Msg("Kubernetes discovery sync changed services")
+			if err := handlers.InvalidateSettingsCache(ctx, store); err != nil {
+				log.Warn().Err(err).Msg("Failed to delete configuration cache")
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
