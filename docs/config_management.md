@@ -139,7 +139,7 @@ For the Service above, without the `url` annotation, the URL is `http://radarr.m
 
 When you set the `url` annotation, discovery always uses it.
 
-The inferred URL resolves only inside the cluster. If dashbrr runs outside the cluster with a kubeconfig, set the `url` annotation.
+The inferred URL resolves only inside the cluster. If dashbrr runs outside the cluster with a kubeconfig, set the `url` annotation. If the TLS certificate of the Service does not include `<service>.<namespace>.svc`, set the `url` annotation.
 
 Notes:
 
