@@ -103,7 +103,7 @@ func TestKubernetesSync_Lifecycle(t *testing.T) {
 			GetLabelKey(labelURLKey):  "http://sonarr.media.svc.cluster.local:8989",
 		}),
 	)
-	k := &KubernetesDiscovery{client: client, namespaces: []string{"media"}}
+	k := &KubernetesDiscovery{client: client, dynamic: fakeDynamic(), namespaces: []string{"media"}}
 
 	syncOrFail(t, k, db)
 	got := servicesByID(t, db)
@@ -171,7 +171,7 @@ func TestKubernetesSync_NamespaceScope(t *testing.T) {
 		k8sService("other", "radarr", radarrAnnotations()),
 	)
 
-	k := &KubernetesDiscovery{client: client, namespaces: []string{""}}
+	k := &KubernetesDiscovery{client: client, dynamic: fakeDynamic(), namespaces: []string{""}}
 	syncOrFail(t, k, db)
 	got := servicesByID(t, db)
 	if _, ok := got["radarr-k8s-other.radarr"]; !ok || len(got) != 2 {
@@ -190,7 +190,7 @@ func TestKubernetesSync_NamespaceScope(t *testing.T) {
 func TestKubernetesSync_ListErrorChangesNothing(t *testing.T) {
 	db := newSyncTestDB(t)
 	client := fake.NewClientset(k8sService("media", "radarr", radarrAnnotations()))
-	k := &KubernetesDiscovery{client: client, namespaces: []string{"media", "other"}}
+	k := &KubernetesDiscovery{client: client, dynamic: fakeDynamic(), namespaces: []string{"media", "other"}}
 	syncOrFail(t, k, db)
 
 	client.PrependReactor("list", "services", func(action k8stesting.Action) (bool, runtime.Object, error) {
@@ -250,7 +250,7 @@ func TestKubernetesSync_KeepsPlexToken(t *testing.T) {
 		GetLabelKey(labelTypeKey): "plex",
 		GetLabelKey(labelURLKey):  "http://plex.media.svc.cluster.local:32400",
 	}))
-	k := &KubernetesDiscovery{client: client, namespaces: []string{"media"}}
+	k := &KubernetesDiscovery{client: client, dynamic: fakeDynamic(), namespaces: []string{"media"}}
 	syncOrFail(t, k, db)
 
 	// The user saves a token with the Plex sign-in in the UI.

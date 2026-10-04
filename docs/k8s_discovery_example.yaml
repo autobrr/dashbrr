@@ -31,6 +31,9 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -69,6 +72,8 @@ metadata:
     # No url annotation: discovery infers http://radarr.media.svc:7878 from the port named http.
     com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}"
     com.dashbrr.service.name: "Radarr"
+    # Optional: without this annotation, discovery uses the hostname of an
+    # HTTPRoute with a backendRef to this Service.
     com.dashbrr.service.access_url: "https://radarr.example.com"
     com.dashbrr.service.enabled: "true"
 spec:

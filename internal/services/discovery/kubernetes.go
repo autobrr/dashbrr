@@ -14,7 +14,13 @@ import (
 	"github.com/rs/zerolog/log"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -26,9 +32,14 @@ import (
 // podNamespaceFile holds the namespace of the pod when dashbrr runs in a cluster.
 const podNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
+// httpRouteGVR is the Gateway API HTTPRoute resource. Discovery reads it with
+// the dynamic client, so dashbrr does not need the Gateway API Go module.
+var httpRouteGVR = schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"}
+
 // KubernetesDiscovery handles service discovery from Kubernetes metadata.
 type KubernetesDiscovery struct {
-	client kubernetes.Interface
+	client  kubernetes.Interface
+	dynamic dynamic.Interface
 	// namespaces to scan. An empty string means all namespaces.
 	namespaces []string
 }
@@ -70,9 +81,14 @@ func NewKubernetesDiscovery(namespaces []string) (*KubernetesDiscovery, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes dynamic client: %w", err)
+	}
 
 	return &KubernetesDiscovery{
 		client:     clientset,
+		dynamic:    dynamicClient,
 		namespaces: scan,
 	}, nil
 }
@@ -104,9 +120,13 @@ func (k *KubernetesDiscovery) list(ctx context.Context) ([]models.ServiceConfigu
 		if err != nil {
 			return nil, fmt.Errorf("failed to list services in namespace %q: %w", namespace, err)
 		}
+		routeURLs, err := k.routeAccessURLs(ctx, namespace)
+		if err != nil {
+			return nil, err
+		}
 
 		for _, service := range services.Items {
-			config, err := k.parseService(&service)
+			config, err := k.parseService(&service, routeURLs[types.NamespacedName{Namespace: service.Namespace, Name: service.Name}])
 			if err != nil {
 				log.Warn().
 					Err(err).
@@ -125,8 +145,9 @@ func (k *KubernetesDiscovery) list(ctx context.Context) ([]models.ServiceConfigu
 }
 
 // parseService extracts service configuration from the annotations of a Kubernetes Service.
-// When the url annotation is empty, it infers the URL from the ports.
-func (k *KubernetesDiscovery) parseService(service *corev1.Service) (*models.ServiceConfiguration, error) {
+// When the url annotation is empty, it infers the URL from the ports. When the
+// access_url annotation is empty, it uses routeAccessURL.
+func (k *KubernetesDiscovery) parseService(service *corev1.Service, routeAccessURL string) (*models.ServiceConfiguration, error) {
 	if service.Annotations[GetLabelKey(labelTypeKey)] == "" {
 		return nil, nil
 	}
@@ -142,6 +163,9 @@ func (k *KubernetesDiscovery) parseService(service *corev1.Service) (*models.Ser
 			return nil, fmt.Errorf("service %s/%s has no url annotation and no ports to infer the URL from", service.Namespace, service.Name)
 		}
 		annotations[GetLabelKey(labelURLKey)] = url
+	}
+	if annotations[GetLabelKey(labelAccessURLKey)] == "" {
+		annotations[GetLabelKey(labelAccessURLKey)] = routeAccessURL
 	}
 
 	parsed, err := parseDiscoveryLabels(annotations)
@@ -182,6 +206,64 @@ func inferServiceURL(service *corev1.Service) string {
 		host = net.JoinHostPort(host, strconv.Itoa(int(port)))
 	}
 	return scheme + "://" + host
+}
+
+// httpRoute holds the fields of a Gateway API HTTPRoute that discovery reads.
+type httpRoute struct {
+	Spec struct {
+		Hostnames []string `json:"hostnames"`
+		Rules     []struct {
+			BackendRefs []struct {
+				Group     string `json:"group"`
+				Kind      string `json:"kind"`
+				Name      string `json:"name"`
+				Namespace string `json:"namespace"`
+			} `json:"backendRefs"`
+		} `json:"rules"`
+	} `json:"spec"`
+}
+
+// routeAccessURLs maps each Service to https://<first hostname> of an HTTPRoute
+// that has a backendRef to that Service in the namespace of the route. When
+// more than one route matches, it uses the route whose name is first in
+// alphabetical order. When the HTTPRoute CRD is not installed or RBAC
+// refuses the read, it logs at debug level and returns no URLs.
+func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace string) (map[types.NamespacedName]string, error) {
+	list, err := k.dynamic.Resource(httpRouteGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if apierrors.IsNotFound(err) || apierrors.IsForbidden(err) {
+		log.Debug().Err(err).Str("namespace", namespace).Msg("Cannot read HTTPRoutes, so discovery does not get access URLs from them")
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to list HTTPRoutes in namespace %q: %w", namespace, err)
+	}
+
+	slices.SortFunc(list.Items, func(a, b unstructured.Unstructured) int { return strings.Compare(a.GetName(), b.GetName()) })
+
+	urls := make(map[types.NamespacedName]string)
+	for _, item := range list.Items {
+		var route httpRoute
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.Object, &route); err != nil {
+			log.Warn().Err(err).Str("namespace", item.GetNamespace()).Str("route", item.GetName()).Msg("Failed to parse HTTPRoute")
+			continue
+		}
+		if len(route.Spec.Hostnames) == 0 {
+			continue
+		}
+		for _, rule := range route.Spec.Rules {
+			for _, ref := range rule.BackendRefs {
+				// An empty group and kind mean a core Service. An empty namespace means the namespace of the route.
+				if ref.Group != "" || (ref.Kind != "" && ref.Kind != "Service") || (ref.Namespace != "" && ref.Namespace != item.GetNamespace()) {
+					continue
+				}
+				key := types.NamespacedName{Namespace: item.GetNamespace(), Name: ref.Name}
+				if _, ok := urls[key]; !ok {
+					urls[key] = "https://" + route.Spec.Hostnames[0]
+				}
+			}
+		}
+	}
+	return urls, nil
 }
 
 // kubernetesInstanceID returns the instance ID of a discovered service.
