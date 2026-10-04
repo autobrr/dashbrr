@@ -262,7 +262,7 @@ Required OIDC environment variables:
 DASHBRR__OIDC_ISSUER=https://your-provider.com
 DASHBRR__OIDC_CLIENT_ID=your-client-id
 DASHBRR__OIDC_CLIENT_SECRET=your-client-secret
-DASHBRR__OIDC_REDIRECT_URL=http://localhost:3000/api/auth/oidc/callback
+DASHBRR__OIDC_REDIRECT_URL=https://dash.example.com/api/auth/oidc/callback
 ```
 
 ## Tech Stack
