@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"net/url"
@@ -48,6 +49,12 @@ func NewSettingsHandler(db *database.DB, cache cache.Store, poller *Poller) *Set
 		poller:         poller,
 		lastDebugLog:   time.Now().Add(-configDebugLogTTL), // Initialize to ensure first log happens
 	}
+}
+
+// InvalidateSettingsCache drops the cached service configurations, so that
+// the next settings request reads them from the database.
+func InvalidateSettingsCache(ctx context.Context, store cache.Store) error {
+	return store.Delete(ctx, configCacheKey)
 }
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
@@ -187,7 +194,7 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	h.serviceManager.InitializeService(c.Request.Context(), &config)
 
 	// Invalidate cache
-	if err := h.cache.Delete(c.Request.Context(), configCacheKey); err != nil {
+	if err := InvalidateSettingsCache(c.Request.Context(), h.cache); err != nil {
 		log.Warn().Err(err).Msg("Failed to delete configuration cache")
 	}
 
@@ -224,7 +231,7 @@ func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	}
 
 	// Invalidate cache
-	if err := h.cache.Delete(c.Request.Context(), configCacheKey); err != nil {
+	if err := InvalidateSettingsCache(c.Request.Context(), h.cache); err != nil {
 		log.Warn().Err(err).Msg("Failed to delete configuration cache")
 	}
 

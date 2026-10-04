@@ -164,52 +164,49 @@ func ConfigDiscoverCommand() *cobra.Command {
 			useK8s = true
 		}
 
+		cfg, _, err := ConfigFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+
 		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
 		}
 
-		discoverers := make([]discovery.ServiceDiscoverer, 0, 2)
+		ran := false
 
 		if useDocker {
 			dockerDiscovery, dockerErr := discovery.NewDockerDiscovery()
 			if dockerErr != nil {
 				fmt.Printf("Warning: Docker discovery unavailable: %v\n", dockerErr)
 			} else {
-				discoverers = append(discoverers, dockerDiscovery)
+				defer dockerDiscovery.Close()
+				services, discoverErr := dockerDiscovery.DiscoverServices(cmd.Context())
+				if discoverErr != nil {
+					return fmt.Errorf("service discovery failed: %w", discoverErr)
+				}
+				if err := handleDiscoveredServices(cmd.Context(), db, services, assumeYes); err != nil {
+					return err
+				}
+				ran = true
 			}
 		}
 
 		if useK8s {
-			k8sDiscovery, k8sErr := discovery.NewKubernetesDiscovery()
+			k8sDiscovery, k8sErr := discovery.NewKubernetesDiscovery(cfg.Discovery.Kubernetes.Namespaces)
 			if k8sErr != nil {
 				fmt.Printf("Warning: Kubernetes discovery unavailable: %v\n", k8sErr)
 			} else {
-				discoverers = append(discoverers, k8sDiscovery)
+				if err := syncKubernetesServices(cmd.Context(), db, k8sDiscovery, assumeYes); err != nil {
+					return err
+				}
+				ran = true
 			}
 		}
 
-		if len(discoverers) == 0 {
+		if !ran {
 			return fmt.Errorf("failed to initialize any requested discovery backends")
-		}
-
-		defer func() {
-			for _, discoverer := range discoverers {
-				_ = discoverer.Close()
-			}
-		}()
-
-		var services []models.ServiceConfiguration
-		for _, discoverer := range discoverers {
-			discovered, discoverErr := discoverer.DiscoverServices(cmd.Context())
-			if discoverErr != nil {
-				return fmt.Errorf("service discovery failed: %v", discoverErr)
-			}
-			services = append(services, discovered...)
-		}
-
-		if err := handleDiscoveredServices(cmd.Context(), db, services, assumeYes); err != nil {
-			return err
 		}
 
 		return nil
@@ -250,17 +247,8 @@ func handleDiscoveredServices(ctx context.Context, db *database.DB, services []m
 		fmt.Println()
 	}
 
-	// Ask for confirmation before adding services
-	if !assumeYes {
-		fmt.Print("Would you like to add these services? [y/N] ")
-		var response string
-		fmt.Scanln(&response)
-		if strings.ToLower(response) != "y" {
-			fmt.Println("Operation cancelled.")
-			return nil
-		}
-	} else {
-		fmt.Println("Auto-confirm enabled; adding discovered services.")
+	if !confirm(assumeYes, "Would you like to add these services?") {
+		return nil
 	}
 
 	// Add services to database
@@ -285,4 +273,52 @@ func handleDiscoveredServices(ctx context.Context, db *database.DB, services []m
 	}
 
 	return nil
+}
+
+// syncKubernetesServices shows and applies the same sync that serve runs:
+// it creates, updates, and deletes discovered services to agree with the annotations.
+func syncKubernetesServices(ctx context.Context, db *database.DB, k8s *discovery.KubernetesDiscovery, assumeYes bool) error {
+	plan, err := k8s.Plan(ctx, db)
+	if err != nil {
+		return fmt.Errorf("kubernetes discovery failed: %w", err)
+	}
+	if plan.Empty() {
+		fmt.Println("Kubernetes services are up to date.")
+		return nil
+	}
+
+	for _, s := range plan.Create {
+		fmt.Printf("  + %s (URL: %s)\n", s.InstanceID, s.URL)
+	}
+	for _, s := range plan.Update {
+		fmt.Printf("  ~ %s (URL: %s)\n", s.InstanceID, s.URL)
+	}
+	for _, id := range plan.Delete {
+		fmt.Printf("  - %s\n", id)
+	}
+
+	if !confirm(assumeYes, "Would you like to apply these changes?") {
+		return nil
+	}
+	if err := plan.Apply(ctx, db); err != nil {
+		return fmt.Errorf("failed to sync Kubernetes services: %w", err)
+	}
+	fmt.Printf("Kubernetes services synced: %d added, %d updated, %d deleted.\n", len(plan.Create), len(plan.Update), len(plan.Delete))
+	return nil
+}
+
+// confirm asks a yes/no question, unless assumeYes is set.
+func confirm(assumeYes bool, question string) bool {
+	if assumeYes {
+		fmt.Println("Auto-confirm enabled; applying changes.")
+		return true
+	}
+	fmt.Printf("%s [y/N] ", question)
+	var response string
+	_, _ = fmt.Scanln(&response)
+	if strings.ToLower(response) != "y" {
+		fmt.Println("Operation cancelled.")
+		return false
+	}
+	return true
 }
