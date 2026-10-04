@@ -53,7 +53,7 @@ func TestIssue(t *testing.T) {
 	} {
 		t.Run(tc.proto, func(t *testing.T) {
 			store := newMemoryStore(t, t.TempDir())
-			m := New(store)
+			m := New(store, "/")
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/login", nil)
 			req.Header.Set("X-Forwarded-Proto", tc.proto)
@@ -82,7 +82,7 @@ func TestIssue(t *testing.T) {
 
 func TestClear(t *testing.T) {
 	store := newMemoryStore(t, t.TempDir())
-	m := New(store)
+	m := New(store, "/")
 
 	c, _ := newTestContext(t, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil))
 	token, err := m.Issue(c, types.SessionData{UserID: 1, AuthType: "builtin"})
@@ -107,7 +107,7 @@ func TestClear(t *testing.T) {
 }
 
 func TestClear_NoSession(t *testing.T) {
-	m := New(newMemoryStore(t, t.TempDir()))
+	m := New(newMemoryStore(t, t.TempDir()), "/")
 	c, w := newTestContext(t, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/logout", nil))
 
 	if err := m.Clear(c); err != nil {
@@ -120,7 +120,7 @@ func TestClear_NoSession(t *testing.T) {
 
 func TestLoad(t *testing.T) {
 	store := newMemoryStore(t, t.TempDir())
-	m := New(store)
+	m := New(store, "/")
 	if err := store.Set(t.Context(), "session:good", types.SessionData{UserID: 9, AuthType: "oidc"}, TTL); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestLoad(t *testing.T) {
 }
 
 func TestLoad_ReturnsContextErrorOnTimeout(t *testing.T) {
-	m := New(blockingStore{})
+	m := New(blockingStore{}, "/")
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -190,7 +190,7 @@ func TestIssuedSessionSurvivesStoreRestart(t *testing.T) {
 	store := cache.NewMemoryStore(t.Context(), dir)
 
 	c, _ := newTestContext(t, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil))
-	token, err := New(store).Issue(c, types.SessionData{UserID: 3, AuthType: "builtin"})
+	token, err := New(store, "/").Issue(c, types.SessionData{UserID: 3, AuthType: "builtin"})
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestIssuedSessionSurvivesStoreRestart(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: CookieName, Value: token}) //nolint:gosec // request cookie; attributes don't apply
 	c, _ = newTestContext(t, req)
 
-	_, data, err := New(newMemoryStore(t, dir)).Load(c)
+	_, data, err := New(newMemoryStore(t, dir), "/").Load(c)
 	if err != nil {
 		t.Fatalf("Load after restart: %v", err)
 	}

@@ -5,7 +5,11 @@
 #
 # Important:
 # - Dashbrr resolves ${ENV_VAR} placeholders from its own process env.
-# - Set matching env vars on the Dashbrr Deployment/Pod (example included).
+# - Set matching env vars on the Dashbrr Deployment/Pod (example below).
+# - Enable the sync in serve with DASHBRR__K8S_DISCOVERY_ENABLED=true.
+# - With DASHBRR__K8S_DISCOVERY_NAMESPACES empty, Dashbrr scans only its own
+#   namespace, and this Role is sufficient. For "*" (all namespaces), use a
+#   ClusterRole and a ClusterRoleBinding with the same rules.
 
 apiVersion: v1
 kind: Namespace
@@ -19,38 +23,42 @@ metadata:
   namespace: media
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: dashbrr-discovery
+  namespace: media
 rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: dashbrr-discovery
+  namespace: media
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: dashbrr-discovery
 subjects:
   - kind: ServiceAccount
     name: dashbrr
     namespace: media
 ---
-# Minimal env example for Dashbrr pod (snippet only; merge into your Deployment).
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dashbrr-env-example
-  namespace: media
-data:
-  RADARR_API_KEY: "replace-me"
-  SONARR_API_KEY: "replace-me"
-  DASHBRR__ARR_IGNORED_HEALTH_CHECKS: "RemovedSeriesCheck,RemovedMovieCheck"
----
+# Env for the Dashbrr container (snippet only; merge into your Deployment).
+# The Secret can come from an ExternalSecret.
+#
+#   env:
+#     - name: DASHBRR__K8S_DISCOVERY_ENABLED
+#       value: "true"
+#     - name: DASHBRR__ARR_IGNORED_HEALTH_CHECKS
+#       value: "RemovedSeriesCheck,RemovedMovieCheck"
+#     - name: DASHBRR_RADARR_API_KEY
+#       valueFrom:
+#         secretKeyRef:
+#           name: dashbrr-api-keys
+#           key: radarr
 apiVersion: v1
 kind: Service
 metadata:
@@ -59,8 +67,9 @@ metadata:
   annotations:
     com.dashbrr.service.type: "radarr"
     com.dashbrr.service.url: "http://radarr.media.svc.cluster.local:7878"
-    com.dashbrr.service.apikey: "${RADARR_API_KEY}"
+    com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}"
     com.dashbrr.service.name: "Radarr"
+    com.dashbrr.service.access_url: "https://radarr.example.com"
     com.dashbrr.service.enabled: "true"
 spec:
   selector:

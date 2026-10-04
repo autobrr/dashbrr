@@ -62,4 +62,22 @@ export default tseslint.config([
       "react-hooks/exhaustive-deps": "warn",
     },
   },
+  {
+    // dashbrr can be served under a base path. A URL that starts with "/api"
+    // ignores <base href> and misses the prefix.
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/^\\/api/]",
+          message: "Use a relative URL (\"api/...\") so that it resolves against <base href>.",
+        },
+        {
+          selector: "TemplateLiteral > TemplateElement:first-child[value.raw=/^\\/api/]",
+          message: "Use a relative URL (`api/...`) so that it resolves against <base href>.",
+        },
+      ],
+    },
+  },
 ]);

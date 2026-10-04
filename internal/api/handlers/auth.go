@@ -22,12 +22,14 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/autobrr/dashbrr/internal/api/session"
+	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
 type AuthHandler struct {
 	config       *types.AuthConfig
+	basePath     config.BasePath
 	cache        cache.Store
 	sessions     *session.Manager
 	oauth2Config *oauth2.Config
@@ -37,17 +39,18 @@ type AuthHandler struct {
 	discoverySF  singleflight.Group
 }
 
-func NewAuthHandler(config *types.AuthConfig, store cache.Store) *AuthHandler {
+func NewAuthHandler(authConfig *types.AuthConfig, basePath config.BasePath, store cache.Store, sessions *session.Manager) *AuthHandler {
 	httpClient := &http.Client{Timeout: 1 * time.Second}
 
 	log.Debug().
-		Str("issuer", config.Issuer).
+		Str("issuer", authConfig.Issuer).
 		Msg("initializing auth handler")
 
 	return &AuthHandler{
-		config:     config,
+		config:     authConfig,
+		basePath:   basePath,
 		cache:      store,
-		sessions:   session.New(store),
+		sessions:   sessions,
 		httpClient: httpClient,
 	}
 }
@@ -281,18 +284,18 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	if code == "" {
 		log.Error().Msg("no code in callback")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=no_code")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=no_code"))
 		return
 	}
 
 	if err := h.ensureProviderConfig(ctx); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("OIDC discovery canceled during callback")
-			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
+			c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=timeout"))
 			return
 		}
 		log.Error().Err(err).Msg("OIDC discovery failed during callback")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=oidc_discovery_failed")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=oidc_discovery_failed"))
 		return
 	}
 
@@ -301,7 +304,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	if err := h.cache.Get(ctx, stateKey, &stateData); err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled while retrieving state")
-			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
+			c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=timeout"))
 			return
 		}
 		if err == cache.ErrKeyNotFound {
@@ -309,14 +312,14 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		} else {
 			log.Error().Err(err).Msg("failed to get state from cache")
 		}
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_state")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=invalid_state"))
 		return
 	}
 
 	expectedNonce := stateData.Nonce
 	if expectedNonce == "" {
 		log.Error().Msg("invalid state data")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_state")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=invalid_state"))
 		return
 	}
 
@@ -331,39 +334,39 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	if err != nil {
 		if ctx.Err() != nil {
 			log.Error().Err(ctx.Err()).Msg("Context canceled during token exchange")
-			c.Redirect(http.StatusTemporaryRedirect, "/login?error=timeout")
+			c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=timeout"))
 			return
 		}
 		log.Error().Err(err).Msg("code exchange failed")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=exchange_failed")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=exchange_failed"))
 		return
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		log.Error().Msg("no id_token in token response")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=no_id_token")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=no_id_token"))
 		return
 	}
 
 	gotNonce, err := extractJWTNonce(rawIDToken)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to extract nonce from id_token")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_nonce")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=invalid_nonce"))
 		return
 	}
 	if gotNonce != expectedNonce {
 		log.Error().Msg("id_token nonce mismatch")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=invalid_nonce")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=invalid_nonce"))
 		return
 	}
 
 	if _, err := h.sessions.Issue(c, types.SessionData{AuthType: "oidc"}); err != nil {
 		log.Error().Err(err).Msg("failed to create session")
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=session_failed")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=session_failed"))
 		return
 	}
 
 	// Cookie carries the session; avoid leaking tokens in URLs.
-	c.Redirect(http.StatusTemporaryRedirect, "/")
+	c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/"))
 }

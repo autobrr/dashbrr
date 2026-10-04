@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/rs/zerolog/log"
@@ -26,11 +29,12 @@ const (
 
 // Config represents the main configuration structure
 type Config struct {
-	Server   ServerConfig    `toml:"server"`
-	Database database.Config `toml:"database"`
-	Auth     AuthConfig      `toml:"auth"`
-	Log      LogConfig       `toml:"log"`
-	Arr      ArrConfig       `toml:"arr"`
+	Server    ServerConfig    `toml:"server"`
+	Database  database.Config `toml:"database"`
+	Auth      AuthConfig      `toml:"auth"`
+	Log       LogConfig       `toml:"log"`
+	Arr       ArrConfig       `toml:"arr"`
+	Discovery DiscoveryConfig `toml:"discovery"`
 }
 
 // ArrConfig holds configuration that applies to all *arr services
@@ -38,6 +42,19 @@ type ArrConfig struct {
 	// IgnoredHealthChecks holds *arr health check names, for example
 	// RemovedSeriesCheck, that do not change the service status.
 	IgnoredHealthChecks []string `toml:"ignored_health_checks" env:"DASHBRR__ARR_IGNORED_HEALTH_CHECKS"`
+}
+
+// DiscoveryConfig holds service discovery configuration
+type DiscoveryConfig struct {
+	Kubernetes KubernetesDiscoveryConfig `toml:"kubernetes"`
+}
+
+// KubernetesDiscoveryConfig holds the settings of the Kubernetes sync in serve.
+type KubernetesDiscoveryConfig struct {
+	Enabled bool `toml:"enabled" env:"DASHBRR__K8S_DISCOVERY_ENABLED"`
+	// Namespaces to scan. "*" scans all namespaces. Empty scans the namespace of the pod.
+	Namespaces      []string `toml:"namespaces" env:"DASHBRR__K8S_DISCOVERY_NAMESPACES"`
+	IntervalMinutes int      `toml:"interval_minutes" env:"DASHBRR__K8S_DISCOVERY_INTERVAL_MINUTES"`
 }
 
 // LogConfig holds logging-related configuration
@@ -48,6 +65,7 @@ type LogConfig struct {
 // ServerConfig holds server-related configuration
 type ServerConfig struct {
 	ListenAddr  string   `toml:"listen_addr" env:"DASHBRR__LISTEN_ADDR"`
+	BasePath    BasePath `toml:"base_path" env:"DASHBRR__BASE_PATH"`
 	CORSOrigins []string `toml:"cors_origins" env:"DASHBRR__CORS_ORIGINS"`
 	CORSHeaders []string `toml:"cors_headers" env:"DASHBRR__CORS_HEADERS"`
 	CORSMethods []string `toml:"cors_methods" env:"DASHBRR__CORS_METHODS"`
@@ -68,8 +86,16 @@ type OIDCConfig struct {
 	RedirectURL  string `toml:"redirect_url" env:"DASHBRR__OIDC_REDIRECT_URL"`
 }
 
-// IsConfigured reports whether OIDC has the three values that it needs. The
-// redirect URL has a default, so it is not part of this test.
+// Interval returns the time between two syncs. The default is 5 minutes.
+func (c KubernetesDiscoveryConfig) Interval() time.Duration {
+	if c.IntervalMinutes <= 0 {
+		return 5 * time.Minute
+	}
+	return time.Duration(c.IntervalMinutes) * time.Minute
+}
+
+// IsConfigured reports whether OIDC is enabled. The redirect URL
+// is not part of this test: validation rejects a configured OIDC without it.
 func (c OIDCConfig) IsConfigured() bool {
 	return c.Issuer != "" && c.ClientID != "" && c.ClientSecret != ""
 }
@@ -87,6 +113,9 @@ func DefaultConfig() *Config {
 		},
 		Database: *database.DefaultConfig(),
 		Log:      LogConfig{Level: "info"},
+		Discovery: DiscoveryConfig{
+			Kubernetes: KubernetesDiscoveryConfig{IntervalMinutes: 5},
+		},
 	}
 }
 
@@ -199,7 +228,54 @@ func loadConfig(path string, writeDefault bool) (*Config, error) {
 		return nil, fmt.Errorf("error loading environment variables: %w", err)
 	}
 
+	if config.Server.BasePath, err = normalizeBasePath(string(config.Server.BasePath)); err != nil {
+		return nil, err
+	}
+
+	if config.Auth.OIDC.IsConfigured() && config.Auth.OIDC.RedirectURL == "" {
+		return nil, errors.New("OIDC is configured but redirect_url (DASHBRR__OIDC_REDIRECT_URL) is empty: set it to the callback URL, for example https://example.com/dashbrr/api/auth/oidc/callback")
+	}
+
 	return config, nil
+}
+
+// BasePath is the URL path prefix that dashbrr is served under. It is "" at
+// the root of the host, or a path such as "/dashbrr" with no trailing slash.
+type BasePath string
+
+// Path puts the base path in front of p, an in-app path that starts with "/".
+func (b BasePath) Path(p string) string {
+	return string(b) + p
+}
+
+// normalizeBasePath gives "" for an empty value or "/". Otherwise, it gives a
+// path with a leading slash and no trailing slash. The server writes the value into an
+// HTML attribute, so characters that are not safe there are an error.
+func normalizeBasePath(raw string) (BasePath, error) {
+	p := strings.TrimSpace(raw)
+	// A browser reads "//host" as another site, the same as "http://host".
+	if strings.Contains(p, "://") || strings.HasPrefix(p, "//") {
+		return "", fmt.Errorf("base_path %q is a path, not a URL: use a value such as /dashbrr", raw)
+	}
+	// Permit only letters, digits, "-", ".", "_", "~", and "/". Any other character
+	// changes the path for a browser, gin, or the cookie: "?", "#", "%", "\", ":", "*",
+	// quotes, white space, and non-ASCII.
+	if strings.ContainsFunc(p, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && !strings.ContainsRune("-._~/", r)
+	}) {
+		return "", fmt.Errorf("base_path %q has a character that is not permitted: use only letters, digits, -, ., _, ~, and /", raw)
+	}
+	// Clean removes "." and ".." segments. A browser removes them from <base href>
+	// but not from the cookie path.
+	p = path.Clean("/" + p)
+	if p == "/" {
+		return "", nil
+	}
+	// The root health check already uses /health.
+	if p == "/health" {
+		return "", errors.New("base_path /health is reserved for the health check: use a value such as /dashbrr")
+	}
+	return BasePath(p), nil
 }
 
 func writeDefaultConfig(path string, config *Config) error {
@@ -218,6 +294,9 @@ func LoadEnvOverrides(config *Config) error {
 	// Server
 	if env := os.Getenv("DASHBRR__LISTEN_ADDR"); env != "" {
 		config.Server.ListenAddr = env
+	}
+	if env := os.Getenv("DASHBRR__BASE_PATH"); env != "" {
+		config.Server.BasePath = BasePath(env)
 	}
 	if env := os.Getenv("DASHBRR__CORS_ORIGINS"); env != "" {
 		// comma-separated list (e.g. "http://localhost:3000,https://dash.example.com")
@@ -281,6 +360,24 @@ func LoadEnvOverrides(config *Config) error {
 	// Log
 	if env := os.Getenv("DASHBRR__LOG_LEVEL"); env != "" {
 		config.Log.Level = env
+	}
+
+	// Kubernetes discovery
+	if env := os.Getenv("DASHBRR__K8S_DISCOVERY_ENABLED"); env != "" {
+		if b, err := strconv.ParseBool(strings.TrimSpace(env)); err == nil {
+			config.Discovery.Kubernetes.Enabled = b
+		}
+	}
+	if env := os.Getenv("DASHBRR__K8S_DISCOVERY_NAMESPACES"); env != "" {
+		// A comma-separated list, for example "media,downloads". "*" means all namespaces.
+		config.Discovery.Kubernetes.Namespaces = strings.FieldsFunc(env, func(r rune) bool {
+			return r == ',' || unicode.IsSpace(r)
+		})
+	}
+	if env := os.Getenv("DASHBRR__K8S_DISCOVERY_INTERVAL_MINUTES"); env != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(env)); err == nil && n > 0 {
+			config.Discovery.Kubernetes.IntervalMinutes = n
+		}
 	}
 
 	// Auth OIDC

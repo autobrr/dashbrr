@@ -11,4 +11,7 @@ type ServiceConfiguration struct {
 	URL         string `json:"url"`
 	APIKey      string `json:"apiKey,omitempty"`
 	AccessURL   string `json:"accessUrl,omitempty"`
+	// Discovered marks a service that Kubernetes discovery owns. The API sets
+	// it on each response. The database does not store it.
+	Discovered bool `json:"discovered"`
 }

@@ -5,11 +5,12 @@ const (
 	labelPrefix = "com.dashbrr.service"
 
 	// Common label suffixes
-	labelTypeKey    = "type"    // Service type (e.g., radarr, sonarr)
-	labelURLKey     = "url"     // Service URL
-	labelAPIKeyKey  = "apikey"  // Service API key
-	labelNameKey    = "name"    // Optional display name override
-	labelEnabledKey = "enabled" // Optional service enabled state
+	labelTypeKey      = "type"       // Service type (e.g., radarr, sonarr)
+	labelURLKey       = "url"        // Service URL
+	labelAPIKeyKey    = "apikey"     // Service API key
+	labelNameKey      = "name"       // Optional display name override
+	labelEnabledKey   = "enabled"    // Optional service enabled state
+	labelAccessURLKey = "access_url" // Optional URL that the browser uses to open the service
 )
 
 // GetLabelKey returns the full label key for a given suffix

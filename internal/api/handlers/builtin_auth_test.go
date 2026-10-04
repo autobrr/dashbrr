@@ -32,12 +32,13 @@ func newBuiltinAuthRouter(t *testing.T, store cache.Store) *gin.Engine {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
-	h := NewBuiltinAuthHandler(db, store)
+	sessions := session.New(store, "/")
+	h := NewBuiltinAuthHandler(db, sessions)
 	r := gin.New()
 	r.POST("/register", h.Register)
 	r.POST("/login", h.Login)
 	r.POST("/logout", h.Logout)
-	r.GET("/verify", middleware.NewAuthMiddleware(store).RequireAuth(), h.Verify)
+	r.GET("/verify", middleware.NewAuthMiddleware(sessions).RequireAuth(), h.Verify)
 	r.GET("/userinfo", h.GetUserInfo)
 	return r
 }
