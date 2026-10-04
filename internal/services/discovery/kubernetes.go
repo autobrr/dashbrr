@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog/log"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -103,7 +106,7 @@ func (k *KubernetesDiscovery) list(ctx context.Context) ([]models.ServiceConfigu
 		}
 
 		for _, service := range services.Items {
-			config, err := k.parseServiceAnnotations(service.Annotations, service.Namespace, service.Name)
+			config, err := k.parseService(&service)
 			if err != nil {
 				log.Warn().
 					Err(err).
@@ -121,33 +124,64 @@ func (k *KubernetesDiscovery) list(ctx context.Context) ([]models.ServiceConfigu
 	return configurations, nil
 }
 
-// parseServiceAnnotations extracts service configuration from Kubernetes annotations.
-func (k *KubernetesDiscovery) parseServiceAnnotations(annotations map[string]string, namespace, serviceName string) (*models.ServiceConfiguration, error) {
-	if annotations[GetLabelKey(labelTypeKey)] == "" {
+// parseService extracts service configuration from the annotations of a Kubernetes Service.
+// When the url annotation is empty, it infers the URL from the ports.
+func (k *KubernetesDiscovery) parseService(service *corev1.Service) (*models.ServiceConfiguration, error) {
+	if service.Annotations[GetLabelKey(labelTypeKey)] == "" {
 		return nil, nil
 	}
+	annotations := maps.Clone(service.Annotations)
 	// Plex gets its token from the Plex sign-in in the UI, so the sync ignores
 	// an apikey annotation on Plex, even one that does not resolve.
 	if annotations[GetLabelKey(labelTypeKey)] == "plex" {
-		annotations = maps.Clone(annotations)
 		delete(annotations, GetLabelKey(labelAPIKeyKey))
+	}
+	if annotations[GetLabelKey(labelURLKey)] == "" {
+		url := inferServiceURL(service)
+		if url == "" {
+			return nil, fmt.Errorf("service %s/%s has no url annotation and no ports to infer the URL from", service.Namespace, service.Name)
+		}
+		annotations[GetLabelKey(labelURLKey)] = url
 	}
 
 	parsed, err := parseDiscoveryLabels(annotations)
 	if err != nil {
-		return nil, fmt.Errorf("invalid discovery metadata for %s/%s: %w", namespace, serviceName, err)
+		return nil, fmt.Errorf("invalid discovery metadata for %s/%s: %w", service.Namespace, service.Name, err)
 	}
 	if !parsed.enabled {
 		return nil, nil
 	}
 
 	return &models.ServiceConfiguration{
-		InstanceID:  kubernetesInstanceID(parsed.serviceType, namespace, serviceName),
+		InstanceID:  kubernetesInstanceID(parsed.serviceType, service.Namespace, service.Name),
 		DisplayName: parsed.displayName,
 		URL:         parsed.url,
 		APIKey:      parsed.apiKey,
 		AccessURL:   parsed.accessURL,
 	}, nil
+}
+
+// inferServiceURL builds the in-cluster URL of a Service from its ports. It
+// uses the port named https, else the port named http, else the first port.
+// It returns "" when the Service has no ports.
+func inferServiceURL(service *corev1.Service) string {
+	ports := service.Spec.Ports
+	if len(ports) == 0 {
+		return ""
+	}
+	scheme, port := "http", ports[0].Port
+	if i := slices.IndexFunc(ports, func(p corev1.ServicePort) bool { return p.Name == "https" }); i >= 0 {
+		scheme, port = "https", ports[i].Port
+	} else if i := slices.IndexFunc(ports, func(p corev1.ServicePort) bool { return p.Name == "http" }); i >= 0 {
+		port = ports[i].Port
+	}
+
+	// The DNS search list of the pod resolves <service>.<namespace>.svc, so no cluster domain is necessary.
+	host := service.Name + "." + service.Namespace + ".svc"
+	if (scheme == "http" && port != 80) || (scheme == "https" && port != 443) {
+		host = net.JoinHostPort(host, strconv.Itoa(int(port)))
+	}
+	return scheme + "://" + host
 }
 
 // kubernetesInstanceID returns the instance ID of a discovered service.
