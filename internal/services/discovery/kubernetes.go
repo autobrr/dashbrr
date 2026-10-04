@@ -3,9 +3,9 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -22,11 +22,6 @@ import (
 
 // podNamespaceFile holds the namespace of the pod when dashbrr runs in a cluster.
 const podNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-
-// kubernetesInstanceIDPattern matches the instance ID of a discovered service:
-// <type>-k8s-<namespace>.<service>. Kubernetes names cannot contain dots, so
-// IDs from the UI, from a file, or from before #145 do not match.
-var kubernetesInstanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9]+-k8s-[a-z0-9-]+\.[a-z0-9-]+$`)
 
 // KubernetesDiscovery handles service discovery from Kubernetes metadata.
 type KubernetesDiscovery struct {
@@ -130,6 +125,12 @@ func (k *KubernetesDiscovery) list(ctx context.Context) ([]models.ServiceConfigu
 func (k *KubernetesDiscovery) parseServiceAnnotations(annotations map[string]string, namespace, serviceName string) (*models.ServiceConfiguration, error) {
 	if annotations[GetLabelKey(labelTypeKey)] == "" {
 		return nil, nil
+	}
+	// Plex gets its token from the Plex sign-in in the UI, so the sync ignores
+	// an apikey annotation on Plex, even one that does not resolve.
+	if annotations[GetLabelKey(labelTypeKey)] == "plex" {
+		annotations = maps.Clone(annotations)
+		delete(annotations, GetLabelKey(labelAPIKeyKey))
 	}
 
 	parsed, err := parseDiscoveryLabels(annotations)

@@ -242,3 +242,53 @@ func TestResolveNamespaces(t *testing.T) {
 		})
 	}
 }
+
+func TestKubernetesSync_KeepsPlexToken(t *testing.T) {
+	ctx := t.Context()
+	db := newSyncTestDB(t)
+	client := fake.NewClientset(k8sService("media", "plex", map[string]string{
+		GetLabelKey(labelTypeKey): "plex",
+		GetLabelKey(labelURLKey):  "http://plex.media.svc.cluster.local:32400",
+	}))
+	k := &KubernetesDiscovery{client: client, namespaces: []string{"media"}}
+	syncOrFail(t, k, db)
+
+	// The user saves a token with the Plex sign-in in the UI.
+	plex := servicesByID(t, db)["plex-k8s-media.plex"]
+	plex.APIKey = "oauth-token"
+	if err := db.UpdateService(ctx, &plex); err != nil {
+		t.Fatalf("update service: %v", err)
+	}
+
+	plan, err := k.Sync(ctx, db)
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if !plan.Empty() {
+		t.Fatalf("expected empty plan, got %+v", plan)
+	}
+
+	// The sync ignores an apikey annotation on a Plex Service.
+	annotated := k8sService("media", "plex", map[string]string{
+		GetLabelKey(labelTypeKey):   "plex",
+		GetLabelKey(labelURLKey):    "http://plex.media.svc.cluster.local:32400",
+		GetLabelKey(labelAPIKeyKey): "annotated-token",
+	})
+	if _, err := client.CoreV1().Services("media").Update(ctx, annotated, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("update service: %v", err)
+	}
+	syncOrFail(t, k, db)
+	if got := servicesByID(t, db)["plex-k8s-media.plex"].APIKey; got != "oauth-token" {
+		t.Fatalf("api key = %q, want %q", got, "oauth-token")
+	}
+
+	// An apikey annotation that does not resolve does not delete the Plex service.
+	annotated.Annotations[GetLabelKey(labelAPIKeyKey)] = "${DASHBRR_TEST_UNSET_PLEX_TOKEN}"
+	if _, err := client.CoreV1().Services("media").Update(ctx, annotated, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("update service: %v", err)
+	}
+	syncOrFail(t, k, db)
+	if got := servicesByID(t, db)["plex-k8s-media.plex"].APIKey; got != "oauth-token" {
+		t.Fatalf("api key = %q, want %q", got, "oauth-token")
+	}
+}

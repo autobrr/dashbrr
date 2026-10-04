@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -36,10 +37,15 @@ type SettingsHandler struct {
 	lastDebugLog   time.Time
 }
 
-func sanitizeServiceConfig(c models.ServiceConfiguration) models.ServiceConfiguration {
+// serviceConfigResponse prepares a configuration for an API response: it
+// removes the API key and marks a discovered service.
+func serviceConfigResponse(c models.ServiceConfiguration) models.ServiceConfiguration {
 	c.APIKey = ""
+	c.Discovered = models.IsDiscoveredInstanceID(c.InstanceID)
 	return c
 }
+
+const discoveredServiceMessage = "Kubernetes discovery manages this service. Change its annotations to change it."
 
 func NewSettingsHandler(db *database.DB, cache cache.Store, poller *Poller) *SettingsHandler {
 	return &SettingsHandler{
@@ -77,7 +83,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 
 		configMap := make(map[string]models.ServiceConfiguration)
 		for _, config := range configurations {
-			configMap[config.InstanceID] = sanitizeServiceConfig(config)
+			configMap[config.InstanceID] = serviceConfigResponse(config)
 		}
 		c.JSON(http.StatusOK, configMap)
 		return
@@ -110,7 +116,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 
 	configMap := make(map[string]models.ServiceConfiguration)
 	for _, config := range configurations {
-		configMap[config.InstanceID] = sanitizeServiceConfig(config)
+		configMap[config.InstanceID] = serviceConfigResponse(config)
 	}
 	c.JSON(http.StatusOK, configMap)
 }
@@ -145,6 +151,28 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	}
 
 	config.InstanceID = instanceID
+
+	// Discovery owns every field of a discovered service. The one exception is
+	// the token of a Plex service, which comes from the Plex sign-in in the UI.
+	if models.IsDiscoveredInstanceID(instanceID) {
+		if t, _ := models.ServiceTypeFromInstanceID(instanceID); t != "plex" {
+			c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
+			return
+		}
+		discovered, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})
+			return
+		}
+		if discovered == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
+			return
+		}
+		apiKey := config.APIKey
+		config = *discovered
+		config.APIKey = apiKey
+	}
 	config.URL = strings.TrimRight(config.URL, "/")
 
 	if !serviceURLsValid(config) {
@@ -203,11 +231,15 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	}
 
 	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")
-	c.JSON(http.StatusOK, sanitizeServiceConfig(config))
+	c.JSON(http.StatusOK, serviceConfigResponse(config))
 }
 
 func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
+	if models.IsDiscoveredInstanceID(instanceID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
+		return
+	}
 
 	// Check if configuration exists before deleting
 	existing, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})

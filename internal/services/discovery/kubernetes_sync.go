@@ -38,7 +38,7 @@ func (k *KubernetesDiscovery) Plan(ctx context.Context, db *database.DB) (SyncPl
 
 	existing := make(map[string]models.ServiceConfiguration)
 	for _, s := range services {
-		if kubernetesInstanceIDPattern.MatchString(s.InstanceID) {
+		if models.IsDiscoveredInstanceID(s.InstanceID) {
 			s.ID = 0
 			existing[s.InstanceID] = s
 		}
@@ -49,6 +49,11 @@ func (k *KubernetesDiscovery) Plan(ctx context.Context, db *database.DB) (SyncPl
 	for _, f := range found {
 		seen[f.InstanceID] = true
 		e, ok := existing[f.InstanceID]
+		// Plex gets its token from the Plex sign-in in the UI, not from an
+		// annotation. Keep the stored token.
+		if t, _ := models.ServiceTypeFromInstanceID(f.InstanceID); t == "plex" {
+			f.APIKey = e.APIKey
+		}
 		switch {
 		case !ok:
 			plan.Create = append(plan.Create, f)
