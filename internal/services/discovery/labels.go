@@ -15,6 +15,7 @@ type parsedDiscoveryLabels struct {
 	url         string
 	apiKey      string
 	displayName string
+	accessURL   string
 	enabled     bool
 }
 
@@ -49,6 +50,7 @@ func parseDiscoveryLabels(labels map[string]string) (*parsedDiscoveryLabels, err
 		url:         url,
 		apiKey:      apiKey,
 		displayName: displayName,
+		accessURL:   labels[GetLabelKey(labelAccessURLKey)],
 		enabled:     enabled,
 	}, nil
 }

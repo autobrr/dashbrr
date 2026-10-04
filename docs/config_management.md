@@ -21,10 +21,10 @@ Reference files:
 # Discover services from Docker containers
 dashbrr config discover --docker
 
-# Discover services from Kubernetes
+# Sync services from Kubernetes (the same sync that serve runs)
 dashbrr config discover --k8s
 
-# Discover from Kubernetes and auto-confirm service import
+# Sync from Kubernetes and apply the changes without a question
 dashbrr config discover --k8s --yes
 
 # Discover from both Docker and Kubernetes
@@ -70,7 +70,7 @@ services:
 
 ## Kubernetes Annotation Configuration
 
-Configure services using Kubernetes service annotations:
+Configure services with annotations on Kubernetes Services:
 
 ```yaml
 apiVersion: v1
@@ -80,8 +80,9 @@ metadata:
   annotations:
     com.dashbrr.service.type: "radarr"
     com.dashbrr.service.url: "http://radarr.media.svc:7878"
-    com.dashbrr.service.apikey: "${RADARR_API_KEY}" # Optional for general/traefik
+    com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}" # Optional for general/traefik
     com.dashbrr.service.name: "Movies"
+    com.dashbrr.service.access_url: "https://radarr.example.com" # Optional: the URL that your browser opens
     com.dashbrr.service.enabled: "true"
 spec:
   ports:
@@ -94,34 +95,90 @@ Notes:
 
 - Dashbrr uses annotations for Kubernetes discovery because URLs and API-key placeholders are not valid Kubernetes label values.
 - When Dashbrr runs inside Kubernetes, discovery uses in-cluster credentials automatically.
-- Dashbrr discovers Services across all namespaces, so its ServiceAccount needs list/read access to Services cluster-wide.
 - Traefik certificate expiry insights use the `traefik_tls_certs_not_after` Prometheus metric from `/metrics`.
   Make sure Traefik metrics are reachable from Dashbrr (same URL or a reachable `:9100` metrics port on the same host).
 
-Minimal RBAC for in-cluster discovery:
+### Sync in serve
+
+When you enable the sync, `serve` reads the annotations at startup and then at each interval. The default interval is 5 minutes.
+
+```toml
+[discovery.kubernetes]
+enabled = true
+namespaces = ["media"] # Use ["*"] for all namespaces.
+interval_minutes = 5
+```
+
+The same settings are available as environment variables. Refer to [`docs/env_vars.md`](env_vars.md).
+
+The annotations own each discovered service. A discovered service is a service that has an instance ID in the form `<type>-k8s-<namespace>.<service>`. Each sync does these steps:
+
+- It adds a discovered service for each Service that has a `type` annotation.
+- It updates a discovered service when an annotation changes. When you remove an annotation, the field becomes empty or gets its default value.
+- It deletes a discovered service when its Service is gone, when its `type` annotation is gone, when its `enabled` annotation is `false`, or when dashbrr no longer scans its namespace.
+- It does not change a service that you added in the UI or imported from a file.
+- If a list from the Kubernetes API fails, it logs the error and changes nothing.
+- If the annotations of a Service are not valid, for example when an env var for `apikey` is not set, it logs a warning and deletes the discovered service. The next sync with valid annotations adds it again.
+
+A change that you make in the UI to a discovered service stays only until the next sync. To change a discovered service, change its annotations.
+
+`dashbrr config discover --k8s` runs the same sync one time. It shows the changes and asks before it applies them.
+
+### Namespaces
+
+- A list of namespaces: dashbrr scans only these namespaces.
+- `*`: dashbrr scans all namespaces. This needs a `ClusterRole`.
+- Empty (the default): dashbrr scans only the namespace of its pod. It reads the namespace from the service account file `/var/run/secrets/kubernetes.io/serviceaccount/namespace`. Outside a cluster, an empty setting is an error.
+
+For the default, a `Role` in the namespace of dashbrr is enough:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: dashbrr-discovery
+  namespace: media
 rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: dashbrr-discovery
+  namespace: media
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: dashbrr-discovery
 subjects:
   - kind: ServiceAccount
     name: dashbrr
-    namespace: your-namespace
+    namespace: media
+```
+
+For a list of namespaces, add the same `Role` and `RoleBinding` in each namespace. For `*`, use a `ClusterRole` and a `ClusterRoleBinding` with the same rules. Refer to [`docs/k8s_discovery_example.yaml`](k8s_discovery_example.yaml).
+
+### API keys
+
+Do not put an API key in an annotation. Put a `${ENV_VAR}` reference in the `apikey` annotation, and set the env var on the dashbrr container. Dashbrr reads the value from its own environment.
+
+For example, an ExternalSecret can create a Secret, and the dashbrr Deployment can read the env var from it:
+
+```yaml
+# On the Service
+metadata:
+  annotations:
+    com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}"
+---
+# On the dashbrr container
+env:
+  - name: DASHBRR_RADARR_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: dashbrr-api-keys # For example, a Secret that an ExternalSecret creates
+        key: radarr
 ```
 
 ## Configuration File Format
