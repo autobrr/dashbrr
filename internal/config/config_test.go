@@ -325,6 +325,8 @@ func TestNormalizeBasePath(t *testing.T) {
 		{in: "/dashbrr/", want: "/dashbrr"},
 		{in: " /dashbrr ", want: "/dashbrr"},
 		{in: "/a/b", want: "/a/b"},
+		{in: "/apps/../dashbrr/", want: "/dashbrr"},
+		{in: "/./dashbrr", want: "/dashbrr"},
 		{in: "http://x/y", wantErr: true},
 		{in: `/a"b`, wantErr: true},
 		{in: "/a'b", wantErr: true},

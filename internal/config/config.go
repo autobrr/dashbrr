@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -253,12 +254,11 @@ func normalizeBasePath(raw string) (BasePath, error) {
 	if strings.ContainsAny(p, "\"'<>` \t\n?#\\:*") {
 		return "", fmt.Errorf("base_path %q has a character that is not permitted (quote, backtick, <, >, ?, #, \\, :, *, or white space)", raw)
 	}
-	p = strings.TrimRight(p, "/")
-	if p == "" {
+	// Clean removes "." and ".." segments. A browser removes them from <base href>
+	// but not from the cookie path.
+	p = path.Clean("/" + p)
+	if p == "/" {
 		return "", nil
-	}
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
 	}
 	// The root health check already uses /health.
 	if p == "/health" {
