@@ -3,7 +3,10 @@
 
 package models
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // ServiceTypeFromInstanceID extracts the service type prefix from an instance id
 // like "radarr-1" or "general-myhost".
@@ -22,4 +25,15 @@ func ServiceTypeFromInstanceID(instanceID string) (string, bool) {
 		return "", false
 	}
 	return t, true
+}
+
+// kubernetesInstanceIDPattern matches the instance ID of a discovered service:
+// <type>-k8s-<namespace>.<service>. Kubernetes names cannot contain dots, so
+// IDs from the UI, from a file, or from before #145 do not match.
+var kubernetesInstanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9]+-k8s-[a-z0-9-]+\.[a-z0-9-]+$`)
+
+// IsDiscoveredInstanceID reports whether Kubernetes discovery owns the service
+// with this instance ID.
+func IsDiscoveredInstanceID(instanceID string) bool {
+	return kubernetesInstanceIDPattern.MatchString(instanceID)
 }

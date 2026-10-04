@@ -120,7 +120,7 @@ The annotations own each discovered service. A discovered service is a service t
 - If a list from the Kubernetes API fails, it logs the error and changes nothing.
 - If the annotations of a Service are not valid, for example when an env var for `apikey` is not set, it logs a warning and deletes the discovered service. The next sync with valid annotations adds it again.
 
-A change that you make in the UI to a discovered service stays only until the next sync. To change a discovered service, change its annotations.
+A discovered service is read-only. The UI shows the Kubernetes icon on its card and has no edit or delete controls for it. The API refuses to edit or delete it. To change a discovered service, change its annotations.
 
 `dashbrr config discover --k8s` runs the same sync one time. It shows the changes and asks before it applies them.
 

@@ -38,7 +38,7 @@ func (k *KubernetesDiscovery) Plan(ctx context.Context, db *database.DB) (SyncPl
 
 	existing := make(map[string]models.ServiceConfiguration)
 	for _, s := range services {
-		if kubernetesInstanceIDPattern.MatchString(s.InstanceID) {
+		if models.IsDiscoveredInstanceID(s.InstanceID) {
 			s.ID = 0
 			existing[s.InstanceID] = s
 		}

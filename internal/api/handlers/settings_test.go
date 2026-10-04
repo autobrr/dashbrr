@@ -82,3 +82,64 @@ func TestSaveSettingsRejectsInvalidURL(t *testing.T) {
 		})
 	}
 }
+
+func TestSettingsRefuseDiscoveredService(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// The check runs before any database access. The handler has no database,
+	// so a request that reaches the database panics.
+	h := &SettingsHandler{}
+	router := gin.New()
+	router.POST("/settings/:instance", h.SaveSettings)
+	router.DELETE("/settings/:instance", h.DeleteSettings)
+
+	tests := []struct {
+		name   string
+		method string
+		body   string
+	}{
+		{name: "edit", method: http.MethodPost, body: `{"url":"http://radarr:7878"}`},
+		{name: "delete", method: http.MethodDelete},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/settings/radarr-k8s-media.radarr", strings.NewReader(tt.body))
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+			}
+			var resp struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if resp.Error != discoveredServiceMessage {
+				t.Fatalf("error = %q, want %q", resp.Error, discoveredServiceMessage)
+			}
+		})
+	}
+}
+
+func TestServiceConfigResponseMarksDiscovered(t *testing.T) {
+	tests := []struct {
+		instanceID string
+		want       bool
+	}{
+		{instanceID: "radarr-k8s-media.radarr", want: true},
+		{instanceID: "radarr-1", want: false},
+		{instanceID: "radarr-docker", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.instanceID, func(t *testing.T) {
+			got := serviceConfigResponse(models.ServiceConfiguration{InstanceID: tt.instanceID})
+			if got.Discovered != tt.want {
+				t.Fatalf("Discovered = %v, want %v", got.Discovered, tt.want)
+			}
+		})
+	}
+}

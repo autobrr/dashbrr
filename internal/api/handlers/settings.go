@@ -36,9 +36,24 @@ type SettingsHandler struct {
 	lastDebugLog   time.Time
 }
 
-func sanitizeServiceConfig(c models.ServiceConfiguration) models.ServiceConfiguration {
+// serviceConfigResponse prepares a configuration for an API response: it
+// removes the API key and marks a discovered service.
+func serviceConfigResponse(c models.ServiceConfiguration) models.ServiceConfiguration {
 	c.APIKey = ""
+	c.Discovered = models.IsDiscoveredInstanceID(c.InstanceID)
 	return c
+}
+
+const discoveredServiceMessage = "Kubernetes discovery manages this service. Change its annotations to change it."
+
+// refuseDiscoveredService writes an error and returns true when discovery owns
+// the service. The next sync overwrites any change.
+func refuseDiscoveredService(c *gin.Context, instanceID string) bool {
+	if !models.IsDiscoveredInstanceID(instanceID) {
+		return false
+	}
+	c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
+	return true
 }
 
 func NewSettingsHandler(db *database.DB, cache cache.Store, poller *Poller) *SettingsHandler {
@@ -77,7 +92,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 
 		configMap := make(map[string]models.ServiceConfiguration)
 		for _, config := range configurations {
-			configMap[config.InstanceID] = sanitizeServiceConfig(config)
+			configMap[config.InstanceID] = serviceConfigResponse(config)
 		}
 		c.JSON(http.StatusOK, configMap)
 		return
@@ -110,7 +125,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 
 	configMap := make(map[string]models.ServiceConfiguration)
 	for _, config := range configurations {
-		configMap[config.InstanceID] = sanitizeServiceConfig(config)
+		configMap[config.InstanceID] = serviceConfigResponse(config)
 	}
 	c.JSON(http.StatusOK, configMap)
 }
@@ -136,6 +151,9 @@ func isHTTPURL(raw string) bool {
 
 func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
+	if refuseDiscoveredService(c, instanceID) {
+		return
+	}
 
 	var config models.ServiceConfiguration
 	if err := c.BindJSON(&config); err != nil {
@@ -203,11 +221,14 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	}
 
 	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")
-	c.JSON(http.StatusOK, sanitizeServiceConfig(config))
+	c.JSON(http.StatusOK, serviceConfigResponse(config))
 }
 
 func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
+	if refuseDiscoveredService(c, instanceID) {
+		return
+	}
 
 	// Check if configuration exists before deleting
 	existing, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})

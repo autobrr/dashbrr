@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -22,11 +21,6 @@ import (
 
 // podNamespaceFile holds the namespace of the pod when dashbrr runs in a cluster.
 const podNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-
-// kubernetesInstanceIDPattern matches the instance ID of a discovered service:
-// <type>-k8s-<namespace>.<service>. Kubernetes names cannot contain dots, so
-// IDs from the UI, from a file, or from before #145 do not match.
-var kubernetesInstanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9]+-k8s-[a-z0-9-]+\.[a-z0-9-]+$`)
 
 // KubernetesDiscovery handles service discovery from Kubernetes metadata.
 type KubernetesDiscovery struct {
