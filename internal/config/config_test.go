@@ -334,6 +334,9 @@ func TestNormalizeBasePath(t *testing.T) {
 		{in: "/dash#x", wantErr: true},
 		{in: `/\example.com`, wantErr: true},
 		{in: "//example.com", wantErr: true},
+		{in: "/*app", wantErr: true},
+		{in: "/:app", wantErr: true},
+		{in: "/health/", wantErr: true},
 	}
 
 	for _, tt := range tests {
