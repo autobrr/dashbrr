@@ -33,6 +33,16 @@ Only needed if you serve the web UI from a different origin than the API (differ
   - Purpose: Preflight cache max-age, in hours
   - Default: `12`
 
+## *arr Health Checks
+
+- `DASHBRR__ARR_IGNORED_HEALTH_CHECKS`
+  - Purpose: Comma-separated list of *arr health check names to ignore. An ignored check does not show in the health message and does not put the service in the warning state.
+  - Applies to: Radarr, Sonarr, Lidarr, Readarr, Whisparr, and Prowlarr
+  - Example: `RemovedSeriesCheck,RemovedMovieCheck`
+  - Default: unset (dashbrr shows all health checks)
+  - Note: The name is the `source` field of the *arr health API. Letter case and outer spaces do not matter.
+  - Note: You can also set this list in `config.toml`, as `ignored_health_checks` under `[arr]`. The environment variable has priority.
+
 ## Logging
 
 - `DASHBRR__LOG_LEVEL`

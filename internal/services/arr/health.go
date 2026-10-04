@@ -32,6 +32,27 @@ type HealthResponse struct {
 	WikiURL string `json:"wikiUrl"`
 }
 
+// ignoredHealthChecks holds the lowercase *arr health check names that do not
+// change the service status. SetIgnoredHealthChecks sets it once at startup.
+var ignoredHealthChecks map[string]struct{}
+
+// SetIgnoredHealthChecks sets the *arr health check names, for example
+// RemovedSeriesCheck, that the health check ignores. Call it before the first
+// health check.
+func SetIgnoredHealthChecks(names []string) {
+	ignoredHealthChecks = newIgnoredSet(names)
+}
+
+func newIgnoredSet(names []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if name = strings.ToLower(strings.TrimSpace(name)); name != "" {
+			set[name] = struct{}{}
+		}
+	}
+	return set
+}
+
 // HealthChecker interface defines methods required for health checking
 type HealthChecker interface {
 	GetSystemStatus(ctx context.Context, url, apiKey string) (string, error)
@@ -49,7 +70,7 @@ func ArrHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string
 	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
-	health, err := performHealthCheck(healthCtx, s, url, apiKey, checker)
+	health, err := performHealthCheck(healthCtx, s, url, apiKey, checker, ignoredHealthChecks)
 	if err != nil {
 		log.Error().Err(err).Str("url", url).Msg("Health check failed")
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
@@ -59,7 +80,7 @@ func ArrHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string
 }
 
 // performHealthCheck executes the actual health check
-func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker) (models.ServiceHealth, error) {
+func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string, checker HealthChecker, ignored map[string]struct{}) (models.ServiceHealth, error) {
 	startTime := time.Now()
 
 	// Get version synchronously first
@@ -168,6 +189,9 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	seenWarnings := make(map[string]struct{}, len(healthIssues))
 	for _, issue := range healthIssues {
 		if issue.Type == "warning" || issue.Type == "error" {
+			if _, skip := ignored[strings.ToLower(strings.TrimSpace(issue.Source))]; skip {
+				continue
+			}
 			display, dedupeKey := formatWarningMessage(issue.Source, issue.Message)
 			if display == "" {
 				continue
