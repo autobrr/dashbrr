@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { ServiceHeader } from "../src/components/ui/ServiceHeader.tsx";
 
-const render = (discovered: boolean) =>
+const render = (discovered: boolean, canConfigure = true) =>
   renderToStaticMarkup(
     createElement(ServiceHeader, {
       displayName: "Radarr",
@@ -13,14 +13,20 @@ const render = (discovered: boolean) =>
       onConfigure: () => {},
       onRemove: () => {},
       discovered,
+      canConfigure,
     })
   );
 
-test("a discovered service shows the Kubernetes icon, an API key control, and no delete control", () => {
-  const html = render(true);
+test("a discovered service shows the Kubernetes icon and no edit or delete controls", () => {
+  const html = render(true, false);
   assert.match(html, /title="Managed by Kubernetes discovery"/);
-  assert.match(html, /title="Set API key"/);
-  assert.doesNotMatch(html, /Configure service/);
+  assert.doesNotMatch(html, /Configure service|Sign in with Plex/);
+  assert.doesNotMatch(html, /Remove service/);
+});
+
+test("a discovered Plex keeps the Plex sign-in and no delete control", () => {
+  const html = render(true);
+  assert.match(html, /title="Sign in with Plex"/);
   assert.doesNotMatch(html, /Remove service/);
 });
 

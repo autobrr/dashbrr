@@ -28,6 +28,7 @@ interface ServiceHeaderProps {
   needsConfiguration?: boolean;
   status?: ServiceStatus;
   discovered?: boolean;
+  canConfigure?: boolean;
 }
 
 export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
@@ -41,6 +42,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   needsConfiguration,
   status,
   discovered,
+  canConfigure = true,
 }) => {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
 
@@ -128,20 +130,22 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
               needsConfiguration ? "" : "opacity-100 @md:opacity-0 @md:group-hover:opacity-100"
             } transition-all duration-200`}
           >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onConfigure(e);
-              }}
-              className={`p-1.5 rounded-full transition-all duration-200 ${
-                needsConfiguration
-                  ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/20"
-                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700"
-              }`}
-              title={discovered ? "Set API key" : "Configure service"}
-            >
-              <Cog6ToothIcon className="h-4 w-4" />
-            </button>
+            {canConfigure && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConfigure(e);
+                }}
+                className={`p-1.5 rounded-full transition-all duration-200 ${
+                  needsConfiguration
+                    ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/20"
+                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                }`}
+                title={discovered ? "Sign in with Plex" : "Configure service"}
+              >
+                <Cog6ToothIcon className="h-4 w-4" />
+              </button>
+            )}
             {!discovered && (
               <button
                 onClick={handleRemoveClick}
