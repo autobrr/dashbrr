@@ -197,6 +197,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                 }}
                 needsConfiguration={needsConfiguration}
                 status={service.status}
+                discovered={currentConfig?.discovered}
               />
             </div>
           </div>

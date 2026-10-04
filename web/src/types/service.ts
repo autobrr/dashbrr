@@ -69,6 +69,8 @@ export interface ServiceConfig {
   accessUrl?: string;
   apiKey?: string;
   displayName: string;
+  // Kubernetes discovery owns the service, so the user cannot change it.
+  discovered?: boolean;
 }
 
 // Autobrr Types

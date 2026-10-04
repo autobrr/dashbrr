@@ -9,6 +9,7 @@ import {
   Cog6ToothIcon,
   TrashIcon
 } from "@heroicons/react/20/solid";
+import { SiKubernetes } from "react-icons/si";
 import AnimatedModal from "./AnimatedModal";
 import { StatusIcon, StatusType } from "./StatusIcon";
 import { repoUrls } from "../../config/repoUrls";
@@ -26,6 +27,7 @@ interface ServiceHeaderProps {
   onRemove: (e?: React.MouseEvent) => void;
   needsConfiguration?: boolean;
   status?: ServiceStatus;
+  discovered?: boolean;
 }
 
 export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
@@ -38,6 +40,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   onRemove,
   needsConfiguration,
   status,
+  discovered,
 }) => {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
 
@@ -110,33 +113,44 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
           </div>
         </div>
         <div className="ml-2 flex items-center space-x-2 @md:ml-4">
-          <div
-            className={`flex items-center ${
-              needsConfiguration ? "" : "opacity-100 @md:opacity-0 @md:group-hover:opacity-100"
-            } transition-all duration-200`}
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onConfigure(e);
-              }}
-              className={`p-1.5 rounded-full transition-all duration-200 ${
-                needsConfiguration
-                  ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/20"
-                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700"
-              }`}
-              title="Configure service"
+          {discovered ? (
+            <span
+              className="p-1.5 text-zinc-400"
+              title="Managed by Kubernetes discovery"
+              aria-label="Managed by Kubernetes discovery"
+              role="img"
             >
-              <Cog6ToothIcon className="h-4 w-4" />
-            </button>
-            <button
-              onClick={handleRemoveClick}
-              className="rounded-full p-1.5 text-red-500 transition-all duration-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/20 dark:hover:text-red-300"
-              title="Remove service"
+              <SiKubernetes className="h-4 w-4" />
+            </span>
+          ) : (
+            <div
+              className={`flex items-center ${
+                needsConfiguration ? "" : "opacity-100 @md:opacity-0 @md:group-hover:opacity-100"
+              } transition-all duration-200`}
             >
-              <TrashIcon className="h-4 w-4" />
-            </button>
-          </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConfigure(e);
+                }}
+                className={`p-1.5 rounded-full transition-all duration-200 ${
+                  needsConfiguration
+                    ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/20"
+                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                }`}
+                title="Configure service"
+              >
+                <Cog6ToothIcon className="h-4 w-4" />
+              </button>
+              <button
+                onClick={handleRemoveClick}
+                className="rounded-full p-1.5 text-red-500 transition-all duration-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/20 dark:hover:text-red-300"
+                title="Remove service"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {status && (
             <div className="flex-shrink-0">
               <StatusIcon status={status as StatusType} />
