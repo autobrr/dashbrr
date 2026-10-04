@@ -49,6 +49,7 @@ metadata:
 data:
   RADARR_API_KEY: "replace-me"
   SONARR_API_KEY: "replace-me"
+  DASHBRR__ARR_IGNORED_HEALTH_CHECKS: "RemovedSeriesCheck,RemovedMovieCheck"
 ---
 apiVersion: v1
 kind: Service

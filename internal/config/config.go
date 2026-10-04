@@ -30,6 +30,14 @@ type Config struct {
 	Database database.Config `toml:"database"`
 	Auth     AuthConfig      `toml:"auth"`
 	Log      LogConfig       `toml:"log"`
+	Arr      ArrConfig       `toml:"arr"`
+}
+
+// ArrConfig holds configuration that applies to all *arr services
+type ArrConfig struct {
+	// IgnoredHealthChecks holds *arr health check names, for example
+	// RemovedSeriesCheck, that do not change the service status.
+	IgnoredHealthChecks []string `toml:"ignored_health_checks" env:"DASHBRR__ARR_IGNORED_HEALTH_CHECKS"`
 }
 
 // LogConfig holds logging-related configuration
@@ -257,6 +265,18 @@ func LoadEnvOverrides(config *Config) error {
 	}
 
 	config.Database.ApplyEnvOverrides()
+
+	// Arr
+	if env := os.Getenv("DASHBRR__ARR_IGNORED_HEALTH_CHECKS"); env != "" {
+		var checks []string
+		for p := range strings.SplitSeq(env, ",") {
+			v := strings.TrimSpace(p)
+			if v != "" {
+				checks = append(checks, v)
+			}
+		}
+		config.Arr.IgnoredHealthChecks = checks
+	}
 
 	// Log
 	if env := os.Getenv("DASHBRR__LOG_LEVEL"); env != "" {
