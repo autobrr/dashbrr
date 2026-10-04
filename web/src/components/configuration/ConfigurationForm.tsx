@@ -27,6 +27,8 @@ export const ConfigurationForm = ({
   const { configurations, updateConfiguration } = useConfiguration();
   const currentConfig = configurations[instanceId];
   const hasExistingConfig = Boolean(currentConfig);
+  // Discovery owns every field of a discovered service except the API key.
+  const isDiscovered = Boolean(currentConfig?.discovered);
   const serviceType = instanceId.split("-")[0];
   const isPlexService = serviceType === "plex";
   const requiresApiKey =
@@ -251,46 +253,50 @@ export const ConfigurationForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <FormInput
-        id="displayName"
-        label="Display Name"
-        type="text"
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-        placeholder="Enter display name"
-        required
-      />
+      {!isDiscovered && (
+        <>
+          <FormInput
+            id="displayName"
+            label="Display Name"
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Enter display name"
+            required
+          />
 
-      <FormInput
-        id="url"
-        label="URL"
-        type="text"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder={getUrlPlaceholder()}
-        helpText={{
-          prefix: "Used for ",
-          text: "API communication and health checks",
-          link: null,
-        }}
-        required
-        data-1p-ignore
-      />
+          <FormInput
+            id="url"
+            label="URL"
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder={getUrlPlaceholder()}
+            helpText={{
+              prefix: "Used for ",
+              text: "API communication and health checks",
+              link: null,
+            }}
+            required
+            data-1p-ignore
+          />
 
-      <FormInput
-        id="accessUrl"
-        label="Access URL (Optional)"
-        type="text"
-        value={accessUrl}
-        onChange={(e) => setAccessUrl(e.target.value)}
-        placeholder="Leave empty to use main URL"
-        helpText={{
-          prefix: "Override ",
-          text: "URL used when opening service in browser. Useful for internal/external URL differences.",
-          link: null,
-        }}
-        data-1p-ignore
-      />
+          <FormInput
+            id="accessUrl"
+            label="Access URL (Optional)"
+            type="text"
+            value={accessUrl}
+            onChange={(e) => setAccessUrl(e.target.value)}
+            placeholder="Leave empty to use main URL"
+            helpText={{
+              prefix: "Override ",
+              text: "URL used when opening service in browser. Useful for internal/external URL differences.",
+              link: null,
+            }}
+            data-1p-ignore
+          />
+        </>
+      )}
 
       {serviceType !== "general" &&
         (isPlexService ? (

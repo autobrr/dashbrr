@@ -16,9 +16,10 @@ const render = (discovered: boolean) =>
     })
   );
 
-test("a discovered service shows the Kubernetes icon and no edit or delete controls", () => {
+test("a discovered service shows the Kubernetes icon, an API key control, and no delete control", () => {
   const html = render(true);
   assert.match(html, /title="Managed by Kubernetes discovery"/);
+  assert.match(html, /title="Set API key"/);
   assert.doesNotMatch(html, /Configure service/);
   assert.doesNotMatch(html, /Remove service/);
 });
