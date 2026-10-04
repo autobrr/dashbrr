@@ -66,7 +66,7 @@ metadata:
   namespace: media
   annotations:
     com.dashbrr.service.type: "radarr"
-    com.dashbrr.service.url: "http://radarr.media.svc.cluster.local:7878"
+    # No url annotation: discovery infers http://radarr.media.svc:7878 from the port named http.
     com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}"
     com.dashbrr.service.name: "Radarr"
     com.dashbrr.service.access_url: "https://radarr.example.com"

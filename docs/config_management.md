@@ -108,9 +108,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: radarr
+  namespace: media
   annotations:
     com.dashbrr.service.type: "radarr"
-    com.dashbrr.service.url: "http://radarr.media.svc:7878"
+    com.dashbrr.service.url: "http://radarr.media.svc:7878" # Optional: see "Inferred URL" below
     com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}" # Optional for general/traefik. Ignored for Plex: use the Plex sign-in in the UI
     com.dashbrr.service.name: "Movies"
     com.dashbrr.service.access_url: "https://radarr.example.com" # Optional: the URL that your browser opens
@@ -121,6 +122,24 @@ spec:
   selector:
     app: radarr
 ```
+
+### Inferred URL
+
+The `url` annotation is optional. When a Service has no `url` annotation, discovery builds the URL from the Service: `<scheme>://<service>.<namespace>.svc[:<port>]`.
+
+Discovery selects the port in this order:
+
+1. The port named `https`, with the scheme `https`.
+2. The port named `http`, with the scheme `http`.
+3. The first port, with the scheme `http`.
+
+The URL does not include the port when the port is the default port for the scheme (80 for `http`, 443 for `https`). The URL does not include a cluster domain, because the DNS search list of the pod resolves `<service>.<namespace>.svc`.
+
+For the Service above, without the `url` annotation, the URL is `http://radarr.media.svc:7878`. The port has no name, so discovery uses the first port.
+
+When you set the `url` annotation, discovery always uses it.
+
+The inferred URL resolves only inside the cluster. If dashbrr runs outside the cluster with a kubeconfig, set the `url` annotation.
 
 Notes:
 

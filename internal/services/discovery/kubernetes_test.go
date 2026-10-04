@@ -1,8 +1,12 @@
 package discovery
 
-import "testing"
+import (
+	"testing"
 
-func TestParseServiceAnnotations_Valid(t *testing.T) {
+	corev1 "k8s.io/api/core/v1"
+)
+
+func TestParseService_Valid(t *testing.T) {
 	t.Setenv("DASHBRR_RADARR_API_KEY", "annotation-key")
 
 	k := &KubernetesDiscovery{}
@@ -12,7 +16,7 @@ func TestParseServiceAnnotations_Valid(t *testing.T) {
 		GetLabelKey(labelAPIKeyKey): "${DASHBRR_RADARR_API_KEY}",
 		GetLabelKey(labelNameKey):   "Movies",
 	}
-	service, err := k.parseServiceAnnotations(annotations, "radarr", "radarr")
+	service, err := k.parseService(k8sService("radarr", "radarr", annotations))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -33,7 +37,7 @@ func TestParseServiceAnnotations_Valid(t *testing.T) {
 	}
 }
 
-func TestParseServiceAnnotations_InstanceID(t *testing.T) {
+func TestParseService_InstanceID(t *testing.T) {
 	k := &KubernetesDiscovery{}
 	annotations := map[string]string{
 		GetLabelKey(labelTypeKey):   "sonarr",
@@ -56,7 +60,7 @@ func TestParseServiceAnnotations_InstanceID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := k.parseServiceAnnotations(annotations, tt.namespace, tt.serviceName)
+			service, err := k.parseService(k8sService(tt.namespace, tt.serviceName, annotations))
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -67,13 +71,13 @@ func TestParseServiceAnnotations_InstanceID(t *testing.T) {
 	}
 }
 
-func TestParseServiceAnnotations_IgnoresNonDiscoveryAnnotations(t *testing.T) {
+func TestParseService_IgnoresNonDiscoveryAnnotations(t *testing.T) {
 	k := &KubernetesDiscovery{}
 	annotations := map[string]string{
 		"tailscale.com/expose": "true",
 	}
 
-	service, err := k.parseServiceAnnotations(annotations, "sonarr", "sonarr")
+	service, err := k.parseService(k8sService("sonarr", "sonarr", annotations))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -82,7 +86,7 @@ func TestParseServiceAnnotations_IgnoresNonDiscoveryAnnotations(t *testing.T) {
 	}
 }
 
-func TestParseServiceAnnotations_Disabled(t *testing.T) {
+func TestParseService_Disabled(t *testing.T) {
 	k := &KubernetesDiscovery{}
 	annotations := map[string]string{
 		GetLabelKey(labelTypeKey):    "prowlarr",
@@ -91,7 +95,7 @@ func TestParseServiceAnnotations_Disabled(t *testing.T) {
 		GetLabelKey(labelEnabledKey): "false",
 	}
 
-	service, err := k.parseServiceAnnotations(annotations, "prowlarr", "prowlarr")
+	service, err := k.parseService(k8sService("prowlarr", "prowlarr", annotations))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,14 +104,79 @@ func TestParseServiceAnnotations_Disabled(t *testing.T) {
 	}
 }
 
-func TestParseServiceAnnotations_NoMetadata(t *testing.T) {
+func TestParseService_NoMetadata(t *testing.T) {
 	k := &KubernetesDiscovery{}
 
-	service, err := k.parseServiceAnnotations(nil, "default", "svc")
+	service, err := k.parseService(k8sService("default", "svc", nil))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if service != nil {
 		t.Fatalf("expected nil service when no discovery metadata exists")
+	}
+}
+
+func TestParseService_InferredURL(t *testing.T) {
+	k := &KubernetesDiscovery{}
+	tests := []struct {
+		name  string
+		url   string
+		ports []corev1.ServicePort
+		want  string
+	}{
+		{
+			name:  "http port on default port",
+			ports: []corev1.ServicePort{{Name: "metrics", Port: 9090}, {Name: "http", Port: 80}},
+			want:  "http://radarr.media.svc",
+		},
+		{
+			name:  "https port wins over http",
+			ports: []corev1.ServicePort{{Name: "http", Port: 80}, {Name: "https", Port: 8443}},
+			want:  "https://radarr.media.svc:8443",
+		},
+		{
+			name:  "https on default port",
+			ports: []corev1.ServicePort{{Name: "https", Port: 443}},
+			want:  "https://radarr.media.svc",
+		},
+		{
+			name:  "first unnamed port",
+			ports: []corev1.ServicePort{{Port: 7878}},
+			want:  "http://radarr.media.svc:7878",
+		},
+		{
+			name:  "url annotation overrides",
+			url:   "http://radarr.example.test:7878",
+			ports: []corev1.ServicePort{{Name: "http", Port: 80}},
+			want:  "http://radarr.example.test:7878",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			annotations := map[string]string{GetLabelKey(labelTypeKey): "radarr"}
+			if tt.url != "" {
+				annotations[GetLabelKey(labelURLKey)] = tt.url
+			}
+			svc := k8sService("media", "radarr", annotations)
+			svc.Spec.Ports = tt.ports
+
+			service, err := k.parseService(svc)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if service.URL != tt.want {
+				t.Fatalf("url = %q, want %q", service.URL, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseService_NoURLAndNoPorts(t *testing.T) {
+	k := &KubernetesDiscovery{}
+	svc := k8sService("media", "radarr", map[string]string{GetLabelKey(labelTypeKey): "radarr"})
+
+	if _, err := k.parseService(svc); err == nil {
+		t.Fatal("expected error for a service with no url annotation and no ports")
 	}
 }
