@@ -250,9 +250,12 @@ func normalizeBasePath(raw string) (BasePath, error) {
 		return "", fmt.Errorf("base_path %q is a path, not a URL: use a value such as /dashbrr", raw)
 	}
 	// A browser also reads "?" and "#" as the start of a query or a fragment, and "\" as "/".
-	// Gin reads ":" and "*" as route parameters.
-	if strings.ContainsAny(p, "\"'<>` \t\n?#\\:*") {
-		return "", fmt.Errorf("base_path %q has a character that is not permitted (quote, backtick, <, >, ?, #, \\, :, *, or white space)", raw)
+	// Gin reads ":" and "*" as route parameters. Go drops control characters and
+	// non-ASCII bytes from the cookie path, and then the session cookie does not match.
+	if strings.ContainsFunc(p, func(r rune) bool {
+		return r <= ' ' || r > '~' || strings.ContainsRune("\"'<>`?#\\:*", r)
+	}) {
+		return "", fmt.Errorf("base_path %q has a character that is not permitted (quote, backtick, <, >, ?, #, \\, :, *, white space, or a character outside ASCII)", raw)
 	}
 	// Clean removes "." and ".." segments. A browser removes them from <base href>
 	// but not from the cookie path.
