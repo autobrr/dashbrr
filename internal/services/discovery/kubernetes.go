@@ -212,8 +212,9 @@ func inferServiceURL(service *corev1.Service) string {
 // httpRoute holds the fields of a Gateway API HTTPRoute that discovery reads.
 type httpRoute struct {
 	Spec struct {
-		Hostnames []string `json:"hostnames"`
-		Rules     []struct {
+		ParentRefs []struct{} `json:"parentRefs"`
+		Hostnames  []string   `json:"hostnames"`
+		Rules      []struct {
 			Matches []struct {
 				Path struct {
 					Type  string `json:"type"`
@@ -250,7 +251,7 @@ func (r *httpRoute) rejected() bool {
 
 // routeAccessURLs maps each Service to https://<hostname><path> of an HTTPRoute that
 // has a backendRef to that Service in the namespace of the route. It uses the
-// first hostname that is not a wildcard, and skips rejected routes and backendRefs with weight 0.
+// first hostname that is not a wildcard. It skips routes with no parentRefs, rejected routes, and backendRefs with weight 0.
 // The path comes from the first PathPrefix or Exact match of the rule. When more than one route
 // matches, it uses the route whose name is first in alphabetical order. When the HTTPRoute CRD is not installed or RBAC
 // refuses the read, it logs at debug level and returns no URLs.
@@ -273,9 +274,9 @@ func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace str
 			log.Warn().Err(err).Str("namespace", item.GetNamespace()).Str("route", item.GetName()).Msg("Failed to parse HTTPRoute")
 			continue
 		}
-		// A browser cannot open a wildcard hostname.
+		// A browser cannot open a wildcard hostname. A route with no parentRefs never attaches to a Gateway.
 		i := slices.IndexFunc(route.Spec.Hostnames, func(h string) bool { return !strings.HasPrefix(h, "*") })
-		if i < 0 || route.rejected() {
+		if i < 0 || len(route.Spec.ParentRefs) == 0 || route.rejected() {
 			continue
 		}
 		for _, rule := range route.Spec.Rules {

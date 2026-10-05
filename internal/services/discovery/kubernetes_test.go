@@ -197,8 +197,9 @@ func newHTTPRoute(namespace, name string, hostnames []any, backends ...any) *uns
 		"kind":       "HTTPRoute",
 		"metadata":   map[string]any{"namespace": namespace, "name": name},
 		"spec": map[string]any{
-			"hostnames": hostnames,
-			"rules":     []any{map[string]any{"backendRefs": backends}},
+			"parentRefs": []any{map[string]any{"name": "gateway"}},
+			"hostnames":  hostnames,
+			"rules":      []any{map[string]any{"backendRefs": backends}},
 		},
 	}}
 }
@@ -218,6 +219,11 @@ func withPath(route *unstructured.Unstructured, pathType, value string) *unstruc
 	rule := route.Object["spec"].(map[string]any)["rules"].([]any)[0].(map[string]any)
 	matches, _ := rule["matches"].([]any)
 	rule["matches"] = append(matches, map[string]any{"path": map[string]any{"type": pathType, "value": value}})
+	return route
+}
+
+func withoutParentRefs(route *unstructured.Unstructured) *unstructured.Unstructured {
+	delete(route.Object["spec"].(map[string]any), "parentRefs")
 	return route
 }
 
@@ -336,6 +342,11 @@ func TestList_AccessURLFromHTTPRoute(t *testing.T) {
 				newHTTPRoute("media", "b", []any{"b.example.com"}, map[string]any{"name": "radarr", "weight": int64(1)}),
 			},
 			want: "https://b.example.com",
+		},
+		{
+			name:        "route without parentRefs skipped",
+			annotations: radarr,
+			routes:      []runtime.Object{withoutParentRefs(newHTTPRoute("media", "radarr", []any{"radarr.example.com"}, map[string]any{"name": "radarr"}))},
 		},
 		{
 			name:        "route without hostnames",
