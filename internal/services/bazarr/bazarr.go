@@ -122,7 +122,7 @@ func (s *BazarrService) GetSystemStatus(ctx context.Context, baseURL, apiKey str
 	}
 
 	if err := s.CacheVersion(ctx, baseURL, version, bazarrVersionCacheTTL); err != nil {
-		log.Debug().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache Bazarr version")
+		log.Debug().Err(err).Str("url", core.RedactURL(baseURL)).Str("version", version).Msg("Failed to cache Bazarr version")
 	}
 
 	return version, nil

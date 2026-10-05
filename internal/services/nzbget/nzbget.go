@@ -106,7 +106,7 @@ func (s *NzbgetService) GetVersion(ctx context.Context, baseURL, apiKey string) 
 	}
 
 	if err := s.CacheVersion(ctx, baseURL, version, nzbgetVersionCacheTTL); err != nil {
-		log.Debug().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache NZBGet version")
+		log.Debug().Err(err).Str("url", core.RedactURL(baseURL)).Str("version", version).Msg("Failed to cache NZBGet version")
 	}
 
 	return version, nil

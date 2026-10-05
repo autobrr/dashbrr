@@ -72,7 +72,7 @@ func ArrHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey string
 
 	health, err := performHealthCheck(healthCtx, s, url, apiKey, checker, ignoredHealthChecks)
 	if err != nil {
-		log.Error().Err(err).Str("url", url).Msg("Health check failed")
+		log.Error().Err(err).Str("url", core.RedactURL(url)).Msg("Health check failed")
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Health check failed: %v", err)), http.StatusOK
 	}
 
@@ -114,16 +114,16 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 					errors.Is(err, context.DeadlineExceeded) ||
 					errors.Is(err, core.ErrContextCanceled)
 				if !cancelledErr {
-					log.Debug().Err(err).Str("url", url).Msg("Update check failed")
+					log.Debug().Err(err).Str("url", core.RedactURL(url)).Msg("Update check failed")
 				}
 				if err := s.CacheUpdateStatus(cacheCtx, url, updateAvailable, updateErrorCacheTTL); err != nil {
-					log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
+					log.Debug().Err(err).Str("url", core.RedactURL(url)).Msg("Failed to cache update status")
 				}
 				return
 			}
 
 			if err := s.CacheUpdateStatus(cacheCtx, url, hasUpdate, updateCacheTTL); err != nil {
-				log.Debug().Err(err).Str("url", url).Msg("Failed to cache update status")
+				log.Debug().Err(err).Str("url", core.RedactURL(url)).Msg("Failed to cache update status")
 			}
 		}()
 	}

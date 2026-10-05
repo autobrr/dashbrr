@@ -185,7 +185,7 @@ func (s *TraefikService) GetVersion(ctx context.Context, baseURL, apiKey string)
 	}
 
 	if err := s.CacheVersion(ctx, baseURL, version, traefikVersionCacheTTL); err != nil {
-		log.Debug().Err(err).Str("url", baseURL).Str("version", version).Msg("failed to cache Traefik version")
+		log.Debug().Err(err).Str("url", core.RedactURL(baseURL)).Str("version", version).Msg("failed to cache Traefik version")
 	}
 
 	return version, nil
@@ -430,27 +430,40 @@ func (s *TraefikService) GetCertificateSummary(ctx context.Context, baseURL, api
 	var lastErr error
 	now := time.Now().UTC()
 
-	for _, endpoint := range endpoints {
+	for i, endpoint := range endpoints {
+		redacted := core.RedactURL(endpoint)
 		resp, reqErr := s.DoRequest(ctx, http.MethodGet, endpoint, headers, nil)
 		if reqErr != nil {
-			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("request failed for %s: %w", endpoint, reqErr)}
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("request failed for %s: %w", redacted, reqErr)}
+			continue
+		}
+
+		// A failed endpoint is expected while a fallback endpoint is left, so
+		// it logs at debug level and not through ReadBody.
+		if resp.StatusCode != http.StatusOK && i < len(endpoints)-1 {
+			_ = resp.Body.Close()
+			log.Debug().
+				Str("service", s.Type).
+				Str("url", redacted).
+				Int("status", resp.StatusCode).
+				Msg("Traefik metrics endpoint failed, trying the next endpoint")
 			continue
 		}
 
 		body, readErr := s.ReadBody(resp)
 		_ = resp.Body.Close()
 		if readErr != nil {
-			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("read failed for %s: %w", endpoint, readErr)}
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("read failed for %s: %w", redacted, readErr)}
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			lastErr = &ErrTraefik{Op: "get_cert_metrics", HttpCode: resp.StatusCode}
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("status %d for %s", resp.StatusCode, redacted)}
 			continue
 		}
 
 		summary, parseErr := parseTraefikCertificateMetrics(string(body), now)
 		if parseErr != nil {
-			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("parse failed for %s: %w", endpoint, parseErr)}
+			lastErr = &ErrTraefik{Op: "get_cert_metrics", Err: fmt.Errorf("parse failed for %s: %w", redacted, parseErr)}
 			continue
 		}
 

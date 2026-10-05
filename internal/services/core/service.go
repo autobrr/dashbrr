@@ -11,6 +11,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -93,8 +94,8 @@ func (s *ServiceCore) initCache() error {
 
 // DoRequest makes an HTTP request with the provided context, method, and optional body.
 // Uses the shared HTTP client pool + service-specific timeout.
-func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, headers map[string]string, body []byte) (*http.Response, error) {
-	if url == "" {
+func (s *ServiceCore) DoRequest(ctx context.Context, method string, rawURL string, headers map[string]string, body []byte) (*http.Response, error) {
+	if rawURL == "" {
 		log.Error().Msg("Service is not configured")
 		return nil, ErrServiceNotConfigured
 	}
@@ -122,12 +123,13 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(reqCtx, method, url, bodyReader)
+	req, err := http.NewRequestWithContext(reqCtx, method, rawURL, bodyReader)
 	if err != nil {
 		if cancel != nil {
 			cancel()
 		}
-		log.Error().Err(err).Str("url", url).Msg("Failed to create request")
+		err = redactURLError(err)
+		log.Error().Err(err).Str("url", RedactURL(rawURL)).Msg("Failed to create request")
 		return nil, err
 	}
 
@@ -146,8 +148,9 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		if cancel != nil {
 			cancel()
 		}
+		err = redactURLError(err)
 		log.Error().Err(err).
-			Str("url", url).
+			Str("url", RedactURL(rawURL)).
 			Dur("timeout", timeout).
 			Msg("Request failed")
 		return nil, err
@@ -156,7 +159,7 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 		if cancel != nil {
 			cancel()
 		}
-		log.Error().Str("url", url).Msg("Received nil response from server")
+		log.Error().Str("url", RedactURL(rawURL)).Msg("Received nil response from server")
 		return nil, ErrNilResponse
 	}
 	if cancel != nil {
@@ -170,12 +173,33 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, url string, 
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
 		resp.Body.Close()
 		err := errors.New("received redirect response, possible authentication issue")
-		log.Error().Err(err).Str("url", url).Int("status", resp.StatusCode).Msg("Authentication error")
+		log.Error().Err(err).Str("url", RedactURL(rawURL)).Int("status", resp.StatusCode).Msg("Authentication error")
 		return nil, err
 	}
 
 	resp.Header.Set("X-Response-Time", fmt.Sprintf("%d", time.Since(start).Milliseconds()))
 	return resp, nil
+}
+
+// RedactURL returns raw without its query string and userinfo, because they
+// can hold secrets that must not go into a log line.
+func RedactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "[unparseable url]"
+	}
+	u.User = nil
+	u.RawQuery = ""
+	return u.String()
+}
+
+// redactURLError removes the secrets from the URL in a *url.Error, which
+// prints its URL in its error text.
+func redactURLError(err error) error {
+	if urlErr, ok := errors.AsType[*url.Error](err); ok {
+		urlErr.URL = RedactURL(urlErr.URL)
+	}
+	return err
 }
 
 func isJSONContentType(contentType string) bool {
@@ -247,6 +271,8 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 		if err != nil {
 			log.Error().
 				Err(err).
+				Str("service", s.Type).
+				Str("url", RedactURL(resp.Request.URL.String())).
 				Int("status", resp.StatusCode).
 				Str("content_type", contentType).
 				Str("body", string(body)).
@@ -261,7 +287,7 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 // GetVersionFromCache retrieves the version from cache
 func (s *ServiceCore) GetVersionFromCache(ctx context.Context, baseURL string) string {
 	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return ""
 	}
 
@@ -280,7 +306,7 @@ func (s *ServiceCore) GetVersionFromCache(ctx context.Context, baseURL string) s
 // reports whether a value existed.
 func (s *ServiceCore) GetUpdateStatusFromCacheWithFound(ctx context.Context, baseURL string) (bool, bool) {
 	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return false, false
 	}
 
@@ -310,14 +336,14 @@ func (s *ServiceCore) GetUpdateStatusFromCache(ctx context.Context, baseURL stri
 // CacheUpdateStatus stores update availability in the dedicated update cache key.
 func (s *ServiceCore) CacheUpdateStatus(ctx context.Context, baseURL string, updateAvailable bool, ttl time.Duration) error {
 	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return err
 	}
 
 	cacheKey := fmt.Sprintf("%s:update", baseURL)
 	value := strconv.FormatBool(updateAvailable)
 	if err := s.cache.Set(ctx, cacheKey, value, ttl); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Str("value", value).Msg("Failed to cache update status")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Str("value", value).Msg("Failed to cache update status")
 		return err
 	}
 
@@ -327,13 +353,13 @@ func (s *ServiceCore) CacheUpdateStatus(ctx context.Context, baseURL string, upd
 // CacheVersion stores the version in cache with the specified TTL
 func (s *ServiceCore) CacheVersion(ctx context.Context, baseURL, version string, ttl time.Duration) error {
 	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to initialize cache")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return err
 	}
 
 	cacheKey := "version:" + baseURL
 	if err := s.cache.Set(ctx, cacheKey, version, ttl); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache version")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Str("version", version).Msg("Failed to cache version")
 		return err
 	}
 
@@ -372,7 +398,7 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 // GetCachedVersion attempts to get version from cache or fetches it if not found
 func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
 	if err := s.initCache(); err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Cache initialization failed")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Cache initialization failed")
 		return "", err
 	}
 
@@ -388,13 +414,13 @@ func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 	// If not in cache or error occurred, fetch it
 	version, err = fetchVersion(baseURL, apiKey)
 	if err != nil {
-		log.Error().Err(err).Str("url", baseURL).Msg("Failed to fetch version")
+		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to fetch version")
 		return "", err
 	}
 
 	// Cache the version for 1 hour
 	if err := s.cache.Set(ctx, cacheKey, version, time.Hour); err != nil {
-		log.Warn().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache version")
+		log.Warn().Err(err).Str("url", RedactURL(baseURL)).Str("version", version).Msg("Failed to cache version")
 		return version, err
 	}
 

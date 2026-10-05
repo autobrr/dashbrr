@@ -19,6 +19,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/manager"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -182,8 +183,8 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 
 	log.Debug().
 		Str("instance", instanceID).
-		Str("url", config.URL).
-		Str("access_url", config.AccessURL).
+		Str("url", core.RedactURL(config.URL)).
+		Str("access_url", core.RedactURL(config.AccessURL)).
 		Str("display_name", config.DisplayName).
 		Bool("api_key_set", config.APIKey != "").
 		Msg("Saving configuration")

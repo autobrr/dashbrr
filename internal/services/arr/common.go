@@ -133,7 +133,7 @@ func GetArrSystemStatusWithVersion(
 
 	// Cache version for 1 hour
 	if err := cacheVersion(ctx, url, status.Version, time.Hour); err != nil {
-		log.Debug().Err(err).Str("url", url).Str("service", service).Msg("Failed to cache version")
+		log.Debug().Err(err).Str("url", core.RedactURL(url)).Str("service", service).Msg("Failed to cache version")
 	}
 
 	return status.Version, nil
