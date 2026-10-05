@@ -31,7 +31,7 @@ The address that the user's browser uses to open a service. It is optional. When
 _Avoid_: external URL, public URL
 
 **Discovered service**:
-A service whose record a discovery source owns. The annotations on its Kubernetes Service set its fields. When the annotations have no URL, the ports of the Service set the URL. When the annotations have no access URL, the first hostname of an HTTPRoute to the Service sets the access URL. A sync adds, changes, and deletes the service to agree with the Kubernetes Service. A service that the user adds in the UI or imports from a file is not a discovered service.
+A service whose record a discovery source owns. The annotations on its Kubernetes Service set its fields. When the annotations have no URL, the ports of the Service set the URL. When the annotations have no access URL, the first hostname that is not a wildcard, on an HTTPRoute to the Service, sets the access URL. A sync adds, changes, and deletes the service to agree with the Kubernetes Service. A service that the user adds in the UI or imports from a file is not a discovered service.
 _Avoid_: auto service, synced service
 
 ### Authentication

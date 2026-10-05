@@ -15,6 +15,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -221,12 +222,29 @@ type httpRoute struct {
 			} `json:"backendRefs"`
 		} `json:"rules"`
 	} `json:"spec"`
+	Status struct {
+		Parents []routeParentStatus `json:"parents"`
+	} `json:"status"`
 }
 
-// routeAccessURLs maps each Service to https://<first hostname> of an HTTPRoute
-// that has a backendRef to that Service in the namespace of the route. When
-// more than one route matches, it uses the route whose name is first in
-// alphabetical order. When the HTTPRoute CRD is not installed or RBAC
+// routeParentStatus is the status that one parent Gateway writes on an HTTPRoute.
+type routeParentStatus struct {
+	Conditions []metav1.Condition `json:"conditions"`
+}
+
+// rejected reports whether the route has a parent status and no parent
+// accepted it. A route with no parent status counts as accepted, because a
+// Gateway controller can be slow to write the status, or not write it.
+func (r *httpRoute) rejected() bool {
+	return len(r.Status.Parents) > 0 && !slices.ContainsFunc(r.Status.Parents, func(p routeParentStatus) bool {
+		return meta.IsStatusConditionTrue(p.Conditions, "Accepted")
+	})
+}
+
+// routeAccessURLs maps each Service to https://<hostname> of an HTTPRoute that
+// has a backendRef to that Service in the namespace of the route. It uses the
+// first hostname that is not a wildcard, and skips rejected routes. When more than one route
+// matches, it uses the route whose name is first in alphabetical order. When the HTTPRoute CRD is not installed or RBAC
 // refuses the read, it logs at debug level and returns no URLs.
 func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace string) (map[types.NamespacedName]string, error) {
 	list, err := k.dynamic.Resource(httpRouteGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
@@ -247,7 +265,9 @@ func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace str
 			log.Warn().Err(err).Str("namespace", item.GetNamespace()).Str("route", item.GetName()).Msg("Failed to parse HTTPRoute")
 			continue
 		}
-		if len(route.Spec.Hostnames) == 0 {
+		// A browser cannot open a wildcard hostname.
+		i := slices.IndexFunc(route.Spec.Hostnames, func(h string) bool { return !strings.HasPrefix(h, "*") })
+		if i < 0 || route.rejected() {
 			continue
 		}
 		for _, rule := range route.Spec.Rules {
@@ -258,7 +278,7 @@ func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace str
 				}
 				key := types.NamespacedName{Namespace: item.GetNamespace(), Name: ref.Name}
 				if _, ok := urls[key]; !ok {
-					urls[key] = "https://" + route.Spec.Hostnames[0]
+					urls[key] = "https://" + route.Spec.Hostnames[i]
 				}
 			}
 		}

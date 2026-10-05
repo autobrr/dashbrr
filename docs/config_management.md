@@ -143,7 +143,7 @@ The inferred URL resolves only inside the cluster. If dashbrr runs outside the c
 
 ### Access URL from an HTTPRoute
 
-The `access_url` annotation is optional. When a Service has no `access_url` annotation, discovery looks for a Gateway API `HTTPRoute` in the same namespace that has a `backendRef` to the Service. The access URL is `https://<first hostname>` of that route. If more than one route matches, discovery uses the route whose name is first in alphabetical order.
+The `access_url` annotation is optional. When a Service has no `access_url` annotation, discovery looks for a Gateway API `HTTPRoute` in the same namespace that has a `backendRef` to the Service. The access URL is `https://<first hostname>` of that route. Discovery skips a wildcard hostname such as `*.example.com`, because a browser cannot open it. Discovery also skips a route that the Gateway rejected. A rejected route has a parent status, and no parent has the condition `Accepted=True`. If more than one route matches, discovery uses the route whose name is first in alphabetical order.
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1

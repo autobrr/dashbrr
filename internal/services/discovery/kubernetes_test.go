@@ -203,6 +203,16 @@ func newHTTPRoute(namespace, name string, hostnames []any, backends ...any) *uns
 	}}
 }
 
+// withParents sets one parent status on the route for each value of the Accepted condition.
+func withParents(route *unstructured.Unstructured, accepted ...string) *unstructured.Unstructured {
+	parents := make([]any, len(accepted))
+	for i, status := range accepted {
+		parents[i] = map[string]any{"conditions": []any{map[string]any{"type": "Accepted", "status": status}}}
+	}
+	route.Object["status"] = map[string]any{"parents": parents}
+	return route
+}
+
 func fakeDynamic(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
 		map[schema.GroupVersionResource]string{httpRouteGVR: "HTTPRouteList"}, objects...)
@@ -259,6 +269,26 @@ func TestList_AccessURLFromHTTPRoute(t *testing.T) {
 			name:        "backend that is not a Service",
 			annotations: radarr,
 			routes:      []runtime.Object{newHTTPRoute("media", "radarr", []any{"radarr.example.com"}, map[string]any{"name": "radarr", "kind": "Backend", "group": "example.com"})},
+		},
+		{
+			name:        "wildcard hostname skipped",
+			annotations: radarr,
+			routes:      []runtime.Object{newHTTPRoute("media", "radarr", []any{"*.example.com", "radarr.example.com"}, map[string]any{"name": "radarr"})},
+			want:        "https://radarr.example.com",
+		},
+		{
+			name:        "only wildcard hostnames",
+			annotations: radarr,
+			routes:      []runtime.Object{newHTTPRoute("media", "radarr", []any{"*.example.com"}, map[string]any{"name": "radarr"})},
+		},
+		{
+			name:        "rejected route skipped",
+			annotations: radarr,
+			routes: []runtime.Object{
+				withParents(newHTTPRoute("media", "a", []any{"a.example.com"}, map[string]any{"name": "radarr"}), "False"),
+				withParents(newHTTPRoute("media", "b", []any{"b.example.com"}, map[string]any{"name": "radarr"}), "False", "True"),
+			},
+			want: "https://b.example.com",
 		},
 		{
 			name:        "route without hostnames",
