@@ -213,6 +213,13 @@ func withParents(route *unstructured.Unstructured, accepted ...string) *unstruct
 	return route
 }
 
+// withPath sets one path match on the only rule of the route.
+func withPath(route *unstructured.Unstructured, pathType, value string) *unstructured.Unstructured {
+	rule := route.Object["spec"].(map[string]any)["rules"].([]any)[0].(map[string]any)
+	rule["matches"] = []any{map[string]any{"path": map[string]any{"type": pathType, "value": value}}}
+	return route
+}
+
 func fakeDynamic(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
 		map[schema.GroupVersionResource]string{httpRouteGVR: "HTTPRouteList"}, objects...)
@@ -287,6 +294,33 @@ func TestList_AccessURLFromHTTPRoute(t *testing.T) {
 			routes: []runtime.Object{
 				withParents(newHTTPRoute("media", "a", []any{"a.example.com"}, map[string]any{"name": "radarr"}), "False"),
 				withParents(newHTTPRoute("media", "b", []any{"b.example.com"}, map[string]any{"name": "radarr"}), "False", "True"),
+			},
+			want: "https://b.example.com",
+		},
+		{
+			name:        "path prefix match",
+			annotations: radarr,
+			routes:      []runtime.Object{withPath(newHTTPRoute("media", "radarr", []any{"media.example.com"}, map[string]any{"name": "radarr"}), "PathPrefix", "/radarr/")},
+			want:        "https://media.example.com/radarr",
+		},
+		{
+			name:        "root path match",
+			annotations: radarr,
+			routes:      []runtime.Object{withPath(newHTTPRoute("media", "radarr", []any{"radarr.example.com"}, map[string]any{"name": "radarr"}), "PathPrefix", "/")},
+			want:        "https://radarr.example.com",
+		},
+		{
+			name:        "regular expression path match",
+			annotations: radarr,
+			routes:      []runtime.Object{withPath(newHTTPRoute("media", "radarr", []any{"radarr.example.com"}, map[string]any{"name": "radarr"}), "RegularExpression", "/r.*")},
+			want:        "https://radarr.example.com",
+		},
+		{
+			name:        "zero weight backend skipped",
+			annotations: radarr,
+			routes: []runtime.Object{
+				newHTTPRoute("media", "a", []any{"a.example.com"}, map[string]any{"name": "radarr", "weight": int64(0)}),
+				newHTTPRoute("media", "b", []any{"b.example.com"}, map[string]any{"name": "radarr", "weight": int64(1)}),
 			},
 			want: "https://b.example.com",
 		},

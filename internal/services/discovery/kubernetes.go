@@ -214,11 +214,18 @@ type httpRoute struct {
 	Spec struct {
 		Hostnames []string `json:"hostnames"`
 		Rules     []struct {
+			Matches []struct {
+				Path struct {
+					Type  string `json:"type"`
+					Value string `json:"value"`
+				} `json:"path"`
+			} `json:"matches"`
 			BackendRefs []struct {
 				Group     string `json:"group"`
 				Kind      string `json:"kind"`
 				Name      string `json:"name"`
 				Namespace string `json:"namespace"`
+				Weight    *int32 `json:"weight"`
 			} `json:"backendRefs"`
 		} `json:"rules"`
 	} `json:"spec"`
@@ -241,9 +248,10 @@ func (r *httpRoute) rejected() bool {
 	})
 }
 
-// routeAccessURLs maps each Service to https://<hostname> of an HTTPRoute that
+// routeAccessURLs maps each Service to https://<hostname><path> of an HTTPRoute that
 // has a backendRef to that Service in the namespace of the route. It uses the
-// first hostname that is not a wildcard, and skips rejected routes. When more than one route
+// first hostname that is not a wildcard, and skips rejected routes and backendRefs with weight 0.
+// The path comes from the first match of the rule when that match is a PathPrefix or an Exact path. When more than one route
 // matches, it uses the route whose name is first in alphabetical order. When the HTTPRoute CRD is not installed or RBAC
 // refuses the read, it logs at debug level and returns no URLs.
 func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace string) (map[types.NamespacedName]string, error) {
@@ -271,14 +279,21 @@ func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace str
 			continue
 		}
 		for _, rule := range route.Spec.Rules {
+			// A rule with no matches, or a path with no type, matches the prefix "/". A browser cannot open a regular expression, so it gets no path.
+			var path string
+			if len(rule.Matches) > 0 && slices.Contains([]string{"", "PathPrefix", "Exact"}, rule.Matches[0].Path.Type) {
+				path = strings.TrimSuffix(rule.Matches[0].Path.Value, "/")
+			}
 			for _, ref := range rule.BackendRefs {
 				// An empty group and kind mean a core Service. An empty namespace means the namespace of the route.
-				if ref.Group != "" || (ref.Kind != "" && ref.Kind != "Service") || (ref.Namespace != "" && ref.Namespace != item.GetNamespace()) {
+				// A backendRef with weight 0 gets no traffic.
+				if ref.Group != "" || (ref.Kind != "" && ref.Kind != "Service") || (ref.Namespace != "" && ref.Namespace != item.GetNamespace()) ||
+					(ref.Weight != nil && *ref.Weight == 0) {
 					continue
 				}
 				key := types.NamespacedName{Namespace: item.GetNamespace(), Name: ref.Name}
 				if _, ok := urls[key]; !ok {
-					urls[key] = "https://" + route.Spec.Hostnames[i]
+					urls[key] = "https://" + route.Spec.Hostnames[i] + path
 				}
 			}
 		}
