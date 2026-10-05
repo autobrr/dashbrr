@@ -62,12 +62,12 @@ func (d *DockerDiscovery) DiscoverServices(ctx context.Context) ([]models.Servic
 
 // parseContainerLabels extracts service configuration from container labels
 func (d *DockerDiscovery) parseContainerLabels(labels map[string]string) (*models.ServiceConfiguration, error) {
+	if discoveryDisabled(labels) {
+		return nil, nil
+	}
 	parsed, err := parseDiscoveryLabels(labels)
 	if err != nil {
 		return nil, err
-	}
-	if !parsed.enabled {
-		return nil, nil
 	}
 
 	// Generate instance ID based on service type

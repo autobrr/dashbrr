@@ -149,7 +149,7 @@ func (k *KubernetesDiscovery) list(ctx context.Context) ([]models.ServiceConfigu
 // When the url annotation is empty, it infers the URL from the ports. When the
 // access_url annotation is empty, it uses routeAccessURL.
 func (k *KubernetesDiscovery) parseService(service *corev1.Service, routeAccessURL string) (*models.ServiceConfiguration, error) {
-	if service.Annotations[GetLabelKey(labelTypeKey)] == "" {
+	if service.Annotations[GetLabelKey(labelTypeKey)] == "" || discoveryDisabled(service.Annotations) {
 		return nil, nil
 	}
 	annotations := maps.Clone(service.Annotations)
@@ -173,10 +173,6 @@ func (k *KubernetesDiscovery) parseService(service *corev1.Service, routeAccessU
 	if err != nil {
 		return nil, fmt.Errorf("invalid discovery metadata for %s/%s: %w", service.Namespace, service.Name, err)
 	}
-	if !parsed.enabled {
-		return nil, nil
-	}
-
 	return &models.ServiceConfiguration{
 		InstanceID:  kubernetesInstanceID(parsed.serviceType, service.Namespace, service.Name),
 		DisplayName: parsed.displayName,

@@ -25,19 +25,3 @@ func TestResolveEnvVar_Missing(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
-
-func TestParseDiscoveryLabels_Disabled(t *testing.T) {
-	labels := map[string]string{
-		GetLabelKey(labelTypeKey):    "radarr",
-		GetLabelKey(labelURLKey):     "http://example",
-		GetLabelKey(labelEnabledKey): "false",
-	}
-
-	parsed, err := parseDiscoveryLabels(labels)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if parsed.enabled {
-		t.Fatalf("expected disabled")
-	}
-}

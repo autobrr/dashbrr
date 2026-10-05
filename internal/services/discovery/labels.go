@@ -16,7 +16,13 @@ type parsedDiscoveryLabels struct {
 	apiKey      string
 	displayName string
 	accessURL   string
-	enabled     bool
+}
+
+// discoveryDisabled reports whether the labels turn discovery off for a
+// service. A caller checks it before it validates the other labels, so a
+// disabled service with incomplete labels logs no warning.
+func discoveryDisabled(labels map[string]string) bool {
+	return labels[GetLabelKey(labelEnabledKey)] == "false"
 }
 
 func parseDiscoveryLabels(labels map[string]string) (*parsedDiscoveryLabels, error) {
@@ -40,18 +46,12 @@ func parseDiscoveryLabels(labels map[string]string) (*parsedDiscoveryLabels, err
 		displayName = titleServiceType(serviceType)
 	}
 
-	enabled := true
-	if v, ok := labels[GetLabelKey(labelEnabledKey)]; ok {
-		enabled = v != "false"
-	}
-
 	return &parsedDiscoveryLabels{
 		serviceType: serviceType,
 		url:         url,
 		apiKey:      apiKey,
 		displayName: displayName,
 		accessURL:   labels[GetLabelKey(labelAccessURLKey)],
-		enabled:     enabled,
 	}, nil
 }
 
