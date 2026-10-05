@@ -114,7 +114,7 @@ metadata:
     com.dashbrr.service.url: "http://radarr.media.svc:7878" # Optional: see "Inferred URL" below
     com.dashbrr.service.apikey: "${DASHBRR_RADARR_API_KEY}" # Optional for general/traefik. Ignored for Plex: use the Plex sign-in in the UI
     com.dashbrr.service.name: "Movies"
-    com.dashbrr.service.access_url: "https://radarr.example.com" # Optional: the URL that your browser opens
+    com.dashbrr.service.access_url: "https://radarr.example.com" # Optional: see "Access URL from an HTTPRoute" below
     com.dashbrr.service.enabled: "true"
 spec:
   ports:
@@ -140,6 +140,28 @@ For the Service above, without the `url` annotation, the URL is `http://radarr.m
 When you set the `url` annotation, discovery always uses it.
 
 The inferred URL resolves only inside the cluster. If dashbrr runs outside the cluster with a kubeconfig, set the `url` annotation. If the TLS certificate of the Service does not include `<service>.<namespace>.svc`, set the `url` annotation.
+
+### Access URL from an HTTPRoute
+
+The `access_url` annotation is optional. When a Service has no `access_url` annotation, discovery looks for a Gateway API `HTTPRoute` in the same namespace that has a `backendRef` to the Service. The access URL is `https://<first hostname>` of that route. If the rule matches a `PathPrefix` or an `Exact` path such as `/radarr`, discovery adds the first such path: `https://media.example.com/radarr`. A browser cannot open a `RegularExpression` path, so discovery skips a rule that has only those. Discovery skips a wildcard hostname such as `*.example.com`, because a browser cannot open it. Discovery also skips a `backendRef` with `weight: 0`, because it gets no traffic. Discovery also skips a route that has no `parentRefs`, because that route never attaches to a Gateway. Discovery also skips a route that the Gateway rejected. A rejected route has a parent status, and no parent has the condition `Accepted=True`. If more than one route matches, discovery uses the route whose name is first in alphabetical order.
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  hostnames: ["radarr.example.com"] # The access URL is https://radarr.example.com
+  rules:
+    - backendRefs:
+        - name: radarr
+          port: 7878
+```
+
+When you set the `access_url` annotation, discovery always uses it.
+
+If the cluster does not have the HTTPRoute CRD, or RBAC does not give access to `httproutes`, discovery does not use routes. It logs a debug message and the sync continues.
 
 Notes:
 
@@ -194,6 +216,9 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
