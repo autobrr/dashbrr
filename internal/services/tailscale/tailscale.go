@@ -127,7 +127,7 @@ func (s *TailscaleService) getVersion(ctx context.Context, baseURL string, apiKe
 	}
 
 	if err := s.CacheUpdateStatus(ctx, baseURL, updateAvailable, time.Hour); err != nil {
-		log.Debug().Err(err).Str("url", baseURL).Bool("updateAvailable", updateAvailable).Msg("Failed to cache Tailscale update status")
+		log.Debug().Err(err).Str("url", core.RedactURL(baseURL)).Bool("updateAvailable", updateAvailable).Msg("Failed to cache Tailscale update status")
 	}
 
 	return version, nil

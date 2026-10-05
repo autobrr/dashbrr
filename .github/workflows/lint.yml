@@ -94,6 +94,9 @@ jobs:
           rm -f "$tmp"
           echo "go fix check clean."
 
+      - name: Check URL log fields
+        run: make check-log-urls
+
       - name: Lint backend
         uses: golangci/golangci-lint-action@v9
         with:

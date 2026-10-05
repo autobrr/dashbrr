@@ -188,7 +188,7 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		// Cache the result
 		if cached, err := json.Marshal(unhealthyStatus); err == nil {
 			if err := s.CacheIRCStatus(ctx, url, string(cached)); err != nil {
-				log.Debug().Err(err).Str("url", url).Msg("Failed to cache IRC status")
+				log.Debug().Err(err).Str("url", core.RedactURL(url)).Msg("Failed to cache IRC status")
 			}
 		}
 		return unhealthyStatus, nil
@@ -203,14 +203,14 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 			// Cache the result
 			if cached, err := json.Marshal(status); err == nil {
 				if err := s.CacheIRCStatus(ctx, url, string(cached)); err != nil {
-					log.Debug().Err(err).Str("url", url).Msg("Failed to cache IRC status")
+					log.Debug().Err(err).Str("url", core.RedactURL(url)).Msg("Failed to cache IRC status")
 				}
 			}
 			return status, nil
 		}
 		// Cache empty result
 		if err := s.CacheIRCStatus(ctx, url, "[]"); err != nil {
-			log.Debug().Err(err).Str("url", url).Msg("Failed to cache IRC status")
+			log.Debug().Err(err).Str("url", core.RedactURL(url)).Msg("Failed to cache IRC status")
 		}
 		return []types.IRCStatus{}, nil
 	}
@@ -251,7 +251,7 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 
 	// Cache version for 2 hours to align with update check
 	if err := s.CacheVersion(ctx, url, versionData.Version, 2*time.Hour); err != nil {
-		log.Debug().Err(err).Str("url", url).Str("version", versionData.Version).Msg("Failed to cache Autobrr version")
+		log.Debug().Err(err).Str("url", core.RedactURL(url)).Str("version", versionData.Version).Msg("Failed to cache Autobrr version")
 	}
 
 	return versionData.Version, nil
@@ -291,7 +291,7 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 
 	// Cache result for 2 hours to match autobrr's check interval
 	if err := s.CacheUpdate(ctx, url, status, 2*time.Hour); err != nil {
-		log.Debug().Err(err).Str("url", url).Str("status", status).Msg("Failed to cache Autobrr update status")
+		log.Debug().Err(err).Str("url", core.RedactURL(url)).Str("status", status).Msg("Failed to cache Autobrr update status")
 	}
 
 	return hasUpdate, nil
@@ -339,7 +339,7 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 	// Get release stats
 	stats, err := s.GetReleaseStats(ctx, url, apiKey)
 	if err != nil {
-		log.Debug().Err(err).Str("url", url).Msg("Failed to get Autobrr release stats")
+		log.Debug().Err(err).Str("url", core.RedactURL(url)).Msg("Failed to get Autobrr release stats")
 		// Continue without stats, don't fail the health check
 	}
 

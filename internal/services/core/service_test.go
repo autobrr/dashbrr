@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,5 +146,46 @@ func TestGetUpdateStatusFromCache_LegacyVersionPrefixedKey(t *testing.T) {
 	}
 	if !got {
 		t.Fatalf("expected legacy cached value true, got false")
+	}
+}
+
+func TestRedactURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "token in query", raw: "https://seedpool.org/api/user?api_token=secret", want: "https://seedpool.org/api/user"},
+		{name: "userinfo", raw: "http://user:pass@sabnzbd:8080/api", want: "http://sabnzbd:8080/api"}, //nolint:gosec // test fixture
+		{name: "token in fragment", raw: "https://example.test/api#access_token=secret", want: "https://example.test/api"},
+		{name: "plain", raw: "http://traefik:8080/metrics", want: "http://traefik:8080/metrics"},
+		{name: "unparseable", raw: "http://host:port?token=secret", want: "[unparseable url]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := RedactURL(tt.raw); got != tt.want {
+				t.Fatalf("RedactURL(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDoRequest_ErrorOmitsQuerySecret(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv.Close()
+
+	s := &ServiceCore{}
+	s.SetTimeout(time.Second)
+
+	_, err := s.DoRequest(t.Context(), http.MethodGet, srv.URL+"/api?api_token=secret", nil, nil)
+	if err == nil {
+		t.Fatal("DoRequest succeeded against a closed server")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("error contains the query secret: %v", err)
 	}
 }

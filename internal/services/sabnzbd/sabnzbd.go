@@ -158,7 +158,7 @@ func (s *SabnzbdService) GetVersion(ctx context.Context, baseURL, apiKey string)
 	}
 
 	if err := s.CacheVersion(ctx, baseURL, version, sabnzbdVersionCacheTTL); err != nil {
-		log.Debug().Err(err).Str("url", baseURL).Str("version", version).Msg("Failed to cache SABnzbd version")
+		log.Debug().Err(err).Str("url", core.RedactURL(baseURL)).Str("version", version).Msg("Failed to cache SABnzbd version")
 	}
 
 	return version, nil

@@ -114,6 +114,23 @@ func TestParseService_Disabled(t *testing.T) {
 	}
 }
 
+func TestParseService_DisabledSkipsValidation(t *testing.T) {
+	k := &KubernetesDiscovery{}
+	annotations := map[string]string{
+		GetLabelKey(labelTypeKey):    "prowlarr",
+		GetLabelKey(labelAPIKeyKey):  "${DASHBRR_TEST_UNSET_API_KEY}",
+		GetLabelKey(labelEnabledKey): "false",
+	}
+
+	service, err := k.parseService(k8sService("prowlarr", "prowlarr", annotations), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if service != nil {
+		t.Fatalf("expected nil service when disabled")
+	}
+}
+
 func TestParseService_NoMetadata(t *testing.T) {
 	k := &KubernetesDiscovery{}
 

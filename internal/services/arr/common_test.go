@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -79,5 +80,20 @@ func TestCheckArrForUpdates_DefaultsToV3(t *testing.T) {
 	}
 	if requestedPath != "/api/v3/update" {
 		t.Fatalf("path = %q, want %q", requestedPath, "/api/v3/update")
+	}
+}
+
+func TestMakeArrRequest_ErrorOmitsQuerySecret(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv.Close()
+
+	_, err := MakeArrRequest(t.Context(), http.MethodGet, srv.URL+"/api/v3/queue?apikey=secret", "key", nil)
+	if err == nil {
+		t.Fatal("MakeArrRequest succeeded against a closed server")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("error contains the query secret: %v", err)
 	}
 }

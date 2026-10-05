@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 // App describes one *arr app. The name and the API version are the only
@@ -145,7 +147,7 @@ func (a App) DeleteQueueItem(ctx context.Context, baseURL, apiKey, queueID strin
 
 	log.Info().
 		Str("service", a.Name).
-		Str("url", deleteURL).
+		Str("url", core.RedactURL(deleteURL)).
 		Str("queueId", queueID).
 		Bool("removeFromClient", opts.RemoveFromClient).
 		Bool("blocklist", opts.Blocklist).
@@ -158,7 +160,7 @@ func (a App) DeleteQueueItem(ctx context.Context, baseURL, apiKey, queueID strin
 		log.Error().
 			Err(err).
 			Str("service", a.Name).
-			Str("url", deleteURL).
+			Str("url", core.RedactURL(deleteURL)).
 			Str("queueId", queueID).
 			Msg("Failed to execute delete request")
 		return &ErrArr{Service: a.Name, Op: "delete_queue", Err: fmt.Errorf("failed to execute request: %w", err)}
@@ -171,7 +173,7 @@ func (a App) DeleteQueueItem(ctx context.Context, baseURL, apiKey, queueID strin
 		log.Error().
 			Str("service", a.Name).
 			Int("statusCode", resp.StatusCode).
-			Str("url", deleteURL).
+			Str("url", core.RedactURL(deleteURL)).
 			Str("queueId", queueID).
 			Str("response", string(body)).
 			Msg("Delete request failed")

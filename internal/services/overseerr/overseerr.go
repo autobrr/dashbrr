@@ -387,7 +387,7 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 	if err := s.CacheVersion(ctx, url, statusResponse.Version, time.Hour); err != nil {
 		log.Warn().
 			Err(err).
-			Str("url", url).
+			Str("url", core.RedactURL(url)).
 			Str("version", statusResponse.Version).
 			Msg("Failed to cache Overseerr version")
 	}
