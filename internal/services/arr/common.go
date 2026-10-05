@@ -63,7 +63,7 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 
 	req, err := http.NewRequestWithContext(reqCtx, method, url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, err
+		return nil, core.RedactURLError(err)
 	}
 
 	// Set headers correctly
@@ -76,6 +76,7 @@ func MakeArrRequest(ctx context.Context, method, url, apiKey string, body []byte
 
 	resp, err := arrHTTPClient.Do(req)
 	if err != nil {
+		err = core.RedactURLError(err)
 		if err == context.Canceled {
 			return nil, fmt.Errorf("request canceled: %w", err)
 		}

@@ -159,6 +159,7 @@ func TestRedactURL(t *testing.T) {
 	}{
 		{name: "token in query", raw: "https://seedpool.org/api/user?api_token=secret", want: "https://seedpool.org/api/user"},
 		{name: "userinfo", raw: "http://user:pass@sabnzbd:8080/api", want: "http://sabnzbd:8080/api"}, //nolint:gosec // test fixture
+		{name: "token in fragment", raw: "https://example.test/api#access_token=secret", want: "https://example.test/api"},
 		{name: "plain", raw: "http://traefik:8080/metrics", want: "http://traefik:8080/metrics"},
 		{name: "unparseable", raw: "http://host:port?token=secret", want: "[unparseable url]"},
 	}

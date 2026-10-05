@@ -128,7 +128,7 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, rawURL strin
 		if cancel != nil {
 			cancel()
 		}
-		err = redactURLError(err)
+		err = RedactURLError(err)
 		log.Error().Err(err).Str("url", RedactURL(rawURL)).Msg("Failed to create request")
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, rawURL strin
 		if cancel != nil {
 			cancel()
 		}
-		err = redactURLError(err)
+		err = RedactURLError(err)
 		log.Error().Err(err).
 			Str("url", RedactURL(rawURL)).
 			Dur("timeout", timeout).
@@ -181,8 +181,8 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, rawURL strin
 	return resp, nil
 }
 
-// RedactURL returns raw without its query string and userinfo, because they
-// can hold secrets that must not go into a log line.
+// RedactURL returns raw without its query string, fragment, and userinfo,
+// because they can hold secrets that must not go into a log line.
 func RedactURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -190,12 +190,14 @@ func RedactURL(raw string) string {
 	}
 	u.User = nil
 	u.RawQuery = ""
+	u.Fragment = ""
 	return u.String()
 }
 
-// redactURLError removes the secrets from the URL in a *url.Error, which
-// prints its URL in its error text.
-func redactURLError(err error) error {
+// RedactURLError removes the secrets from the URL in a *url.Error, which
+// prints its URL in its error text. Call it on each error from an HTTP client
+// before you log or return the error.
+func RedactURLError(err error) error {
 	if urlErr, ok := errors.AsType[*url.Error](err); ok {
 		urlErr.URL = RedactURL(urlErr.URL)
 	}
