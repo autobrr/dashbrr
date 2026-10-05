@@ -213,10 +213,11 @@ func withParents(route *unstructured.Unstructured, accepted ...string) *unstruct
 	return route
 }
 
-// withPath sets one path match on the only rule of the route.
+// withPath adds one path match to the only rule of the route.
 func withPath(route *unstructured.Unstructured, pathType, value string) *unstructured.Unstructured {
 	rule := route.Object["spec"].(map[string]any)["rules"].([]any)[0].(map[string]any)
-	rule["matches"] = []any{map[string]any{"path": map[string]any{"type": pathType, "value": value}}}
+	matches, _ := rule["matches"].([]any)
+	rule["matches"] = append(matches, map[string]any{"path": map[string]any{"type": pathType, "value": value}})
 	return route
 }
 
@@ -313,7 +314,19 @@ func TestList_AccessURLFromHTTPRoute(t *testing.T) {
 			name:        "regular expression path match",
 			annotations: radarr,
 			routes:      []runtime.Object{withPath(newHTTPRoute("media", "radarr", []any{"radarr.example.com"}, map[string]any{"name": "radarr"}), "RegularExpression", "/r.*")},
-			want:        "https://radarr.example.com",
+		},
+		{
+			name:        "first match that is not a regular expression",
+			annotations: radarr,
+			routes: []runtime.Object{withPath(withPath(newHTTPRoute("media", "radarr", []any{"media.example.com"}, map[string]any{"name": "radarr"}),
+				"RegularExpression", "/r.*"), "PathPrefix", "/radarr")},
+			want: "https://media.example.com/radarr",
+		},
+		{
+			name:        "exact path keeps trailing slash",
+			annotations: radarr,
+			routes:      []runtime.Object{withPath(newHTTPRoute("media", "radarr", []any{"media.example.com"}, map[string]any{"name": "radarr"}), "Exact", "/radarr/")},
+			want:        "https://media.example.com/radarr/",
 		},
 		{
 			name:        "zero weight backend skipped",

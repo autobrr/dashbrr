@@ -251,7 +251,7 @@ func (r *httpRoute) rejected() bool {
 // routeAccessURLs maps each Service to https://<hostname><path> of an HTTPRoute that
 // has a backendRef to that Service in the namespace of the route. It uses the
 // first hostname that is not a wildcard, and skips rejected routes and backendRefs with weight 0.
-// The path comes from the first match of the rule when that match is a PathPrefix or an Exact path. When more than one route
+// The path comes from the first PathPrefix or Exact match of the rule. When more than one route
 // matches, it uses the route whose name is first in alphabetical order. When the HTTPRoute CRD is not installed or RBAC
 // refuses the read, it logs at debug level and returns no URLs.
 func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace string) (map[types.NamespacedName]string, error) {
@@ -279,10 +279,22 @@ func (k *KubernetesDiscovery) routeAccessURLs(ctx context.Context, namespace str
 			continue
 		}
 		for _, rule := range route.Spec.Rules {
-			// A rule with no matches, or a path with no type, matches the prefix "/". A browser cannot open a regular expression, so it gets no path.
-			var path string
-			if len(rule.Matches) > 0 && slices.Contains([]string{"", "PathPrefix", "Exact"}, rule.Matches[0].Path.Type) {
-				path = strings.TrimSuffix(rule.Matches[0].Path.Value, "/")
+			// A rule with no matches, or a path with no type, matches the prefix "/". A browser cannot open a
+			// regular expression, so discovery uses the first PathPrefix or Exact match and skips a rule that has none.
+			path, ok := "", len(rule.Matches) == 0
+			for _, m := range rule.Matches {
+				if m.Path.Type == "Exact" {
+					path, ok = m.Path.Value, true
+					break
+				}
+				if m.Path.Type == "" || m.Path.Type == "PathPrefix" {
+					// A PathPrefix ignores a trailing slash. An Exact path does not.
+					path, ok = strings.TrimSuffix(m.Path.Value, "/"), true
+					break
+				}
+			}
+			if !ok {
+				continue
 			}
 			for _, ref := range rule.BackendRefs {
 				// An empty group and kind mean a core Service. An empty namespace means the namespace of the route.
