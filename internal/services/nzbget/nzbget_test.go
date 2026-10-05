@@ -232,4 +232,3 @@ func TestParseCredentials(t *testing.T) {
 		})
 	}
 }
-
