@@ -10,6 +10,7 @@ Owner: soup (s0up4200@pm.me)
 - Stay inside requested scope. Do not implement review-suggested/extra changes without explicit user approval.
 - Treat other agent/CodeRabbit feedback as input to discuss, not automatic action.
 - dashbrr is single-user self-hosted software. Prefer readable, maintainable code over paranoid guards for impossible states.
+- Before you write logic that a published spec or format defines (Markdown, HTML, URLs, CSV, semver, cron, time zones), use a well-proven library for it. Name the library in the PR body. If hand-written logic of this kind needs a second fix for an edge case, replace it with the library.
 - In final reports, state which checks ran and which were skipped. Do not claim complete while a required check is known failing.
 
 ## Git
