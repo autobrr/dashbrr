@@ -191,11 +191,11 @@ func newServiceRemoveCommand(spec serviceSpec) *cobra.Command {
 			}
 
 			serviceURL := args[0]
-			service, err := db.FindServiceBy(cmd.Context(), types.FindServiceParams{URL: serviceURL})
+			service, err := db.FindServiceBy(cmd.Context(), types.FindServiceParams{URL: serviceURL, InstancePrefix: spec.Prefix})
 			if err != nil {
 				return fmt.Errorf("failed to find service: %v", err)
 			}
-			if service == nil || !strings.HasPrefix(service.InstanceID, spec.Prefix) {
+			if service == nil {
 				return fmt.Errorf("no %s service found with URL: %s", spec.DisplayName, serviceURL)
 			}
 
