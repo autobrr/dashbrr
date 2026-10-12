@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 func TestInitializeDatabaseHonoursEnvPath(t *testing.T) {
@@ -92,4 +95,37 @@ func testCommand(t *testing.T) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.SetContext(t.Context())
 	return cmd
+}
+
+// A remove command must only delete a service of its own type, even when the
+// URL belongs to a service of another type.
+func TestServiceRemoveKeepsServiceOfAnotherType(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DASHBRR__DB_TYPE", "sqlite")
+	t.Setenv("DASHBRR__DB_PATH", filepath.Join(dir, "dashbrr.db"))
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("DASHBRR__CONFIG_PATH", "")
+	t.Chdir(dir)
+
+	db, err := initializeDatabase(testCommand(t))
+	if err != nil {
+		t.Fatalf("initializeDatabase: %v", err)
+	}
+	defer db.Close()
+
+	const url = "http://media.test:8096"
+	if err := db.CreateService(t.Context(), &models.ServiceConfiguration{InstanceID: "jellyfin-1", DisplayName: "Jellyfin", URL: url}); err != nil {
+		t.Fatalf("CreateService: %v", err)
+	}
+
+	remove := ServiceEmbyRemoveCommand()
+	remove.SetContext(t.Context())
+	if err := remove.RunE(remove, []string{url}); err == nil {
+		t.Fatal("emby remove with a Jellyfin URL returned no error")
+	}
+
+	service, err := db.FindServiceBy(t.Context(), types.FindServiceParams{InstanceID: "jellyfin-1"})
+	if err != nil || service == nil {
+		t.Fatalf("Jellyfin service is gone after emby remove: service=%v err=%v", service, err)
+	}
 }
