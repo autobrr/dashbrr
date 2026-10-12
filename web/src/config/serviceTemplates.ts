@@ -133,6 +133,15 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "api/health/jellyfin",
   },
   {
+    name: "Emby",
+    displayName: "",
+    type: "emby",
+    status: "offline",
+    url: "",
+    accessUrl: "",
+    healthEndpoint: "api/health/emby",
+  },
+  {
     name: "Uptime Kuma",
     displayName: "",
     type: "uptimekuma",

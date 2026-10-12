@@ -76,7 +76,8 @@ const SERVICE_STATS_RENDERERS: Partial<
   ),
   overseerr: (instanceId) => <OverseerrStats instanceId={instanceId} />,
   plex: (instanceId) => <PlexStats instanceId={instanceId} />,
-  jellyfin: (instanceId) => <JellyfinStats instanceId={instanceId} />,
+  jellyfin: (instanceId) => <JellyfinStats instanceId={instanceId} serviceType="jellyfin" />,
+  emby: (instanceId) => <JellyfinStats instanceId={instanceId} serviceType="emby" />,
   uptimekuma: (instanceId) => <UptimeKumaStats instanceId={instanceId} />,
   maintainerr: (instanceId, url) =>
     url ? (

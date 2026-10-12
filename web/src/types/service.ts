@@ -20,6 +20,7 @@ export type ServiceType =
   | "overseerr"
   | "plex"
   | "jellyfin"
+  | "emby"
   | "uptimekuma"
   | "tailscale"
   | "maintainerr"
@@ -277,7 +278,14 @@ export interface PlexSession {
   TranscodeSession?: PlexTranscodeSession;
 }
 
-// Jellyfin Types
+// Jellyfin Types. Emby uses the same types.
+export interface JellyfinDetails {
+  activeStreams: number;
+  transcoding: number;
+  paused: number;
+  serverName?: string;
+}
+
 export interface JellyfinSystemInfo {
   ServerName: string;
   Version: string;
@@ -763,6 +771,10 @@ export interface ServiceStats {
   jellyfin?: {
     summary: JellyfinSummary;
   };
+  // Emby uses the Jellyfin payload shape.
+  emby?: {
+    summary: JellyfinSummary;
+  };
   uptimekuma?: {
     summary: UptimeKumaSummary;
   };
@@ -823,12 +835,8 @@ export interface ServiceDetails {
     activeStreams: number;
     transcoding: number;
   };
-  jellyfin?: {
-    activeStreams: number;
-    transcoding: number;
-    paused: number;
-    serverName?: string;
-  };
+  jellyfin?: JellyfinDetails;
+  emby?: JellyfinDetails;
   uptimekuma?: {
     total: number;
     up: number;

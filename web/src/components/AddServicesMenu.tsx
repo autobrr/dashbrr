@@ -62,6 +62,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   traefik: "MONITORING",
   plex: "MEDIA_SERVER",
   jellyfin: "MEDIA_SERVER",
+  emby: "MEDIA_SERVER",
   uptimekuma: "MONITORING",
   overseerr: "REQUESTS",
   maintainerr: "REQUESTS",
@@ -95,6 +96,7 @@ const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
 const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   plex: "http://localhost:32400",
   jellyfin: "http://localhost:8096",
+  emby: "http://localhost:8096",
   uptimekuma: "http://localhost:3001",
   qui: "http://localhost:7476",
   traefik: "http://localhost:8080",
@@ -148,6 +150,11 @@ const API_KEY_HELP_BY_SERVICE: Partial<
     prefix: "Found in ",
     text: "Dashboard > API Keys",
     link: getSettingsUrl("/web/index.html#!/apikeys.html"),
+  }),
+  emby: ({ getSettingsUrl }) => ({
+    prefix: "Found in ",
+    text: "Settings > Advanced > API Keys",
+    link: getSettingsUrl("/web/index.html#!/apikeys"),
   }),
   uptimekuma: ({ getSettingsUrl }) => ({
     prefix: "Found in ",

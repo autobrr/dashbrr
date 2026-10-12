@@ -24,5 +24,6 @@ export const repoUrls: RepoUrls = {
   "sabnzbd": "https://github.com/sabnzbd/sabnzbd/releases",
   "nzbget": "https://github.com/nzbgetcom/nzbget/releases",
   "jellyfin": "https://github.com/jellyfin/jellyfin/releases",
+  "emby": "https://github.com/MediaBrowser/Emby.Releases/releases",
   "uptimekuma": "https://github.com/louislam/uptime-kuma/releases",
 };
