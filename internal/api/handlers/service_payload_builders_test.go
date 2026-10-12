@@ -50,7 +50,7 @@ func TestBuildJellyfinSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 		},
 	}
 
-	health := buildJellyfinSummaryServiceUpdate("jellyfin-1", summary)
+	health := buildJellyfinSummaryServiceUpdate("jellyfin", "jellyfin-1", summary)
 	if health.Message != "jellyfin_summary" {
 		t.Fatalf("message = %q, want jellyfin_summary", health.Message)
 	}

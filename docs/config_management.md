@@ -296,6 +296,7 @@ When using environment variables for API keys/tokens (`${SERVICE_API_KEY}`), the
 
 - `DASHBRR_AUTOBRR_API_KEY`
 - `DASHBRR_BAZARR_API_KEY`
+- `DASHBRR_EMBY_API_KEY`
 - `DASHBRR_GENERAL_API_KEY` (optional)
 - `DASHBRR_JELLYFIN_API_KEY`
 - `DASHBRR_LIDARR_API_KEY`
@@ -320,6 +321,7 @@ Discovery/import currently supports these service type keys:
 
 - `autobrr`
 - `bazarr`
+- `emby`
 - `general`
 - `jellyfin`
 - `lidarr`
