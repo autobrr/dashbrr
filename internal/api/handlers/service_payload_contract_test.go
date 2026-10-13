@@ -14,7 +14,6 @@ import (
 
 var canonicalServiceMessageKeys = []string{
 	"plex_sessions",
-	"jellyfin_summary",
 	"uptimekuma_summary",
 	"overseerr_requests",
 	"prowlarr_stats",
@@ -40,8 +39,14 @@ var arrQueueMessageKeys = []string{
 	"whisparr_queue",
 }
 
+// jellyfinSummaryMessageKeys come from buildJellyfinSummaryServiceUpdate, one per service type.
+var jellyfinSummaryMessageKeys = []string{
+	"jellyfin_summary",
+	"emby_summary",
+}
+
 func canonicalMessageAssignmentPattern() *regexp.Regexp {
-	keys := append(slices.Clone(canonicalServiceMessageKeys), arrQueueMessageKeys...)
+	keys := slices.Concat(canonicalServiceMessageKeys, arrQueueMessageKeys, jellyfinSummaryMessageKeys)
 	return regexp.MustCompile(
 		fmt.Sprintf(`Message:\s+"(?:%s)"`, strings.Join(keys, "|")),
 	)
@@ -106,5 +111,14 @@ func TestArrQueueMessagesComeFromBuilder(t *testing.T) {
 
 	if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(arrQueueMessageKeys))) {
 		t.Fatalf("arr queue messages = %v, want %v", got, arrQueueMessageKeys)
+	}
+}
+
+func TestJellyfinSummaryMessagesComeFromBuilder(t *testing.T) {
+	for _, key := range jellyfinSummaryMessageKeys {
+		serviceType := strings.TrimSuffix(key, "_summary")
+		if got := buildJellyfinSummaryServiceUpdate(serviceType, serviceType+"-1", nil).Message; got != key {
+			t.Fatalf("message = %q, want %q", got, key)
+		}
 	}
 }

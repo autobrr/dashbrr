@@ -34,7 +34,9 @@ func buildPlexSessionsServiceUpdate(instanceID string, sessions []types.PlexSess
 	}
 }
 
-func buildJellyfinSummaryServiceUpdate(instanceID string, summary *types.JellyfinSummaryResponse) models.ServiceHealth {
+// buildJellyfinSummaryServiceUpdate builds the payload for Jellyfin and for Emby.
+// serviceType ("jellyfin" or "emby") names the message and the payload keys.
+func buildJellyfinSummaryServiceUpdate(serviceType, instanceID string, summary *types.JellyfinSummaryResponse) models.ServiceHealth {
 	if summary == nil {
 		summary = &types.JellyfinSummaryResponse{
 			Sessions: []types.JellyfinSession{},
@@ -51,14 +53,14 @@ func buildJellyfinSummaryServiceUpdate(instanceID string, summary *types.Jellyfi
 	return models.ServiceHealth{
 		ServiceID: instanceID,
 		Status:    "online",
-		Message:   "jellyfin_summary",
+		Message:   serviceType + "_summary",
 		Stats: map[string]any{
-			"jellyfin": map[string]any{
+			serviceType: map[string]any{
 				"summary": summary,
 			},
 		},
 		Details: map[string]any{
-			"jellyfin": map[string]any{
+			serviceType: map[string]any{
 				"activeStreams": activeStreams,
 				"transcoding":   transcoding,
 				"paused":        paused,

@@ -110,7 +110,10 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 			{name: "plex_sessions", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runPlexSessions},
 		},
 		"jellyfin": {
-			{name: "jellyfin_summary", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runJellyfinSummary},
+			{name: "jellyfin_summary", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: jellyfinSummaryJob(jellyfin.NewJellyfinService)},
+		},
+		"emby": {
+			{name: "emby_summary", interval: 10 * time.Second, timeout: pollerShortJobTimeout, run: jellyfinSummaryJob(jellyfin.NewEmbyService)},
 		},
 		"uptimekuma": {
 			{name: "uptimekuma_summary", interval: 30 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runUptimeKumaSummary},
@@ -630,15 +633,18 @@ func (p *Poller) runPlexSessions(ctx context.Context, svc models.ServiceConfigur
 	return nil
 }
 
-func (p *Poller) runJellyfinSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
-	service := jellyfin.NewJellyfinService().(*jellyfin.JellyfinService)
-	summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
-	if err != nil {
-		return err
-	}
+// jellyfinSummaryJob polls a server that the Jellyfin client reads: Jellyfin or Emby.
+func jellyfinSummaryJob(newService func() models.ServiceHealthChecker) jobRunner {
+	return func(p *Poller, ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+		service := newService().(*jellyfin.JellyfinService)
+		summary, err := service.GetSummary(ctx, svc.URL, svc.APIKey)
+		if err != nil {
+			return err
+		}
 
-	publishInternalServiceUpdate(p.bc, buildJellyfinSummaryServiceUpdate(svc.InstanceID, &summary))
-	return nil
+		publishInternalServiceUpdate(p.bc, buildJellyfinSummaryServiceUpdate(service.Type, svc.InstanceID, &summary))
+		return nil
+	}
 }
 
 func (p *Poller) runUptimeKumaSummary(ctx context.Context, svc models.ServiceConfiguration, _ string) error {

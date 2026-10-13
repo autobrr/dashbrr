@@ -58,6 +58,7 @@ var (
 	NewSabnzbdService     func() ServiceHealthChecker
 	NewNzbgetService      func() ServiceHealthChecker
 	NewJellyfinService    func() ServiceHealthChecker
+	NewEmbyService        func() ServiceHealthChecker
 	NewUptimeKumaService  func() ServiceHealthChecker
 	NewTraefikService     func() ServiceHealthChecker
 	NewProwlarrService    func() ServiceHealthChecker

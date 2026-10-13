@@ -49,9 +49,10 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
         (service.stats?.plex?.sessions?.length ?? 0) > 0
       );
     case "jellyfin":
+    case "emby":
       return (
-        (service.details?.jellyfin?.activeStreams ?? 0) > 0 ||
-        (service.stats?.jellyfin?.summary?.sessions?.length ?? 0) > 0
+        (service.details?.[service.type]?.activeStreams ?? 0) > 0 ||
+        (service.stats?.[service.type]?.summary?.sessions?.length ?? 0) > 0
       );
     case "uptimekuma":
       // Uptime Kuma cards render persistent monitor stat tiles.

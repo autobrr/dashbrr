@@ -76,7 +76,8 @@ const SERVICE_STATS_RENDERERS: Partial<
   ),
   overseerr: (instanceId) => <OverseerrStats instanceId={instanceId} />,
   plex: (instanceId) => <PlexStats instanceId={instanceId} />,
-  jellyfin: (instanceId) => <JellyfinStats instanceId={instanceId} />,
+  jellyfin: (instanceId) => <JellyfinStats instanceId={instanceId} serviceType="jellyfin" />,
+  emby: (instanceId) => <JellyfinStats instanceId={instanceId} serviceType="emby" />,
   uptimekuma: (instanceId) => <UptimeKumaStats instanceId={instanceId} />,
   maintainerr: (instanceId, url) =>
     url ? (
@@ -182,6 +183,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             <div className="pr-8 @md:pr-10">
               <ServiceHeader
                 displayName={currentConfig?.displayName || service.displayName}
+                serviceType={service.type}
                 url={currentConfig?.url || service.url}
                 accessUrl={currentConfig?.accessUrl || service.accessUrl}
                 version={service.version}

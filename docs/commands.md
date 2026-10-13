@@ -128,6 +128,7 @@ Currently supported service command groups:
 
 - `autobrr`
 - `bazarr`
+- `emby`
 - `generic` (general health endpoint service)
 - `jellyfin`
 - `lidarr`
@@ -190,6 +191,21 @@ Example: dashbrr service generic remove http://my.general.service/healthz/livene
 
 # List Generic services
 dashbrr service generic list
+```
+
+### Emby
+
+```bash
+# Add an Emby service. Enter the server address. A URL that ends in /emby also works.
+dashbrr service emby add <url> <api-key>
+Example: dashbrr service emby add http://localhost:8096 your-api-key
+
+# Remove an Emby service
+dashbrr service emby remove <url>
+Example: dashbrr service emby remove http://localhost:8096
+
+# List Emby services
+dashbrr service emby list
 ```
 
 ### Jellyfin

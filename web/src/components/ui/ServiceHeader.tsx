@@ -13,11 +13,12 @@ import { SiKubernetes } from "react-icons/si";
 import AnimatedModal from "./AnimatedModal";
 import { StatusIcon, StatusType } from "./StatusIcon";
 import { repoUrls } from "../../config/repoUrls";
-import { ServiceStatus } from "../../types/service";
+import { ServiceStatus, ServiceType } from "../../types/service";
 import { serviceLink } from "../../utils/serviceLink";
 
 interface ServiceHeaderProps {
   displayName: string;
+  serviceType?: ServiceType;
   url?: string;
   accessUrl?: string;
   version?: string;
@@ -33,6 +34,7 @@ interface ServiceHeaderProps {
 
 export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   displayName,
+  serviceType,
   url,
   accessUrl,
   version,
@@ -50,7 +52,8 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
     if (!version) return "Unknown";
     if (version.startsWith("pr-")) return version;
     const versionParts = version.split("-")[0].split(".");
-    return versionParts.slice(0, 3).join(".");
+    // Emby counts its releases in the fourth part, for example 4.10.0.40.
+    return versionParts.slice(0, serviceType === "emby" ? 4 : 3).join(".");
   };
 
   const handleRemoveClick = (e?: React.MouseEvent) => {

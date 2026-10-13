@@ -28,6 +28,8 @@ import {
 
 interface JellyfinStatsProps {
   instanceId: string;
+  // Emby sends the Jellyfin payload shape under its own key.
+  serviceType: "jellyfin" | "emby";
 }
 
 const EMPTY_SUMMARY: JellyfinSummary = {
@@ -107,15 +109,15 @@ const getPlaybackKey = (session: JellyfinSession): string =>
   session.Id ||
   `${session.UserName || "unknown"}:${session.NowPlayingItem?.SeriesName || ""}:${session.NowPlayingItem?.Name || ""}`;
 
-export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
+export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId, serviceType }) => {
   const { getService } = useServiceData();
   const service = getService(instanceId);
-  const summary = service?.stats?.jellyfin?.summary ?? EMPTY_SUMMARY;
+  const summary = service?.stats?.[serviceType]?.summary ?? EMPTY_SUMMARY;
   const sessions = summary.sessions ?? EMPTY_SESSIONS;
   const [playbackStates, setPlaybackStates] = useState<Record<string, TimerState>>({});
 
   const { isExpanded, toggle } = useCollapsiblePreference(
-    serviceSectionCollapseKey(instanceId, "jellyfin:active_streams"),
+    serviceSectionCollapseKey(instanceId, `${serviceType}:active_streams`),
     true
   );
 
@@ -185,7 +187,7 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
   };
 
   const isInitialLoading =
-    service?.status === "loading" && !service?.stats?.jellyfin?.summary;
+    service?.status === "loading" && !service?.stats?.[serviceType]?.summary;
 
   if (isInitialLoading) {
     return <StatsSkeleton rows={3} />;
@@ -196,12 +198,12 @@ export const JellyfinStats: React.FC<JellyfinStatsProps> = ({ instanceId }) => {
   }
 
   const message = combineServiceMessage(service);
-  const activeStreams = service.details?.jellyfin?.activeStreams ?? sessions.length;
+  const activeStreams = service.details?.[serviceType]?.activeStreams ?? sessions.length;
   const transcoding =
-    service.details?.jellyfin?.transcoding ??
+    service.details?.[serviceType]?.transcoding ??
     sessions.filter((session) => isTranscodingSession(session)).length;
   const paused =
-    service.details?.jellyfin?.paused ??
+    service.details?.[serviceType]?.paused ??
     sessions.filter((session) => Boolean(session.PlayState?.IsPaused)).length;
 
   return (

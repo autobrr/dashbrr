@@ -12,6 +12,7 @@ Notes:
 | --- | --- | --- | --- | --- | --- | --- |
 | Autobrr | `autobrr` | `autobrr` | API key | Yes | `autobrr_stats`, `autobrr_irc_status`, `autobrr_releases` | 120s |
 | Bazarr | `bazarr` | `bazarr` | API key | Yes | `bazarr_summary` | 90s |
+| Emby | `emby` | `emby` | API key | Yes | `emby_summary` | 10s |
 | General | `generic` | `general` | API key/token | Optional | none (the health poll also shows top-level JSON fields on the card) | n/a |
 | Jellyfin | `jellyfin` | `jellyfin` | API key | Yes | `jellyfin_summary` | 10s |
 | Lidarr | `lidarr` | `lidarr` | API key | Yes | `lidarr_queue` | 60s |

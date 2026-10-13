@@ -187,6 +187,24 @@ func TestNewPoller_JellyfinJobsAreSummaryOnly(t *testing.T) {
 	}
 }
 
+func TestNewPoller_EmbyJobsAreSummaryOnly(t *testing.T) {
+	t.Parallel()
+
+	poller := NewPoller(nil, nil)
+	jobs := poller.jobs["emby"]
+
+	if len(jobs) != 1 {
+		t.Fatalf("emby job count = %d, want 1", len(jobs))
+	}
+
+	if jobs[0].name != "emby_summary" {
+		t.Fatalf("emby job[0] = %q, want %q", jobs[0].name, "emby_summary")
+	}
+	if jobs[0].interval != 10*time.Second {
+		t.Fatalf("emby job interval = %s, want 10s", jobs[0].interval)
+	}
+}
+
 func TestNewPoller_UptimeKumaJobsAreSummaryOnly(t *testing.T) {
 	t.Parallel()
 
