@@ -26,18 +26,26 @@ type Server struct {
 	db         *database.DB
 	cache      cache.Store
 	hub        *sse.Hub
+	bc         *handlers.Broadcaster
 	poller     *handlers.Poller
 	pollerStop context.CancelFunc
 	httpServer *http.Server
 }
 
 func NewServer(cfg *config.Config, db *database.DB, cache cache.Store) *Server {
+	hub := sse.NewHub()
 	return &Server{
 		cfg:   cfg,
 		db:    db,
 		cache: cache,
-		hub:   sse.NewHub(),
+		hub:   hub,
+		bc:    handlers.NewBroadcaster(hub),
 	}
+}
+
+// Broadcaster returns the broadcaster that holds the last health of each service.
+func (s *Server) Broadcaster() *handlers.Broadcaster {
+	return s.bc
 }
 
 func (s *Server) ListenAndServe() error {
@@ -108,10 +116,9 @@ func (s *Server) Handler() http.Handler {
 	healthRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "health:") // 30 health checks per minute
 	authRateLimiter := middleware.NewRateLimiter(s.cache, time.Minute, 30, "auth:")     // 30 auth requests per minute
 
-	bc := handlers.NewBroadcaster(s.hub)
 	// Background polling will publish SSE updates.
 	if s.poller == nil {
-		s.poller = handlers.NewPoller(s.db, bc)
+		s.poller = handlers.NewPoller(s.db, s.bc)
 		pctx, cancel := context.WithCancel(context.Background())
 		s.pollerStop = cancel
 		s.poller.Start(pctx)
@@ -120,7 +127,7 @@ func (s *Server) Handler() http.Handler {
 	settingsHandler := handlers.NewSettingsHandler(s.db, s.cache, s.poller)
 	//serviceHandler := handlers.NewServiceHandler(db, health, store)
 	healthHandler := handlers.NewHealthHandler(s.db)
-	eventsHandler := handlers.NewEventsHandler(s.hub, bc)
+	eventsHandler := handlers.NewEventsHandler(s.hub, s.bc)
 	plexAuthHandler := handlers.NewPlexAuthHandler()
 	overseerrHandler := handlers.NewOverseerrHandler(s.db, s.poller)
 	arrQueueHandler := handlers.NewArrQueueHandler(s.db, s.poller)

@@ -4,6 +4,7 @@
 package config
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -466,5 +467,63 @@ func TestKubernetesDiscoveryConfig(t *testing.T) {
 	k = cfg.Discovery.Kubernetes
 	if k.Enabled || len(k.Namespaces) != 2 || k.Namespaces[1] != "downloads" || k.IntervalMinutes != 10 {
 		t.Errorf("from env: %+v, want disabled, [media downloads], interval 10", k)
+	}
+}
+
+func TestMetricsDefaults(t *testing.T) {
+	cfg, err := LoadConfig(writeConfig(t, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.Metrics.Enabled {
+		t.Error("metrics enabled = true, want false by default")
+	}
+	if got := cfg.Metrics.ListenAddr; got != "127.0.0.1:9075" {
+		t.Errorf("metrics listen_addr = %q, want 127.0.0.1:9075", got)
+	}
+	if len(cfg.Metrics.Users) != 0 {
+		t.Errorf("metrics users = %v, want none", cfg.Metrics.Users)
+	}
+}
+
+func TestMetricsFromEnv(t *testing.T) {
+	t.Setenv("DASHBRR__METRICS_ENABLED", "true")
+	t.Setenv("DASHBRR__METRICS_LISTEN_ADDR", "[::1]:9100")
+	t.Setenv("DASHBRR__METRICS_BASIC_AUTH_USERS", " prometheus:se:cret , grafana:pass ")
+
+	cfg, err := LoadConfig(writeConfig(t, "[metrics]\nlisten_addr = \"0.0.0.0:9075\"\nbasic_auth_users = \"toml:secret\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !cfg.Metrics.Enabled {
+		t.Error("metrics enabled = false, want the value from the environment")
+	}
+	if got := cfg.Metrics.ListenAddr; got != "[::1]:9100" {
+		t.Errorf("metrics listen_addr = %q, want the value from the environment", got)
+	}
+	want := map[string]string{"prometheus": "se:cret", "grafana": "pass"}
+	if !maps.Equal(cfg.Metrics.Users, want) {
+		t.Errorf("metrics users = %v, want %v", cfg.Metrics.Users, want)
+	}
+}
+
+func TestMetricsMalformedBasicAuthUsers(t *testing.T) {
+	for _, entry := range []string{"onlythepassword", ":secret", "prometheus:", ""} {
+		t.Run(entry, func(t *testing.T) {
+			t.Setenv("DASHBRR__METRICS_BASIC_AUTH_USERS", "ok:fine,"+entry)
+
+			_, err := LoadConfig(writeConfig(t, ""))
+			if err == nil {
+				t.Fatal("LoadConfig() error = nil, want an error for a malformed entry")
+			}
+			if !strings.Contains(err.Error(), "entry 2") {
+				t.Errorf("error %q does not name the entry position", err)
+			}
+			if entry != "" && strings.Contains(err.Error(), entry) {
+				t.Errorf("error %q shows the entry", err)
+			}
+		})
 	}
 }

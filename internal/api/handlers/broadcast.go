@@ -77,6 +77,16 @@ func (b *Broadcaster) Snapshot() [][]byte {
 	return out
 }
 
+// Latest returns a copy of the last known health of one service. It returns
+// false when no payload exists for the service.
+func (b *Broadcaster) Latest(serviceID string) (models.ServiceHealth, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	health, ok := b.latest[serviceID]
+	return health, ok
+}
+
 // PublishLatest re-publishes the latest known service payload to active subscribers.
 // Returns false when no cached payload exists for the service.
 func (b *Broadcaster) PublishLatest(serviceID string) bool {

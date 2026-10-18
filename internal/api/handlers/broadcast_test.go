@@ -637,3 +637,34 @@ func TestBroadcasterPublishLatestUnknownService(t *testing.T) {
 		t.Fatalf("expected PublishLatest to return false for unknown service")
 	}
 }
+
+func TestBroadcasterLatest(t *testing.T) {
+	bc := NewBroadcaster(sse.NewHub())
+	now := time.Unix(1700000000, 0)
+
+	bc.Publish(models.ServiceHealth{
+		ServiceID:    "radarr-1",
+		Status:       "warning",
+		Message:      "Indexers unavailable",
+		ResponseTime: 42,
+		LastChecked:  now,
+	})
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "radarr-1",
+		EventType:   models.ServiceEventInternal,
+		Version:     "5.2.6",
+		LastChecked: now.Add(time.Second),
+	})
+
+	got, ok := bc.Latest("radarr-1")
+	if !ok {
+		t.Fatal("Latest(radarr-1) ok = false, want true")
+	}
+	if got.Status != "warning" || got.ResponseTime != 42 || got.Version != "5.2.6" || !got.LastChecked.Equal(now.Add(time.Second)) {
+		t.Errorf("Latest(radarr-1) = %+v, want the merged snapshot", got)
+	}
+
+	if _, ok := bc.Latest("sonarr-1"); ok {
+		t.Error("Latest(sonarr-1) ok = true, want false for an unknown ID")
+	}
+}

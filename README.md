@@ -228,6 +228,10 @@ Key features include:
 - Environment variable substitution for API keys
 - Secure configuration management
 
+### Prometheus Metrics
+
+Dashbrr can serve Prometheus metrics for each service on a separate listener. Refer to the [Metrics Documentation](docs/metrics.md).
+
 ### Command Line Interface
 
 Dashbrr provides a CLI for managing services, user, and system operations. For detailed information about available commands and their usage, see our [Command Line Interface Documentation](docs/commands.md).
