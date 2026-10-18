@@ -17,12 +17,15 @@ type Broadcaster struct {
 
 	mu     sync.RWMutex
 	latest map[string]models.ServiceHealth
+	// health holds the snapshot of each service as of its last health check.
+	health map[string]models.ServiceHealth
 }
 
 func NewBroadcaster(hub *sse.Hub) *Broadcaster {
 	return &Broadcaster{
 		hub:    hub,
 		latest: make(map[string]models.ServiceHealth),
+		health: make(map[string]models.ServiceHealth),
 	}
 }
 
@@ -46,6 +49,9 @@ func (b *Broadcaster) Publish(health models.ServiceHealth) {
 		b.latest[health.ServiceID] = mergeHealthSnapshot(prev, health)
 	} else {
 		b.latest[health.ServiceID] = health
+	}
+	if shouldMergeHealthState(health) {
+		b.health[health.ServiceID] = b.latest[health.ServiceID]
 	}
 	b.mu.Unlock()
 }
@@ -77,13 +83,14 @@ func (b *Broadcaster) Snapshot() [][]byte {
 	return out
 }
 
-// Latest returns a copy of the last known health of one service. It returns
-// false when no payload exists for the service.
-func (b *Broadcaster) Latest(serviceID string) (models.ServiceHealth, bool) {
+// LatestHealth returns a copy of the snapshot of one service as of its last
+// health check. Internal events after that check do not change it. It returns
+// false until the first health check of the service ends.
+func (b *Broadcaster) LatestHealth(serviceID string) (models.ServiceHealth, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	health, ok := b.latest[serviceID]
+	health, ok := b.health[serviceID]
 	return health, ok
 }
 

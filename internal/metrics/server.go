@@ -4,6 +4,7 @@
 package metrics
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"net"
@@ -19,7 +20,7 @@ import (
 // Start binds addr and serves the metrics on it in the background. It returns
 // the bind error, so that the caller can keep dashbrr running without metrics.
 func Start(addr string, collector prometheus.Collector, users map[string]string) (*http.Server, error) {
-	listener, err := net.Listen("tcp", addr)
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, err
 	}

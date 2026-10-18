@@ -32,7 +32,7 @@ func TestHandlerBasicAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := Handler(NewCollector(fakeServices(), fakeLatest()), tt.users)
 
-			req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil)
 			if !tt.noAuth {
 				req.SetBasicAuth(tt.user, tt.password)
 			}

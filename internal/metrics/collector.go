@@ -7,6 +7,7 @@ package metrics
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -81,7 +82,12 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1, buildinfo.Version)
 
-	services, err := c.services(context.Background())
+	// Prometheus cannot cancel a scrape. The deadline stops a stalled database
+	// query, so that the scrape and the shutdown that waits for it do not hang.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	services, err := c.services(ctx)
 	if err != nil {
 		// The scrape answers HTTP 500, so Prometheus marks dashbrr as down.
 		ch <- prometheus.NewInvalidMetric(c.up, err)

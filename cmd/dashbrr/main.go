@@ -120,7 +120,7 @@ func startServer(cmd *cobra.Command) error {
 
 	var metricsSrv *http.Server
 	if m := cfg.Metrics; m.Enabled {
-		collector := metrics.NewCollector(db.GetAllServices, srv.Broadcaster().Latest)
+		collector := metrics.NewCollector(db.GetAllServices, srv.Broadcaster().LatestHealth)
 		if metricsSrv, err = metrics.Start(m.ListenAddr, collector, m.Users); err != nil {
 			log.Error().Err(err).Msg("Failed to start metrics server, dashbrr runs without metrics")
 		}

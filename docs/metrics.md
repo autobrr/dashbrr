@@ -17,7 +17,7 @@ listen_addr = "127.0.0.1:9075"
 # basic_auth_users = "prometheus:secret"
 ```
 
-You can also use environment variables. An environment variable has priority over `config.toml`.
+You can also use environment variables. An environment variable has priority over `config.toml`. An empty environment variable counts as not set.
 
 | Key | Environment variable | Default |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ You can also use environment variables. An environment variable has priority ove
 | `listen_addr` | `DASHBRR__METRICS_LISTEN_ADDR` | `127.0.0.1:9075` |
 | `basic_auth_users` | `DASHBRR__METRICS_BASIC_AUTH_USERS` | empty |
 
-The default port is 9075, because autobrr and qui use 9074. In Docker, set `listen_addr` to `0.0.0.0:9075` and publish the port. If dashbrr cannot bind the address, it writes an error to the log and runs without metrics. Dashbrr reads `[metrics]` at start. To apply a change, restart dashbrr.
+The default port is 9075, because autobrr and qui use 9074. In Docker, set `listen_addr` to `0.0.0.0:9075` and publish the port. Basic auth does not encrypt the password. Publish the port only on a network that you trust, or put a TLS proxy in front of it. If dashbrr cannot bind the address, it writes an error to the log and runs without metrics. Dashbrr reads `[metrics]` at start. To apply a change, restart dashbrr.
 
 ## Basic auth
 

@@ -638,9 +638,21 @@ func TestBroadcasterPublishLatestUnknownService(t *testing.T) {
 	}
 }
 
-func TestBroadcasterLatest(t *testing.T) {
+func TestBroadcasterLatestHealth(t *testing.T) {
 	bc := NewBroadcaster(sse.NewHub())
 	now := time.Unix(1700000000, 0)
+
+	// A detail job can finish before the first health check.
+	bc.Publish(models.ServiceHealth{
+		ServiceID:   "radarr-1",
+		Status:      "online",
+		EventType:   models.ServiceEventInternal,
+		Version:     "5.2.5",
+		LastChecked: now.Add(-time.Second),
+	})
+	if _, ok := bc.LatestHealth("radarr-1"); ok {
+		t.Fatal("LatestHealth(radarr-1) ok = true before the first health check, want false")
+	}
 
 	bc.Publish(models.ServiceHealth{
 		ServiceID:    "radarr-1",
@@ -656,15 +668,15 @@ func TestBroadcasterLatest(t *testing.T) {
 		LastChecked: now.Add(time.Second),
 	})
 
-	got, ok := bc.Latest("radarr-1")
+	got, ok := bc.LatestHealth("radarr-1")
 	if !ok {
-		t.Fatal("Latest(radarr-1) ok = false, want true")
+		t.Fatal("LatestHealth(radarr-1) ok = false, want true")
 	}
-	if got.Status != "warning" || got.ResponseTime != 42 || got.Version != "5.2.6" || !got.LastChecked.Equal(now.Add(time.Second)) {
-		t.Errorf("Latest(radarr-1) = %+v, want the merged snapshot", got)
+	if got.Status != "warning" || got.ResponseTime != 42 || got.Version != "5.2.5" || !got.LastChecked.Equal(now) {
+		t.Errorf("LatestHealth(radarr-1) = %+v, want the snapshot of the health check", got)
 	}
 
-	if _, ok := bc.Latest("sonarr-1"); ok {
-		t.Error("Latest(sonarr-1) ok = true, want false for an unknown ID")
+	if _, ok := bc.LatestHealth("sonarr-1"); ok {
+		t.Error("LatestHealth(sonarr-1) ok = true, want false for an unknown ID")
 	}
 }
