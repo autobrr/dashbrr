@@ -35,6 +35,18 @@ type Config struct {
 	Log       LogConfig       `toml:"log"`
 	Arr       ArrConfig       `toml:"arr"`
 	Discovery DiscoveryConfig `toml:"discovery"`
+	Metrics   MetricsConfig   `toml:"metrics"`
+}
+
+// MetricsConfig holds the settings of the Prometheus metrics listener.
+type MetricsConfig struct {
+	Enabled    bool   `toml:"enabled" env:"DASHBRR__METRICS_ENABLED"`
+	ListenAddr string `toml:"listen_addr" env:"DASHBRR__METRICS_LISTEN_ADDR"`
+	// BasicAuthUsers is a comma-separated list of user:password entries.
+	// An empty value turns basic auth off.
+	BasicAuthUsers string `toml:"basic_auth_users" env:"DASHBRR__METRICS_BASIC_AUTH_USERS"`
+	// Users maps each user in BasicAuthUsers to its password.
+	Users map[string]string `toml:"-"`
 }
 
 // ArrConfig holds configuration that applies to all *arr services
@@ -116,6 +128,8 @@ func DefaultConfig() *Config {
 		Discovery: DiscoveryConfig{
 			Kubernetes: KubernetesDiscoveryConfig{IntervalMinutes: 5},
 		},
+		// autobrr and qui use 9074.
+		Metrics: MetricsConfig{ListenAddr: "127.0.0.1:9075"},
 	}
 }
 
@@ -232,11 +246,34 @@ func loadConfig(path string, writeDefault bool) (*Config, error) {
 		return nil, err
 	}
 
+	if config.Metrics.Users, err = parseBasicAuthUsers(config.Metrics.BasicAuthUsers); err != nil {
+		return nil, err
+	}
+
 	if config.Auth.OIDC.IsConfigured() && config.Auth.OIDC.RedirectURL == "" {
 		return nil, errors.New("OIDC is configured but redirect_url (DASHBRR__OIDC_REDIRECT_URL) is empty: set it to the callback URL, for example https://example.com/dashbrr/api/auth/oidc/callback")
 	}
 
 	return config, nil
+}
+
+// parseBasicAuthUsers reads comma-separated user:password entries. A password
+// can contain colons. The error names the position of a malformed entry, not
+// the entry, because an entry with no colon can be the password alone.
+func parseBasicAuthUsers(raw string) (map[string]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+
+	users := make(map[string]string)
+	for i, entry := range strings.Split(raw, ",") {
+		user, password, ok := strings.Cut(strings.TrimSpace(entry), ":")
+		if !ok || user == "" || password == "" {
+			return nil, fmt.Errorf("metrics basic_auth_users (DASHBRR__METRICS_BASIC_AUTH_USERS): entry %d is not in user:password form", i+1)
+		}
+		users[user] = password
+	}
+	return users, nil
 }
 
 // BasePath is the URL path prefix that dashbrr is served under. It is "" at
@@ -378,6 +415,19 @@ func LoadEnvOverrides(config *Config) error {
 		if n, err := strconv.Atoi(strings.TrimSpace(env)); err == nil && n > 0 {
 			config.Discovery.Kubernetes.IntervalMinutes = n
 		}
+	}
+
+	// Metrics
+	if env := os.Getenv("DASHBRR__METRICS_ENABLED"); env != "" {
+		if b, err := strconv.ParseBool(strings.TrimSpace(env)); err == nil {
+			config.Metrics.Enabled = b
+		}
+	}
+	if env := os.Getenv("DASHBRR__METRICS_LISTEN_ADDR"); env != "" {
+		config.Metrics.ListenAddr = env
+	}
+	if env := os.Getenv("DASHBRR__METRICS_BASIC_AUTH_USERS"); env != "" {
+		config.Metrics.BasicAuthUsers = env
 	}
 
 	// Auth OIDC

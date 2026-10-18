@@ -17,6 +17,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/commands"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/logger"
+	"github.com/autobrr/dashbrr/internal/metrics"
 	"github.com/autobrr/dashbrr/internal/services/cache"
 	"github.com/autobrr/dashbrr/internal/services/discovery"
 
@@ -117,6 +118,14 @@ func startServer(cmd *cobra.Command) error {
 		}
 	}()
 
+	var metricsSrv *http.Server
+	if m := cfg.Metrics; m.Enabled {
+		collector := metrics.NewCollector(db.GetAllServices, srv.Broadcaster().LatestHealth)
+		if metricsSrv, err = metrics.Start(m.ListenAddr, collector, m.Users); err != nil {
+			log.Error().Err(err).Msg("Failed to start metrics server, dashbrr runs without metrics")
+		}
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
@@ -131,6 +140,12 @@ func startServer(cmd *cobra.Command) error {
 	//defer cancel()
 
 	stopSync()
+
+	if metricsSrv != nil {
+		if err := metricsSrv.Shutdown(context.Background()); err != nil {
+			log.Error().Err(err).Msg("got error during metrics server shutdown")
+		}
+	}
 
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Error().Err(err).Msg("got error during graceful http shutdown")

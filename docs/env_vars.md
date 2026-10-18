@@ -126,6 +126,29 @@ Refer to [`docs/config_management.md`](config_management.md#sync-in-serve). You 
   - Default: `5`
   - Config key: `interval_minutes`
 
+## Prometheus Metrics
+
+Refer to [`docs/metrics.md`](metrics.md). You can also set these values in `config.toml`, under `[metrics]`. The environment variable has priority.
+
+- `DASHBRR__METRICS_ENABLED`
+  - Purpose: Serve Prometheus metrics on a separate listener
+  - Values: `true|false`
+  - Default: `false`
+  - Config key: `enabled`
+
+- `DASHBRR__METRICS_LISTEN_ADDR`
+  - Purpose: Listen address for the metrics listener
+  - Format: `<host>:<port>`
+  - Default: `127.0.0.1:9075`
+  - Config key: `listen_addr`
+
+- `DASHBRR__METRICS_BASIC_AUTH_USERS`
+  - Purpose: Comma-separated list of `user:password` entries for basic auth on `/metrics`
+  - Example: `prometheus:secret`
+  - Default: empty (basic auth is off)
+  - Note: If an entry has no colon, an empty user, or an empty password, dashbrr does not start.
+  - Config key: `basic_auth_users`
+
 ## Authentication (OIDC)
 
 (Optional OpenID Connect configuration)

@@ -11,3 +11,10 @@ path = "./data/dashbrr.db"
 [arr]
 # Optional: *arr health checks to hide. They do not put a service in the warning state.
 # ignored_health_checks = ["RemovedSeriesCheck", "RemovedMovieCheck"]
+
+# Optional: Prometheus metrics on a separate listener. Refer to docs/metrics.md.
+# [metrics]
+# enabled = false
+# listen_addr = "127.0.0.1:9075"
+# Comma-separated user:password entries. An empty value turns basic auth off.
+# basic_auth_users = "user:password,user2:password2"

@@ -66,6 +66,10 @@ _Avoid_: stats job, poll task
 The data for one service instance that the UI receives over SSE.
 _Avoid_: stats, service data
 
+**Service status**:
+The state of a service after its last health check: online, warning, offline, error, pending, or unknown. Online and warning mean that the service is up.
+_Avoid_: health, state
+
 ### *arr apps
 
 ***arr app**:

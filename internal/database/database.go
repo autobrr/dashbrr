@@ -532,6 +532,10 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 		services = append(services, service)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return services, nil
 }
 
