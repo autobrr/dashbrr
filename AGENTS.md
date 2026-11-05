@@ -77,5 +77,5 @@ These rules are for AI PR reviewers. The agent workflow rules in this file (scop
 - Report a defect only when the change causes a concrete wrong behavior. Name the trigger and the result for the user. If you cannot name both, omit the finding.
 - Check the merge base. If `develop` already has the problem, still report it, but label it "already on develop" and do not call it a regression.
 - When the PR body, a linked issue, an ADR in `docs/adr/`, or a code comment calls a behavior deliberate, respond to that reason. Report a design flaw only when you can say why the stated reason does not hold.
-- Do not report what gofmt, golangci-lint, ESLint, or tsc already report. Do not ask for docstrings.
+- Do not report what gofmt, golangci-lint, ESLint, or tsc already report. Do not ask for docstrings or other code comments. Report a stale comment.
 - Read earlier review threads. Do not repeat a finding that was resolved or refuted, unless you have new evidence.
