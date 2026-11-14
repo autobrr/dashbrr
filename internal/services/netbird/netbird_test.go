@@ -10,8 +10,10 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 // peerFixture is a recorded response of GET /api/peers with the real names, IPs,
@@ -381,5 +383,103 @@ func TestUnmarshalPeerFixture(t *testing.T) {
 	}
 	if len(peers) != 2 || peers[0].IP == "" || len(peers[0].Groups) != 2 {
 		t.Fatalf("fixture decoded to unexpected shape: %#v", peers)
+	}
+}
+
+// newVersionStubServer serves the peer fixture and hands every version request to
+// the given handler, so a test can stall it, answer 404 or send a partial body.
+func newVersionStubServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+
+	versionCalls := &atomic.Int32{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(peerFixture))
+	})
+	mux.HandleFunc("/api/instance/version", func(w http.ResponseWriter, r *http.Request) {
+		versionCalls.Add(1)
+		handler(w, r)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server, versionCalls
+}
+
+func TestCheckHealthSurvivesStallingVersionEndpoint(t *testing.T) {
+	initTestCache(t)
+	server, _ := newVersionStubServer(t, func(_ http.ResponseWriter, r *http.Request) {
+		// Answer only after the caller gives up, the worst case for a shared deadline.
+		<-r.Context().Done()
+	})
+
+	start := time.Now()
+	health, statusCode := newNetBirdTestService().CheckHealth(t.Context(), server.URL, "nbp_testtoken")
+	elapsed := time.Since(start)
+
+	if statusCode != http.StatusOK || health.Status != "online" {
+		t.Fatalf("status = %q (%d), want online (200): a slow version call must not fail the peer check", health.Status, statusCode)
+	}
+	if health.Message != "1/2 peers online" {
+		t.Fatalf("message = %q, want 1/2 peers online", health.Message)
+	}
+	if health.UpdateAvailable {
+		t.Fatalf("updateAvailable = true, want false without a version answer")
+	}
+	// The optional call gets versionTimeout, the whole check gets core.DefaultTimeout.
+	if elapsed >= core.DefaultTimeout {
+		t.Fatalf("health check took %s, must return before the %s deadline", elapsed, core.DefaultTimeout)
+	}
+}
+
+func TestUnavailableVersionEndpointIsRemembered(t *testing.T) {
+	initTestCache(t)
+	server, versionCalls := newVersionStubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		http.NotFound(w, nil)
+	})
+
+	service := newNetBirdTestService()
+	if _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
+		t.Fatalf("GetPeers: %v", err)
+	}
+	if service.ServerUpdateAvailable(t.Context(), server.URL, "nbp_testtoken") {
+		t.Fatalf("updateAvailable = true without a version endpoint")
+	}
+	if _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
+		t.Fatalf("second GetPeers: %v", err)
+	}
+
+	if got := versionCalls.Load(); got != 1 {
+		t.Fatalf("version requests = %d, want 1: a 404 is cached for %s", got, versionMissTTL)
+	}
+}
+
+func TestVersionAnswerWithoutNewestReleaseIsCached(t *testing.T) {
+	initTestCache(t)
+	server, versionCalls := newVersionStubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"management_current_version": "0.60.0"}`))
+	})
+
+	service := newNetBirdTestService()
+	peers, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken")
+	if err != nil {
+		t.Fatalf("GetPeers: %v", err)
+	}
+	if len(peers) != 2 {
+		t.Fatalf("peers = %d, want 2", len(peers))
+	}
+	for _, peer := range peers {
+		if peer.UpdateAvailable {
+			t.Fatalf("peer %s shows an update badge without a release to compare against", peer.Name)
+		}
+	}
+	if service.ServerUpdateAvailable(t.Context(), server.URL, "nbp_testtoken") {
+		t.Fatalf("updateAvailable = true without a newer release")
+	}
+
+	if got := versionCalls.Load(); got != 1 {
+		t.Fatalf("version requests = %d, want 1: an answer without the newest release is cached too", got)
 	}
 }

@@ -18,7 +18,7 @@ import type { NetBirdPeer, TailscaleDevice } from "../../types/service";
 import {
   NETWORK_DESCRIPTORS,
   NETWORK_ORDER,
-  countOnline,
+  memberCounts,
   findInstanceID,
   networkStatus,
   toNetBirdMember,
@@ -100,13 +100,12 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
     return netbirdItems(peers);
   }, [descriptor.type, service]);
 
-  const total = items.length;
-  const onlineCount = countOnline(
-    items,
-    descriptor.type === "tailscale"
-      ? service?.details?.tailscale?.online
-      : service?.details?.netbird?.online
-  );
+  const reported =
+    descriptor.type === "tailscale" ? service?.details?.tailscale : service?.details?.netbird;
+  const { total, online: onlineCount } = memberCounts(items, {
+    total: reported?.total,
+    online: reported?.online,
+  });
   const statusKind = networkStatus({ status: service?.status, total, online: onlineCount });
   const serverUpdate =
     descriptor.type === "netbird" && Boolean(service?.details?.netbird?.updateAvailable);

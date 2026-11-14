@@ -30,8 +30,24 @@ const tokenPrefix = "nbp_"
 // so it stays out of the peer list.
 const allGroup = "All"
 
-// versionTTL caches the answer of /api/instance/version for one hour.
-const versionTTL = time.Hour
+const (
+	// versionTTL caches the answer of /api/instance/version for one hour.
+	versionTTL = time.Hour
+	// versionMissTTL remembers a server that answered "no such endpoint" for a
+	// while, so a NetBird without it is not asked again on every poll.
+	versionMissTTL = 5 * time.Minute
+	// versionTimeout bounds the optional version call. The peer list decides
+	// whether the service is healthy, so this call must never consume the
+	// health deadline and turn a working network into a 504.
+	versionTimeout = 3 * time.Second
+	// versionMissMarker stands in the cache slot for "this server has no usable
+	// version endpoint".
+	versionMissMarker = "unavailable"
+)
+
+// errVersionUnavailable reports a version endpoint that the server does not
+// serve. It is cached, so the caller sees it without another request.
+var errVersionUnavailable = errors.New("version endpoint unavailable")
 
 type Service struct {
 	core.ServiceCore
@@ -143,6 +159,10 @@ func (s *Service) fetchPeers(ctx context.Context, baseURL, apiKey string) ([]api
 // the 60s peer poll does not call the endpoint on every run.
 func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) (*versionInfo, error) {
 	if cached := s.GetVersionFromCache(ctx, baseURL); cached != "" {
+		if cached == versionMissMarker {
+			return nil, errVersionUnavailable
+		}
+
 		var info versionInfo
 		if err := json.Unmarshal([]byte(cached), &info); err != nil {
 			info = versionInfo{ManagementCurrentVersion: cached, ManagementAvailableVersion: cached}
@@ -160,6 +180,14 @@ func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) (*ve
 	}
 	defer resp.Body.Close()
 
+	// A server that does not serve the route answers 404 every time: remember
+	// that for a bounded while instead of asking again on every poll. The check
+	// has to happen before ReadBody, which turns any non-200 into an error.
+	if resp.StatusCode == http.StatusNotFound {
+		_ = s.CacheVersion(ctx, baseURL, versionMissMarker, versionMissTTL)
+		return nil, errVersionUnavailable
+	}
+
 	body, err := s.ReadBody(resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
@@ -174,7 +202,10 @@ func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) (*ve
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if info.ManagementAvailableVersion != "" {
+	// Cache every usable answer, also one without the newest release: the
+	// endpoint is optional and a second call inside the same poll must not
+	// double the requests.
+	if info.ManagementCurrentVersion != "" {
 		if encoded, err := json.Marshal(info); err == nil {
 			// A cache failure must not fail the health check; the next poll tries again.
 			_ = s.CacheVersion(ctx, baseURL, string(encoded), versionTTL)
@@ -243,7 +274,13 @@ func (s *Service) CheckHealth(ctx context.Context, url, apiKey string) (models.S
 		return s.CreateHealthResponse(startTime, "warning", "Token sees no peers: use a token from an admin user"), http.StatusOK
 	}
 
-	info, versionErr := s.fetchVersion(healthCtx, url, apiKey)
+	// The version endpoint is optional. Give it its own short deadline so a
+	// stalling answer cannot consume the health deadline and turn a reachable
+	// network into a 504.
+	versionCtx, cancelVersion := context.WithTimeout(healthCtx, versionTimeout)
+	info, versionErr := s.fetchVersion(versionCtx, url, apiKey)
+	cancelVersion()
+
 	if versionErr != nil {
 		// A missing version endpoint must not break the peer list (NetBird Cloud
 		// does not document it), so the status stays online and no badge shows.

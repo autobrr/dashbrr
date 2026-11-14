@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   filterMembers,
+  memberCounts,
   findInstanceID,
   networkStatus,
   prepareMembers,
@@ -131,4 +132,16 @@ test("networkStatus separates empty from offline and error", () => {
   assert.equal(networkStatus({ status: "warning", total: 0, online: 0 }), "empty");
   assert.equal(networkStatus({ status: "online", total: 3, online: 0 }), "offline");
   assert.equal(networkStatus({ status: "online", total: 3, online: 2 }), "connected");
+});
+
+test("memberCounts keeps total and online from one snapshot", () => {
+  const members = [member({ id: "a", online: true }), member({ id: "b", online: false })];
+
+  // The loaded list wins even when a newer health check reports more online peers.
+  assert.deepEqual(memberCounts(members, { total: 2, online: 3 }), { total: 2, online: 1 });
+});
+
+test("memberCounts falls back to the reported counts before the list arrives", () => {
+  assert.deepEqual(memberCounts([], { total: 4, online: 2 }), { total: 4, online: 2 });
+  assert.deepEqual(memberCounts([], undefined), { total: 0, online: 0 });
 });

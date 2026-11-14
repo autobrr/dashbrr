@@ -99,11 +99,19 @@ const MeshNetworkListModal: React.FC<Props> = ({
   const onlineCount = visibleItems.filter((item) => item.online).length;
   const plural = descriptor.noun.plural;
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.custom((t) => (
-      <Toast type="success" body={`Copied ${text} to clipboard`} t={t} />
-    ));
+  // Report success only after the write resolved: a denied clipboard permission
+  // rejects, and claiming "copied" then would be a lie.
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.custom((t) => (
+        <Toast type="success" body={`Copied ${text} to clipboard`} t={t} />
+      ));
+    } catch {
+      toast.custom((t) => (
+        <Toast type="error" body={`Could not copy ${text} to clipboard`} t={t} />
+      ));
+    }
   };
 
   return (

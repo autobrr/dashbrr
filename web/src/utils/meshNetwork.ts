@@ -120,13 +120,22 @@ export function prepareMembers(
   return sortMembers(filterMembers(members, searchTerm));
 }
 
-// countOnline returns how many members are connected. It uses the count that the
-// backend reported when there is one, so the button and the list agree.
-export function countOnline(
+// memberCounts returns total and online from ONE snapshot. A health check and the
+// peer job report at different speeds, so mixing their numbers can print
+// "3/2 peers online"; the loaded list wins, the reported counts only fill the gap
+// until the list has arrived.
+export function memberCounts(
   members: NetworkMember[],
-  reportedOnline?: number
-): number {
-  return reportedOnline ?? members.filter((member) => member.online).length;
+  reported?: { total?: number; online?: number }
+): { total: number; online: number } {
+  if (members.length > 0) {
+    return {
+      total: members.length,
+      online: members.filter((member) => member.online).length,
+    };
+  }
+
+  return { total: reported?.total ?? 0, online: reported?.online ?? 0 };
 }
 
 export type NetworkStatusKind =
