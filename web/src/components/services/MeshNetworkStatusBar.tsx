@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { Cog6ToothIcon } from "@heroicons/react/24/solid";
+import { TrashIcon } from "@heroicons/react/24/solid";
 import tailscaleLogo from "../../assets/tailscale.svg";
 import netbirdLogo from "../../assets/netbird.svg";
 import MeshNetworkListModal from "./MeshNetworkListModal";
@@ -194,7 +194,7 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
             className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
             title={`Remove ${label}`}
           >
-            <Cog6ToothIcon className="w-4 h-4" />
+            <TrashIcon className="w-4 h-4" />
           </button>
         )}
       </div>
