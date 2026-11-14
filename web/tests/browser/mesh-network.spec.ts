@@ -71,3 +71,18 @@ test("the Tailscale list keeps its fields and the word devices", async ({ page }
   await expect(dialog.getByText("tag:work")).toBeVisible();
   await expect(dialog.getByText(/Tailscale Peers/)).toHaveCount(0);
 });
+
+test("the header offers a configure path next to the remove button", async ({ page }) => {
+  await page.goto(`${HARNESS_PATH}?scenario=netbird-only`);
+  const header = page.getByTestId("header-netbird_only");
+
+  const configure = header.getByTestId("netbird-configure");
+  await expect(configure).toBeVisible();
+  await expect(configure).toHaveAttribute("title", "Configure NetBird");
+
+  await configure.click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Configure NetBird")).toBeVisible();
+  await expect(dialog.locator("#url")).toHaveValue("https://api.netbird.io");
+});

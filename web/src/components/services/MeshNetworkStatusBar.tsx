@@ -4,9 +4,10 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { TrashIcon } from "@heroicons/react/24/solid";
+import { Cog6ToothIcon, TrashIcon } from "@heroicons/react/24/solid";
 import tailscaleLogo from "../../assets/tailscale.svg";
 import netbirdLogo from "../../assets/netbird.svg";
+import { ConfigurationForm } from "../configuration/ConfigurationForm";
 import MeshNetworkListModal from "./MeshNetworkListModal";
 import type { NetworkListItem } from "./MeshNetworkListModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
@@ -82,6 +83,7 @@ const fadeStyle = {
 const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId }) => {
   const [isListOpen, setIsListOpen] = useState(false);
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const { configurations } = useConfiguration();
   const { removeServiceInstance } = useServiceManagement();
   const { getService } = useServiceData();
@@ -188,6 +190,16 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
             Update available
           </span>
         )}
+        {instanceId && (
+          <button
+            onClick={() => setIsConfigModalOpen(true)}
+            className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
+            title={`Configure ${label}`}
+            data-testid={`${descriptor.type}-configure`}
+          >
+            <Cog6ToothIcon className="w-4 h-4" />
+          </button>
+        )}
         {!configurations[instanceId ?? ""]?.discovered && (
           <button
             onClick={() => setIsRemoveModalOpen(true)}
@@ -198,6 +210,21 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
           </button>
         )}
       </div>
+
+      {instanceId && (
+        <AnimatedModal
+          isOpen={isConfigModalOpen}
+          onClose={() => setIsConfigModalOpen(false)}
+          title={`Configure ${label}`}
+          maxWidth="lg"
+        >
+          <ConfigurationForm
+            instanceId={instanceId}
+            displayName={label}
+            onClose={() => setIsConfigModalOpen(false)}
+          />
+        </AnimatedModal>
+      )}
 
       <MeshNetworkListModal
         isOpen={isListOpen}
