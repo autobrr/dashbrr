@@ -14,6 +14,7 @@ import (
 	"time"
 
 	version "github.com/hashicorp/go-version"
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
@@ -36,18 +37,13 @@ const (
 	// versionMissTTL remembers a server that answered "no such endpoint" for a
 	// while, so a NetBird without it is not asked again on every poll.
 	versionMissTTL = 5 * time.Minute
-	// versionTimeout bounds the optional version call. The peer list decides
-	// whether the service is healthy, so this call must never consume the
-	// health deadline and turn a working network into a 504.
+	// versionTimeout limits the optional version call. A version endpoint that
+	// does not answer must not delay the health check or the peer list.
 	versionTimeout = 3 * time.Second
 	// versionMissMarker stands in the cache slot for "this server has no usable
 	// version endpoint".
 	versionMissMarker = "unavailable"
 )
-
-// errVersionUnavailable reports a version endpoint that the server does not
-// serve. It is cached, so the caller sees it without another request.
-var errVersionUnavailable = errors.New("version endpoint unavailable")
 
 type Service struct {
 	core.ServiceCore
@@ -153,66 +149,65 @@ func (s *Service) fetchPeers(ctx context.Context, baseURL, apiKey string) ([]api
 
 // fetchVersion asks the management server which version is current and which is
 // the newest release. NetBird clients and the management server share version
-// numbers, so one answer covers the peers and the server.
-//
-// The answer is cached in the version slot of the service cache for one hour, so
-// the 60s peer poll does not call the endpoint on every run.
-func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) (*versionInfo, error) {
-	if cached := s.GetVersionFromCache(ctx, baseURL); cached != "" {
-		if cached == versionMissMarker {
-			return nil, errVersionUnavailable
-		}
+// numbers, so one answer covers the peers and the server. The endpoint is
+// optional: when it fails, the zero versionInfo means no badges and no error.
+func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) versionInfo {
+	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
+	defer cancel()
 
-		var info versionInfo
-		if err := json.Unmarshal([]byte(cached), &info); err != nil {
-			info = versionInfo{ManagementCurrentVersion: cached, ManagementAvailableVersion: cached}
+	var info versionInfo
+	if cached := s.GetVersionFromCache(ctx, baseURL); cached != "" {
+		if cached != versionMissMarker {
+			_ = json.Unmarshal([]byte(cached), &info)
 		}
-		return &info, nil
+		return info
 	}
 
+	info, err := s.requestVersion(ctx, baseURL, apiKey)
+	if err != nil {
+		log.Debug().Err(err).Str("url", core.RedactURL(baseURL)).Msg("NetBird version check failed, showing no update badges")
+	}
+	return info
+}
+
+func (s *Service) requestVersion(ctx context.Context, baseURL, apiKey string) (versionInfo, error) {
 	headers := map[string]string{
 		"Authorization": "Token " + apiKey,
 	}
 
 	resp, err := s.DoRequest(ctx, http.MethodGet, versionURL(baseURL), headers, nil)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return versionInfo{}, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// A server that does not serve the route answers 404 every time: remember
-	// that for a bounded while instead of asking again on every poll. The check
-	// has to happen before ReadBody, which turns any non-200 into an error.
+	// The check has to happen before ReadBody, which turns any non-200 into an error.
 	if resp.StatusCode == http.StatusNotFound {
 		_ = s.CacheVersion(ctx, baseURL, versionMissMarker, versionMissTTL)
-		return nil, errVersionUnavailable
+		return versionInfo{}, errors.New("server has no version endpoint")
 	}
 
 	body, err := s.ReadBody(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		return versionInfo{}, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed (Status %d): %s", resp.StatusCode, string(body))
+		return versionInfo{}, fmt.Errorf("API request failed (Status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var info versionInfo
 	if err := json.Unmarshal(body, &info); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return versionInfo{}, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	// Cache every usable answer, also one without the newest release: the
-	// endpoint is optional and a second call inside the same poll must not
-	// double the requests.
 	if info.ManagementCurrentVersion != "" {
 		if encoded, err := json.Marshal(info); err == nil {
-			// A cache failure must not fail the health check; the next poll tries again.
 			_ = s.CacheVersion(ctx, baseURL, string(encoded), versionTTL)
 		}
 	}
 
-	return &info, nil
+	return info, nil
 }
 
 // needsUpdate reports whether a peer version is older than the newest release.
@@ -257,7 +252,7 @@ func (s *Service) CheckHealth(ctx context.Context, url, apiKey string) (models.S
 	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
-	if err := ValidateURL(url); err != nil {
+	if err := validateURL(url); err != nil {
 		return s.CreateHealthResponse(startTime, "error", err.Error()), http.StatusBadRequest
 	}
 
@@ -274,18 +269,7 @@ func (s *Service) CheckHealth(ctx context.Context, url, apiKey string) (models.S
 		return s.CreateHealthResponse(startTime, "warning", "Token sees no peers: use a token from an admin user"), http.StatusOK
 	}
 
-	// The version endpoint is optional. Give it its own short deadline so a
-	// stalling answer cannot consume the health deadline and turn a reachable
-	// network into a 504.
-	versionCtx, cancelVersion := context.WithTimeout(healthCtx, versionTimeout)
-	info, versionErr := s.fetchVersion(versionCtx, url, apiKey)
-	cancelVersion()
-
-	if versionErr != nil {
-		// A missing version endpoint must not break the peer list (NetBird Cloud
-		// does not document it), so the status stays online and no badge shows.
-		info = nil
-	}
+	info := s.fetchVersion(healthCtx, url, apiKey)
 
 	onlineCount := 0
 	for _, peer := range peers {
@@ -296,26 +280,18 @@ func (s *Service) CheckHealth(ctx context.Context, url, apiKey string) (models.S
 
 	extras := map[string]any{
 		"responseTime":    responseTime.Milliseconds(),
-		"updateAvailable": info != nil && info.ManagementUpdateAvailable,
-	}
-
-	if info != nil {
-		extras["version"] = info.ManagementCurrentVersion
-	}
-
-	details := map[string]any{
-		"netbird": map[string]any{
-			"total":           len(peers),
-			"online":          onlineCount,
-			"updateAvailable": info != nil && info.ManagementUpdateAvailable,
-			"serverVersion":   "",
+		"updateAvailable": info.ManagementUpdateAvailable,
+		"details": map[string]any{
+			"netbird": map[string]any{
+				"total":           len(peers),
+				"online":          onlineCount,
+				"updateAvailable": info.ManagementUpdateAvailable,
+			},
 		},
 	}
-	if info != nil {
-		serverDetails := details["netbird"].(map[string]any)
-		serverDetails["serverVersion"] = info.ManagementCurrentVersion
+	if info.ManagementCurrentVersion != "" {
+		extras["version"] = info.ManagementCurrentVersion
 	}
-	extras["details"] = details
 
 	message := fmt.Sprintf("%d/%d peers online", onlineCount, len(peers))
 	if onlineCount == 0 {
@@ -325,22 +301,16 @@ func (s *Service) CheckHealth(ctx context.Context, url, apiKey string) (models.S
 	return s.CreateHealthResponse(startTime, "online", message, extras), http.StatusOK
 }
 
-// GetPeers returns the peers of the network, ready for the dashboard payload.
-func (s *Service) GetPeers(ctx context.Context, baseURL, apiKey string) ([]Peer, error) {
+// GetPeers returns the peers of the network, ready for the dashboard payload, and
+// whether the management server is older than the newest release. A failed
+// version check gives no update badges and false, not an error.
+func (s *Service) GetPeers(ctx context.Context, baseURL, apiKey string) ([]Peer, bool, error) {
 	apiPeers, _, err := s.fetchPeers(ctx, baseURL, apiKey)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	info, err := s.fetchVersion(ctx, baseURL, apiKey)
-	if err != nil {
-		info = nil
-	}
-
-	availableVersion := ""
-	if info != nil {
-		availableVersion = info.ManagementAvailableVersion
-	}
+	info := s.fetchVersion(ctx, baseURL, apiKey)
 
 	peers := make([]Peer, 0, len(apiPeers))
 	for _, peer := range apiPeers {
@@ -352,7 +322,7 @@ func (s *Service) GetPeers(ctx context.Context, baseURL, apiKey string) ([]Peer,
 			LastSeen:        peer.LastSeen,
 			OS:              peer.OS,
 			Version:         peer.Version,
-			UpdateAvailable: needsUpdate(peer.Version, availableVersion),
+			UpdateAvailable: needsUpdate(peer.Version, info.ManagementAvailableVersion),
 			Groups:          groupNames(peer),
 			CityName:        peer.CityName,
 			CountryCode:     peer.CountryCode,
@@ -360,24 +330,13 @@ func (s *Service) GetPeers(ctx context.Context, baseURL, apiKey string) ([]Peer,
 		})
 	}
 
-	return peers, nil
+	return peers, info.ManagementUpdateAvailable, nil
 }
 
-// ServerUpdateAvailable reports whether the management server is older than the
-// newest release. A failed version call answers false, so the dashboard shows no
-// update hint instead of an error.
-func (s *Service) ServerUpdateAvailable(ctx context.Context, baseURL, apiKey string) bool {
-	info, err := s.fetchVersion(ctx, baseURL, apiKey)
-	if err != nil || info == nil {
-		return false
-	}
-
-	return info.ManagementUpdateAvailable
-}
-
-// ValidateURL rejects an address that is not an absolute http(s) URL, so a typo
-// in the management URL shows up as a status error instead of a vague request failure.
-func ValidateURL(baseURL string) error {
+// validateURL rejects an address that is not the absolute http(s) root of a
+// management server, so a typo shows up as a status error instead of a vague
+// request failure.
+func validateURL(baseURL string) error {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return err
@@ -387,6 +346,9 @@ func ValidateURL(baseURL string) error {
 	}
 	if parsed.Host == "" {
 		return errors.New("URL has no host")
+	}
+	if strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), "/api") {
+		return errors.New("URL must be the address of the management server without /api: dashbrr adds /api itself")
 	}
 
 	return nil

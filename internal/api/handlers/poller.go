@@ -837,15 +837,11 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 
 func (p *Poller) runNetBirdPeers(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
 	service := &netbird.Service{}
-	peers, err := service.GetPeers(ctx, svc.URL, svc.APIKey)
+	peers, updateAvailable, err := service.GetPeers(ctx, svc.URL, svc.APIKey)
 	if err != nil {
 		return err
 	}
-	if peers == nil {
-		peers = []netbird.Peer{}
-	}
 
-	updateAvailable := service.ServerUpdateAvailable(ctx, svc.URL, svc.APIKey)
 	publishInternalServiceUpdate(p.bc, buildNetBirdPeersServiceUpdate(svc.InstanceID, peers, updateAvailable))
 	return nil
 }

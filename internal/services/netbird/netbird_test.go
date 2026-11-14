@@ -73,7 +73,7 @@ func newNetBirdTestService() *Service {
 func initTestCache(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	if _, err := cache.InitCache(context.Background(), cache.Config{DataDir: t.TempDir()}); err != nil {
+	if _, err := cache.InitCache(t.Context(), cache.Config{DataDir: t.TempDir()}); err != nil {
 		t.Fatalf("InitCache: %v", err)
 	}
 }
@@ -84,8 +84,8 @@ type fixtureServer struct {
 	versionCalls atomic.Int32
 }
 
-// newFixtureServer serves the recorded responses and records what the service
-// sent: path, authorization header and host.
+// newFixtureServer serves the recorded responses and counts the requests. The peer
+// route answers 401 to any header other than "Token nbp_testtoken".
 func newFixtureServer(t *testing.T, peers string, versionStatus int, versionBody string) *fixtureServer {
 	t.Helper()
 
@@ -158,20 +158,6 @@ func TestCheckHealthEmptyPeerListWarnsAboutTokenRights(t *testing.T) {
 	}
 }
 
-func TestCheckHealthRejectedTokenIsAnError(t *testing.T) {
-	initTestCache(t)
-	server := newFixtureServer(t, `{"code":43,"message":"token invalid"}`, http.StatusOK, versionFixture)
-	_ = server // the peer handler answers 401 when the header is not the expected one
-
-	health, statusCode := newNetBirdTestService().CheckHealth(t.Context(), server.URL, "nbp_wrongtoken")
-	if statusCode != http.StatusServiceUnavailable {
-		t.Fatalf("statusCode = %d, want %d", statusCode, http.StatusServiceUnavailable)
-	}
-	if health.Status != "error" {
-		t.Fatalf("status = %q, want error", health.Status)
-	}
-}
-
 func TestCheckHealthRejects401FromServer(t *testing.T) {
 	initTestCache(t)
 	mux := http.ServeMux{}
@@ -211,8 +197,7 @@ func TestCheckHealthMissingTokenIsAnError(t *testing.T) {
 func TestCheckHealthRequestsTheURLTheUserEntered(t *testing.T) {
 	initTestCache(t)
 	server := newFixtureServer(t, peerFixture, http.StatusOK, versionFixture)
-	// A base URL with a sub path keeps the path, because a self-hosting server can
-	// sit behind a reverse proxy.
+
 	health, statusCode := newNetBirdTestService().CheckHealth(t.Context(), server.URL+"/", "nbp_testtoken")
 	if statusCode != http.StatusOK || health.Status != "online" {
 		t.Fatalf("statusCode = %d, health = %#v", statusCode, health)
@@ -226,9 +211,12 @@ func TestGetPeersMapsFieldsAndHidesAllGroup(t *testing.T) {
 	initTestCache(t)
 	server := newFixtureServer(t, peerFixture, http.StatusOK, versionFixture)
 
-	peers, err := newNetBirdTestService().GetPeers(t.Context(), server.URL, "nbp_testtoken")
+	peers, serverUpdate, err := newNetBirdTestService().GetPeers(t.Context(), server.URL, "nbp_testtoken")
 	if err != nil {
 		t.Fatalf("GetPeers: %v", err)
+	}
+	if !serverUpdate {
+		t.Fatalf("serverUpdate = false, want true from management_update_available")
 	}
 	if len(peers) != 2 {
 		t.Fatalf("len(peers) = %d, want 2", len(peers))
@@ -269,9 +257,12 @@ func TestGetPeersWithoutVersionEndpointShowsNoBadges(t *testing.T) {
 	initTestCache(t)
 	server := newFixtureServer(t, peerFixture, http.StatusNotFound, `{"message":"not found"}`)
 
-	peers, err := newNetBirdTestService().GetPeers(t.Context(), server.URL, "nbp_testtoken")
+	peers, serverUpdate, err := newNetBirdTestService().GetPeers(t.Context(), server.URL, "nbp_testtoken")
 	if err != nil {
 		t.Fatalf("GetPeers: %v", err)
+	}
+	if serverUpdate {
+		t.Fatalf("serverUpdate = true although the version call failed")
 	}
 	for _, peer := range peers {
 		if peer.UpdateAvailable {
@@ -285,8 +276,8 @@ func TestVersionAnswerIsCachedForOneHour(t *testing.T) {
 	server := newFixtureServer(t, peerFixture, http.StatusOK, versionFixture)
 	service := newNetBirdTestService()
 
-	for i := 0; i < 3; i++ {
-		if _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
+	for i := range 3 {
+		if _, _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
 			t.Fatalf("GetPeers run %d: %v", i, err)
 		}
 	}
@@ -301,21 +292,16 @@ func TestVersionAnswerIsCachedForOneHour(t *testing.T) {
 	}
 }
 
-func TestServerUpdateAvailable(t *testing.T) {
-	initTestCache(t)
-	server := newFixtureServer(t, peerFixture, http.StatusOK, versionFixture)
-
-	if !newNetBirdTestService().ServerUpdateAvailable(t.Context(), server.URL, "nbp_testtoken") {
-		t.Fatalf("serverUpdateAvailable = false, want true")
-	}
-}
-
-func TestServerUpdateAvailableIsFalseWhenVersionCallFails(t *testing.T) {
+func TestGetPeersKeepsPeersWhenVersionCallFails(t *testing.T) {
 	initTestCache(t)
 	server := newFixtureServer(t, peerFixture, http.StatusInternalServerError, `{"message":"boom"}`)
 
-	if newNetBirdTestService().ServerUpdateAvailable(t.Context(), server.URL, "nbp_testtoken") {
-		t.Fatalf("serverUpdateAvailable = true, want false for a failed version call")
+	peers, serverUpdate, err := newNetBirdTestService().GetPeers(t.Context(), server.URL, "nbp_testtoken")
+	if err != nil {
+		t.Fatalf("GetPeers: %v, want the peers without a version answer", err)
+	}
+	if len(peers) != 2 || serverUpdate {
+		t.Fatalf("peers = %d, serverUpdate = %v, want 2 peers and false", len(peers), serverUpdate)
 	}
 }
 
@@ -367,9 +353,12 @@ func TestValidateURL(t *testing.T) {
 		{"mydomain:33073", true},
 		{"netbird.example.com", true},
 		{"ftp://netbird.example.com", true},
+		{"https://netbird.example.com/netbird", false},
+		{"https://netbird.example.com/api", true},
+		{"https://netbird.example.com/api/", true},
 	} {
-		if err := ValidateURL(tc.url); (err != nil) != tc.wantErr {
-			t.Fatalf("ValidateURL(%q) error = %v, wantErr %v", tc.url, err, tc.wantErr)
+		if err := validateURL(tc.url); (err != nil) != tc.wantErr {
+			t.Fatalf("validateURL(%q) error = %v, wantErr %v", tc.url, err, tc.wantErr)
 		}
 	}
 }
@@ -433,6 +422,27 @@ func TestCheckHealthSurvivesStallingVersionEndpoint(t *testing.T) {
 	}
 }
 
+func TestGetPeersSurvivesStallingVersionEndpoint(t *testing.T) {
+	initTestCache(t)
+	server, _ := newVersionStubServer(t, func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	peers, serverUpdate, err := newNetBirdTestService().GetPeers(ctx, server.URL, "nbp_testtoken")
+	elapsed := time.Since(start)
+
+	if err != nil || len(peers) != 2 || serverUpdate {
+		t.Fatalf("GetPeers = %d peers, serverUpdate %v, err %v; want 2 peers, false, nil", len(peers), serverUpdate, err)
+	}
+	if elapsed >= versionTimeout+time.Second {
+		t.Fatalf("GetPeers took %s, want less than %s", elapsed, versionTimeout+time.Second)
+	}
+}
+
 func TestUnavailableVersionEndpointIsRemembered(t *testing.T) {
 	initTestCache(t)
 	server, versionCalls := newVersionStubServer(t, func(w http.ResponseWriter, _ *http.Request) {
@@ -440,13 +450,13 @@ func TestUnavailableVersionEndpointIsRemembered(t *testing.T) {
 	})
 
 	service := newNetBirdTestService()
-	if _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
+	if _, _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
 		t.Fatalf("GetPeers: %v", err)
 	}
-	if service.ServerUpdateAvailable(t.Context(), server.URL, "nbp_testtoken") {
+	if health, _ := service.CheckHealth(t.Context(), server.URL, "nbp_testtoken"); health.UpdateAvailable {
 		t.Fatalf("updateAvailable = true without a version endpoint")
 	}
-	if _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
+	if _, _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
 		t.Fatalf("second GetPeers: %v", err)
 	}
 
@@ -463,9 +473,12 @@ func TestVersionAnswerWithoutNewestReleaseIsCached(t *testing.T) {
 	})
 
 	service := newNetBirdTestService()
-	peers, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken")
+	peers, serverUpdate, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken")
 	if err != nil {
 		t.Fatalf("GetPeers: %v", err)
+	}
+	if serverUpdate {
+		t.Fatalf("serverUpdate = true without a newer release")
 	}
 	if len(peers) != 2 {
 		t.Fatalf("peers = %d, want 2", len(peers))
@@ -475,8 +488,8 @@ func TestVersionAnswerWithoutNewestReleaseIsCached(t *testing.T) {
 			t.Fatalf("peer %s shows an update badge without a release to compare against", peer.Name)
 		}
 	}
-	if service.ServerUpdateAvailable(t.Context(), server.URL, "nbp_testtoken") {
-		t.Fatalf("updateAvailable = true without a newer release")
+	if _, _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
+		t.Fatalf("second GetPeers: %v", err)
 	}
 
 	if got := versionCalls.Load(); got != 1 {

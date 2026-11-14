@@ -19,9 +19,6 @@ var netbirdServiceSpec = serviceSpec{
 	AddExample:  "  dashbrr service netbird add https://api.netbird.io <API-TOKEN>\n  dashbrr service netbird add --help",
 	AddArgs:     cobra.MinimumNArgs(2),
 	ParseAdd: func(args []string) (serviceURL, apiKey, displayName string, err error) {
-		if err := netbird.ValidateURL(args[0]); err != nil {
-			return "", "", "", err
-		}
 		return args[0], args[1], "NetBird", nil
 	},
 	HealthCheck: func(ctx context.Context, serviceURL, apiKey string) (models.ServiceHealth, int) {
