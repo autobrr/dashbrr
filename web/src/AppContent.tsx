@@ -17,7 +17,7 @@ import Toast from "./components/Toast";
 import { AddServicesMenu } from "./components/AddServicesMenu";
 import { ServiceHealthMonitor } from "./components/services/ServiceHealthMonitor";
 import { StatusCounters } from "./components/shared/StatusCounters";
-import { TailscaleStatusBar } from "./components/services/TailscaleStatusBar";
+import { MeshNetworkStatusBar } from "./components/services/MeshNetworkStatusBar";
 
 // Preload the logo image.
 const preloadLogo = new Image();
@@ -75,7 +75,7 @@ export default function AppContent() {
                 </span>
               </div>
               <div className="hidden sm:flex items-center gap-4">
-                <TailscaleStatusBar />
+                <MeshNetworkStatusBar />
                 <button
                   onClick={logout}
                   className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
@@ -95,7 +95,7 @@ export default function AppContent() {
               </button>
             </div>
             <div className="sm:hidden flex justify-center w-full mt-2">
-              <TailscaleStatusBar />
+              <MeshNetworkStatusBar />
             </div>
           </div>
         </header>

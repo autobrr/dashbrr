@@ -94,6 +94,8 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
       );
     case "tailscale":
       return (service.stats?.tailscale?.devices?.length ?? 0) > 0;
+    case "netbird":
+      return (service.stats?.netbird?.peers?.length ?? 0) > 0;
     case "general":
     case "other":
     default:

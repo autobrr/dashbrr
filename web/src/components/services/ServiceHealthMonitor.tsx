@@ -12,9 +12,10 @@ export const ServiceHealthMonitor = memo(() => {
   const { removeServiceInstance } = useServiceManagement();
   const { services, isLoading } = useServiceData();
 
-  // Filter out tailscale services
+  // The mesh VPN services (Tailscale, NetBird) live in the page header, so the
+  // grid leaves them out.
   const displayServices = services.filter(
-    (service) => service.type !== "tailscale"
+    (service) => service.type !== "tailscale" && service.type !== "netbird"
   );
 
   return (
