@@ -65,6 +65,7 @@ var (
 	NewOverseerrService   func() ServiceHealthChecker
 	NewPlexService        func() ServiceHealthChecker
 	NewTailscaleService   func() ServiceHealthChecker
+	NewNetBirdService     func() ServiceHealthChecker
 	NewMaintainerrService func() ServiceHealthChecker
 	NewQuiService         func() ServiceHealthChecker
 	NewGeneralService     func() ServiceHealthChecker

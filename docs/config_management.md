@@ -301,6 +301,7 @@ When using environment variables for API keys/tokens (`${SERVICE_API_KEY}`), the
 - `DASHBRR_JELLYFIN_API_KEY`
 - `DASHBRR_LIDARR_API_KEY`
 - `DASHBRR_MAINTAINERR_API_KEY`
+- `DASHBRR_NETBIRD_API_KEY`
 - `DASHBRR_NZBGET_API_KEY`
 - `DASHBRR_OVERSEERR_API_KEY`
 - `DASHBRR_PLEX_API_KEY`
@@ -326,6 +327,7 @@ Discovery/import currently supports these service type keys:
 - `jellyfin`
 - `lidarr`
 - `maintainerr`
+- `netbird`
 - `nzbget`
 - `overseerr`
 - `plex`
