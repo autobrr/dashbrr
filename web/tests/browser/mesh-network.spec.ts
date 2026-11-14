@@ -7,7 +7,7 @@ test("only Tailscale configured shows one Tailscale button", async ({ page }) =>
   const header = page.getByTestId("header-tailscale_only");
 
   await expect(header.getByTestId("tailscale-button")).toBeVisible();
-  await expect(header.getByTestId("tailscale-button")).toContainText("1/2 devices online");
+  await expect(header.getByTestId("tailscale-button")).toContainText("Tailscale:Connected");
   await expect(header.getByTestId("netbird-button")).toHaveCount(0);
 });
 
@@ -33,11 +33,15 @@ test("both networks show two buttons in Tailscale-first order", async ({ page })
   );
   expect(ids).toEqual(["tailscale-button", "netbird-button"]);
 
-  // The grid keeps the mesh VPNs out of the header row when both are set up.
-  const boxes = await buttons.evaluateAll((nodes) =>
-    nodes.map((node) => node.getBoundingClientRect().top)
+  // Both buttons are in the same header row. On a phone, the longer label wraps
+  // to two lines, so the buttons share a vertical center, not a top.
+  const centers = await buttons.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect();
+      return box.top + box.height / 2;
+    })
   );
-  expect(boxes[0]).toBe(boxes[1]);
+  expect(centers[0]).toBe(centers[1]);
 });
 
 test("the NetBird list opens from its own button", async ({ page }) => {
@@ -56,6 +60,26 @@ test("the NetBird list opens from its own button", async ({ page }) => {
   await expect(rows.first()).toContainText("host-1");
   await expect(dialog.getByText("homelab")).toBeVisible();
   await expect(dialog.getByText("Login expired")).toBeVisible();
+  await expect(rows.first().getByRole("link", { name: "Update Available" })).toHaveAttribute(
+    "href",
+    "https://github.com/netbirdio/netbird/releases"
+  );
+});
+
+test("a token that sees no peers shows the hint on the NetBird button", async ({ page }) => {
+  await page.goto(`${HARNESS_PATH}?scenario=netbird-warning`);
+  const button = page.getByTestId("header-netbird_warning").getByTestId("netbird-button");
+
+  await expect(button).toContainText("Token sees no peers: use a token from an admin user");
+});
+
+test("a discovered network has no configure and no remove button", async ({ page }) => {
+  await page.goto(`${HARNESS_PATH}?scenario=discovered`);
+  const header = page.getByTestId("header-discovered");
+
+  await expect(header.getByTestId("netbird-button")).toBeVisible();
+  await expect(header.getByTestId("netbird-configure")).toHaveCount(0);
+  await expect(header.getByTitle("Remove NetBird")).toHaveCount(0);
 });
 
 test("the Tailscale list keeps its fields and the word devices", async ({ page }) => {
@@ -70,6 +94,10 @@ test("the Tailscale list keeps its fields and the word devices", async ({ page }
   await expect(dialog.getByText("100.64.0.7")).toBeVisible();
   await expect(dialog.getByText("tag:work")).toBeVisible();
   await expect(dialog.getByText(/Tailscale Peers/)).toHaveCount(0);
+  // An outdated device gets only the changelog link, the same as on develop. It
+  // gets no other badge.
+  await expect(dialog.getByRole("link", { name: "Update Available" })).toHaveCount(1);
+  await expect(dialog.getByText("Update", { exact: true })).toHaveCount(0);
 });
 
 test("the header offers a configure path next to the remove button", async ({ page }) => {

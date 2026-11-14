@@ -5,6 +5,7 @@ import {
   filterMembers,
   memberCounts,
   findInstanceID,
+  isMeshNetworkType,
   networkStatus,
   prepareMembers,
   sortMembers,
@@ -21,6 +22,10 @@ const member = (overrides: Partial<NetworkMember>): NetworkMember => ({
   name: "name",
   online: false,
   updateAvailable: false,
+  lastSeen: "",
+  ip: "",
+  version: "",
+  details: [],
   searchFields: [],
   ...overrides,
 });
@@ -124,14 +129,52 @@ test("the header shows Tailscale before NetBird", () => {
   assert.equal(NETWORK_DESCRIPTORS.netbird.noun.plural, "peers");
 });
 
-test("networkStatus separates empty from offline and error", () => {
-  assert.equal(networkStatus({ status: undefined, total: 0, online: 0 }), "loading");
-  assert.equal(networkStatus({ status: "loading", total: 0, online: 0 }), "loading");
-  assert.equal(networkStatus({ status: "error", total: 0, online: 0 }), "error");
-  assert.equal(networkStatus({ status: "pending", total: 0, online: 0 }), "pending");
-  assert.equal(networkStatus({ status: "warning", total: 0, online: 0 }), "empty");
-  assert.equal(networkStatus({ status: "online", total: 3, online: 0 }), "offline");
-  assert.equal(networkStatus({ status: "online", total: 3, online: 2 }), "connected");
+test("networkStatus takes the warning from the backend, not from an empty list", () => {
+  assert.equal(networkStatus({ status: undefined, online: 0 }), "loading");
+  assert.equal(networkStatus({ status: "loading", online: 0 }), "loading");
+  assert.equal(networkStatus({ status: "error", online: 0 }), "error");
+  assert.equal(networkStatus({ status: "pending", online: 0 }), "pending");
+  assert.equal(networkStatus({ status: "warning", online: 0 }), "warning");
+  // A Tailscale account with no devices is online with zero devices: Offline, as on develop.
+  assert.equal(networkStatus({ status: "online", online: 0 }), "offline");
+  assert.equal(networkStatus({ status: "online", online: 2 }), "connected");
+});
+
+test("Tailscale says Connected and NetBird counts its peers", () => {
+  const counts = { total: 18, online: 12 };
+
+  assert.equal(NETWORK_DESCRIPTORS.tailscale.connectedText(counts), "Connected");
+  assert.equal(NETWORK_DESCRIPTORS.netbird.connectedText(counts), "12/18 peers online");
+});
+
+test("only NetBird reports a server update on the button", () => {
+  const service = {
+    updateAvailable: true,
+    details: { netbird: { total: 1, online: 1, updateAvailable: true } },
+  } as unknown as Parameters<typeof NETWORK_DESCRIPTORS.netbird.serverUpdateAvailable>[0];
+
+  assert.equal(NETWORK_DESCRIPTORS.netbird.serverUpdateAvailable(service), true);
+  assert.equal(NETWORK_DESCRIPTORS.tailscale.serverUpdateAvailable(service), false);
+});
+
+test("tailscale tags and netbird groups become chips", () => {
+  const tags = toTailscaleMember({
+    id: "d", name: "laptop", ipAddress: "100.64.0.7", lastSeen: "", online: true,
+    deviceType: "macOS", clientVersion: "", updateAvailable: false, tags: ["tag:work"],
+  });
+  assert.deepEqual(tags.chips, { label: "Tags", values: ["tag:work"] });
+
+  const untagged = toTailscaleMember({
+    id: "d", name: "laptop", ipAddress: "100.64.0.7", lastSeen: "", online: true,
+    deviceType: "macOS", clientVersion: "", updateAvailable: false, tags: [],
+  });
+  assert.equal(untagged.chips, undefined);
+});
+
+test("the grid and the menu treat only Tailscale and NetBird as mesh networks", () => {
+  assert.equal(isMeshNetworkType("tailscale"), true);
+  assert.equal(isMeshNetworkType("netbird"), true);
+  assert.equal(isMeshNetworkType("sonarr"), false);
 });
 
 test("memberCounts keeps total and online from one snapshot", () => {

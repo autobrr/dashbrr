@@ -11,30 +11,11 @@ import AnimatedModal from "../ui/AnimatedModal";
 import { Button } from "../ui/Button";
 import { prepareMembers, type NetworkDescriptor, type NetworkMember } from "../../utils/meshNetwork";
 
-export interface NetworkRowField {
-  label: string;
-  value?: string;
-  // copyable rows get the copy icon and the click handler, like the IP row of the
-  // Tailscale list.
-  copyable?: boolean;
-  badge?: boolean;
-}
-
-export interface NetworkListItem extends NetworkMember {
-  lastSeen: string;
-  // rowFields are rendered in order under the name. The network decides which
-  // fields it has, so Tailscale and NetBird share one layout without sharing
-  // their data shape.
-  rowFields: NetworkRowField[];
-}
-
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   descriptor: NetworkDescriptor;
-  items: NetworkListItem[];
-  searchPlaceholder: string;
-  updateLink?: string;
+  items: NetworkMember[];
 }
 
 const CopyIcon = () => (
@@ -68,8 +49,6 @@ const MeshNetworkListModal: React.FC<Props> = ({
   onClose,
   descriptor,
   items,
-  searchPlaceholder,
-  updateLink,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -89,12 +68,7 @@ const MeshNetworkListModal: React.FC<Props> = ({
     }
   }, [isOpen]);
 
-  const visibleItems = useMemo(() => {
-    const sorted = prepareMembers(items, searchTerm);
-    const byId = new Map(items.map((item) => [item.id, item]));
-
-    return sorted.map((member) => byId.get(member.id)).filter((item): item is NetworkListItem => Boolean(item));
-  }, [items, searchTerm]);
+  const visibleItems = useMemo(() => prepareMembers(items, searchTerm), [items, searchTerm]);
 
   const onlineCount = visibleItems.filter((item) => item.online).length;
   const plural = descriptor.noun.plural;
@@ -134,7 +108,7 @@ const MeshNetworkListModal: React.FC<Props> = ({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder={searchPlaceholder}
+            placeholder={descriptor.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-3 py-2 pr-20 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-gray-900 border-gray-800 text-gray-300 placeholder-gray-500"
@@ -179,11 +153,17 @@ const MeshNetworkListModal: React.FC<Props> = ({
                           </span>
                         </div>
 
-                        {item.updateAvailable && (
-                          <div className="flex flex-wrap gap-1 text-gray-300 items-center">
-                            <span className="px-1.5 py-0.5 text-xs font-medium rounded-md bg-amber-900/30 text-amber-400 border border-amber-900/50">
-                              Update
-                            </span>
+                        {item.chips && (
+                          <div className="flex flex-wrap gap-1 text-gray-300 items-center pointer-events-none">
+                            {item.chips.label}:
+                            {item.chips.values.map((value) => (
+                              <span
+                                key={value}
+                                className="px-1.5 py-0.5 text-xs font-medium rounded-md bg-blue-900/30 text-blue-400 border border-blue-900/50"
+                              >
+                                {value}
+                              </span>
+                            ))}
                           </div>
                         )}
 
@@ -197,41 +177,45 @@ const MeshNetworkListModal: React.FC<Props> = ({
                       </div>
 
                       <div className="text-xs space-y-1 cursor-default">
-                        {item.rowFields
-                          .filter((field) => field.value !== undefined && field.value !== "")
-                          .map((field) => (
-                            <p key={field.label} className="text-gray-400">
-                              <span className="font-medium text-gray-300">{field.label}:</span>{" "}
-                              {field.badge ? (
-                                <span className="font-semibold text-gray-400">{field.value}</span>
-                              ) : field.copyable ? (
-                                <button
-                                  onClick={() => copyToClipboard(field.value ?? "")}
-                                  className="hover:text-blue-400 transition-colors inline-flex items-center cursor-pointer group"
-                                  title={`Click to copy ${field.label.toLowerCase()}`}
-                                >
-                                  {field.value}
-                                  <CopyIcon />
-                                </button>
-                              ) : (
-                                field.value
-                              )}
-                              {field.badge && item.updateAvailable && updateLink && (
-                                <>
-                                  {" - "}
-                                  <a
-                                    href={updateLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-amber-400 inline-flex items-center gap-1 hover:text-amber-300 transition-colors"
-                                  >
-                                    Update Available
-                                    <ArrowTopRightOnSquareIcon className="h-3 w-3" />
-                                  </a>
-                                </>
-                              )}
+                        {item.details
+                          .filter((detail) => detail.value)
+                          .map((detail) => (
+                            <p key={detail.label} className="text-gray-400">
+                              <span className="font-medium text-gray-300">{detail.label}:</span>{" "}
+                              {detail.value}
                             </p>
                           ))}
+                        <p className="text-gray-400">
+                          <span className="font-medium text-gray-300">IP:</span>{" "}
+                          <button
+                            onClick={() => copyToClipboard(item.ip)}
+                            className="hover:text-blue-400 transition-colors inline-flex items-center cursor-pointer group"
+                            title="Click to copy IP address"
+                          >
+                            {item.ip}
+                            <CopyIcon />
+                          </button>
+                        </p>
+                        <p className="text-gray-500">
+                          <span className="font-medium text-gray-300">Version:</span>{" "}
+                          <span className="font-semibold text-gray-400">
+                            {item.version ? item.version.split("-")[0] : "Unknown"}
+                          </span>
+                          {item.updateAvailable && (
+                            <>
+                              {" - "}
+                              <a
+                                href={descriptor.updateLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-amber-400 inline-flex items-center gap-1 hover:text-amber-300 transition-colors"
+                              >
+                                Update Available
+                                <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                              </a>
+                            </>
+                          )}
+                        </p>
                         <p className="text-gray-450 text-xs">
                           Last seen: {formatLastSeen(item.lastSeen)}
                         </p>

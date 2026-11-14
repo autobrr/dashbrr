@@ -12,6 +12,7 @@ import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
 import { serviceLink } from "../utils/serviceLink";
+import { isMeshNetworkType } from "../utils/meshNetwork";
 
 interface AddServicesMenuProps {
   serviceTemplates: Array<{
@@ -246,13 +247,12 @@ export function AddServicesMenu({
   // Tailscale and NetBird show in the page header and support one instance, so
   // their entry leaves the menu once the network is configured.
   const availableTemplates = useMemo(() => {
-    const singleInstanceTypes: ServiceType[] = ["tailscale", "netbird"];
     const configured = (type: ServiceType) =>
       Object.keys(configurations).some((id) => id.startsWith(`${type}-`));
 
     return serviceTemplates.filter(
       (template) =>
-        !(singleInstanceTypes.includes(template.type) && configured(template.type))
+        !(isMeshNetworkType(template.type) && configured(template.type))
     );
   }, [serviceTemplates, configurations]);
 
@@ -271,8 +271,8 @@ export function AddServicesMenu({
       setError(null);
     } else if (pendingService) {
       setDisplayName(pendingService.displayName);
-      // Set the default URL for the mesh VPNs: Tailscale ignores it, NetBird needs
-      // the Cloud API unless the user replaces it with a self-hosted server.
+      // Tailscale ignores the URL. NetBird needs the Cloud API unless the user
+      // replaces it with a self-hosted server.
       if (pendingService.type === "tailscale") {
         setUrl("https://api.tailscale.com");
       }

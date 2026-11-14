@@ -937,7 +937,6 @@ export interface ServiceDetails {
     total: number;
     online: number;
     updateAvailable?: boolean;
-    serverVersion?: string;
   };
   qui?: {
     summary?: QuiTransferSummary;

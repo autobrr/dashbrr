@@ -3,17 +3,22 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import type { NetBirdPeer, TailscaleDevice } from "../types/service";
+import type { NetBirdPeer, Service, ServiceType, TailscaleDevice } from "../types/service";
 
-// A network is one mesh VPN that the header shows. Tailscale calls its members
-// "devices", NetBird calls them "peers", so the words travel with the network.
+// A member is one row of a mesh network list. Tailscale calls its members
+// "devices", NetBird calls them "peers".
 export type NetworkMember = {
   id: string;
   name: string;
   online: boolean;
   updateAvailable: boolean;
-  searchFields: string[];
   expired?: boolean;
+  lastSeen: string;
+  ip: string;
+  version: string;
+  chips?: { label: string; values: string[] };
+  details: { label: string; value?: string }[];
+  searchFields: string[];
 };
 
 export interface NetworkDescriptor {
@@ -21,32 +26,24 @@ export interface NetworkDescriptor {
   label: string;
   instancePrefix: string;
   noun: { singular: string; plural: string };
+  searchPlaceholder: string;
+  updateLink: string;
+  members: (service?: Service) => NetworkMember[];
+  reportedCounts: (service?: Service) => { total?: number; online?: number } | undefined;
+  connectedText: (counts: { total: number; online: number }) => string;
+  serverUpdateAvailable: (service?: Service) => boolean;
 }
-
-export const NETWORK_DESCRIPTORS: Record<NetworkDescriptor["type"], NetworkDescriptor> = {
-  tailscale: {
-    type: "tailscale",
-    label: "Tailscale",
-    instancePrefix: "tailscale-",
-    noun: { singular: "device", plural: "devices" },
-  },
-  netbird: {
-    type: "netbird",
-    label: "NetBird",
-    instancePrefix: "netbird-",
-    noun: { singular: "peer", plural: "peers" },
-  },
-};
-
-// The order of the header buttons. A user who runs both networks sees Tailscale
-// first, the same order the Add Services menu uses.
-export const NETWORK_ORDER: NetworkDescriptor["type"][] = ["tailscale", "netbird"];
 
 export const toTailscaleMember = (device: TailscaleDevice): NetworkMember => ({
   id: device.id,
   name: device.name,
   online: device.online,
   updateAvailable: device.updateAvailable,
+  lastSeen: device.lastSeen,
+  ip: device.ipAddress,
+  version: device.clientVersion,
+  chips: device.tags && device.tags.length > 0 ? { label: "Tags", values: device.tags } : undefined,
+  details: [{ label: "Type", value: device.deviceType }],
   searchFields: [
     device.name,
     device.deviceType,
@@ -61,6 +58,17 @@ export const toNetBirdMember = (peer: NetBirdPeer): NetworkMember => ({
   online: peer.online,
   updateAvailable: peer.updateAvailable,
   expired: peer.loginExpired,
+  lastSeen: peer.lastSeen,
+  ip: peer.ip,
+  version: peer.version,
+  chips: peer.groups && peer.groups.length > 0 ? { label: "Groups", values: peer.groups } : undefined,
+  details: [
+    { label: "OS", value: peer.os },
+    {
+      label: "Location",
+      value: [peer.cityName, peer.countryCode].filter(Boolean).join(", ") || undefined,
+    },
+  ],
   searchFields: [
     peer.name,
     peer.os,
@@ -70,8 +78,43 @@ export const toNetBirdMember = (peer: NetBirdPeer): NetworkMember => ({
   ].filter(Boolean),
 });
 
+export const NETWORK_DESCRIPTORS: Record<NetworkDescriptor["type"], NetworkDescriptor> = {
+  tailscale: {
+    type: "tailscale",
+    label: "Tailscale",
+    instancePrefix: "tailscale-",
+    noun: { singular: "device", plural: "devices" },
+    searchPlaceholder: "Search devices by name, type, IP, or tags...",
+    updateLink: "https://tailscale.com/changelog#client",
+    members: (service) => (service?.stats?.tailscale?.devices ?? []).map(toTailscaleMember),
+    reportedCounts: (service) => service?.details?.tailscale,
+    connectedText: () => "Connected",
+    serverUpdateAvailable: () => false,
+  },
+  netbird: {
+    type: "netbird",
+    label: "NetBird",
+    instancePrefix: "netbird-",
+    noun: { singular: "peer", plural: "peers" },
+    searchPlaceholder: "Search peers by name, OS, IP, group, or city...",
+    updateLink: "https://github.com/netbirdio/netbird/releases",
+    members: (service) => (service?.stats?.netbird?.peers ?? []).map(toNetBirdMember),
+    reportedCounts: (service) => service?.details?.netbird,
+    connectedText: ({ total, online }) => `${online}/${total} peers online`,
+    serverUpdateAvailable: (service) => Boolean(service?.details?.netbird?.updateAvailable),
+  },
+};
+
+// The order of the header buttons, the same order the Add Services menu uses.
+export const NETWORK_ORDER: NetworkDescriptor["type"][] = ["tailscale", "netbird"];
+
+// Mesh networks live in the page header with one instance each, so the service
+// grid and the Add Services menu treat them apart.
+export const isMeshNetworkType = (type: ServiceType): boolean =>
+  (NETWORK_ORDER as ServiceType[]).includes(type);
+
 // findInstanceID returns the first instance of a network, or null when the user
-// has not set that network up. Each network shows only its first instance.
+// has not set that network up.
 export function findInstanceID(
   configurations: Record<string, unknown>,
   prefix: string
@@ -83,11 +126,7 @@ export function findInstanceID(
   return found ?? null;
 }
 
-// filterMembers narrows the list by one search term over the fields of the network.
-export function filterMembers(
-  members: NetworkMember[],
-  searchTerm: string
-): NetworkMember[] {
+export function filterMembers<T extends NetworkMember>(members: T[], searchTerm: string): T[] {
   const needle = searchTerm.trim().toLowerCase();
   if (!needle) {
     return members;
@@ -98,9 +137,9 @@ export function filterMembers(
   );
 }
 
-// sortMembers puts the members that need work first: an update badge, then online
-// members, then by name. This is the order of the Tailscale device list.
-export function sortMembers(members: NetworkMember[]): NetworkMember[] {
+// sortMembers puts the members that need work first: an update, then online
+// members, then by name.
+export function sortMembers<T extends NetworkMember>(members: T[]): T[] {
   return [...members].sort((a, b) => {
     if (a.updateAvailable !== b.updateAvailable) {
       return b.updateAvailable ? 1 : -1;
@@ -113,17 +152,12 @@ export function sortMembers(members: NetworkMember[]): NetworkMember[] {
   });
 }
 
-export function prepareMembers(
-  members: NetworkMember[],
-  searchTerm: string
-): NetworkMember[] {
+export function prepareMembers<T extends NetworkMember>(members: T[], searchTerm: string): T[] {
   return sortMembers(filterMembers(members, searchTerm));
 }
 
-// memberCounts returns total and online from ONE snapshot. A health check and the
-// peer job report at different speeds, so mixing their numbers can print
-// "3/2 peers online"; the loaded list wins, the reported counts only fill the gap
-// until the list has arrived.
+// memberCounts returns total and online from one snapshot: the loaded list wins,
+// and the reported counts only fill the gap until the list has arrived.
 export function memberCounts(
   members: NetworkMember[],
   reported?: { total?: number; online?: number }
@@ -142,32 +176,22 @@ export type NetworkStatusKind =
   | "loading"
   | "error"
   | "pending"
-  | "empty"
+  | "warning"
   | "offline"
   | "connected";
 
-// networkStatus decides what the header button says. The order matters: an error
-// hides an empty list, and an empty list is a warning, not an offline network.
-export function networkStatus(input: {
-  status?: string;
-  total: number;
-  online: number;
-}): NetworkStatusKind {
-  if (input.status === "loading" || input.status === undefined) {
-    return "loading";
-  }
-  if (input.status === "error") {
-    return "error";
-  }
-  if (input.status === "pending") {
-    return "pending";
-  }
-  if (input.total === 0) {
-    return "empty";
-  }
-  if (input.online === 0) {
-    return "offline";
+// networkStatus decides what the header button says. The backend decides when a
+// network is a warning, for example a NetBird token that sees no peers.
+export function networkStatus(input: { status?: string; online: number }): NetworkStatusKind {
+  switch (input.status) {
+    case undefined:
+    case "loading":
+      return "loading";
+    case "error":
+    case "pending":
+    case "warning":
+      return input.status;
   }
 
-  return "connected";
+  return input.online === 0 ? "offline" : "connected";
 }

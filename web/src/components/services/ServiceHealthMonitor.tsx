@@ -7,16 +7,13 @@ import { memo } from "react";
 import { ServiceGrid } from "./ServiceGrid";
 import { useServiceData } from "../../hooks/useServiceData";
 import { useServiceManagement } from "../../hooks/useServiceManagement";
+import { isMeshNetworkType } from "../../utils/meshNetwork";
 
 export const ServiceHealthMonitor = memo(() => {
   const { removeServiceInstance } = useServiceManagement();
   const { services, isLoading } = useServiceData();
 
-  // The mesh VPN services (Tailscale, NetBird) live in the page header, so the
-  // grid leaves them out.
-  const displayServices = services.filter(
-    (service) => service.type !== "tailscale" && service.type !== "netbird"
-  );
+  const displayServices = services.filter((service) => !isMeshNetworkType(service.type));
 
   return (
     <div className="space-y-6">

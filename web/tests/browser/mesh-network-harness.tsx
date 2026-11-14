@@ -85,15 +85,18 @@ const netbirdService: Service = {
   url: "https://api.netbird.io",
   message: "1/2 peers online",
   stats: { netbird: { peers: netbirdPeers } },
-  details: { netbird: { total: 2, online: 1, updateAvailable: true, serverVersion: "0.61.0" } },
+  details: { netbird: { total: 2, online: 1, updateAvailable: true } },
 };
 
 const script = new URLSearchParams(window.location.search).get("scenario") ?? "both";
 
+// In netbird-warning, the token sees no peers. In discovered, Kubernetes discovery
+// owns the NetBird service.
+const netbirdScenarios = ["netbird-only", "netbird-warning", "discovered"];
 const configurations: Record<string, ServiceConfig> = {};
 const services: Service[] = [];
 
-if (script !== "netbird-only") {
+if (!netbirdScenarios.includes(script)) {
   configurations["tailscale-1"] = {
     instanceId: "tailscale-1",
     displayName: "Tailscale",
@@ -110,8 +113,19 @@ if (script !== "tailscale-only") {
     type: "netbird",
     status: "online",
     url: "https://api.netbird.io",
+    discovered: script === "discovered",
   } as unknown as ServiceConfig;
-  services.push(netbirdService);
+  services.push(
+    script === "netbird-warning"
+      ? {
+        ...netbirdService,
+        status: "warning",
+        message: "Token sees no peers: use a token from an admin user",
+        stats: { netbird: { peers: [] } },
+        details: { netbird: { total: 0, online: 0 } },
+      }
+      : netbirdService
+  );
 }
 
 const configurationValue = {

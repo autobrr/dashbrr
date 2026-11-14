@@ -94,7 +94,7 @@ export default function AppContent() {
                 <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
               </button>
             </div>
-            <div className="sm:hidden flex justify-center w-full mt-2">
+            <div className="sm:hidden flex flex-wrap justify-center gap-x-4 gap-y-2 w-full mt-2">
               <MeshNetworkStatusBar />
             </div>
           </div>

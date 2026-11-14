@@ -9,20 +9,16 @@ import tailscaleLogo from "../../assets/tailscale.svg";
 import netbirdLogo from "../../assets/netbird.svg";
 import { ConfigurationForm } from "../configuration/ConfigurationForm";
 import MeshNetworkListModal from "./MeshNetworkListModal";
-import type { NetworkListItem } from "./MeshNetworkListModal";
 import { useConfiguration } from "../../contexts/useConfiguration";
 import { useServiceManagement } from "../../hooks/useServiceManagement";
 import { useServiceData } from "../../hooks/useServiceData";
 import AnimatedModal from "../ui/AnimatedModal";
-import type { NetBirdPeer, TailscaleDevice } from "../../types/service";
 import {
   NETWORK_DESCRIPTORS,
   NETWORK_ORDER,
   memberCounts,
   findInstanceID,
   networkStatus,
-  toNetBirdMember,
-  toTailscaleMember,
   type NetworkDescriptor
 } from "../../utils/meshNetwork";
 
@@ -31,45 +27,9 @@ const LOGOS: Record<NetworkDescriptor["type"], string> = {
   netbird: netbirdLogo,
 };
 
-const TAILSCALE_UPDATE_LINK = "https://tailscale.com/changelog#client";
-const NETBIRD_UPDATE_LINK = "https://github.com/netbirdio/netbird/releases";
-
-const tailscaleItems = (devices: TailscaleDevice[]): NetworkListItem[] =>
-  devices.map((device) => ({
-    ...toTailscaleMember(device),
-    lastSeen: device.lastSeen,
-    rowFields: [
-      { label: "Type", value: device.deviceType },
-      { label: "IP", value: device.ipAddress, copyable: true },
-      { label: "Version", value: device.clientVersion?.split("-")[0], badge: true },
-      ...(device.tags && device.tags.length > 0
-        ? [{ label: "Tags", value: device.tags.join(", ") }]
-        : []),
-    ],
-  }));
-
-const netbirdItems = (peers: NetBirdPeer[]): NetworkListItem[] =>
-  peers.map((peer) => ({
-    ...toNetBirdMember(peer),
-    lastSeen: peer.lastSeen,
-    rowFields: [
-      { label: "OS", value: peer.os },
-      { label: "IP", value: peer.ip, copyable: true },
-      {
-        label: "Groups",
-        value: peer.groups && peer.groups.length > 0 ? peer.groups.join(", ") : undefined,
-      },
-      { label: "Version", value: peer.version?.split("-")[0], badge: true },
-      {
-        label: "Location",
-        value: [peer.cityName, peer.countryCode].filter(Boolean).join(", ") || undefined,
-      },
-    ],
-  }));
-
 interface NetworkButtonProps {
   descriptor: NetworkDescriptor;
-  instanceId: string | null;
+  instanceId: string;
 }
 
 const fadeStyle = {
@@ -88,38 +48,21 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
   const { removeServiceInstance } = useServiceManagement();
   const { getService } = useServiceData();
 
-  const service = instanceId ? getService(instanceId) : undefined;
+  const service = getService(instanceId);
 
-  const items = useMemo(() => {
-    if (descriptor.type === "tailscale") {
-      const devices: TailscaleDevice[] = service?.stats?.tailscale?.devices ?? [];
-      return tailscaleItems(devices);
-    }
-
-    const peers: NetBirdPeer[] = service?.stats?.netbird?.peers ?? [];
-    return netbirdItems(peers);
-  }, [descriptor.type, service]);
-
-  const reported =
-    descriptor.type === "tailscale" ? service?.details?.tailscale : service?.details?.netbird;
-  const { total, online: onlineCount } = memberCounts(items, {
-    total: reported?.total,
-    online: reported?.online,
-  });
-  const statusKind = networkStatus({ status: service?.status, total, online: onlineCount });
-  const serverUpdate =
-    descriptor.type === "netbird" && Boolean(service?.details?.netbird?.updateAvailable);
+  const items = useMemo(() => descriptor.members(service), [descriptor, service]);
+  const counts = memberCounts(items, descriptor.reportedCounts(service));
+  const statusKind = networkStatus({ status: service?.status, online: counts.online });
+  const serverUpdate = descriptor.serverUpdateAvailable(service);
+  const isDiscovered = Boolean(configurations[instanceId]?.discovered);
   const isLoading = statusKind === "loading";
 
   const handleConfirmRemove = async () => {
-    if (instanceId) {
-      await removeServiceInstance(instanceId);
-      setIsRemoveModalOpen(false);
-    }
+    await removeServiceInstance(instanceId);
+    setIsRemoveModalOpen(false);
   };
 
   const label = descriptor.label;
-  const plural = descriptor.noun.plural;
 
   const renderStatus = () => {
     switch (statusKind) {
@@ -137,10 +80,10 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
             {label}:<span className="text-yellow-500 ml-1">Not Configured</span>
           </span>
         );
-      case "empty":
+      case "warning":
         return (
           <span className="text-sm flex items-center justify-center">
-            {label}:<span className="text-yellow-500 ml-1">{`No ${plural}`}</span>
+            {label}:<span className="text-yellow-500 ml-1">{service?.message}</span>
           </span>
         );
       case "offline":
@@ -153,7 +96,7 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
         return (
           <span className="text-sm flex items-center justify-center">
             {label}:
-            <span className="text-green-500 ml-1">{`${onlineCount}/${total} ${plural} online`}</span>
+            <span className="text-green-500 ml-1">{descriptor.connectedText(counts)}</span>
           </span>
         );
     }
@@ -184,12 +127,12 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
         {serverUpdate && (
           <span
             className="px-1.5 py-0.5 text-xs font-medium rounded-md bg-amber-900/30 text-amber-400 border border-amber-900/50"
-            title="The NetBird management server is older than the newest release"
+            title={`The ${label} management server is older than the newest release`}
           >
             Update available
           </span>
         )}
-        {instanceId && (
+        {!isDiscovered && (
           <button
             onClick={() => setIsConfigModalOpen(true)}
             className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
@@ -199,7 +142,7 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
             <Cog6ToothIcon className="w-4 h-4" />
           </button>
         )}
-        {!configurations[instanceId ?? ""]?.discovered && (
+        {!isDiscovered && (
           <button
             onClick={() => setIsRemoveModalOpen(true)}
             className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
@@ -210,34 +153,24 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
         )}
       </div>
 
-      {instanceId && (
-        <AnimatedModal
-          isOpen={isConfigModalOpen}
+      <AnimatedModal
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
+        title={`Configure ${label}`}
+        maxWidth="lg"
+      >
+        <ConfigurationForm
+          instanceId={instanceId}
+          displayName={label}
           onClose={() => setIsConfigModalOpen(false)}
-          title={`Configure ${label}`}
-          maxWidth="lg"
-        >
-          <ConfigurationForm
-            instanceId={instanceId}
-            displayName={label}
-            onClose={() => setIsConfigModalOpen(false)}
-          />
-        </AnimatedModal>
-      )}
+        />
+      </AnimatedModal>
 
       <MeshNetworkListModal
         isOpen={isListOpen}
         onClose={() => setIsListOpen(false)}
         descriptor={descriptor}
         items={items}
-        searchPlaceholder={
-          descriptor.type === "tailscale"
-            ? "Search devices by name, type, IP, or tags..."
-            : "Search peers by name, OS, IP, group, or city..."
-        }
-        updateLink={
-          descriptor.type === "tailscale" ? TAILSCALE_UPDATE_LINK : NETBIRD_UPDATE_LINK
-        }
       />
 
       <AnimatedModal
@@ -271,29 +204,22 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
 };
 
 /**
- * MeshNetworkStatusBar shows one button per configured mesh VPN in the page header.
+ * MeshNetworkStatusBar shows one button per configured mesh network in the page header.
  * With only Tailscale or only NetBird set up, only that button appears; with both,
  * they stand next to each other and each opens its own list.
  */
 export const MeshNetworkStatusBar: React.FC = () => {
   const { configurations } = useConfiguration();
 
-  const networks = NETWORK_ORDER.map((type) => NETWORK_DESCRIPTORS[type]).map((descriptor) => ({
-    descriptor,
-    instanceId: findInstanceID(configurations, descriptor.instancePrefix),
-  }));
-
-  if (networks.every((network) => network.instanceId === null)) {
-    return null;
-  }
-
   return (
     <>
-      {networks.map(({ descriptor, instanceId }) =>
-        instanceId ? (
-          <NetworkButton key={descriptor.type} descriptor={descriptor} instanceId={instanceId} />
-        ) : null
-      )}
+      {NETWORK_ORDER.map((type) => {
+        const descriptor = NETWORK_DESCRIPTORS[type];
+        const instanceId = findInstanceID(configurations, descriptor.instancePrefix);
+        return instanceId ? (
+          <NetworkButton key={type} descriptor={descriptor} instanceId={instanceId} />
+        ) : null;
+      })}
     </>
   );
 };
