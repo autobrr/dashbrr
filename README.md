@@ -70,6 +70,7 @@ Dashbrr provides real-time monitoring, service health checks, and unified manage
 ### Network
 
 - **Tailscale**: Device status, information tracking, tag overview
+- **NetBird**: Peer status, information tracking, group overview
 
 ### Monitoring / Infrastructure
 
