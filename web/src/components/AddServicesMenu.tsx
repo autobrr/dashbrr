@@ -12,6 +12,7 @@ import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
 import { serviceLink } from "../utils/serviceLink";
+import { isMeshNetworkType } from "../utils/meshNetwork";
 
 interface AddServicesMenuProps {
   serviceTemplates: Array<{
@@ -69,6 +70,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   qui: "AUTOMATION",
   general: "MONITORING",
   tailscale: "NETWORK",
+  netbird: "NETWORK",
   other: "MONITORING",
 };
 
@@ -89,6 +91,7 @@ type ApiHelpContext = {
 
 const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
   tailscale: "API Token",
+  netbird: "API Token (Personal Access Token)",
   nzbget: "Control Password",
   traefik: "Auth Token (Optional)",
 };
@@ -106,6 +109,7 @@ const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
   nzbget: "http://localhost:6789",
   general: "Enter full URL including health endpoint",
   tailscale: "https://api.tailscale.com",
+  netbird: "https://api.netbird.io",
 };
 
 const API_KEY_HELP_BY_SERVICE: Partial<
@@ -209,6 +213,14 @@ const API_KEY_HELP_BY_SERVICE: Partial<
         ? "https://login.tailscale.com/admin/settings/keys"
         : null,
   }),
+  netbird: ({ url }) => ({
+    prefix: "Create one in ",
+    text: "the NetBird dashboard, or Team > Users > Personal Access Tokens",
+    link:
+      url === "https://api.netbird.io"
+        ? "https://app.netbird.io/team/user-settings?tab=tokens"
+        : null,
+  }),
 };
 
 const EMPTY_HELP: FormHelp = { prefix: "", text: "", link: null };
@@ -232,13 +244,15 @@ export function AddServicesMenu({
   const { isAuthenticating, authenticate } = usePlexPinAuth();
   const isPlexService = pendingService?.type === "plex";
 
-  // Filter out Tailscale if it's already configured
+  // Tailscale and NetBird show in the page header and support one instance, so
+  // their entry leaves the menu once the network is configured.
   const availableTemplates = useMemo(() => {
-    const hasTailscale = Object.keys(configurations).some((id) =>
-      id.startsWith("tailscale-")
-    );
+    const configured = (type: ServiceType) =>
+      Object.keys(configurations).some((id) => id.startsWith(`${type}-`));
+
     return serviceTemplates.filter(
-      (template) => !(template.type === "tailscale" && hasTailscale)
+      (template) =>
+        !(isMeshNetworkType(template.type) && configured(template.type))
     );
   }, [serviceTemplates, configurations]);
 
@@ -257,9 +271,13 @@ export function AddServicesMenu({
       setError(null);
     } else if (pendingService) {
       setDisplayName(pendingService.displayName);
-      // Set default URL for Tailscale only if URL is empty
+      // Tailscale ignores the URL. NetBird needs the Cloud API unless the user
+      // replaces it with a self-hosted server.
       if (pendingService.type === "tailscale") {
         setUrl("https://api.tailscale.com");
+      }
+      if (pendingService.type === "netbird") {
+        setUrl("https://api.netbird.io");
       }
     }
   }, [showServiceConfig, pendingService]);

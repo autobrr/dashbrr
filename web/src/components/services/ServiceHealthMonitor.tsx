@@ -7,15 +7,13 @@ import { memo } from "react";
 import { ServiceGrid } from "./ServiceGrid";
 import { useServiceData } from "../../hooks/useServiceData";
 import { useServiceManagement } from "../../hooks/useServiceManagement";
+import { isMeshNetworkType } from "../../utils/meshNetwork";
 
 export const ServiceHealthMonitor = memo(() => {
   const { removeServiceInstance } = useServiceManagement();
   const { services, isLoading } = useServiceData();
 
-  // Filter out tailscale services
-  const displayServices = services.filter(
-    (service) => service.type !== "tailscale"
-  );
+  const displayServices = services.filter((service) => !isMeshNetworkType(service.type));
 
   return (
     <div className="space-y-6">

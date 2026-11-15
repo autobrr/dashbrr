@@ -159,6 +159,14 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "api/health/tailscale",
   },
   {
+    name: "NetBird",
+    displayName: "",
+    type: "netbird",
+    status: "offline",
+    url: "",
+    healthEndpoint: "api/health/netbird",
+  },
+  {
     name: "Maintainerr",
     displayName: "",
     type: "maintainerr",

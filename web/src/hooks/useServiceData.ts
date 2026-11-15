@@ -37,6 +37,28 @@ const ServiceDataContext = createContext<ServiceDataContextValue | undefined>(
   undefined
 );
 
+// ServiceDataContextProvider hands fixed service data to the components without
+// the SSE connection. The browser harness uses it; the app uses ServiceDataProvider.
+export const ServiceDataContextProvider = ({
+  services,
+  children,
+}: {
+  services: Service[];
+  children: ReactNode;
+}) => {
+  const value = useMemo<ServiceDataContextValue>(
+    () => ({
+      services,
+      isLoading: false,
+      getService: (instanceId: string) =>
+        services.find((service) => service.instanceId === instanceId),
+    }),
+    [services]
+  );
+
+  return createElement(ServiceDataContext.Provider, { value }, children);
+};
+
 const sseReconnectBaseMs = 1000;
 const sseReconnectMaxMs = 30000;
 const sseReconnectJitterMs = 250;

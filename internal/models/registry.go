@@ -86,6 +86,10 @@ func (r *ServiceRegistry) CreateService(serviceType string) ServiceHealthChecker
 		if NewTailscaleService != nil {
 			return NewTailscaleService()
 		}
+	case "netbird":
+		if NewNetBirdService != nil {
+			return NewNetBirdService()
+		}
 	case "maintainerr":
 		if NewMaintainerrService != nil {
 			return NewMaintainerrService()

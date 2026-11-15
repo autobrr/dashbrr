@@ -97,6 +97,7 @@ func ServiceCommand() *cobra.Command {
 	command.AddCommand(ServiceReadarrCommand())
 	command.AddCommand(ServiceSabnzbdCommand())
 	command.AddCommand(ServiceNzbgetCommand())
+	command.AddCommand(ServiceNetBirdCommand())
 	command.AddCommand(ServiceSonarrCommand())
 	command.AddCommand(ServiceTailscaleCommand())
 	command.AddCommand(ServiceTraefikCommand())

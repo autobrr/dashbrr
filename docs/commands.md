@@ -133,6 +133,7 @@ Currently supported service command groups:
 - `jellyfin`
 - `lidarr`
 - `maintainerr`
+- `netbird`
 - `nzbget`
 - `overseerr`
 - `plex`
@@ -400,6 +401,22 @@ Example: dashbrr service nzbget remove http://localhost:6789
 
 # List NZBGet services
 dashbrr service nzbget list
+```
+
+### NetBird
+
+```bash
+# Add a NetBird service, with the Cloud API or your own management server
+dashbrr service netbird add <url> <api-token>
+Example: dashbrr service netbird add https://api.netbird.io nbp_xxxxxxxx
+Example: dashbrr service netbird add https://netbird.example.com nbp_xxxxxxxx
+
+# Remove a NetBird service
+dashbrr service netbird remove <url>
+Example: dashbrr service netbird remove https://api.netbird.io
+
+# List NetBird services
+dashbrr service netbird list
 ```
 
 ### Tailscale

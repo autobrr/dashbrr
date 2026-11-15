@@ -22,6 +22,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/bazarr"
 	"github.com/autobrr/dashbrr/internal/services/jellyfin"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
+	"github.com/autobrr/dashbrr/internal/services/netbird"
 	"github.com/autobrr/dashbrr/internal/services/nzbget"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
@@ -159,6 +160,9 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		},
 		"tailscale": {
 			{name: "tailscale_devices", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runTailscaleDevices},
+		},
+		"netbird": {
+			{name: "netbird_peers", interval: 60 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runNetBirdPeers},
 		},
 		"qui": {
 			{name: "qui_overview", interval: 20 * time.Second, timeout: pollerShortJobTimeout, run: (*Poller).runQuiOverview},
@@ -828,6 +832,17 @@ func (p *Poller) runTailscaleDevices(ctx context.Context, svc models.ServiceConf
 	}
 
 	publishInternalServiceUpdate(p.bc, buildTailscaleDevicesServiceUpdate(svc.InstanceID, devices))
+	return nil
+}
+
+func (p *Poller) runNetBirdPeers(ctx context.Context, svc models.ServiceConfiguration, _ string) error {
+	service := &netbird.Service{}
+	peers, updateAvailable, err := service.GetPeers(ctx, svc.URL, svc.APIKey)
+	if err != nil {
+		return err
+	}
+
+	publishInternalServiceUpdate(p.bc, buildNetBirdPeersServiceUpdate(svc.InstanceID, peers, updateAvailable))
 	return nil
 }
 
