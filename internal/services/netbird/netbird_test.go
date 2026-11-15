@@ -575,3 +575,29 @@ func TestServerBadgeNeedsParseableVersions(t *testing.T) {
 		t.Fatalf("serverUpdate = true for an unparseable server version, want false")
 	}
 }
+
+func TestCachedVersionKeepsBadgesWhenTheDeadlineIsTight(t *testing.T) {
+	initTestCache(t)
+	server := newFixtureServer(t, peerFixture, http.StatusOK, versionFixture)
+	service := newNetBirdTestService()
+
+	if _, _, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken"); err != nil {
+		t.Fatalf("first GetPeers: %v", err)
+	}
+
+	// A slow peer call leaves too little time for a version request, but the
+	// cached answer costs no request and must still give the badges.
+	tight, cancel := context.WithTimeout(t.Context(), versionTimeout+500*time.Millisecond)
+	defer cancel()
+
+	_, serverUpdate, err := service.GetPeers(tight, server.URL, "nbp_testtoken")
+	if err != nil {
+		t.Fatalf("GetPeers with a tight deadline: %v", err)
+	}
+	if !serverUpdate {
+		t.Fatalf("serverUpdate = false with a cached version answer, want true")
+	}
+	if got := server.versionCalls.Load(); got != 1 {
+		t.Fatalf("version calls = %d, want 1: the second run reads the cache", got)
+	}
+}

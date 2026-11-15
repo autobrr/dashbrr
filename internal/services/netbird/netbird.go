@@ -155,16 +155,6 @@ func (s *Service) fetchPeers(ctx context.Context, baseURL, apiKey string) ([]api
 // numbers, so one answer covers the peers and the server. The endpoint is
 // optional: when it fails, the zero versionInfo means no badges and no error.
 func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) versionInfo {
-	// A caller with a deadline of its own, such as the health handler, must not
-	// lose the answer it already has because this optional request eats what is
-	// left of the deadline, so a slow peer call skips the version lookup.
-	if !versionFitsIn(ctx) {
-		return versionInfo{}
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
-	defer cancel()
-
 	var info versionInfo
 	if cached := s.GetVersionFromCache(ctx, baseURL); cached != "" {
 		if cached != versionMissMarker {
@@ -172,6 +162,16 @@ func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) vers
 		}
 		return info
 	}
+
+	// A caller with a deadline of its own, such as the health handler, must not
+	// lose the answer it already has because this optional request eats what is
+	// left of the deadline, so a slow peer call skips the version request.
+	if !versionFitsIn(ctx) {
+		return info
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
+	defer cancel()
 
 	info, err := s.requestVersion(ctx, baseURL, apiKey)
 	if err != nil {
