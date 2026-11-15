@@ -40,6 +40,9 @@ const (
 	// versionTimeout limits the optional version call. A version endpoint that
 	// does not answer must not delay the health check or the peer list.
 	versionTimeout = 3 * time.Second
+	// versionBudgetMargin is the room a caller must still have beyond the version
+	// timeout, so the answer it already holds can be written before its deadline.
+	versionBudgetMargin = time.Second
 	// versionMissMarker stands in the cache slot for "this server has no usable
 	// version endpoint".
 	versionMissMarker = "unavailable"
@@ -152,6 +155,13 @@ func (s *Service) fetchPeers(ctx context.Context, baseURL, apiKey string) ([]api
 // numbers, so one answer covers the peers and the server. The endpoint is
 // optional: when it fails, the zero versionInfo means no badges and no error.
 func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) versionInfo {
+	// A caller with a deadline of its own, such as the health handler, must not
+	// lose the answer it already has because this optional request eats what is
+	// left of the deadline, so a slow peer call skips the version lookup.
+	if !versionFitsIn(ctx) {
+		return versionInfo{}
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
 
@@ -168,6 +178,17 @@ func (s *Service) fetchVersion(ctx context.Context, baseURL, apiKey string) vers
 		log.Debug().Err(err).Str("url", core.RedactURL(baseURL)).Msg("NetBird version check failed, showing no update badges")
 	}
 	return info
+}
+
+// versionFitsIn reports whether the caller's deadline leaves room for the
+// optional version call plus a margin. Without a deadline there is always room.
+func versionFitsIn(ctx context.Context) bool {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return true
+	}
+
+	return time.Until(deadline) > versionTimeout+versionBudgetMargin
 }
 
 func (s *Service) requestVersion(ctx context.Context, baseURL, apiKey string) (versionInfo, error) {
@@ -280,12 +301,12 @@ func (s *Service) CheckHealth(ctx context.Context, url, apiKey string) (models.S
 
 	extras := map[string]any{
 		"responseTime":    responseTime.Milliseconds(),
-		"updateAvailable": info.ManagementUpdateAvailable,
+		"updateAvailable": info.serverUpdateAvailable(),
 		"details": map[string]any{
 			"netbird": map[string]any{
 				"total":           len(peers),
 				"online":          onlineCount,
-				"updateAvailable": info.ManagementUpdateAvailable,
+				"updateAvailable": info.serverUpdateAvailable(),
 			},
 		},
 	}
@@ -299,6 +320,23 @@ func (s *Service) CheckHealth(ctx context.Context, url, apiKey string) (models.S
 	}
 
 	return s.CreateHealthResponse(startTime, "online", message, extras), http.StatusOK
+}
+
+// serverUpdateAvailable reports the server badge the dashboard shows. A version
+// the parser cannot read, for example "development", is no proof that the server
+// is out of date, so such an answer produces no badge at all.
+func (v versionInfo) serverUpdateAvailable() bool {
+	if !v.ManagementUpdateAvailable {
+		return false
+	}
+	if _, err := version.NewVersion(v.ManagementCurrentVersion); err != nil {
+		return false
+	}
+	if _, err := version.NewVersion(v.ManagementAvailableVersion); err != nil {
+		return false
+	}
+
+	return true
 }
 
 // GetPeers returns the peers of the network, ready for the dashboard payload, and
@@ -330,7 +368,7 @@ func (s *Service) GetPeers(ctx context.Context, baseURL, apiKey string) ([]Peer,
 		})
 	}
 
-	return peers, info.ManagementUpdateAvailable, nil
+	return peers, info.serverUpdateAvailable(), nil
 }
 
 // validateURL rejects an address that is not the absolute http(s) root of a

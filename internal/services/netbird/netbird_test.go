@@ -496,3 +496,82 @@ func TestVersionAnswerWithoutNewestReleaseIsCached(t *testing.T) {
 		t.Fatalf("version requests = %d, want 1: an answer without the newest release is cached too", got)
 	}
 }
+
+func TestVersionCallIsSkippedWhenTheDeadlineIsTight(t *testing.T) {
+	initTestCache(t)
+	server, versionCalls := newVersionStubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(versionFixture))
+	})
+	service := newNetBirdTestService()
+
+	// 1.5s left is not enough for a 3s version call plus the margin: a caller that
+	// already holds its peers must not lose them to the optional request.
+	tight, cancel := context.WithTimeout(t.Context(), versionTimeout+500*time.Millisecond)
+	defer cancel()
+
+	peers, _, err := service.GetPeers(tight, server.URL, "nbp_testtoken")
+	if err != nil {
+		t.Fatalf("GetPeers: %v", err)
+	}
+	if len(peers) != 2 {
+		t.Fatalf("peers = %d, want 2: a tight deadline must not drop the peer list", len(peers))
+	}
+	if got := versionCalls.Load(); got != 0 {
+		t.Fatalf("version requests = %d, want 0 when the caller deadline leaves no room", got)
+	}
+
+	// With room to spare the same call happens as usual.
+	roomy, cancelRoomy := context.WithTimeout(t.Context(), core.DefaultTimeout)
+	defer cancelRoomy()
+
+	if _, _, err := service.GetPeers(roomy, server.URL, "nbp_testtoken"); err != nil {
+		t.Fatalf("second GetPeers: %v", err)
+	}
+	if got := versionCalls.Load(); got != 1 {
+		t.Fatalf("version requests = %d, want 1 once the deadline leaves room", got)
+	}
+}
+
+func TestServerBadgeNeedsParseableVersions(t *testing.T) {
+	initTestCache(t)
+	// A development build answers with a version the parser cannot read while
+	// still claiming an update is available.
+	server, _ := newVersionStubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"management_current_version": "development",
+			"management_available_version": "0.61.0",
+			"management_update_available": true
+		}`))
+	})
+
+	service := newNetBirdTestService()
+
+	health, statusCode := service.CheckHealth(t.Context(), server.URL, "nbp_testtoken")
+	if statusCode != http.StatusOK || health.Status != "online" {
+		t.Fatalf("status = %q (%d), want online (200)", health.Status, statusCode)
+	}
+	if health.UpdateAvailable {
+		t.Fatalf("updateAvailable = true for an unparseable server version, want no badge")
+	}
+
+	details, ok := health.Details["netbird"].(map[string]any)
+	if !ok {
+		t.Fatalf("details.netbird missing: %#v", health.Details)
+	}
+	if details["updateAvailable"] != false {
+		t.Fatalf("details.updateAvailable = %v, want false", details["updateAvailable"])
+	}
+
+	peers, serverUpdate, err := service.GetPeers(t.Context(), server.URL, "nbp_testtoken")
+	if err != nil {
+		t.Fatalf("GetPeers: %v", err)
+	}
+	if len(peers) != 2 {
+		t.Fatalf("peers = %d, want 2: an unreadable version must keep the list", len(peers))
+	}
+	if serverUpdate {
+		t.Fatalf("serverUpdate = true for an unparseable server version, want false")
+	}
+}
