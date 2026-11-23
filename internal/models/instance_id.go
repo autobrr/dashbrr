@@ -37,3 +37,21 @@ var kubernetesInstanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9]+-k8s-[a-z0-9-
 func IsDiscoveredInstanceID(instanceID string) bool {
 	return kubernetesInstanceIDPattern.MatchString(instanceID)
 }
+
+type ServiceEdits string
+
+const (
+	EditsAll    ServiceEdits = "all"
+	EditsAPIKey ServiceEdits = "apiKey"
+	EditsNone   ServiceEdits = "none"
+)
+
+func AllowedEdits(instanceID string) ServiceEdits {
+	if !IsDiscoveredInstanceID(instanceID) {
+		return EditsAll
+	}
+	if t, _ := ServiceTypeFromInstanceID(instanceID); t == "plex" {
+		return EditsAPIKey
+	}
+	return EditsNone
+}

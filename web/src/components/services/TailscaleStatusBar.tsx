@@ -120,7 +120,7 @@ export const TailscaleStatusBar: React.FC = () => {
           </div>
           {getStatusDisplay()}
         </button>
-        {!configurations[instanceId]?.discovered && (
+        {configurations[instanceId]?.edits === "all" && (
           <button
             onClick={handleRemoveClick}
             className="p-1 text-gray-400 hover:text-blue-400 transition-colors"

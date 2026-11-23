@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useConfiguration } from "../../contexts/useConfiguration";
-import { ServiceConfig } from "../../types/service";
+import { ServiceConfigInput } from "../../types/service";
 import { Button } from "../ui/Button";
 import { FormInput } from "../ui/FormInput";
 import { toast } from "react-hot-toast";
@@ -27,8 +27,7 @@ export const ConfigurationForm = ({
   const { configurations, updateConfiguration } = useConfiguration();
   const currentConfig = configurations[instanceId];
   const hasExistingConfig = Boolean(currentConfig);
-  // Discovery owns every field of a discovered service except the API key.
-  const isDiscovered = Boolean(currentConfig?.discovered);
+  const editsAll = (currentConfig?.edits ?? "all") === "all";
   const serviceType = instanceId.split("-")[0];
   const isPlexService = serviceType === "plex";
   const requiresApiKey =
@@ -44,7 +43,7 @@ export const ConfigurationForm = ({
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticating, authenticate } = usePlexPinAuth();
 
-  const validateConfiguration = async (config: ServiceConfig) => {
+  const validateConfiguration = async (config: ServiceConfigInput) => {
     try {
       const queryParams = new URLSearchParams({
         url: config.url || "",
@@ -80,7 +79,7 @@ export const ConfigurationForm = ({
         throw new Error("Authenticate with Plex first");
       }
 
-      const config: ServiceConfig = {
+      const config: ServiceConfigInput = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
         accessUrl: accessUrl
           ? accessUrl.endsWith("/")
@@ -259,9 +258,24 @@ export const ConfigurationForm = ({
 
   const apiKeyHelp = getApiKeyHelp();
 
+  if (currentConfig?.edits === "none") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Kubernetes discovery manages this service. Change its annotations to change it.
+        </p>
+        <div className="flex justify-end">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {!isDiscovered && (
+      {editsAll && (
         <>
           <FormInput
             id="displayName"

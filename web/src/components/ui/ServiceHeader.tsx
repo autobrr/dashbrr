@@ -13,7 +13,7 @@ import { SiKubernetes } from "react-icons/si";
 import AnimatedModal from "./AnimatedModal";
 import { StatusIcon, StatusType } from "./StatusIcon";
 import { repoUrls } from "../../config/repoUrls";
-import { ServiceStatus, ServiceType } from "../../types/service";
+import { ServiceEdits, ServiceStatus, ServiceType } from "../../types/service";
 import { serviceLink } from "../../utils/serviceLink";
 
 interface ServiceHeaderProps {
@@ -28,8 +28,7 @@ interface ServiceHeaderProps {
   onRemove: (e?: React.MouseEvent) => void;
   needsConfiguration?: boolean;
   status?: ServiceStatus;
-  discovered?: boolean;
-  canConfigure?: boolean;
+  edits: ServiceEdits;
 }
 
 export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
@@ -43,8 +42,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
   onRemove,
   needsConfiguration,
   status,
-  discovered,
-  canConfigure = true,
+  edits,
 }) => {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
 
@@ -118,7 +116,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
           </div>
         </div>
         <div className="ml-2 flex items-center space-x-2 @md:ml-4">
-          {discovered && (
+          {edits !== "all" && (
             <span
               className="p-1.5 text-zinc-400"
               title="Managed by Kubernetes discovery"
@@ -133,7 +131,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
               needsConfiguration ? "" : "opacity-100 @md:opacity-0 @md:group-hover:opacity-100"
             } transition-all duration-200`}
           >
-            {canConfigure && (
+            {edits !== "none" && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -144,12 +142,12 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
                     ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/20"
                     : "text-zinc-400 hover:text-zinc-600 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700"
                 }`}
-                title={discovered ? "Sign in with Plex" : "Configure service"}
+                title={edits === "apiKey" ? "Sign in with Plex" : "Configure service"}
               >
                 <Cog6ToothIcon className="h-4 w-4" />
               </button>
             )}
-            {!discovered && (
+            {edits === "all" && (
               <button
                 onClick={handleRemoveClick}
                 className="rounded-full p-1.5 text-red-500 transition-all duration-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/20 dark:hover:text-red-300"

@@ -199,9 +199,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                 }}
                 needsConfiguration={needsConfiguration}
                 status={service.status}
-                discovered={currentConfig?.discovered}
-                // A discovered Plex keeps the Plex sign-in. Discovery owns everything else.
-                canConfigure={!currentConfig?.discovered || service.type === "plex"}
+                edits={currentConfig?.edits ?? "all"}
               />
             </div>
           </div>

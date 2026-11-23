@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { ServiceConfig } from "../types/service";
+import { ServiceConfig, ServiceConfigInput } from "../types/service";
 
 export interface ConfigurationContextType {
   configurations: { [instanceId: string]: ServiceConfig };
-  updateConfiguration: (instanceId: string, config: ServiceConfig) => Promise<ServiceConfig>;
+  updateConfiguration: (instanceId: string, config: ServiceConfigInput) => Promise<ServiceConfig>;
   deleteConfiguration: (instanceId: string) => Promise<void>;
   fetchConfigurations: () => Promise<void>;  // This is now forceRefresh
   isLoading: boolean;
