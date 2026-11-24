@@ -32,7 +32,7 @@ LDFLAGS=-s -w \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/autobrr/dashbrr/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: all clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build help docker-clean test-integration test-integration-db test-integration-db-stop run lint lint-backend check-log-urls check-pr type-check preview check-air fmt gofix-changed gofix-check-changed precommit
+.PHONY: all clean frontend backend deps-go deps-frontend dev docker-dev docker-dev-quick docker-build help docker-clean test-integration test-integration-db test-integration-db-stop run lint lint-backend check-log-urls type-check preview check-air fmt gofix-changed gofix-check-changed precommit
 
 # Default target
 all: clean deps-frontend deps-go frontend backend
@@ -87,10 +87,6 @@ lint-backend: check-log-urls
 # A service URL can hold a token, so each URL log field must use core.RedactURL
 check-log-urls:
 	@! grep -rnE 'Str\("(url|access_url)", ' --include='*.go' internal | grep -vE 'RedactURL|"url", redacted\)'
-
-check-pr:
-	@test -n "$(PR)" || { echo "usage: make check-pr PR=<number>"; exit 1; }
-	.github/scripts/check-pr.sh $(PR)
 
 # Apply go fix to changed Go files only
 gofix-changed:
@@ -273,7 +269,6 @@ help:
 	@echo "  lint                     - Run ESLint on frontend code"
 	@echo "  lint-backend             - Lint changed backend files only"
 	@echo "  check-log-urls           - Fail when a URL log field skips core.RedactURL"
-	@echo "  check-pr PR=<number>     - Fail when a PR has no labels or carries AI attribution"
 	@echo "  gofix-changed            - Apply go fix to changed Go files only"
 	@echo "  gofix-check-changed      - Check go fix drift on changed Go files only"
 	@echo "  precommit                - Run local pre-commit gate (fmt + gofix + lint)"

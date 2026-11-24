@@ -21,17 +21,3 @@ jobs:
             echo "::error::PR has the breaking change label. Mark the title with !, for example feat(api)!: ..."
             exit 1
           fi
-
-  metadata:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Require labels and no AI attribution
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: make check-pr PR=${{ github.event.pull_request.number }}

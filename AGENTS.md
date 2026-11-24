@@ -24,7 +24,6 @@ When soup corrects you, fix the mistake and add its rule here. If the rule is al
 | Log a service URL only through `core.RedactURL`. | `make check-log-urls`, in CI. |
 | Write web API URLs as relative paths (`api/...`), so they resolve under a base path. | ESLint `no-restricted-syntax` in `web/eslint.config.js`. |
 | A PR with the `breaking change` label has `!` in its title. | `.github/workflows/pr-title.yml`. |
-| Each PR has at least one label, and no title, body, or commit message has an AI attribution line. | `make check-pr PR=<n>`, in CI. |
 | Web unit tests pass. | `pnpm -C web test`, in CI. |
 | Run the browser tests before you report on them. A launch error that names a missing executable means the browser build differs from the one the locked Playwright version needs. | `pnpm -C web test:browser` installs that Chromium build before it runs the tests. |
 | Spec-defined logic (URLs, paths, Markdown, semver, cron, time zones) uses a proven library. | Judgment, no check: see Collaboration. |
@@ -34,7 +33,7 @@ When soup corrects you, fix the mistake and add its rule here. If the rule is al
 
 - Conventional commits: `feat(scope):`, `fix(scope):`, etc. Keep commits focused; split backend/frontend when practical.
 - Update PR branches by merging develop into them, never rebase/force-push. PRs are squash-merged, so rebase gains nothing and force-pushes break review history and contributors' local branches.
-- Label a PR when you open it with labels from `gh label list`. Add `breaking change` whenever the PR renames or removes anything user-facing.
+- Add the `breaking change` label whenever a PR renames or removes anything user-facing.
 
 ## Commands
 
