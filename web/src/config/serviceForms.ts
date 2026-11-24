@@ -74,7 +74,10 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   nzbget: {
     urlPlaceholder: "http://localhost:6789",
     apiKeyLabel: "Control Password",
-    apiKeyHelp: foundIn("Settings > Security", "/#settings"),
+    apiKeyHelp: foundIn(
+      "Settings > Security (ControlPassword, or username:password)",
+      "/#settings"
+    ),
   },
   prowlarr: {
     urlPlaceholder: defaultUrl,

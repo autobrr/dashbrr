@@ -16,3 +16,9 @@ test("API key help links into the service under its base path", () => {
   const help = serviceForms.emby.apiKeyHelp({ url: "http://media:8096/emby" });
   assert.equal(help.link, "http://media:8096/emby/web/index.html#!/apikeys");
 });
+
+test("NZBGet help names the username:password form for a non-default user", () => {
+  const help = serviceForms.nzbget.apiKeyHelp({ url: "http://nzb:6789" });
+  assert.match(help.text, /username:password/);
+  assert.equal(help.link, "http://nzb:6789/#settings");
+});
