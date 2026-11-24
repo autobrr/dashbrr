@@ -26,6 +26,7 @@ When soup corrects you, fix the mistake and add its rule here. If the rule is al
 | A PR with the `breaking change` label has `!` in its title. | `.github/workflows/pr-title.yml`. |
 | Each PR has at least one label, and no title, body, or commit message has an AI attribution line. | `make check-pr PR=<n>`, in CI. |
 | Web unit tests pass. | `pnpm -C web test`, in CI. |
+| Run the browser tests before you report on them. A launch error that names a missing executable means the browser build differs from the one the locked Playwright version needs. | `pnpm -C web test:browser` installs that Chromium build before it runs the tests. |
 | Spec-defined logic (URLs, paths, Markdown, semver, cron, time zones) uses a proven library. | Judgment, no check: see Collaboration. |
 | Update PR branches by merging develop. | Judgment, no check: see Git. |
 
