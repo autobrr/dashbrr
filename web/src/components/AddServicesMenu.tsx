@@ -11,7 +11,7 @@ import { FormInput } from "./ui/FormInput";
 import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
-import { serviceLink } from "../utils/serviceLink";
+import { serviceForms } from "../config/serviceForms";
 
 interface AddServicesMenuProps {
   serviceTemplates: Array<{
@@ -81,138 +81,6 @@ const CATEGORY_ORDER: ServiceCategoryKey[] = [
   "NETWORK",
 ];
 
-type FormHelp = { prefix: string; text: string; link: string | null };
-type ApiHelpContext = {
-  getSettingsUrl: (path: string) => string | null;
-  url: string;
-};
-
-const API_KEY_LABELS: Partial<Record<ServiceType, string>> = {
-  tailscale: "API Token",
-  nzbget: "Control Password",
-  traefik: "Auth Token (Optional)",
-};
-
-const URL_PLACEHOLDERS: Partial<Record<ServiceType, string>> = {
-  plex: "http://localhost:32400",
-  jellyfin: "http://localhost:8096",
-  emby: "http://localhost:8096",
-  uptimekuma: "http://localhost:3001",
-  qui: "http://localhost:7476",
-  traefik: "http://localhost:8080",
-  bazarr: "http://localhost:6767",
-  whisparr: "http://localhost:6969",
-  sabnzbd: "http://localhost:8080",
-  nzbget: "http://localhost:6789",
-  general: "Enter full URL including health endpoint",
-  tailscale: "https://api.tailscale.com",
-};
-
-const API_KEY_HELP_BY_SERVICE: Partial<
-  Record<ServiceType, (ctx: ApiHelpContext) => FormHelp>
-> = {
-  autobrr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > API",
-    link: getSettingsUrl("/settings/api"),
-  }),
-  radarr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > General",
-    link: getSettingsUrl("/settings/general"),
-  }),
-  whisparr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > General",
-    link: getSettingsUrl("/settings/general"),
-  }),
-  sonarr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > General",
-    link: getSettingsUrl("/settings/general"),
-  }),
-  lidarr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > General",
-    link: getSettingsUrl("/settings/general"),
-  }),
-  readarr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > General",
-    link: getSettingsUrl("/settings/general"),
-  }),
-  bazarr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > General",
-    link: getSettingsUrl("/settings/general"),
-  }),
-  jellyfin: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Dashboard > API Keys",
-    link: getSettingsUrl("/web/index.html#!/apikeys.html"),
-  }),
-  emby: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > Advanced > API Keys",
-    link: getSettingsUrl("/web/index.html#!/apikeys"),
-  }),
-  uptimekuma: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > API Keys",
-    link: getSettingsUrl("/settings/api-keys"),
-  }),
-  sabnzbd: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Config > General",
-    link: getSettingsUrl("/config/general/"),
-  }),
-  nzbget: ({ getSettingsUrl }) => ({
-    prefix: "Use ",
-    text: "ControlPassword (or username:password)",
-    link: getSettingsUrl("/?tab=config#S_SECURITY"),
-  }),
-  prowlarr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > General",
-    link: getSettingsUrl("/settings/general"),
-  }),
-  traefik: () => ({
-    prefix: "Optional - ",
-    text: "Bearer token or user:password for protected dashboard APIs",
-    link: null,
-  }),
-  overseerr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings",
-    link: getSettingsUrl("/settings/main"),
-  }),
-  maintainerr: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings",
-    link: getSettingsUrl("/settings/main"),
-  }),
-  qui: ({ getSettingsUrl }) => ({
-    prefix: "Found in ",
-    text: "Settings > API Key",
-    link: getSettingsUrl("/settings"),
-  }),
-  general: () => ({
-    prefix: "Optional - ",
-    text: "api token for authentication if required",
-    link: null,
-  }),
-  tailscale: ({ url }) => ({
-    prefix: "Found in ",
-    text: "Admin Console > Settings > Keys",
-    link:
-      url === "https://api.tailscale.com"
-        ? "https://login.tailscale.com/admin/settings/keys"
-        : null,
-  }),
-};
-
-const EMPTY_HELP: FormHelp = { prefix: "", text: "", link: null };
-
 export function AddServicesMenu({
   serviceTemplates,
   onAddService,
@@ -243,9 +111,6 @@ export function AddServicesMenu({
   }, [serviceTemplates, configurations]);
 
   const [accessUrl, setAccessUrl] = useState("");
-
-  const getSettingsUrl = (path: string): string | null =>
-    serviceLink({ url, accessUrl }, path);
 
   // Reset form fields when modal is opened/closed or when pending service changes
   useEffect(() => {
@@ -288,18 +153,10 @@ export function AddServicesMenu({
     }
   };
 
-  const serviceType = pendingService?.type;
-  const apiKeyLabel = serviceType ? API_KEY_LABELS[serviceType] || "API Key" : "API Key";
-  const urlPlaceholder = serviceType
-    ? URL_PLACEHOLDERS[serviceType] || "Enter service URL"
-    : "Enter service URL";
-  const apiKeyHelp =
-    (serviceType &&
-      API_KEY_HELP_BY_SERVICE[serviceType]?.({
-        getSettingsUrl,
-        url,
-      })) ||
-    EMPTY_HELP;
+  const form = serviceForms[pendingService?.type ?? "other"];
+  const apiKeyLabel = form.apiKeyLabel;
+  const urlPlaceholder = form.urlPlaceholder;
+  const apiKeyHelp = form.apiKeyHelp({ url, accessUrl });
 
   const groupedServices = useMemo(() => {
     const grouped: Record<ServiceCategoryKey, typeof serviceTemplates> = {
