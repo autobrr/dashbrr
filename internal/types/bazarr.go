@@ -3,6 +3,8 @@
 
 package types
 
+import "strings"
+
 // BazarrSystemStatusEnvelope represents Bazarr /api/system/status.
 type BazarrSystemStatusEnvelope struct {
 	Data BazarrSystemStatus `json:"data"`
@@ -11,6 +13,8 @@ type BazarrSystemStatusEnvelope struct {
 // BazarrSystemStatus contains the status payload from Bazarr.
 type BazarrSystemStatus struct {
 	BazarrVersion string `json:"bazarr_version"`
+	SonarrVersion string `json:"sonarr_version"`
+	RadarrVersion string `json:"radarr_version"`
 }
 
 // BazarrBadges represents Bazarr /api/badges.
@@ -29,6 +33,22 @@ type BazarrProviderStatus struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	Retry  string `json:"retry"`
+}
+
+// HasIssue reports whether a Bazarr provider is not in the healthy "Good" state.
+func (p BazarrProviderStatus) HasIssue() bool {
+	return !strings.EqualFold(strings.TrimSpace(p.Status), "Good")
+}
+
+// FilterBazarrIssueProviders returns only providers that are not in the healthy "Good" state.
+func FilterBazarrIssueProviders(providers []BazarrProviderStatus) []BazarrProviderStatus {
+	issues := make([]BazarrProviderStatus, 0, len(providers))
+	for _, provider := range providers {
+		if provider.HasIssue() {
+			issues = append(issues, provider)
+		}
+	}
+	return issues
 }
 
 // BazarrProvidersEnvelope represents Bazarr /api/providers response.

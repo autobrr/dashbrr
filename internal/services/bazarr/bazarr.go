@@ -102,17 +102,25 @@ func (s *BazarrService) GetHealthEndpoint(baseURL string) string {
 	return s.endpoint(baseURL, "/api/system/health")
 }
 
+func (s *BazarrService) getSystemStatusPayload(ctx context.Context, baseURL, apiKey string) (types.BazarrSystemStatus, error) {
+	var status types.BazarrSystemStatusEnvelope
+	if err := s.getJSON(ctx, "get_system_status", baseURL, "/api/system/status", apiKey, &status); err != nil {
+		return types.BazarrSystemStatus{}, err
+	}
+	return status.Data, nil
+}
+
 func (s *BazarrService) GetSystemStatus(ctx context.Context, baseURL, apiKey string) (string, error) {
 	if version := s.GetVersionFromCache(ctx, baseURL); version != "" && version != "true" {
 		return version, nil
 	}
 
-	var status types.BazarrSystemStatusEnvelope
-	if err := s.getJSON(ctx, "get_system_status", baseURL, "/api/system/status", apiKey, &status); err != nil {
+	status, err := s.getSystemStatusPayload(ctx, baseURL, apiKey)
+	if err != nil {
 		return "", err
 	}
 
-	version := strings.TrimSpace(status.Data.BazarrVersion)
+	version := strings.TrimSpace(status.BazarrVersion)
 	if version == "" {
 		return "", &ErrBazarr{Op: "get_system_status", Err: errors.New("version was empty")}
 	}
@@ -157,13 +165,15 @@ func (s *BazarrService) GetHealthIssues(ctx context.Context, baseURL, apiKey str
 func (s *BazarrService) GetSummary(ctx context.Context, baseURL, apiKey string) (types.BazarrSummaryResponse, error) {
 	var (
 		summary         types.BazarrSummaryResponse
+		sysStatus       types.BazarrSystemStatus
 		badgesErr       error
 		providersErr    error
 		healthIssuesErr error
+		sysStatusErr    error
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
@@ -180,6 +190,11 @@ func (s *BazarrService) GetSummary(ctx context.Context, baseURL, apiKey string) 
 		summary.HealthIssues, healthIssuesErr = s.GetHealthIssues(ctx, baseURL, apiKey)
 	}()
 
+	go func() {
+		defer wg.Done()
+		sysStatus, sysStatusErr = s.getSystemStatusPayload(ctx, baseURL, apiKey)
+	}()
+
 	wg.Wait()
 
 	if badgesErr != nil && providersErr != nil && healthIssuesErr != nil {
@@ -191,9 +206,18 @@ func (s *BazarrService) GetSummary(ctx context.Context, baseURL, apiKey string) 
 		)
 	}
 
-	if summary.Providers == nil {
-		summary.Providers = []types.BazarrProviderStatus{}
+	if sysStatusErr == nil {
+		// Bazarr reports empty sonarr_version/radarr_version when the integration
+		// is disabled while still emitting "DOWN" in /api/badges.
+		if strings.TrimSpace(sysStatus.SonarrVersion) == "" {
+			summary.Badges.SonarrSignalR = ""
+		}
+		if strings.TrimSpace(sysStatus.RadarrVersion) == "" {
+			summary.Badges.RadarrSignalR = ""
+		}
 	}
+
+	summary.Providers = types.FilterBazarrIssueProviders(summary.Providers)
 	if summary.HealthIssues == nil {
 		summary.HealthIssues = []types.BazarrHealthIssue{}
 	}

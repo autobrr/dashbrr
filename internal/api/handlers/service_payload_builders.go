@@ -313,8 +313,11 @@ func buildBazarrSummaryServiceUpdate(instanceID string, summary *types.BazarrSum
 		}
 	}
 
+	issueProviders := types.FilterBazarrIssueProviders(summary.Providers)
+	providersWithIssues := max(len(issueProviders), summary.Badges.Providers)
+
 	status := "online"
-	if len(summary.HealthIssues) > 0 || len(summary.Providers) > 0 || summary.Badges.Status > 0 {
+	if len(summary.HealthIssues) > 0 || providersWithIssues > 0 || summary.Badges.Status > 0 {
 		status = "warning"
 	}
 
@@ -331,7 +334,7 @@ func buildBazarrSummaryServiceUpdate(instanceID string, summary *types.BazarrSum
 			"bazarr": map[string]any{
 				"episodeBacklog":      summary.Badges.Episodes,
 				"movieBacklog":        summary.Badges.Movies,
-				"providersWithIssues": len(summary.Providers),
+				"providersWithIssues": providersWithIssues,
 				"healthIssues":        len(summary.HealthIssues),
 				"sonarrSignalR":       summary.Badges.SonarrSignalR,
 				"radarrSignalR":       summary.Badges.RadarrSignalR,

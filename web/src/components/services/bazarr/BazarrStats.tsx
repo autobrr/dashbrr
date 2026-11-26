@@ -12,6 +12,11 @@ import { combineServiceMessage } from "../../../utils/serviceMessage";
 import { CollapsibleSection } from "../../ui/CollapsibleSection";
 import { useCollapsiblePreference } from "../../../hooks/useCollapsiblePreference";
 import { serviceSectionCollapseKey } from "../../../utils/collapsePreferences";
+import {
+  getBazarrIssueProviders,
+  getBazarrProvidersWithIssuesCount,
+  getBazarrSignalRStatusColor
+} from "./status";
 
 interface BazarrStatsProps {
   instanceId: string;
@@ -51,9 +56,13 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
     announcements: 0,
   };
   const providers = summary?.providers ?? [];
+  const issueProviders = getBazarrIssueProviders(providers);
   const healthIssues = summary?.healthIssues ?? [];
 
-  const providersWithIssues = Math.max(providers.length, badges.providers || 0);
+  const providersWithIssues = getBazarrProvidersWithIssuesCount(
+    providers,
+    badges.providers
+  );
   const systemHealthIssues = Math.max(healthIssues.length, badges.status || 0);
   const message = combineServiceMessage(service);
 
@@ -106,7 +115,11 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
           {badges.sonarr_signalr && (
             <span className="rounded-md bg-gray-850/95 px-2 py-1">
               Sonarr SignalR:{" "}
-              <span className="font-semibold text-green-400">
+              <span
+                className={`font-semibold ${getBazarrSignalRStatusColor(
+                  badges.sonarr_signalr
+                )}`}
+              >
                 {badges.sonarr_signalr}
               </span>
             </span>
@@ -114,7 +127,11 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
           {badges.radarr_signalr && (
             <span className="rounded-md bg-gray-850/95 px-2 py-1">
               Radarr SignalR:{" "}
-              <span className="font-semibold text-green-400">
+              <span
+                className={`font-semibold ${getBazarrSignalRStatusColor(
+                  badges.radarr_signalr
+                )}`}
+              >
                 {badges.radarr_signalr}
               </span>
             </span>
@@ -122,15 +139,15 @@ export const BazarrStats: React.FC<BazarrStatsProps> = ({ instanceId }) => {
         </div>
       )}
 
-      {providers.length > 0 && (
+      {issueProviders.length > 0 && (
         <CollapsibleSection
           title="Providers with issues:"
-          meta={`${providers.length}`}
+          meta={`${issueProviders.length}`}
           isExpanded={providersExpanded}
           onToggle={toggleProviders}
         >
           <div className="space-y-2">
-            {providers.slice(0, 10).map((provider) => (
+            {issueProviders.slice(0, 10).map((provider) => (
               <div
                 key={`${provider.name}:${provider.status}:${provider.retry}`}
                 className="flex items-center justify-between rounded-md bg-gray-850/95 px-3.5 py-2 text-xs"
