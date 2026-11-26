@@ -116,9 +116,10 @@ func (s *JellyfinService) buildURL(baseURL, path string, query url.Values) (stri
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", core.ErrInvalidServiceURL, core.RedactURLError(err))
 	}
-	base.Path = strings.TrimSuffix(strings.TrimRight(base.Path, "/"), s.pathPrefix)
+	basePath := strings.TrimSuffix(strings.TrimRight(base.EscapedPath(), "/"), s.pathPrefix)
+	base.Path, base.RawPath = "", ""
 
-	return core.RequestURLQuery(base.String(), query, s.pathPrefix, path)
+	return core.RequestURLQuery(base.String(), query, basePath, s.pathPrefix, path)
 }
 
 func (s *JellyfinService) getJSON(ctx context.Context, op, baseURL, apiKey, path string, query url.Values, out any) error {

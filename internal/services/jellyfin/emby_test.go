@@ -122,6 +122,8 @@ func TestHealthEndpointKeepsHostNamedLikeThePrefix(t *testing.T) {
 		{"emby host with sub-path and prefix", NewEmbyService().(*JellyfinService), "http://emby/media/emby/", "http://emby/media/emby/System/Info"},
 		{"jellyfin host", NewJellyfinService().(*JellyfinService), "http://jellyfin", "http://jellyfin/System/Info"},
 		{"jellyfin host with sub-path", NewJellyfinService().(*JellyfinService), "http://jellyfin/jellyfin/", "http://jellyfin/jellyfin/System/Info"},
+		{"emby escaped slash in sub-path", NewEmbyService().(*JellyfinService), "http://host/my%2Fapp/emby", "http://host/my%2Fapp/emby/System/Info"},
+		{"jellyfin escaped slash in sub-path", NewJellyfinService().(*JellyfinService), "http://host/my%2Fapp/", "http://host/my%2Fapp/System/Info"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

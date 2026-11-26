@@ -30,6 +30,7 @@ func TestRequestURL(t *testing.T) {
 		{name: "piece escaped", base: "http://sonarr:8989", elems: []string{"/api/v3/queue", "a b?c#d"}, want: "http://sonarr:8989/api/v3/queue/a%20b%3Fc%23d"},
 		{name: "escaped slash stays escaped", base: "http://sonarr:8989", elems: []string{"/api/v3/queue", url.PathEscape("a/b")}, want: "http://sonarr:8989/api/v3/queue/a%2Fb"},
 		{name: "escaped base path kept", base: "http://host/my%2Fapp", elems: []string{"/api"}, want: "http://host/my%2Fapp/api"},
+		{name: "escaped base path with trailing slash kept", base: "http://host/my%2Fapp/", elems: []string{"/api"}, want: "http://host/my%2Fapp/api"},
 		{name: "no pieces", base: "http://plex:32400/", want: "http://plex:32400/"},
 	}
 	for _, tt := range tests {
