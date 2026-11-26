@@ -4,7 +4,10 @@ import { createRoot } from "react-dom/client";
 import { AddServicesMenu } from "../../src/components/AddServicesMenu";
 import { ConfigurationForm } from "../../src/components/configuration/ConfigurationForm";
 import { serviceTemplates } from "../../src/config/serviceTemplates";
+import { AuthContext } from "../../src/contexts/AuthContext";
+import { ConfigurationProvider } from "../../src/contexts/ConfigurationContext";
 import { ConfigurationContext } from "../../src/contexts/context";
+import { useConfiguration } from "../../src/contexts/useConfiguration";
 import { useServiceManagement } from "../../src/hooks/useServiceManagement";
 import type { ServiceConfig, ServiceConfigInput, ServiceType } from "../../src/types/service";
 
@@ -48,6 +51,38 @@ export function AddService() {
   );
 }
 
+function ConfiguredIds() {
+  const { configurations } = useConfiguration();
+  return (
+    <ul aria-label="Configured services">
+      {Object.keys(configurations).map((id) => (
+        <li key={id}>{id}</li>
+      ))}
+    </ul>
+  );
+}
+
+const signedIn = {
+  isAuthenticated: true,
+  loading: false,
+  authConfig: null,
+  login: async () => undefined,
+  register: async () => undefined,
+  logout: async () => undefined,
+  loginWithOIDC: () => undefined,
+};
+
+function RealProvider() {
+  return (
+    <AuthContext.Provider value={signedIn}>
+      <ConfigurationProvider>
+        <AddService />
+        <ConfiguredIds />
+      </ConfigurationProvider>
+    </AuthContext.Provider>
+  );
+}
+
 export function Harness() {
   const [configurations, setConfigurations] = useState(stored);
   const params = new URLSearchParams(window.location.search);
@@ -80,11 +115,7 @@ export function Harness() {
       ) : (
         <AddService />
       )}
-      <ul aria-label="Configured services">
-        {Object.keys(configurations).map((id) => (
-          <li key={id}>{id}</li>
-        ))}
-      </ul>
+      <ConfiguredIds />
     </ConfigurationContext.Provider>
   );
 }
@@ -95,8 +126,10 @@ if (!app) {
   throw new Error("missing app mount");
 }
 
+const realProvider = new URLSearchParams(window.location.search).has("provider");
+
 createRoot(app).render(
   <React.StrictMode>
-    <Harness />
+    {realProvider ? <RealProvider /> : <Harness />}
   </React.StrictMode>
 );

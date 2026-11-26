@@ -59,6 +59,38 @@ test("adding a service tests it by type, sends only its type, and shows the ID t
   }
 });
 
+test("the configuration provider posts the type and stores the service under the ID the server returns", async ({ page }) => {
+  await serveHealth(page, "online");
+  const posted: unknown[] = [];
+  await page.route("**/api/settings", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        json: { "sonarr-1": { instanceId: "sonarr-1", displayName: "Sonarr", url: "http://sonarr.test:8989", edits: "all" } },
+      });
+    }
+    posted.push(route.request().postDataJSON());
+    return route.fulfill({
+      status: 201,
+      json: { instanceId: "sonarr-7", displayName: "Sonarr 2", url: "http://sonarr-new.test:8989", edits: "all" },
+    });
+  });
+
+  await page.goto(`${HARNESS_PATH}?provider`);
+  const ids = page.getByRole("list", { name: "Configured services" });
+  await expect(ids.getByText("sonarr-1", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Add Service" }).click();
+  await page.getByRole("menuitem", { name: "Add Sonarr" }).click();
+  await page.locator("#url").fill("http://sonarr-new.test:8989");
+  await page.locator("#apiKey").fill("new-key");
+  await submitAdd(page);
+
+  await expect(ids.getByText("sonarr-7", { exact: true })).toBeVisible();
+  await expect(ids.getByRole("listitem")).toHaveText(["sonarr-1", "sonarr-7"]);
+  expect(posted).toEqual([
+    { type: "sonarr", displayName: "Sonarr 2", url: "http://sonarr-new.test:8989", apiKey: "new-key" },
+  ]);
+});
+
 test("an offline service can be renamed without a test", async ({ page }) => {
   await serveHealth(page, "offline");
   await page.goto(`${HARNESS_PATH}?edit=sonarr-2`);
