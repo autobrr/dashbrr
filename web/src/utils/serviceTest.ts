@@ -15,13 +15,9 @@ export const testService = async (
   instanceId: string,
   input: ServiceConfigInput
 ): Promise<void> => {
-  const query = new URLSearchParams({ url: input.url });
-  if (input.apiKey) {
-    query.set("apiKey", input.apiKey);
-  }
-
-  const result = await api.get<ServiceTestResult>(
-    `/health/${encodeURIComponent(instanceId)}?${query}`
+  const result = await api.post<ServiceTestResult>(
+    `/health/${encodeURIComponent(instanceId)}`,
+    { url: input.url, apiKey: input.apiKey || undefined }
   );
   if (result.status === "error" || result.status === "offline") {
     throw new Error(result.message || `The service reported ${result.status}`);

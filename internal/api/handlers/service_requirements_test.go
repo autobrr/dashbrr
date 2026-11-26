@@ -32,3 +32,31 @@ func TestServiceAllowsURLCredentials(t *testing.T) {
 		t.Fatalf("traefik should not rely on url credentials-only policy")
 	}
 }
+
+func TestServiceHasCredentials(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		serviceType string
+		url         string
+		apiKey      string
+		want        bool
+	}{
+		{"sonarr", "http://sonarr.test", "key", true},
+		{"sonarr", "http://sonarr.test", "", false},
+		{"sonarr", "http://user:pass@sonarr.test", "", false},
+		{"general", "http://site.test", "", true},
+		{"traefik", "http://traefik.test", "", true},
+		{"nzbget", "http://user:pass@nzbget.test", "", true},
+		{"uptimekuma", "http://user:pass@kuma.test", "", true},
+		{"nzbget", "http://user@nzbget.test", "", false},
+		{"nzbget", "http://user:@nzbget.test", "", false},
+		{"nzbget", "http://nzbget.test", "", false},
+		{"nzbget", "http://nzbget.test", "user:pass", true},
+	}
+	for _, tc := range cases {
+		if got := serviceHasCredentials(tc.serviceType, tc.url, tc.apiKey); got != tc.want {
+			t.Errorf("serviceHasCredentials(%q, %q, %q) = %v, want %v", tc.serviceType, tc.url, tc.apiKey, got, tc.want)
+		}
+	}
+}

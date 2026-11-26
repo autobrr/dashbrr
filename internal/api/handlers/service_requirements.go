@@ -3,7 +3,10 @@
 
 package handlers
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+)
 
 func serviceRequiresAPIKey(serviceType string) bool {
 	switch strings.ToLower(strings.TrimSpace(serviceType)) {
@@ -21,4 +24,21 @@ func serviceAllowsURLCredentials(serviceType string) bool {
 	default:
 		return false
 	}
+}
+
+func serviceHasCredentials(serviceType, rawURL, apiKey string) bool {
+	if !serviceRequiresAPIKey(serviceType) || apiKey != "" {
+		return true
+	}
+	return serviceAllowsURLCredentials(serviceType) && urlHasUserCredentials(rawURL)
+}
+
+func urlHasUserCredentials(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.User == nil {
+		return false
+	}
+	username := strings.TrimSpace(u.User.Username())
+	password, _ := u.User.Password()
+	return username != "" && strings.TrimSpace(password) != ""
 }

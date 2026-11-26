@@ -242,6 +242,7 @@ func (s *Server) Handler() http.Handler {
 		health.Use(healthRateLimiter.RateLimit())
 		{
 			health.GET("/:service", healthHandler.CheckHealth)
+			health.POST("/:service", healthHandler.TestService)
 		}
 
 		// SSE events (preferred)
