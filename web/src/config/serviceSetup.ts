@@ -26,6 +26,7 @@ export interface SetupValues {
 }
 
 export interface ServiceSetup {
+  mode: "add" | "edit";
   instanceId: string;
   form: ServiceForm;
   edits: ServiceEdits;
@@ -60,7 +61,7 @@ const fieldsFor = (form: ServiceForm, edits: ServiceEdits): SetupField[] => {
 const requiredFields = (
   form: ServiceForm,
   fields: SetupField[],
-  adding: boolean
+  mode: ServiceSetup["mode"]
 ): SetupField[] =>
   fields.filter((field) => {
     switch (field) {
@@ -70,9 +71,9 @@ const requiredFields = (
       case "accessUrl":
         return false;
       case "apiKey":
-        return adding && form.credential !== "optional";
+        return mode === "add" && form.credential !== "optional";
       case "plexSignIn":
-        return adding;
+        return mode === "add";
     }
   });
 
@@ -98,11 +99,12 @@ export const addServiceSetup = (
   const fields = fieldsFor(form, "all");
 
   return {
+    mode: "add",
     instanceId,
     form,
     edits: "all",
     fields,
-    required: requiredFields(form, fields, true),
+    required: requiredFields(form, fields, "add"),
     values: {
       displayName:
         type === "general" ? "" : number > 1 ? `${name} ${number}` : name,
@@ -123,11 +125,12 @@ export const editServiceSetup = (
   const fields = fieldsFor(form, edits);
 
   return {
+    mode: "edit",
     instanceId,
     form,
     edits,
     fields,
-    required: requiredFields(form, fields, false),
+    required: requiredFields(form, fields, "edit"),
     values: {
       displayName: config?.displayName ?? "",
       url: (form.hideUrl ? form.defaultUrl : config?.url) ?? "",
@@ -178,4 +181,13 @@ export const setupInput = (
       accessUrl: normalized.accessUrl === "" ? undefined : normalized.accessUrl,
     },
   };
+};
+
+export const serviceTestNeeded = (
+  setup: ServiceSetup,
+  input: ServiceConfigInput
+): boolean => {
+  if (setup.form.testBeforeSave === false) return false;
+  if (setup.mode === "add") return true;
+  return input.url !== setup.values.url || input.apiKey !== "";
 };

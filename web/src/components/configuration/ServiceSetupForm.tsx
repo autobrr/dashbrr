@@ -6,9 +6,15 @@
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 
-import { ServiceSetup, setupInput, SetupValues } from "../../config/serviceSetup";
+import {
+  ServiceSetup,
+  serviceTestNeeded,
+  setupInput,
+  SetupValues
+} from "../../config/serviceSetup";
 import { usePlexPinAuth } from "../../hooks/usePlexPinAuth";
 import { ServiceConfigInput } from "../../types/service";
+import { testService } from "../../utils/serviceTest";
 import { Button } from "../ui/Button";
 import { FormInput } from "../ui/FormInput";
 
@@ -26,7 +32,8 @@ export const ServiceSetupForm = ({
   onCancel,
 }: ServiceSetupFormProps) => {
   const [values, setValues] = useState<SetupValues>(setup.values);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "testing" | "saving">("idle");
+  const isSubmitting = phase !== "idle";
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticating, authenticate } = usePlexPinAuth();
   const { form, fields, required } = setup;
@@ -49,13 +56,17 @@ export const ServiceSetupForm = ({
       return;
     }
 
-    setIsSubmitting(true);
     try {
+      if (serviceTestNeeded(setup, result.input)) {
+        setPhase("testing");
+        await testService(setup.instanceId, result.input);
+      }
+      setPhase("saving");
       await onSubmit(result.input);
     } catch (err) {
       fail(err instanceof Error ? err.message : "Failed to save configuration");
     } finally {
-      setIsSubmitting(false);
+      setPhase("idle");
     }
   };
 
@@ -176,8 +187,12 @@ export const ServiceSetupForm = ({
         >
           Cancel
         </Button>
-        <Button variant="primary" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : submitLabel}
+        <Button variant="primary" type="submit" isLoading={isSubmitting}>
+          {phase === "testing"
+            ? "Testing..."
+            : phase === "saving"
+              ? "Saving..."
+              : submitLabel}
         </Button>
       </div>
     </form>

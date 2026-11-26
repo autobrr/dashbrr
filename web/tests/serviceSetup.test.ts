@@ -5,6 +5,7 @@ import {
   addServiceSetup,
   editServiceSetup,
   freeInstanceId,
+  serviceTestNeeded,
   setupInput,
   type SetupField,
   type SetupValues
@@ -17,6 +18,7 @@ interface Rules {
   addRequired: SetupField[];
   editRequired: SetupField[];
   addUrl: string;
+  test: boolean;
 }
 
 const apiKeyService: Rules = {
@@ -24,6 +26,7 @@ const apiKeyService: Rules = {
   addRequired: ["displayName", "url", "apiKey"],
   editRequired: ["displayName", "url"],
   addUrl: "",
+  test: true,
 };
 
 const optionalKeyService: Rules = {
@@ -48,20 +51,22 @@ const rules: Record<ServiceType, Rules> = {
   uptimekuma: apiKeyService,
   maintainerr: apiKeyService,
   qui: apiKeyService,
-  other: apiKeyService,
+  other: { ...apiKeyService, test: false },
   traefik: optionalKeyService,
-  general: optionalKeyService,
+  general: { ...optionalKeyService, test: false },
   plex: {
     fields: ["displayName", "url", "accessUrl", "plexSignIn"],
     addRequired: ["displayName", "url", "plexSignIn"],
     editRequired: ["displayName", "url"],
     addUrl: "",
+    test: true,
   },
   tailscale: {
     fields: ["displayName", "accessUrl", "apiKey"],
     addRequired: ["displayName", "apiKey"],
     editRequired: ["displayName"],
     addUrl: "https://api.tailscale.com",
+    test: true,
   },
   netbird: { ...apiKeyService, addUrl: "https://api.netbird.io" },
 };
@@ -81,6 +86,12 @@ for (const [type, want] of Object.entries(rules) as [ServiceType, Rules][]) {
     assert.deepEqual(setup.fields, want.fields);
     assert.deepEqual(setup.required, want.addRequired);
     assert.equal(setup.values.url, want.addUrl);
+  });
+
+  test(`${type}: ${want.test ? "a new service is tested" : "no test"} before saving`, () => {
+    const setup = addServiceSetup(type, "Name", {});
+    const input = { displayName: "Name", url: "http://svc.test", apiKey: "key" };
+    assert.equal(serviceTestNeeded(setup, input), want.test);
   });
 
   test(`${type}: the edit form shows the add form's fields`, () => {
@@ -216,4 +227,28 @@ test("a General service's edit sends a changed API key", () => {
   const result = setupInput(setup, values({ apiKey: "new-token" }));
   assert.ok("input" in result);
   assert.equal(result.input.apiKey, "new-token");
+});
+
+test("an edit tests the service only when its URL or API key changes", () => {
+  const setup = editServiceSetup("sonarr-1", { "sonarr-1": config() });
+  const cases: Array<{ change: Partial<SetupValues>; test: boolean }> = [
+    { change: {}, test: false },
+    { change: { displayName: "Renamed" }, test: false },
+    { change: { accessUrl: "https://sonarr.example" }, test: false },
+    { change: { url: "http://other.test:8989" }, test: true },
+    { change: { apiKey: "new-key" }, test: true },
+  ];
+  for (const { change, test: want } of cases) {
+    const result = setupInput(setup, { ...setup.values, ...change });
+    assert.ok("input" in result);
+    assert.equal(serviceTestNeeded(setup, result.input), want, JSON.stringify(change));
+  }
+});
+
+test("editing the Plex token of a discovered Plex tests it", () => {
+  const id = "plex-k8s-media.plex";
+  const setup = editServiceSetup(id, { [id]: config({ edits: "apiKey" }) });
+  const result = setupInput(setup, { ...setup.values, apiKey: "new-token" });
+  assert.ok("input" in result);
+  assert.equal(serviceTestNeeded(setup, result.input), true);
 });

@@ -19,6 +19,7 @@ export interface ServiceForm {
   credential?: "optional" | "plexSignIn";
   defaultUrl?: string;
   hideUrl?: true;
+  testBeforeSave?: false;
 }
 
 const noHelp = (): FormHelp => ({ prefix: "", text: "", link: null });
@@ -168,6 +169,7 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
     urlPlaceholder: "Enter full URL including health endpoint",
     apiKeyLabel: "API Key",
     credential: "optional",
+    testBeforeSave: false,
     apiKeyHelp: () => ({
       prefix: "Optional - ",
       text: "api token for authentication if required",
@@ -177,6 +179,7 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   other: {
     urlPlaceholder: defaultUrl,
     apiKeyLabel: "API Key",
+    testBeforeSave: false,
     apiKeyHelp: noHelp,
   },
 };
