@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 // ConfigFile represents the structure of the external configuration file
@@ -54,6 +55,16 @@ func ImportConfig(path string) ([]models.ServiceConfiguration, error) {
 	// Convert config file services to service configurations
 	for serviceType, configs := range config.Services {
 		for i, cfg := range configs {
+			cfg.URL = strings.TrimSpace(cfg.URL)
+			cfg.AccessURL = strings.TrimSpace(cfg.AccessURL)
+			if err := core.ValidateServiceURL(cfg.URL); err != nil {
+				return nil, fmt.Errorf("services.%s item %d url: %w", serviceType, i+1, err)
+			}
+			if cfg.AccessURL != "" {
+				if err := core.ValidateServiceURL(cfg.AccessURL); err != nil {
+					return nil, fmt.Errorf("services.%s item %d access_url: %w", serviceType, i+1, err)
+				}
+			}
 			// Handle environment variable substitution in API key
 			apiKey, err := resolveEnvVar(cfg.APIKey)
 			if err != nil {

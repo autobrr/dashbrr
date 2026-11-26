@@ -166,3 +166,33 @@ func TestServiceRemoveFindsOwnTypeWhenURLIsShared(t *testing.T) {
 		t.Fatal("Jellyfin service is gone after emby remove")
 	}
 }
+
+func TestServiceAddRejectsInvalidURL(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DASHBRR__DB_TYPE", "sqlite")
+	t.Setenv("DASHBRR__DB_PATH", filepath.Join(dir, "dashbrr.db"))
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("DASHBRR__CONFIG_PATH", "")
+	t.Chdir(dir)
+
+	tests := []struct {
+		name    string
+		url     string
+		wantErr string
+	}{
+		{name: "password without scheme", url: "admin:secret@autobrr.invalid:7474", wantErr: "invalid service URL: must start with http:// or https://"}, //nolint:gosec // test fixture
+		{name: "port above 65535", url: "http://autobrr.invalid:74747", wantErr: "invalid service URL: port must be at most 65535"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := specFor(t, "autobrr")
+			spec.HealthCheck = nil
+			add := newServiceAddCommand(spec)
+			add.SetContext(t.Context())
+			err := add.RunE(add, []string{tt.url, "api-key"})
+			if err == nil || err.Error() != tt.wantErr {
+				t.Fatalf("add %q: err = %v, want %q", tt.url, err, tt.wantErr)
+			}
+		})
+	}
+}

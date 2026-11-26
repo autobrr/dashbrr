@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"unicode"
+
+	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
 type parsedDiscoveryLabels struct {
@@ -31,9 +33,18 @@ func parseDiscoveryLabels(labels map[string]string) (*parsedDiscoveryLabels, err
 		return nil, fmt.Errorf("service type label not found")
 	}
 
-	url := labels[GetLabelKey(labelURLKey)]
+	url := strings.TrimSpace(labels[GetLabelKey(labelURLKey)])
 	if url == "" {
 		return nil, fmt.Errorf("service URL label not found")
+	}
+	if err := core.ValidateServiceURL(url); err != nil {
+		return nil, fmt.Errorf("%s: %w", GetLabelKey(labelURLKey), err)
+	}
+	accessURL := strings.TrimSpace(labels[GetLabelKey(labelAccessURLKey)])
+	if accessURL != "" {
+		if err := core.ValidateServiceURL(accessURL); err != nil {
+			return nil, fmt.Errorf("%s: %w", GetLabelKey(labelAccessURLKey), err)
+		}
 	}
 
 	apiKey, err := resolveEnvVar(labels[GetLabelKey(labelAPIKeyKey)])
@@ -51,7 +62,7 @@ func parseDiscoveryLabels(labels map[string]string) (*parsedDiscoveryLabels, err
 		url:         url,
 		apiKey:      apiKey,
 		displayName: displayName,
-		accessURL:   labels[GetLabelKey(labelAccessURLKey)],
+		accessURL:   accessURL,
 	}, nil
 }
 

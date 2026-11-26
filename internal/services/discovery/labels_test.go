@@ -25,3 +25,48 @@ func TestResolveEnvVar_Missing(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestParseContainerLabels_RejectsInvalidURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		labels  map[string]string
+		wantErr string
+	}{
+		{
+			name:    "url without scheme",
+			labels:  map[string]string{GetLabelKey(labelURLKey): "admin:secret@nzbget:6789"}, //nolint:gosec // test fixture
+			wantErr: "com.dashbrr.service.url: invalid service URL: must start with http:// or https://",
+		},
+		{
+			name:    "access url without scheme",
+			labels:  map[string]string{GetLabelKey(labelURLKey): "http://nzbget:6789", GetLabelKey(labelAccessURLKey): "nzbget.example.test"},
+			wantErr: "com.dashbrr.service.access_url: invalid service URL: must start with http:// or https://",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.labels[GetLabelKey(labelTypeKey)] = "nzbget"
+			service, err := (&DockerDiscovery{}).parseContainerLabels(tt.labels)
+			if err == nil || err.Error() != tt.wantErr {
+				t.Fatalf("err = %v, want %q", err, tt.wantErr)
+			}
+			if service != nil {
+				t.Fatalf("service = %+v, want none", service)
+			}
+		})
+	}
+}
+
+func TestParseContainerLabels_TrimsURLs(t *testing.T) {
+	service, err := (&DockerDiscovery{}).parseContainerLabels(map[string]string{
+		GetLabelKey(labelTypeKey):      "nzbget",
+		GetLabelKey(labelURLKey):       "http://nzbget:6789\n",
+		GetLabelKey(labelAccessURLKey): " https://nzbget.example.test",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if service.URL != "http://nzbget:6789" {
+		t.Fatalf("url = %q, want %q", service.URL, "http://nzbget:6789")
+	}
+}

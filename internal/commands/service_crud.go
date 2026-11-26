@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -111,7 +112,7 @@ func newServiceAddCommand(spec serviceSpec) *cobra.Command {
 			return err
 		}
 
-		if _, err := validateHTTPURL(serviceURL); err != nil {
+		if err := core.ValidateServiceURL(serviceURL); err != nil {
 			return err
 		}
 
