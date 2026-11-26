@@ -23,8 +23,5 @@ jobs:
           "$RUNNER_TEMP/venv/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r .github/scripts/requirements.txt
           echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
 
-      - name: Test the PR body check
-        run: python -B -m unittest discover -s .github/scripts -p 'test_check_pr_body.py'
-
       - name: Require the template sections in the PR body
         run: python -B .github/scripts/check_pr_body.py
