@@ -94,8 +94,8 @@ func NewEmbyService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *JellyfinService) GetHealthEndpoint(baseURL string) string {
-	return s.baseURL(baseURL) + "/System/Info"
+func (s *JellyfinService) GetHealthEndpoint(baseURL string) (string, error) {
+	return s.buildURL(baseURL, "/System/Info", nil)
 }
 
 func (s *JellyfinService) getHeaders(apiKey string) map[string]string {
@@ -106,38 +106,20 @@ func (s *JellyfinService) getHeaders(apiKey string) map[string]string {
 	}
 }
 
-// baseURL returns the URL that API paths go after. A user can copy an Emby
-// URL that already ends in the prefix, so one copy of the prefix is removed
-// before it is added again.
-func (s *JellyfinService) baseURL(baseURL string) string {
-	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if s.pathPrefix == "" {
-		return trimmed
-	}
-	return strings.TrimSuffix(trimmed, s.pathPrefix) + s.pathPrefix
-}
-
 func (s *JellyfinService) buildURL(baseURL, path string, query url.Values) (string, error) {
-	if strings.TrimSpace(baseURL) == "" {
+	trimmed := strings.TrimSpace(baseURL)
+	if trimmed == "" {
 		return "", errors.New("URL is required")
 	}
 
-	endpoint, err := url.Parse(s.baseURL(baseURL) + path)
+	base, err := url.Parse(trimmed)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", core.ErrInvalidServiceURL, core.RedactURLError(err))
 	}
+	basePath := strings.TrimSuffix(strings.TrimRight(base.EscapedPath(), "/"), s.pathPrefix)
+	base.Path, base.RawPath = "", ""
 
-	if query != nil {
-		existing := endpoint.Query()
-		for key, values := range query {
-			for _, value := range values {
-				existing.Add(key, value)
-			}
-		}
-		endpoint.RawQuery = existing.Encode()
-	}
-
-	return endpoint.String(), nil
+	return core.RequestURLQuery(base.String(), query, basePath, s.pathPrefix, path)
 }
 
 func (s *JellyfinService) getJSON(ctx context.Context, op, baseURL, apiKey, path string, query url.Values, out any) error {

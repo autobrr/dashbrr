@@ -105,3 +105,36 @@ func TestEmbyGetSummary_ErrorNamesEmby(t *testing.T) {
 		t.Fatalf("error = %q, want no mention of jellyfin", err)
 	}
 }
+
+func TestHealthEndpointKeepsHostNamedLikeThePrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		service *JellyfinService
+		baseURL string
+		want    string
+	}{
+		{"emby host", NewEmbyService().(*JellyfinService), "http://emby", "http://emby/emby/System/Info"},
+		{"emby host with trailing slash", NewEmbyService().(*JellyfinService), "https://emby/", "https://emby/emby/System/Info"},
+		{"emby host with prefix", NewEmbyService().(*JellyfinService), "http://emby/emby", "http://emby/emby/System/Info"},
+		{"emby host with sub-path", NewEmbyService().(*JellyfinService), "http://emby/media", "http://emby/media/emby/System/Info"},
+		{"emby host with sub-path and prefix", NewEmbyService().(*JellyfinService), "http://emby/media/emby/", "http://emby/media/emby/System/Info"},
+		{"jellyfin host", NewJellyfinService().(*JellyfinService), "http://jellyfin", "http://jellyfin/System/Info"},
+		{"jellyfin host with sub-path", NewJellyfinService().(*JellyfinService), "http://jellyfin/jellyfin/", "http://jellyfin/jellyfin/System/Info"},
+		{"emby escaped slash in sub-path", NewEmbyService().(*JellyfinService), "http://host/my%2Fapp/emby", "http://host/my%2Fapp/emby/System/Info"},
+		{"jellyfin escaped slash in sub-path", NewJellyfinService().(*JellyfinService), "http://host/my%2Fapp/", "http://host/my%2Fapp/System/Info"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := tt.service.GetHealthEndpoint(tt.baseURL)
+			if err != nil {
+				t.Fatalf("GetHealthEndpoint(%q) error: %v", tt.baseURL, err)
+			}
+			if got != tt.want {
+				t.Fatalf("GetHealthEndpoint(%q) = %q, want %q", tt.baseURL, got, tt.want)
+			}
+		})
+	}
+}

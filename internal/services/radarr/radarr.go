@@ -5,8 +5,6 @@ package radarr
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
@@ -28,9 +26,8 @@ func NewRadarrService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *RadarrService) GetHealthEndpoint(baseURL string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/api/v3/health", baseURL)
+func (s *RadarrService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/v3/health")
 }
 
 // GetSystemStatus fetches the system status from Radarr

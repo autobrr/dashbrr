@@ -103,11 +103,11 @@ func NewNetBirdService() models.ServiceHealthChecker {
 }
 
 func peerURL(baseURL string) (string, error) {
-	return url.JoinPath(baseURL, "api", "peers")
+	return core.RequestURL(baseURL, "/api/peers")
 }
 
 func versionURL(baseURL string) (string, error) {
-	return url.JoinPath(baseURL, "api", "instance", "version")
+	return core.RequestURL(baseURL, "/api/instance/version")
 }
 
 func (s *Service) fetchPeers(ctx context.Context, baseURL, apiKey string) ([]apiPeer, time.Duration, error) {

@@ -51,6 +51,14 @@ linters:
       excludes:
         - G115
 
+    gocritic:
+      enabled-checks:
+        - ruleguard
+      settings:
+        ruleguard:
+          rules: "${base-path}/internal/lintrules/rules.go"
+          failOn: all
+
   exclusions:
     generated: lax
     presets:

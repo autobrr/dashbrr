@@ -62,8 +62,8 @@ func NewUptimeKumaService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *UptimeKumaService) GetHealthEndpoint(baseURL string) string {
-	return fmt.Sprintf("%s%s", strings.TrimRight(baseURL, "/"), uptimeKumaMetricsPath)
+func (s *UptimeKumaService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, uptimeKumaMetricsPath)
 }
 
 func (s *UptimeKumaService) GetSummary(ctx context.Context, baseURL, apiKey string) (types.UptimeKumaSummaryResponse, error) {
@@ -105,30 +105,34 @@ func (s *UptimeKumaService) getMetrics(ctx context.Context, baseURL, apiKey stri
 }
 
 func buildMetricsRequest(baseURL, apiKey string) (string, map[string]string, error) {
-	trimmed := strings.TrimSpace(strings.TrimRight(baseURL, "/"))
+	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
 		return "", nil, errors.New("URL is required")
 	}
 
-	endpoint, err := url.Parse(trimmed)
+	base, err := url.Parse(trimmed)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
-	authHeader, err := resolveMetricsAuth(endpoint.User, apiKey)
+	authHeader, err := resolveMetricsAuth(base.User, apiKey)
 	if err != nil {
 		return "", nil, err
 	}
-	endpoint.User = nil
-	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + uptimeKumaMetricsPath
-	endpoint.RawQuery = ""
+	base.User = nil
+	base.RawQuery = ""
+
+	endpoint, err := core.RequestURL(base.String(), uptimeKumaMetricsPath)
+	if err != nil {
+		return "", nil, err
+	}
 
 	headers := map[string]string{"Accept": "text/plain"}
 	if authHeader != "" {
 		headers["Authorization"] = authHeader
 	}
 
-	return endpoint.String(), headers, nil
+	return endpoint, headers, nil
 }
 
 func resolveMetricsAuth(user *url.Userinfo, apiKey string) (string, error) {

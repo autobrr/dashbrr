@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -69,9 +71,8 @@ func NewOverseerrService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *OverseerrService) GetHealthEndpoint(baseURL string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/api/v1/status", baseURL)
+func (s *OverseerrService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/v1/status")
 }
 
 // SetDB sets the database instance for the service
@@ -88,12 +89,14 @@ func (s *OverseerrService) UpdateRequestStatus(ctx context.Context, url, apiKey 
 		return &ErrOverseerr{Message: "Configuration error", Errors: []string{"API key is required"}}
 	}
 
-	baseURL := strings.TrimRight(url, "/")
 	status := "approve"
 	if !approve {
 		status = "decline"
 	}
-	endpoint := fmt.Sprintf("%s/api/v1/request/%d/%s", baseURL, requestID, status)
+	endpoint, err := core.RequestURL(url, "/api/v1/request", strconv.Itoa(requestID), status)
+	if err != nil {
+		return &ErrOverseerr{Message: "Configuration error", Errors: []string{err.Error()}}
+	}
 
 	headers := map[string]string{
 		"X-Api-Key":     apiKey,
@@ -124,8 +127,10 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{"URL is required"}}
 	}
 
-	baseURL := strings.TrimRight(url, "/")
-	requestEndpoint := fmt.Sprintf("%s/api/v1/request?take=10", baseURL)
+	requestEndpoint, err := core.RequestURLQuery(url, neturl.Values{"take": {"10"}}, "/api/v1/request")
+	if err != nil {
+		return nil, &ErrOverseerr{Message: "Configuration error", Errors: []string{err.Error()}}
+	}
 
 	headers := map[string]string{
 		"X-Api-Key": apiKey,
@@ -156,7 +161,7 @@ func (s *OverseerrService) GetRequests(ctx context.Context, url, apiKey string) 
 		mediaRequests = append(mediaRequests, mediaRequest)
 	}
 
-	s.enrichMissingRequestTitles(ctx, baseURL, apiKey, mediaRequests)
+	s.enrichMissingRequestTitles(ctx, url, apiKey, mediaRequests)
 
 	return &types.RequestsStats{
 		PendingCount: pendingCount,
@@ -209,12 +214,10 @@ func (s *OverseerrService) fetchTitle(ctx context.Context, baseURL, apiKey, medi
 		return "", nil
 	}
 
-	endpoint := fmt.Sprintf(
-		"%s/api/v1/%s/%d",
-		strings.TrimRight(baseURL, "/"),
-		mediaLookupEndpoint(mediaType),
-		tmdbID,
-	)
+	endpoint, err := core.RequestURL(baseURL, "/api/v1", mediaLookupEndpoint(mediaType), strconv.Itoa(tmdbID))
+	if err != nil {
+		return "", err
+	}
 	headers := map[string]string{"X-Api-Key": apiKey}
 
 	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, headers, nil)
@@ -319,7 +322,13 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 		}).Error()), http.StatusBadRequest
 	}
 
-	healthEndpoint := s.GetHealthEndpoint(url)
+	healthEndpoint, err := s.GetHealthEndpoint(url)
+	if err != nil {
+		return s.CreateHealthResponse(startTime, "error", (&ErrOverseerr{
+			Message: "Configuration error",
+			Errors:  []string{err.Error()},
+		}).Error()), http.StatusBadRequest
+	}
 	headers := map[string]string{
 		"X-Api-Key": apiKey,
 	}

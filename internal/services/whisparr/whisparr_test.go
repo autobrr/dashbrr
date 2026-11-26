@@ -44,12 +44,18 @@ func TestGetHealthEndpoint(t *testing.T) {
 		{"trailing slash", "http://localhost:6969/", "http://localhost:6969/api/v3/health"},
 		{"repeated trailing slashes", "http://localhost:6969///", "http://localhost:6969/api/v3/health"},
 		{"subpath", "https://example.com/whisparr", "https://example.com/whisparr/api/v3/health"},
+		{"subpath with trailing slash", "https://example.com/whisparr/", "https://example.com/whisparr/api/v3/health"},
+		{"base query", "http://localhost:6969/?token=abc", "http://localhost:6969/api/v3/health?token=abc"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := service.GetHealthEndpoint(tt.baseURL); got != tt.want {
+			got, err := service.GetHealthEndpoint(tt.baseURL)
+			if err != nil {
+				t.Fatalf("GetHealthEndpoint(%q) error: %v", tt.baseURL, err)
+			}
+			if got != tt.want {
 				t.Errorf("GetHealthEndpoint(%q) = %q, want %q", tt.baseURL, got, tt.want)
 			}
 		})

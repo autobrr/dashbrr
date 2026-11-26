@@ -5,8 +5,6 @@ package lidarr
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
@@ -28,9 +26,8 @@ func NewLidarrService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *LidarrService) GetHealthEndpoint(baseURL string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/api/v1/health", baseURL)
+func (s *LidarrService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/v1/health")
 }
 
 func (s *LidarrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {

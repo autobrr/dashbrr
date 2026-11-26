@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -92,9 +93,13 @@ func (s *QuiService) requestJSON(ctx context.Context, requestURL, apiKey string,
 
 func (s *QuiService) getInstances(ctx context.Context, url, apiKey string) ([]types.QuiInstance, int, error) {
 	var instances []types.QuiInstance
+	endpoint, err := core.RequestURL(url, "/api/instances")
+	if err != nil {
+		return []types.QuiInstance{}, 0, err
+	}
 	statusCode, err := s.requestJSON(
 		ctx,
-		fmt.Sprintf("%s/api/instances", strings.TrimRight(url, "/")),
+		endpoint,
 		apiKey,
 		true,
 		&instances,
@@ -112,9 +117,13 @@ func (s *QuiService) GetInstances(ctx context.Context, url, apiKey string) ([]ty
 
 func (s *QuiService) GetTransferInfo(ctx context.Context, url, apiKey string, instanceID int) (*types.QuiTransferInfo, error) {
 	var info types.QuiTransferInfo
-	_, err := s.requestJSON(
+	endpoint, err := core.RequestURL(url, "/api/instances", strconv.Itoa(instanceID), "transfer-info")
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.requestJSON(
 		ctx,
-		fmt.Sprintf("%s/api/instances/%d/transfer-info", strings.TrimRight(url, "/"), instanceID),
+		endpoint,
 		apiKey,
 		true,
 		&info,
@@ -144,13 +153,18 @@ func allTimeTotalsFromTransferInfo(info *types.QuiTransferInfo) *quiServerState 
 // qui filter and sort its whole torrent set to answer two numbers.
 func (s *QuiService) GetAllTimeTotals(ctx context.Context, url, apiKey string, instanceID int) (*quiServerState, error) {
 	var response quiTorrentsResponse
-	_, err := s.requestJSON(
+	endpoint, err := core.RequestURLQuery(url, neturl.Values{
+		"page":  {"0"},
+		"limit": {"1"},
+		"sort":  {"added_on"},
+		"order": {"desc"},
+	}, "/api/instances", strconv.Itoa(instanceID), "torrents")
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.requestJSON(
 		ctx,
-		fmt.Sprintf(
-			"%s/api/instances/%d/torrents?page=0&limit=1&sort=added_on&order=desc",
-			strings.TrimRight(url, "/"),
-			instanceID,
-		),
+		endpoint,
 		apiKey,
 		true,
 		&response,
@@ -166,9 +180,13 @@ func (s *QuiService) GetAllTimeTotals(ctx context.Context, url, apiKey string, i
 
 func (s *QuiService) GetCrossSeedStatus(ctx context.Context, url, apiKey string) (*types.QuiCrossSeedStatus, error) {
 	var status types.QuiCrossSeedStatus
-	_, err := s.requestJSON(
+	endpoint, err := core.RequestURL(url, "/api/cross-seed/status")
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.requestJSON(
 		ctx,
-		fmt.Sprintf("%s/api/cross-seed/status", strings.TrimRight(url, "/")),
+		endpoint,
 		apiKey,
 		true,
 		&status,
