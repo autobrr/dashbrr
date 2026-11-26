@@ -139,6 +139,12 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	}
 
 	body, err := s.ReadBody(resp)
+	if err == nil && resp.StatusCode >= 400 {
+		err = &core.HTTPStatusError{StatusCode: resp.StatusCode}
+	}
+	if statusErr, ok := errors.AsType[*core.HTTPStatusError](err); ok {
+		return s.CreateHealthResponse(startTime, "error", statusErr.Error()), nil
+	}
 	if err != nil {
 		return models.ServiceHealth{}, fmt.Errorf("failed to read response: %v", err)
 	}
@@ -148,23 +154,6 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 	if respTimeStr := resp.Header.Get("X-Response-Time"); respTimeStr != "" {
 		if ms, err := strconv.ParseInt(respTimeStr, 10, 64); err == nil {
 			responseTimeMs = ms
-		}
-	}
-
-	// Handle error status codes
-	if resp.StatusCode >= 400 {
-		statusText := http.StatusText(resp.StatusCode)
-		switch resp.StatusCode {
-		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Service is temporarily unavailable (%d %s)", resp.StatusCode, statusText)), nil
-		case http.StatusUnauthorized:
-			return s.CreateHealthResponse(startTime, "error", "Invalid API key"), nil
-		case http.StatusForbidden:
-			return s.CreateHealthResponse(startTime, "error", "Access forbidden"), nil
-		case http.StatusNotFound:
-			return s.CreateHealthResponse(startTime, "error", "Service endpoint not found"), nil
-		default:
-			return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Server returned %s (%d)", statusText, resp.StatusCode)), nil
 		}
 	}
 

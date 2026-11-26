@@ -216,6 +216,36 @@ func isJSONContentType(contentType string) bool {
 	return strings.HasPrefix(contentType, "application/json") || strings.Contains(contentType, "+json")
 }
 
+type HTTPStatusError struct {
+	StatusCode int
+}
+
+func (e *HTTPStatusError) Error() string {
+	statusText := http.StatusText(e.StatusCode)
+	switch e.StatusCode {
+	case http.StatusUnauthorized:
+		return "Invalid API key"
+	case http.StatusForbidden:
+		return "Access forbidden"
+	case http.StatusNotFound:
+		return "Service endpoint not found"
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return fmt.Sprintf("Service is temporarily unavailable (%d %s)", e.StatusCode, statusText)
+	default:
+		return fmt.Sprintf("Server returned %s (%d)", statusText, e.StatusCode)
+	}
+}
+
+func failsWithStatus(statusCode int, contentType string) bool {
+	switch statusCode {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,
+		http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	default:
+		return !isJSONContentType(contentType)
+	}
+}
+
 // ReadBody reads and returns the response body
 func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	if resp == nil {
@@ -242,44 +272,20 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 	}
 
 	contentType := resp.Header.Get("Content-Type")
-	if resp.StatusCode != http.StatusOK {
-		// Create error message with response body if available
-		errMsg := fmt.Sprintf("status: %d", resp.StatusCode)
-		if len(body) > 0 {
-			errMsg = fmt.Sprintf("%s, body: %s", errMsg, string(body))
-		}
-
-		var err error
-		switch resp.StatusCode {
-		case http.StatusBadGateway:
-			err = fmt.Errorf("service unavailable (502 bad gateway): %s", errMsg)
-		case http.StatusServiceUnavailable:
-			err = fmt.Errorf("service unavailable (503): %s", errMsg)
-		case http.StatusGatewayTimeout:
-			err = fmt.Errorf("service timeout (504): %s", errMsg)
-		case http.StatusUnauthorized:
-			err = fmt.Errorf("unauthorized access (401): %s", errMsg)
-		case http.StatusForbidden:
-			err = fmt.Errorf("access forbidden (403): %s", errMsg)
-		case http.StatusNotFound:
-			err = fmt.Errorf("endpoint not found (404): %s", errMsg)
-		default:
-			// Only create error if content type is not JSON
-			if !isJSONContentType(contentType) {
-				err = fmt.Errorf("service error: %s", errMsg)
-			}
-		}
-		if err != nil {
-			log.Error().
-				Err(err).
-				Str("service", s.Type).
-				Str("url", RedactURL(resp.Request.URL.String())).
-				Int("status", resp.StatusCode).
-				Str("content_type", contentType).
-				Str("body", string(body)).
-				Msg("Service error")
-			return nil, err
-		}
+	if resp.StatusCode != http.StatusOK && failsWithStatus(resp.StatusCode, contentType) {
+		log.Warn().
+			Str("service", s.Type).
+			Str("url", RedactURL(resp.Request.URL.String())).
+			Int("status", resp.StatusCode).
+			Msg("Service returned an error status")
+		log.Debug().
+			Str("service", s.Type).
+			Str("url", RedactURL(resp.Request.URL.String())).
+			Int("status", resp.StatusCode).
+			Str("content_type", contentType).
+			Str("body", string(body)).
+			Msg("Service error response body")
+		return nil, &HTTPStatusError{StatusCode: resp.StatusCode}
 	}
 
 	return body, nil

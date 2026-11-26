@@ -4,14 +4,21 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/services/cache"
 )
@@ -193,6 +200,112 @@ func TestDoRequest_ErrorOmitsQuerySecret(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "secret") {
 		t.Fatalf("error contains the query secret: %v", err)
+	}
+}
+
+func TestReadBody_StatusErrors(t *testing.T) {
+	t.Parallel()
+
+	const rawBody = `{"error":"Unauthorized"}`
+	tests := []struct {
+		status      int
+		contentType string
+		wantErr     string
+	}{
+		{http.StatusUnauthorized, "application/json", "Invalid API key"},
+		{http.StatusForbidden, "text/plain", "Access forbidden"},
+		{http.StatusNotFound, "text/html", "Service endpoint not found"},
+		{http.StatusBadGateway, "text/html", "Service is temporarily unavailable (502 Bad Gateway)"},
+		{http.StatusServiceUnavailable, "application/json", "Service is temporarily unavailable (503 Service Unavailable)"},
+		{http.StatusGatewayTimeout, "text/html", "Service is temporarily unavailable (504 Gateway Timeout)"},
+		{http.StatusInternalServerError, "text/plain", "Server returned Internal Server Error (500)"},
+		{http.StatusInternalServerError, "application/json", ""},
+		{http.StatusOK, "application/json", ""},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d %s", tt.status, tt.contentType), func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", tt.contentType)
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(rawBody))
+			}))
+			defer srv.Close()
+
+			s := &ServiceCore{}
+			resp, err := s.DoRequest(t.Context(), http.MethodGet, srv.URL, nil, nil)
+			if err != nil {
+				t.Fatalf("DoRequest failed: %v", err)
+			}
+
+			body, err := s.ReadBody(resp)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ReadBody error = %v, want nil", err)
+				}
+				if string(body) != rawBody {
+					t.Fatalf("ReadBody body = %q, want %q", body, rawBody)
+				}
+				return
+			}
+			statusErr, ok := errors.AsType[*HTTPStatusError](err)
+			if !ok {
+				t.Fatalf("ReadBody error = %v, want *HTTPStatusError", err)
+			}
+			if statusErr.StatusCode != tt.status {
+				t.Errorf("StatusCode = %d, want %d", statusErr.StatusCode, tt.status)
+			}
+			if err.Error() != tt.wantErr {
+				t.Errorf("ReadBody error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestReadBody_StatusErrorBodyOnlyInDebugLog(t *testing.T) {
+	var logs bytes.Buffer
+	previous := log.Logger
+	log.Logger = zerolog.New(&logs)
+	t.Cleanup(func() { log.Logger = previous })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("raw upstream detail"))
+	}))
+	defer srv.Close()
+
+	s := &ServiceCore{Type: "sonarr"}
+	resp, err := s.DoRequest(t.Context(), http.MethodGet, srv.URL+"/api?apikey=secret-key", nil, nil)
+	if err != nil {
+		t.Fatalf("DoRequest failed: %v", err)
+	}
+	if _, err := s.ReadBody(resp); err == nil || strings.Contains(err.Error(), "raw upstream detail") {
+		t.Fatalf("ReadBody error = %v, want a status error without the body", err)
+	}
+
+	type logEntry struct {
+		Level  string `json:"level"`
+		URL    string `json:"url"`
+		Status int    `json:"status"`
+		Body   string `json:"body"`
+	}
+	var entries []logEntry
+	for line := range strings.Lines(logs.String()) {
+		var entry logEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("log line %q is not JSON: %v", line, err)
+		}
+		entries = append(entries, entry)
+	}
+
+	wantURL := srv.URL + "/api"
+	want := []logEntry{
+		{Level: zerolog.LevelWarnValue, URL: wantURL, Status: http.StatusUnauthorized},
+		{Level: zerolog.LevelDebugValue, URL: wantURL, Status: http.StatusUnauthorized, Body: "raw upstream detail"},
+	}
+	if !slices.Equal(entries, want) {
+		t.Errorf("log entries = %+v, want %+v", entries, want)
 	}
 }
 
