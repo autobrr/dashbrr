@@ -301,3 +301,4 @@ _Registration form_
 
 ![OIDC Login](.github/assets/OIDC-login.png)
 _OpenID Connect (OIDC) authentication support_
+
