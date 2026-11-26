@@ -235,13 +235,13 @@ func (s *PlexService) CheckHealth(ctx context.Context, url, apiKey string) (mode
 	// Calculate response time directly
 	responseTime := time.Since(startTime).Milliseconds()
 
+	if resp.StatusCode >= 400 {
+		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Server returned error: %d", resp.StatusCode)), http.StatusOK
+	}
+
 	body, err := s.ReadBody(resp)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "warning", fmt.Sprintf("Failed to read response: %v", err)), http.StatusOK
-	}
-
-	if resp.StatusCode >= 400 {
-		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Server returned error: %d", resp.StatusCode)), http.StatusOK
 	}
 
 	// Get version using GetCachedVersion for better caching
