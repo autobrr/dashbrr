@@ -5,18 +5,23 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -107,8 +112,9 @@ func TestAuthHandlerEnsureProviderConfig(t *testing.T) {
 			"issuer": "%s",
 			"authorization_endpoint": "%s/authorize",
 			"token_endpoint": "%s/oauth/token",
-			"userinfo_endpoint": "%s/userinfo"
-		}`, serverURL, serverURL, serverURL, serverURL)
+			"userinfo_endpoint": "%s/userinfo",
+			"jwks_uri": "%s/jwks"
+		}`, serverURL, serverURL, serverURL, serverURL, serverURL)
 		w.Write([]byte(response))
 	}))
 	defer ts.Close()
@@ -179,8 +185,9 @@ func TestAuthHandlerEnsureProviderConfig_ConcurrentDiscoverySingleflight(t *test
 			"issuer": "%s",
 			"authorization_endpoint": "%s/authorize",
 			"token_endpoint": "%s/oauth/token",
-			"userinfo_endpoint": "%s/userinfo"
-		}`, serverURL, serverURL, serverURL, serverURL)
+			"userinfo_endpoint": "%s/userinfo",
+			"jwks_uri": "%s/jwks"
+		}`, serverURL, serverURL, serverURL, serverURL, serverURL)
 		w.Write([]byte(response))
 	}))
 	defer ts.Close()
@@ -240,125 +247,103 @@ func TestCallback_NoCode(t *testing.T) {
 	mockStore.AssertExpectations(t)
 }
 
-func TestGetProviderEndpoints(t *testing.T) {
-	tests := []struct {
-		name       string
-		issuer     string
-		mockStatus int
-		mockBody   string
-		wantPath   string
-		wantErr    bool
-	}{
-		{
-			name:       "google provider",
-			issuer:     "https://accounts.google.com",
-			mockStatus: http.StatusOK,
-			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","token_endpoint":"https://oauth2.googleapis.com/token","userinfo_endpoint":"https://openidconnect.googleapis.com/v1/userinfo"}`,
-			wantPath:   "/.well-known/openid-configuration",
-			wantErr:    false,
-		},
-		{
-			name:       "keycloak provider with path",
-			issuer:     "https://auth.example.com/realms/myrealm/",
-			mockStatus: http.StatusOK,
-			mockBody:   `{"authorization_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/auth","token_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/token","userinfo_endpoint":"https://auth.example.com/realms/myrealm/protocol/openid-connect/userinfo"}`,
-			wantPath:   "/realms/myrealm/.well-known/openid-configuration",
-			wantErr:    false,
-		},
-		{
-			name:       "non-200 status with JSON body",
-			issuer:     "https://accounts.google.com",
-			mockStatus: http.StatusInternalServerError,
-			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","token_endpoint":"https://oauth2.googleapis.com/token","userinfo_endpoint":"https://openidconnect.googleapis.com/v1/userinfo"}`,
-			wantPath:   "/.well-known/openid-configuration",
-			wantErr:    true,
-		},
-		{
-			name:       "missing required token endpoint",
-			issuer:     "https://accounts.google.com",
-			mockStatus: http.StatusOK,
-			mockBody:   `{"authorization_endpoint":"https://accounts.google.com/o/oauth2/v2/auth","userinfo_endpoint":"https://openidconnect.googleapis.com/v1/userinfo"}`,
-			wantPath:   "/.well-known/openid-configuration",
-			wantErr:    true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create test server
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.wantPath, r.URL.Path, "unexpected request path")
-				w.WriteHeader(tt.mockStatus)
-				w.Write([]byte(tt.mockBody))
-			}))
-			defer ts.Close()
-
-			// Replace the issuer host with our test server
-			u, err := url.Parse(tt.issuer)
-			assert.NoError(t, err)
-			tsURL, err := url.Parse(ts.URL)
-			assert.NoError(t, err)
-			u.Host = tsURL.Host
-			u.Scheme = tsURL.Scheme
-			testIssuer := u.String()
-
-			// Test the function
-			endpoint, userinfoURL, err := getProviderEndpoints(context.Background(), http.DefaultClient, testIssuer)
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-
-			// Parse mock response to get expected values
-			var config struct {
-				AuthURL     string `json:"authorization_endpoint"`
-				TokenURL    string `json:"token_endpoint"`
-				UserinfoURL string `json:"userinfo_endpoint"`
-			}
-			err = json.Unmarshal([]byte(tt.mockBody), &config)
-			assert.NoError(t, err)
-
-			// Verify endpoints match
-			assert.Equal(t, config.AuthURL, endpoint.AuthURL)
-			assert.Equal(t, config.TokenURL, endpoint.TokenURL)
-			assert.Equal(t, config.UserinfoURL, userinfoURL)
-		})
-	}
+type stubProvider struct {
+	t             *testing.T
+	server        *httptest.Server
+	prefix        string
+	issuer        string
+	omit          string
+	nonce         string
+	tokenResponse func(w http.ResponseWriter, p *stubProvider)
 }
 
-// stubProvider is an OIDC provider that answers discovery and token requests.
-// tokenResponse builds the token endpoint reply from the nonce that Login sent.
-type stubProvider struct {
-	server        *httptest.Server
-	nonce         string
-	tokenResponse func(w http.ResponseWriter, nonce string)
+var (
+	providerKey = sync.OnceValue(mustRSAKey)
+	otherKey    = sync.OnceValue(mustRSAKey)
+)
+
+func mustRSAKey() *rsa.PrivateKey {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		panic(err)
+	}
+	return key
 }
 
 func newStubProvider(t *testing.T) *stubProvider {
+	return newStubProviderAt(t, "", "")
+}
+
+func newStubProviderAt(t *testing.T, prefix, issuerSuffix string) *stubProvider {
 	t.Helper()
 	p := &stubProvider{
-		tokenResponse: func(w http.ResponseWriter, nonce string) {
-			writeToken(w, idTokenWithNonce(nonce))
+		t:      t,
+		prefix: prefix,
+		tokenResponse: func(w http.ResponseWriter, p *stubProvider) {
+			writeToken(w, p.idToken(providerKey(), nil))
 		},
 	}
 	p.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
+		path, ok := strings.CutPrefix(r.URL.Path, p.prefix)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		base := p.server.URL + p.prefix
+		switch path {
 		case "/.well-known/openid-configuration":
-			fmt.Fprintf(w, `{"authorization_endpoint":"%[1]s/authorize","token_endpoint":"%[1]s/token"}`, p.server.URL)
+			discovery := map[string]any{
+				"issuer":                                p.issuer,
+				"authorization_endpoint":                base + "/authorize",
+				"token_endpoint":                        base + "/token",
+				"jwks_uri":                              base + "/jwks",
+				"id_token_signing_alg_values_supported": []string{"RS256"},
+			}
+			delete(discovery, p.omit)
+			w.Header().Set("Content-Type", "application/json")
+			_ = jsonv2.MarshalWrite(w, discovery)
+		case "/jwks":
+			w.Header().Set("Content-Type", "application/json")
+			_ = jsonv2.MarshalWrite(w, jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+				{Key: &providerKey().PublicKey, KeyID: "test-key", Algorithm: string(jose.RS256), Use: "sig"},
+			}})
 		case "/token":
-			p.tokenResponse(w, p.nonce)
+			p.tokenResponse(w, p)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
+	p.issuer = p.server.URL + prefix + issuerSuffix
 	t.Cleanup(p.server.Close)
 	return p
 }
 
-func idTokenWithNonce(nonce string) string {
-	payload := base64.RawURLEncoding.EncodeToString(fmt.Appendf(nil, `{"nonce":%q}`, nonce))
-	return "e30." + payload + ".sig"
+func (p *stubProvider) idToken(key *rsa.PrivateKey, edit func(claims map[string]any)) string {
+	now := time.Now()
+	claims := map[string]any{
+		"iss":   p.issuer,
+		"sub":   "user-1",
+		"aud":   "test-client-id",
+		"iat":   now.Unix(),
+		"exp":   now.Add(time.Hour).Unix(),
+		"nonce": p.nonce,
+	}
+	if edit != nil {
+		edit(claims)
+	}
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: jose.JSONWebKey{Key: key, KeyID: "test-key"}},
+		(&jose.SignerOptions{}).WithType("JWT"),
+	)
+	require.NoError(p.t, err)
+	payload, err := jsonv2.Marshal(claims)
+	require.NoError(p.t, err)
+	signed, err := signer.Sign(payload)
+	require.NoError(p.t, err)
+	token, err := signed.CompactSerialize()
+	require.NoError(p.t, err)
+	return token
 }
 
 func writeToken(w http.ResponseWriter, idToken string) {
@@ -398,7 +383,7 @@ func login(t *testing.T, r *gin.Engine, p *stubProvider, target string) string {
 
 	authURL, err := url.Parse(w.Header().Get("Location"))
 	require.NoError(t, err)
-	assert.Equal(t, p.server.URL+"/authorize", authURL.Scheme+"://"+authURL.Host+authURL.Path)
+	assert.Equal(t, p.server.URL+p.prefix+"/authorize", authURL.Scheme+"://"+authURL.Host+authURL.Path)
 	p.nonce = authURL.Query().Get("nonce")
 	return authURL.Query().Get("state")
 }
@@ -421,10 +406,98 @@ func TestOIDCLoginIgnoresFrontendURL(t *testing.T) {
 	}
 }
 
+func TestOIDCLoginWithIssuerForms(t *testing.T) {
+	tests := []struct {
+		name             string
+		prefix           string
+		advertisedSuffix string
+		configured       func(p *stubProvider) string
+		wantLocation     string
+	}{
+		{
+			name:         "exact issuer",
+			configured:   func(p *stubProvider) string { return p.server.URL },
+			wantLocation: "/",
+		},
+		{
+			name:         "issuer with a path",
+			prefix:       "/realms/myrealm",
+			configured:   func(p *stubProvider) string { return p.server.URL + "/realms/myrealm" },
+			wantLocation: "/",
+		},
+		{
+			name:         "configured with a trailing slash the provider does not advertise",
+			prefix:       "/realms/myrealm",
+			configured:   func(p *stubProvider) string { return p.server.URL + "/realms/myrealm/" },
+			wantLocation: "/",
+		},
+		{
+			name:             "provider advertises a trailing slash the configuration lacks",
+			prefix:           "/application/o/dashbrr",
+			advertisedSuffix: "/",
+			configured:       func(p *stubProvider) string { return p.server.URL + "/application/o/dashbrr" },
+			wantLocation:     "/",
+		},
+		{
+			name:         "configured as the discovery document URL",
+			prefix:       "/realms/myrealm",
+			configured:   func(p *stubProvider) string { return p.server.URL + "/realms/myrealm/.well-known/openid-configuration" },
+			wantLocation: "/",
+		},
+		{
+			name:   "configured as the discovery document URL with a trailing slash",
+			prefix: "/realms/myrealm",
+			configured: func(p *stubProvider) string {
+				return p.server.URL + "/realms/myrealm/.well-known/openid-configuration/"
+			},
+			wantLocation: "/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newStubProviderAt(t, tt.prefix, tt.advertisedSuffix)
+			r := newOIDCTestRouter(newOIDCTestHandler(t, tt.configured(p), ""))
+
+			state := login(t, r, p, "/api/auth/oidc/login")
+			w := serve(t, r, http.MethodGet, "/api/auth/callback?code=abc&state="+url.QueryEscape(state), "", nil)
+
+			assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+			assert.Equal(t, tt.wantLocation, w.Header().Get("Location"))
+		})
+	}
+}
+
+func TestOIDCLoginRejectsProviderWithOtherIssuer(t *testing.T) {
+	p := newStubProvider(t)
+	p.issuer = "https://other-issuer.example.test"
+	r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL, ""))
+
+	w := serve(t, r, http.MethodGet, "/api/auth/oidc/login", "", nil)
+	assert.Equal(t, http.StatusBadGateway, w.Code)
+}
+
+func TestOIDCLoginRejectsDiscoveryWithoutEndpoints(t *testing.T) {
+	for _, missing := range []string{"authorization_endpoint", "token_endpoint", "jwks_uri"} {
+		t.Run(missing, func(t *testing.T) {
+			p := newStubProvider(t)
+			p.omit = missing
+			r := newOIDCTestRouter(newOIDCTestHandler(t, p.server.URL, ""))
+
+			w := serve(t, r, http.MethodGet, "/api/auth/oidc/login", "", nil)
+			assert.Equal(t, http.StatusBadGateway, w.Code)
+		})
+	}
+}
+
 func TestOIDCCallbackErrorsRedirectToRelativeLogin(t *testing.T) {
+	signed := func(key func() *rsa.PrivateKey, edit func(claims map[string]any)) func(http.ResponseWriter, *stubProvider) {
+		return func(w http.ResponseWriter, p *stubProvider) { writeToken(w, p.idToken(key(), edit)) }
+	}
+
 	tests := []struct {
 		name          string
-		tokenResponse func(w http.ResponseWriter, nonce string)
+		tokenResponse func(w http.ResponseWriter, p *stubProvider)
 		skipLogin     bool
 		want          string
 	}{
@@ -435,22 +508,55 @@ func TestOIDCCallbackErrorsRedirectToRelativeLogin(t *testing.T) {
 		},
 		{
 			name:          "exchange failed",
-			tokenResponse: func(w http.ResponseWriter, _ string) { w.WriteHeader(http.StatusInternalServerError) },
+			tokenResponse: func(w http.ResponseWriter, _ *stubProvider) { w.WriteHeader(http.StatusInternalServerError) },
 			want:          "/login?error=exchange_failed",
 		},
 		{
 			name:          "no id_token",
-			tokenResponse: func(w http.ResponseWriter, _ string) { writeToken(w, "") },
+			tokenResponse: func(w http.ResponseWriter, _ *stubProvider) { writeToken(w, "") },
 			want:          "/login?error=no_id_token",
 		},
 		{
 			name:          "malformed id_token",
-			tokenResponse: func(w http.ResponseWriter, _ string) { writeToken(w, "garbage") },
-			want:          "/login?error=invalid_nonce",
+			tokenResponse: func(w http.ResponseWriter, _ *stubProvider) { writeToken(w, "garbage") },
+			want:          "/login?error=invalid_id_token",
+		},
+		{
+			name:          "unsigned id_token",
+			tokenResponse: func(w http.ResponseWriter, p *stubProvider) { writeToken(w, unsignedToken(p)) },
+			want:          "/login?error=invalid_id_token",
+		},
+		{
+			name:          "bad signature",
+			tokenResponse: signed(otherKey, nil),
+			want:          "/login?error=invalid_id_token",
+		},
+		{
+			name:          "wrong audience",
+			tokenResponse: signed(providerKey, func(c map[string]any) { c["aud"] = "other-client" }),
+			want:          "/login?error=invalid_id_token",
+		},
+		{
+			name:          "wrong issuer",
+			tokenResponse: signed(providerKey, func(c map[string]any) { c["iss"] = "https://other-issuer.example.test" }),
+			want:          "/login?error=invalid_id_token",
+		},
+		{
+			name: "expired",
+			tokenResponse: signed(providerKey, func(c map[string]any) {
+				c["iat"] = time.Now().Add(-2 * time.Hour).Unix()
+				c["exp"] = time.Now().Add(-time.Hour).Unix()
+			}),
+			want: "/login?error=invalid_id_token",
 		},
 		{
 			name:          "nonce mismatch",
-			tokenResponse: func(w http.ResponseWriter, _ string) { writeToken(w, idTokenWithNonce("other")) },
+			tokenResponse: signed(providerKey, func(c map[string]any) { c["nonce"] = "other" }),
+			want:          "/login?error=invalid_nonce",
+		},
+		{
+			name:          "missing nonce",
+			tokenResponse: signed(providerKey, func(c map[string]any) { delete(c, "nonce") }),
 			want:          "/login?error=invalid_nonce",
 		},
 	}
@@ -473,6 +579,16 @@ func TestOIDCCallbackErrorsRedirectToRelativeLogin(t *testing.T) {
 			assert.Equal(t, tt.want, w.Header().Get("Location"))
 		})
 	}
+}
+
+func unsignedToken(p *stubProvider) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	payload, err := jsonv2.Marshal(map[string]any{
+		"iss": p.issuer, "sub": "user-1", "aud": "test-client-id",
+		"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(), "nonce": p.nonce,
+	})
+	require.NoError(p.t, err)
+	return header + "." + base64.RawURLEncoding.EncodeToString(payload) + "."
 }
 
 func TestOIDCCallbackUnderBasePath(t *testing.T) {
