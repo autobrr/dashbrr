@@ -169,6 +169,12 @@ func TestRedactURL(t *testing.T) {
 		{name: "token in fragment", raw: "https://example.test/api#access_token=secret", want: "https://example.test/api"},
 		{name: "plain", raw: "http://traefik:8080/metrics", want: "http://traefik:8080/metrics"},
 		{name: "unparseable", raw: "http://host:port?token=secret", want: "[unparseable url]"},
+		{name: "userinfo without scheme", raw: "admin:secret@nzbget:6789", want: "[unparseable url]"},            //nolint:gosec // test fixture
+		{name: "userinfo without scheme or port", raw: "admin:secret@nzbget/jsonrpc", want: "[unparseable url]"}, //nolint:gosec // test fixture
+		{name: "host and port without scheme", raw: "nzbget:6789", want: "[unparseable url]"},
+		{name: "empty", raw: "", want: ""},
+		{name: "userinfo in path of url without scheme", raw: "//gateway/admin:secret@backend:6789", want: "[unparseable url]"}, //nolint:gosec // test fixture
+		{name: "other scheme", raw: "ftp://host/admin:secret@backend", want: "[unparseable url]"},                               //nolint:gosec // test fixture
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -300,5 +306,17 @@ func TestReadBody_StatusErrorBodyOnlyInDebugLog(t *testing.T) {
 	}
 	if !slices.Equal(entries, want) {
 		t.Errorf("log entries = %+v, want %+v", entries, want)
+	}
+}
+
+func TestDoRequest_ErrorOmitsPasswordOfURLWithoutScheme(t *testing.T) {
+	t.Parallel()
+
+	_, err := (&ServiceCore{}).DoRequest(t.Context(), http.MethodGet, "admin:secret@nzbget:6789/jsonrpc", nil, nil)
+	if err == nil {
+		t.Fatal("DoRequest succeeded with a URL that has no scheme")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("error contains the password: %v", err)
 	}
 }

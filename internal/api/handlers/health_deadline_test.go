@@ -4,11 +4,12 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,19 +21,20 @@ import (
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
-func serviceTestRequest(t *testing.T, h *HealthHandler, serviceType, serviceURL string) (*httptest.ResponseRecorder, time.Duration) {
+func postServiceTest(t *testing.T, h *HealthHandler, serviceType, serviceURL string) (*httptest.ResponseRecorder, time.Duration) {
 	t.Helper()
 	apiKey := "test-key"
 	if serviceType == "netbird" {
 		apiKey = "nbp_test"
 	}
-	r := gin.New()
-	r.GET("/health/:service", h.CheckHealth)
-	query := url.Values{"url": {serviceURL}, "apiKey": {apiKey}}
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health/"+serviceType+"-1?"+query.Encode(), nil)
+	body, err := json.Marshal(serviceTestRequest{URL: serviceURL, APIKey: apiKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/"+serviceType+"-1", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	start := time.Now()
-	r.ServeHTTP(w, req)
+	serviceTestRouter(h).ServeHTTP(w, req)
 	return w, time.Since(start)
 }
 
@@ -78,7 +80,7 @@ func TestServiceTestFailsEveryTypeWithoutASessionStatus(t *testing.T) {
 				h := NewHealthHandler(db, catalog.Registry{})
 				h.timeout = 300 * time.Millisecond
 
-				w, elapsed := serviceTestRequest(t, h, st.Name, serverURL)
+				w, elapsed := postServiceTest(t, h, st.Name, serverURL)
 
 				if elapsed > 3*time.Second {
 					t.Fatalf("answered after %s, want within the %s deadline", elapsed, h.timeout)
@@ -157,7 +159,7 @@ func TestServiceTestMessages(t *testing.T) {
 			h := NewHealthHandler(&testing_mocks.MockDB{}, creator)
 			h.timeout = 50 * time.Millisecond
 
-			w, _ := serviceTestRequest(t, h, "sonarr", "http://127.0.0.1:1")
+			w, _ := postServiceTest(t, h, "sonarr", "http://127.0.0.1:1")
 
 			if w.Code != tc.wantCode {
 				t.Fatalf("status = %d, want %d", w.Code, tc.wantCode)
@@ -196,11 +198,9 @@ func TestServiceTestUsesTheStoredKeyOfAnOptionalKeyType(t *testing.T) {
 	}
 	h := NewHealthHandler(db, creator)
 
-	r := gin.New()
-	r.GET("/health/:service", h.CheckHealth)
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health/traefik-1?url=http://new.test:9000", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/traefik-1", strings.NewReader(`{"url":"http://new.test:9000"}`))
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	serviceTestRouter(h).ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK || gotKey != "user:pass" {
 		t.Fatalf("status = %d, key = %q, want 200 with the stored key", w.Code, gotKey)

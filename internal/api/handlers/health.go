@@ -51,78 +51,14 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	defer cancel()
 
 	serviceID := c.Param("service")
-	if serviceID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Service ID is required"})
+	service, ok := h.storedService(ctx, c, serviceID)
+	if !ok {
 		return
 	}
-
-	// Validate service ID format and extract service type
-	parts := strings.Split(serviceID, "-")
-	if len(parts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID format"})
+	if service == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
-	serviceType := parts[0]
-
-	// Get URL and API key from query parameters for validation
-	url := c.Query("url")
-	apiKey := c.Query("apiKey")
-
-	var service *models.ServiceConfiguration
-	var err error
-
-	if url != "" {
-		if !isHTTPURL(url) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": invalidServiceURLMessage})
-			return
-		}
-
-		service = &models.ServiceConfiguration{
-			InstanceID: serviceID,
-			URL:        url,
-			APIKey:     apiKey,
-		}
-
-		if service.APIKey == "" {
-			existing, findErr := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
-			if findErr != nil {
-				// Check for context cancellation
-				if ctx.Err() != nil {
-					log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled while fetching service configuration")
-					c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-					return
-				}
-				log.Error().Err(findErr).Str("service", serviceID).Msg("Failed to fetch service configuration")
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service configuration"})
-				return
-			}
-
-			if existing != nil && existing.APIKey != "" {
-				service.APIKey = existing.APIKey
-			}
-		}
-	} else {
-		// Use context with timeout for database operation
-		service, err = h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
-		if err != nil {
-			// Check for context cancellation
-			if ctx.Err() != nil {
-				log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled while fetching service configuration")
-				c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
-				return
-			}
-			log.Error().Err(err).Str("service", serviceID).Msg("Failed to fetch service configuration")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service configuration"})
-			return
-		}
-
-		if service == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
-			return
-		}
-	}
-
-	// Check if service is configured
 	if service.URL == "" {
 		c.JSON(http.StatusOK, models.ServiceHealth{
 			Status:      "unconfigured",
@@ -133,15 +69,63 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		return
 	}
 
+	h.checkService(ctx, c, serviceID, *service)
+}
+
+type serviceTestRequest struct {
+	URL    string `json:"url"`
+	APIKey string `json:"apiKey"`
+}
+
+func (h *HealthHandler) TestService(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
+	defer cancel()
+
+	var req serviceTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil || !isHTTPURL(req.URL) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": invalidServiceURLMessage})
+		return
+	}
+
+	serviceID := c.Param("service")
+	service := models.ServiceConfiguration{InstanceID: serviceID, URL: req.URL, APIKey: req.APIKey}
+	if service.APIKey == "" {
+		stored, ok := h.storedService(ctx, c, serviceID)
+		if !ok {
+			return
+		}
+		if stored != nil {
+			service.APIKey = stored.APIKey
+		}
+	}
+
+	h.checkService(ctx, c, serviceID, service)
+}
+
+func (h *HealthHandler) storedService(ctx context.Context, c *gin.Context, serviceID string) (*models.ServiceConfiguration, bool) {
+	service, err := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
+	if err == nil {
+		return service, true
+	}
+	if ctx.Err() != nil {
+		log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled while fetching service configuration")
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Operation timed out"})
+		return nil, false
+	}
+	log.Error().Err(err).Str("service", serviceID).Msg("Failed to fetch service configuration")
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service configuration"})
+	return nil, false
+}
+
+func (h *HealthHandler) checkService(ctx context.Context, c *gin.Context, serviceID string, service models.ServiceConfiguration) {
+	serviceType, _, _ := strings.Cut(serviceID, "-")
 	serviceChecker := h.serviceCreator.CreateService(serviceType)
 	if serviceChecker == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported service type: " + serviceType})
 		return
 	}
 
-	// For general service, API key is optional
-	// For other services, ensure API key is provided
-	if serviceRequiresAPIKey(serviceType) && service.APIKey == "" {
+	if !serviceHasCredentials(serviceType, service.URL, service.APIKey) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "API key is required for this service type",
@@ -149,7 +133,6 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 		return
 	}
 
-	// Use the context with timeout for health check
 	health, statusCode := serviceChecker.CheckHealth(ctx, service.URL, service.APIKey)
 
 	if ctx.Err() != nil {
