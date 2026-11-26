@@ -12,7 +12,7 @@ import {
 import { SiKubernetes } from "react-icons/si";
 import AnimatedModal from "./AnimatedModal";
 import { StatusIcon, StatusType } from "./StatusIcon";
-import { repoUrls } from "../../config/repoUrls";
+import { releasePages } from "../../config/releasePages";
 import { ServiceEdits, ServiceStatus, ServiceType } from "../../types/service";
 import { serviceLink } from "../../utils/serviceLink";
 
@@ -64,10 +64,7 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
     setShowRemoveModal(false);
   };
 
-  const getUpdateUrl = () => {
-    const serviceKey = displayName.toLowerCase();
-    return repoUrls[serviceKey];
-  };
+  const updateUrl = updateAvailable && serviceType ? releasePages[serviceType] : null;
 
   const openUrl = serviceLink({ url, accessUrl }) ?? undefined;
 
@@ -93,14 +90,14 @@ export const ServiceHeader: React.FC<ServiceHeaderProps> = ({
             {version && (
               <span
                 className={`inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition-colors duration-200 flex-shrink-0 ${
-                  updateAvailable
+                  updateUrl
                     ? "text-green-600 dark:text-green-400 bg-green-50/90 dark:bg-green-900/30"
                     : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
                 }`}
               >
-                {updateAvailable ? (
+                {updateUrl ? (
                   <a
-                    href={getUpdateUrl()}
+                    href={updateUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:text-green-600 dark:hover:text-green-200 transition-colors duration-200"
