@@ -131,6 +131,9 @@ if (script !== "tailscale-only") {
 
 const configurationValue = {
   configurations,
+  createConfiguration: async () => {
+    throw new Error("the mesh harness adds no service");
+  },
   updateConfiguration: async () => configurations[Object.keys(configurations)[0]],
   deleteConfiguration: async () => undefined,
   fetchConfigurations: async () => undefined,

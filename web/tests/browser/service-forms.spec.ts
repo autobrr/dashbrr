@@ -13,6 +13,11 @@ const saves = (page: Page) =>
     () => (window as unknown as { saves: Array<{ instanceId: string; config: Record<string, string> }> }).saves
   );
 
+const creates = (page: Page) =>
+  page.evaluate(
+    () => (window as unknown as { creates: Array<{ type: string; config: Record<string, string> }> }).creates
+  );
+
 const serveFailure = (page: Page, httpStatus: number, message: string) =>
   page.route("**/api/health/**", (route) =>
     route.fulfill({ status: httpStatus, json: { status: "error", message } })
@@ -29,15 +34,29 @@ const openSonarrAdd = async (page: Page) => {
 const submitAdd = (page: Page) =>
   page.getByRole("button", { name: "Add Service" }).last().click();
 
-test("adding a service takes an instance ID that no service has", async ({ page }) => {
-  await serveHealth(page, "online");
+test("adding a service tests it by type, sends only its type, and shows the ID the server picked", async ({ page }) => {
+  const tested: string[] = [];
+  await page.route("**/api/health/**", (route) => {
+    tested.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ json: { status: "online" } });
+  });
   await openSonarrAdd(page);
   await submitAdd(page);
 
-  await expect.poll(async () => (await saves(page)).length).toBe(1);
-  const [save] = await saves(page);
-  expect(EXISTING_IDS).not.toContain(save.instanceId);
-  expect(save.instanceId).toMatch(/^sonarr-/);
+  await expect.poll(async () => (await creates(page)).length).toBe(1);
+  const [create] = await creates(page);
+  expect(create.type).toBe("sonarr");
+  expect(create.config).not.toHaveProperty("instanceId");
+  expect(create.config.url).toBe("http://sonarr-new.test:8989");
+  expect(tested).toHaveLength(1);
+  expect(tested[0]).toMatch(/\/api\/health\/sonarr$/);
+  expect(await saves(page)).toHaveLength(0);
+
+  const ids = page.getByRole("list", { name: "Configured services" });
+  await expect(ids.getByText("sonarr-7", { exact: true })).toBeVisible();
+  for (const id of EXISTING_IDS) {
+    await expect(ids.getByText(id, { exact: true })).toBeVisible();
+  }
 });
 
 test("an offline service can be renamed without a test", async ({ page }) => {
@@ -90,10 +109,10 @@ test("the submit button spins while the service is tested", async ({ page }) => 
   const submit = page.getByRole("button", { name: "Testing..." });
   await expect(submit).toBeDisabled();
   await expect(submit.locator("svg.animate-spin")).toBeVisible();
-  expect(await saves(page)).toHaveLength(0);
+  expect(await creates(page)).toHaveLength(0);
 
   answer();
-  await expect.poll(async () => (await saves(page)).length).toBe(1);
+  await expect.poll(async () => (await creates(page)).length).toBe(1);
 });
 
 test("a failed test blocks the save and keeps what the user typed", async ({ page }) => {
@@ -105,7 +124,7 @@ test("a failed test blocks the save and keeps what the user typed", async ({ pag
   await expect(page.locator("#url")).toHaveValue("http://sonarr-new.test:8989");
   await expect(page.locator("#apiKey")).toHaveValue("new-key");
   await expect(page.getByRole("button", { name: "Add Service" }).last()).toBeEnabled();
-  expect(await saves(page)).toHaveLength(0);
+  expect(await creates(page)).toHaveLength(0);
 });
 
 test("a service that does not answer in time blocks the save with a message", async ({ page }) => {
@@ -115,7 +134,7 @@ test("a service that does not answer in time blocks the save with a message", as
 
   await expect(page.getByText("The service did not answer within 10s").first()).toBeVisible();
   await expect(page.locator("#apiKey")).toHaveValue("new-key");
-  expect(await saves(page)).toHaveLength(0);
+  expect(await creates(page)).toHaveLength(0);
 });
 
 test("a wrong API key on edit shows the error and keeps the user signed in", async ({ page }) => {

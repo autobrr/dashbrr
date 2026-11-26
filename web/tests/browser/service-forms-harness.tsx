@@ -6,15 +6,19 @@ import { ConfigurationForm } from "../../src/components/configuration/Configurat
 import { serviceTemplates } from "../../src/config/serviceTemplates";
 import { ConfigurationContext } from "../../src/contexts/context";
 import { useServiceManagement } from "../../src/hooks/useServiceManagement";
-import type { ServiceConfig, ServiceConfigInput } from "../../src/types/service";
+import type { ServiceConfig, ServiceConfigInput, ServiceType } from "../../src/types/service";
 
 declare global {
   interface Window {
     saves: Array<{ instanceId: string; config: ServiceConfigInput }>;
+    creates: Array<{ type: ServiceType; config: ServiceConfigInput }>;
   }
 }
 
 window.saves = [];
+window.creates = [];
+
+const UNSEEN_SERVER_ID = "sonarr-7";
 
 const stored: Record<string, ServiceConfig> = {
   "sonarr-2": { displayName: "Sonarr 2", url: "http://sonarr.test:8989", edits: "all" },
@@ -51,6 +55,12 @@ export function Harness() {
 
   const value = {
     configurations,
+    createConfiguration: async (type: ServiceType, config: ServiceConfigInput) => {
+      window.creates.push({ type, config });
+      const created = { ...config, apiKey: undefined, edits: "all" as const, instanceId: UNSEEN_SERVER_ID };
+      setConfigurations((prev) => ({ ...prev, [UNSEEN_SERVER_ID]: created }));
+      return created;
+    },
     updateConfiguration: async (instanceId: string, config: ServiceConfigInput) => {
       window.saves.push({ instanceId, config });
       const saved = { ...config, apiKey: undefined, edits: "all" as const };
@@ -70,6 +80,11 @@ export function Harness() {
       ) : (
         <AddService />
       )}
+      <ul aria-label="Configured services">
+        {Object.keys(configurations).map((id) => (
+          <li key={id}>{id}</li>
+        ))}
+      </ul>
     </ConfigurationContext.Provider>
   );
 }

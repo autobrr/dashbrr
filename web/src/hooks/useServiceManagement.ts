@@ -15,7 +15,7 @@ interface PendingService {
 }
 
 export const useServiceManagement = () => {
-  const { configurations, updateConfiguration, deleteConfiguration } = useConfiguration();
+  const { configurations, createConfiguration, deleteConfiguration } = useConfiguration();
   const [showServiceConfig, setShowServiceConfig] = useState(false);
   const [pendingService, setPendingService] = useState<PendingService | null>(null);
 
@@ -25,12 +25,12 @@ export const useServiceManagement = () => {
   }, [configurations]);
 
   const confirmServiceAddition = useCallback(async (input: ServiceConfigInput) => {
-    if (!pendingService) return;
+    if (pendingService?.setup.mode !== "add") return;
 
-    await updateConfiguration(pendingService.setup.instanceId, input);
+    await createConfiguration(pendingService.setup.type, input);
     toast.success("Added new service instance");
     setShowServiceConfig(false);
-  }, [pendingService, updateConfiguration]);
+  }, [pendingService, createConfiguration]);
 
   const cancelServiceAddition = useCallback(() => {
     setShowServiceConfig(false);
