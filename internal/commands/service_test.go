@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -194,5 +196,34 @@ func TestServiceAddRejectsInvalidURL(t *testing.T) {
 				t.Fatalf("add %q: err = %v, want %q", tt.url, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestServiceAddTakesTheNumberAfterTheHighest(t *testing.T) {
+	openDB := userTestDB(t)
+	status := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	t.Cleanup(status.Close)
+
+	db := openDB()
+	for _, id := range []string{"general-1", "general-3"} {
+		if err := db.CreateService(t.Context(), &models.ServiceConfiguration{InstanceID: id, DisplayName: id, URL: "http://" + id + ".test"}); err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+	}
+
+	root := &cobra.Command{Use: "dashbrr", SilenceUsage: true, SilenceErrors: true}
+	root.PersistentFlags().String("config", "", "")
+	root.PersistentFlags().String("db-file", "", "")
+	root.AddCommand(ServiceCommand())
+	root.SetArgs([]string{"service", "generic", "add", status.URL, "Status page"})
+	if err := root.ExecuteContext(t.Context()); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	added, err := db.FindServiceBy(t.Context(), types.FindServiceParams{InstanceID: "general-4"})
+	if err != nil || added == nil || added.URL != status.URL {
+		t.Fatalf("general-4 = %+v, %v, want the added service", added, err)
 	}
 }

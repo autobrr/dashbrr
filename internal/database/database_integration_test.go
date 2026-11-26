@@ -316,3 +316,77 @@ func TestPostgresErrorHandling(t *testing.T) {
 		t.Error("Expected error when creating duplicate service, got nil")
 	}
 }
+
+func TestPostgresCreateServiceInstance(t *testing.T) {
+	db, cleanup := setupPostgresDB(t)
+	defer cleanup()
+	checkCreateServiceInstance(t, db)
+}
+
+func TestPostgresConcurrentCreateServiceInstance(t *testing.T) {
+	db, cleanup := setupPostgresDB(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	const adds = 10
+	errs := make(chan error, adds)
+	for range adds {
+		go func() {
+			errs <- db.CreateServiceInstance(ctx, "radarr", &models.ServiceConfiguration{DisplayName: "Radarr", URL: "http://radarr.test"})
+		}()
+	}
+	for range adds {
+		if err := <-errs; err != nil {
+			t.Fatalf("create: %v", err)
+		}
+	}
+
+	services, err := db.GetAllServices(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	ids := make(map[string]bool)
+	for _, s := range services {
+		ids[s.InstanceID] = true
+	}
+	for n := 1; n <= adds; n++ {
+		if id := fmt.Sprintf("radarr-%d", n); !ids[id] {
+			t.Fatalf("missing %s in %v", id, ids)
+		}
+	}
+}
+
+func TestPostgresFailedCreateLeavesThePoolUsable(t *testing.T) {
+	db, cleanup := setupPostgresDB(t)
+	defer cleanup()
+	ctx := t.Context()
+	db.SetMaxOpenConns(1)
+
+	holder, err := InitDBWithConfig(NewConfig())
+	if err != nil {
+		t.Fatalf("second connection: %v", err)
+	}
+	defer holder.Close()
+	lock, err := holder.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = lock.Rollback() }()
+	if _, err := lock.ExecContext(ctx, "LOCK TABLE service_configurations IN ACCESS EXCLUSIVE MODE"); err != nil {
+		t.Fatalf("hold lock: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, "SET lock_timeout = '100ms'"); err != nil {
+		t.Fatalf("set lock_timeout: %v", err)
+	}
+	if err := db.CreateServiceInstance(ctx, "radarr", &models.ServiceConfiguration{DisplayName: "Radarr", URL: "http://radarr.test"}); err == nil {
+		t.Fatal("create succeeded while another connection held the table lock")
+	}
+	if err := lock.Rollback(); err != nil {
+		t.Fatalf("release lock: %v", err)
+	}
+
+	if _, err := db.GetAllServices(ctx); err != nil {
+		t.Fatalf("pool after failed create: %v", err)
+	}
+}

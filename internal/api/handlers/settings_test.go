@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -207,5 +209,135 @@ func TestServiceConfigResponseEdits(t *testing.T) {
 				t.Fatalf("Edits = %q, want %q", got.Edits, tt.want)
 			}
 		})
+	}
+}
+
+func newSettingsRouter(t *testing.T) (*gin.Engine, *database.DB) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	db, err := database.InitDBWithConfig(&database.Config{Driver: "sqlite", Path: t.TempDir() + "/settings.db"})
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	h := NewSettingsHandler(db, newBuiltinMemoryStore(t), nil)
+	router := gin.New()
+	router.POST("/settings", h.CreateSettings)
+	router.POST("/settings/:instance", h.SaveSettings)
+	return router, db
+}
+
+func TestAddingAServiceKeepsOneAddedAfterThePageLoaded(t *testing.T) {
+	router, db := newSettingsRouter(t)
+	ctx := t.Context()
+
+	cli := models.ServiceConfiguration{DisplayName: "Sonarr 4K", URL: "http://127.0.0.1:1", APIKey: "cli-key"}
+	if err := db.CreateServiceInstance(ctx, "sonarr", &cli); err != nil {
+		t.Fatalf("cli add: %v", err)
+	}
+	if cli.InstanceID != "sonarr-1" {
+		t.Fatalf("cli add got %q, want sonarr-1", cli.InstanceID)
+	}
+
+	rec := serve(t, router, http.MethodPost, "/settings",
+		`{"type":"sonarr","displayName":"Sonarr","url":"http://127.0.0.1:2","apiKey":"web-key"}`, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
+	}
+	var created models.ServiceConfiguration
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	want := models.ServiceConfiguration{InstanceID: "sonarr-2", DisplayName: "Sonarr", URL: "http://127.0.0.1:2", Edits: models.EditsAll}
+	if created != want {
+		t.Fatalf("response = %+v, want %+v", created, want)
+	}
+
+	kept, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "sonarr-1"})
+	if err != nil || kept == nil {
+		t.Fatalf("find sonarr-1: %v, %v", kept, err)
+	}
+	if kept.DisplayName != "Sonarr 4K" || kept.APIKey != "cli-key" {
+		t.Fatalf("sonarr-1 = %+v, want the CLI service", *kept)
+	}
+	added, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "sonarr-2"})
+	if err != nil || added == nil || added.APIKey != "web-key" {
+		t.Fatalf("sonarr-2 = %+v, %v, want the web service", added, err)
+	}
+}
+
+func TestCreateSettingsRejectsABadRequest(t *testing.T) {
+	router, db := newSettingsRouter(t)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "unknown type", body: `{"type":"nope","url":"http://127.0.0.1:1"}`},
+		{name: "no type", body: `{"url":"http://127.0.0.1:1"}`},
+		{name: "url without scheme", body: `{"type":"sonarr","url":"sonarr:8989"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := serve(t, router, http.MethodPost, "/settings", tt.body, nil)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d, body %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+		})
+	}
+	services, err := db.GetAllServices(t.Context())
+	if err != nil || len(services) != 0 {
+		t.Fatalf("services = %+v, %v, want none", services, err)
+	}
+}
+
+func TestSaveSettingsDoesNotCreateAMissingService(t *testing.T) {
+	router, db := newSettingsRouter(t)
+
+	rec := serve(t, router, http.MethodPost, "/settings/sonarr-1",
+		`{"displayName":"Sonarr","url":"http://127.0.0.1:2","apiKey":"web-key"}`, nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d, body %s", rec.Code, http.StatusNotFound, rec.Body.String())
+	}
+	services, err := db.GetAllServices(t.Context())
+	if err != nil || len(services) != 0 {
+		t.Fatalf("services = %+v, %v, want none", services, err)
+	}
+}
+
+func TestTwoAddsAtOnceGetTheirOwnIDs(t *testing.T) {
+	router, db := newSettingsRouter(t)
+
+	const adds = 8
+	var wg sync.WaitGroup
+	codes := make([]int, adds)
+	for i := range adds {
+		wg.Go(func() {
+			rec := serve(t, router, http.MethodPost, "/settings",
+				`{"type":"radarr","displayName":"Radarr","url":"http://127.0.0.1:1","apiKey":"k"}`, nil)
+			codes[i] = rec.Code
+		})
+	}
+	wg.Wait()
+
+	for i, code := range codes {
+		if code != http.StatusCreated {
+			t.Fatalf("add %d status = %d", i, code)
+		}
+	}
+	services, err := db.GetAllServices(t.Context())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	ids := make([]string, 0, len(services))
+	for _, s := range services {
+		ids = append(ids, s.InstanceID)
+	}
+	slices.Sort(ids)
+	want := []string{"radarr-1", "radarr-2", "radarr-3", "radarr-4", "radarr-5", "radarr-6", "radarr-7", "radarr-8"}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("ids = %v, want %v", ids, want)
 	}
 }

@@ -83,6 +83,7 @@ func serviceSpecFor(t catalog.ServiceType) (serviceSpec, bool) {
 		return serviceSpec{}, false
 	}
 	spec.Use = cmp.Or(spec.Use, t.Name)
+	spec.Type = t.Name
 	spec.Prefix = t.Name + "-"
 	if spec.AddArgs == nil {
 		spec.AddArgs = cobra.MinimumNArgs(2)

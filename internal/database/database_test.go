@@ -431,3 +431,41 @@ func TestUICollapsePreferences(t *testing.T) {
 		t.Fatalf("expected userB preference to be true")
 	}
 }
+
+func TestCreateServiceInstance(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	checkCreateServiceInstance(t, db)
+}
+
+func checkCreateServiceInstance(t *testing.T, db *DB) {
+	t.Helper()
+	ctx := t.Context()
+
+	for _, id := range []string{"sonarr-1", "sonarr-3", "sonarr-config-2", "sonarr-docker", "sonarr-k8s-media.sonarr", "radarr-2"} {
+		if err := db.CreateService(ctx, &models.ServiceConfiguration{InstanceID: id, DisplayName: id, URL: "http://" + id + ".test"}); err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+	}
+
+	next, err := db.NextServiceInstanceID(ctx, "sonarr")
+	if err != nil || next != "sonarr-4" {
+		t.Fatalf("NextServiceInstanceID = %q, %v, want sonarr-4", next, err)
+	}
+
+	for _, want := range []string{"sonarr-4", "sonarr-5", "radarr-3", "radarr-4"} {
+		serviceType, _, _ := strings.Cut(want, "-")
+		service := &models.ServiceConfiguration{DisplayName: "New", URL: "http://new.test", APIKey: "k"}
+		if err := db.CreateServiceInstance(ctx, serviceType, service); err != nil {
+			t.Fatalf("create %s: %v", serviceType, err)
+		}
+		if service.InstanceID != want || service.ID == 0 {
+			t.Fatalf("created %q with id %d, want %q", service.InstanceID, service.ID, want)
+		}
+	}
+
+	stored, err := db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: "sonarr-3"})
+	if err != nil || stored == nil || stored.DisplayName != "sonarr-3" {
+		t.Fatalf("sonarr-3 = %+v, %v, want it unchanged", stored, err)
+	}
+}

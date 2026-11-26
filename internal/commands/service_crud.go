@@ -13,6 +13,7 @@ import (
 
 type serviceSpec struct {
 	Use         string
+	Type        string
 	Prefix      string
 	DisplayName string
 
@@ -135,27 +136,25 @@ func newServiceAddCommand(spec serviceSpec) *cobra.Command {
 			}
 		}
 
-		instanceID, err := getNextInstanceID(cmd.Context(), db, spec.Prefix)
-		if err != nil {
-			return fmt.Errorf("failed to generate instance ID: %v", err)
-		}
-
 		service := &models.ServiceConfiguration{
-			InstanceID:  instanceID,
 			DisplayName: displayName,
 			URL:         serviceURL,
 			APIKey:      apiKey,
 		}
 
 		if dry {
+			instanceID, err := db.NextServiceInstanceID(cmd.Context(), spec.Type)
+			if err != nil {
+				return fmt.Errorf("failed to generate instance ID: %w", err)
+			}
 			fmt.Printf("Dry run: would add %s service:\n", spec.DisplayName)
 			fmt.Printf("  URL: %s\n", serviceURL)
 			fmt.Printf("  Instance ID: %s\n", instanceID)
 			return nil
 		}
 
-		if err := db.CreateService(cmd.Context(), service); err != nil {
-			return fmt.Errorf("failed to save service configuration: %v", err)
+		if err := db.CreateServiceInstance(cmd.Context(), spec.Type, service); err != nil {
+			return fmt.Errorf("failed to save service configuration: %w", err)
 		}
 
 		fmt.Printf("%s service added successfully:\n", spec.DisplayName)
@@ -169,7 +168,7 @@ func newServiceAddCommand(spec serviceSpec) *cobra.Command {
 				fmt.Printf("  Status: %s\n", health.Status)
 			}
 		}
-		fmt.Printf("  Instance ID: %s\n", instanceID)
+		fmt.Printf("  Instance ID: %s\n", service.InstanceID)
 
 		return nil
 	}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -541,16 +542,105 @@ func (db *DB) GetAllServices(ctx context.Context) ([]models.ServiceConfiguration
 
 // CreateService creates a new service configuration
 func (db *DB) CreateService(ctx context.Context, service *models.ServiceConfiguration) error {
-	queryBuilder := db.squirrel.Insert("service_configurations").
+	return db.insertService(ctx, db.DB, service)
+}
+
+type rowQueryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func (db *DB) insertService(ctx context.Context, q rowQueryer, service *models.ServiceConfiguration) error {
+	query, args, err := db.squirrel.Insert("service_configurations").
 		Columns("instance_id", "display_name", "url", "api_key", "access_url").
 		Values(service.InstanceID, service.DisplayName, service.URL, service.APIKey, service.AccessURL).
-		Suffix("RETURNING id").RunWith(db.DB)
-
-	if err := queryBuilder.QueryRowContext(ctx).Scan(&service.ID); err != nil {
+		Suffix("RETURNING id").
+		ToSql()
+	if err != nil {
+		return err
+	}
+	if err := q.QueryRowContext(ctx, query, args...).Scan(&service.ID); err != nil {
 		return errors.Wrap(err, "error executing query")
 	}
-
 	return nil
+}
+
+func (db *DB) CreateServiceInstance(ctx context.Context, serviceType string, service *models.ServiceConfiguration) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+		}
+	}()
+	for _, statement := range db.lockServicesStatements() {
+		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			return errors.Wrap(err, "lock service configurations")
+		}
+	}
+
+	service.InstanceID, err = db.nextInstanceID(ctx, conn, serviceType)
+	if err != nil {
+		return err
+	}
+	if err := db.insertService(ctx, conn, service); err != nil {
+		return err
+	}
+
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return errors.Wrap(err, "commit service configuration")
+	}
+	committed = true
+	return nil
+}
+
+func (db *DB) NextServiceInstanceID(ctx context.Context, serviceType string) (string, error) {
+	return db.nextInstanceID(ctx, db.DB, serviceType)
+}
+
+func (db *DB) lockServicesStatements() []string {
+	if db.driver == "postgres" {
+		return []string{"BEGIN", "LOCK TABLE service_configurations IN SHARE ROW EXCLUSIVE MODE"}
+	}
+	return []string{"PRAGMA busy_timeout = 5000", "BEGIN IMMEDIATE"}
+}
+
+func (db *DB) nextInstanceID(ctx context.Context, q rowQueryer, serviceType string) (string, error) {
+	prefix := serviceType + "-"
+	query, args, err := db.squirrel.Select("instance_id").
+		From("service_configurations").
+		Where(sq.Like{"instance_id": prefix + "%"}).
+		ToSql()
+	if err != nil {
+		return "", err
+	}
+	rows, err := q.QueryContext(ctx, query, args...)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	highest := 0
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return "", err
+		}
+		if suffix, ok := strings.CutPrefix(id, prefix); ok {
+			if n, err := strconv.Atoi(suffix); err == nil {
+				highest = max(highest, n)
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return prefix + strconv.Itoa(highest+1), nil
 }
 
 // UpdateService updates an existing service configuration
