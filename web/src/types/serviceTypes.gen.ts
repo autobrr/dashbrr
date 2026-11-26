@@ -18,6 +18,7 @@ export type CatalogServiceType =
   | "emby"
   | "uptimekuma"
   | "tailscale"
+  | "netbird"
   | "maintainerr"
   | "qui"
   | "general";

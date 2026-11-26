@@ -134,6 +134,18 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
           : null,
     }),
   },
+  netbird: {
+    urlPlaceholder: "https://api.netbird.io",
+    apiKeyLabel: "API Token (Personal Access Token)",
+    apiKeyHelp: ({ url }) => ({
+      prefix: "Create one in ",
+      text: "the NetBird dashboard, or Team > Users > Personal Access Tokens",
+      link:
+        url === "https://api.netbird.io"
+          ? "https://app.netbird.io/team/user-settings?tab=tokens"
+          : null,
+    }),
+  },
   maintainerr: {
     urlPlaceholder: defaultUrl,
     apiKeyLabel: "API Key",

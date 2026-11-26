@@ -27,6 +27,7 @@ var canonicalServiceMessageKeys = []string{
 	"autobrr_irc_status",
 	"maintainerr_collections",
 	"tailscale_devices",
+	"netbird_peers",
 	"qui_overview",
 }
 

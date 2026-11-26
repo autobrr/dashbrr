@@ -161,6 +161,14 @@ const templates: { [T in CatalogServiceType]: ServiceTemplate & { type: T } } = 
     url: "",
     healthEndpoint: "api/health/tailscale",
   },
+  netbird: {
+    name: "NetBird",
+    displayName: "",
+    type: "netbird",
+    status: "offline",
+    url: "",
+    healthEndpoint: "api/health/netbird",
+  },
   maintainerr: {
     name: "Maintainerr",
     displayName: "",

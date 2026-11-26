@@ -19,6 +19,7 @@ func TestRegistryCreatesEveryServiceType(t *testing.T) {
 		"jellyfin":    "*jellyfin.JellyfinService",
 		"lidarr":      "*lidarr.LidarrService",
 		"maintainerr": "*maintainerr.MaintainerrService",
+		"netbird":     "*netbird.Service",
 		"nzbget":      "*nzbget.NzbgetService",
 		"overseerr":   "*overseerr.OverseerrService",
 		"plex":        "*plex.PlexService",

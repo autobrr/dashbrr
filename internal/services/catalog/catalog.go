@@ -14,6 +14,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/jellyfin"
 	"github.com/autobrr/dashbrr/internal/services/lidarr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
+	"github.com/autobrr/dashbrr/internal/services/netbird"
 	"github.com/autobrr/dashbrr/internal/services/nzbget"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
 	"github.com/autobrr/dashbrr/internal/services/plex"
@@ -52,6 +53,7 @@ var serviceTypes = []ServiceType{
 	{"emby", jellyfin.NewEmbyService},
 	{"uptimekuma", uptimekuma.NewUptimeKumaService},
 	{"tailscale", tailscale.NewTailscaleService},
+	{"netbird", netbird.NewNetBirdService},
 	{"maintainerr", maintainerr.NewMaintainerrService},
 	{"qui", qui.NewQuiService},
 	{"general", general.NewGeneralService},

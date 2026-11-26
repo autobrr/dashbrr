@@ -681,6 +681,21 @@ export interface TailscaleDevice {
   tags?: string[];
 }
 
+export interface NetBirdPeer {
+  id: string;
+  name: string;
+  ip: string;
+  online: boolean;
+  lastSeen: string;
+  os: string;
+  version: string;
+  updateAvailable: boolean;
+  groups: string[];
+  cityName: string;
+  countryCode: string;
+  loginExpired: boolean;
+}
+
 export interface QuiInstance {
   id: number;
   name: string;
@@ -802,6 +817,9 @@ export interface ServiceStats {
   tailscale?: {
     devices: TailscaleDevice[];
   };
+  netbird?: {
+    peers?: NetBirdPeer[];
+  };
   qui?: {
     instances?: QuiInstance[];
     transfers?: QuiInstanceTransfer[];
@@ -898,6 +916,11 @@ export interface ServiceDetails {
   tailscale?: {
     total: number;
     online: number;
+  };
+  netbird?: {
+    total: number;
+    online: number;
+    updateAvailable?: boolean;
   };
   qui?: {
     summary?: QuiTransferSummary;

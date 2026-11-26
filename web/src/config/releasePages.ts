@@ -23,6 +23,7 @@ export const releasePages: Record<ServiceType, string | null> = {
   emby: "https://github.com/MediaBrowser/Emby.Releases/releases",
   uptimekuma: "https://github.com/louislam/uptime-kuma/releases",
   tailscale: "https://tailscale.com/changelog",
+  netbird: "https://github.com/netbirdio/netbird/releases",
   maintainerr: "https://github.com/jorenn92/Maintainerr/releases/",
   qui: "https://github.com/autobrr/qui/releases/",
   general: null,

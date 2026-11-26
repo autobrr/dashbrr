@@ -89,7 +89,7 @@ test("an empty card body shows only for types with persistent tiles", () => {
   const types = [
     "autobrr", "radarr", "sonarr", "whisparr", "lidarr", "readarr", "bazarr",
     "sabnzbd", "nzbget", "prowlarr", "traefik", "overseerr", "plex", "jellyfin",
-    "emby", "uptimekuma", "tailscale", "maintainerr", "qui", "general", "other",
+    "emby", "uptimekuma", "tailscale", "netbird", "maintainerr", "qui", "general", "other",
   ] as const;
   for (const type of types) {
     assert.equal(
