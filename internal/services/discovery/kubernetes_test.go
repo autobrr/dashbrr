@@ -47,6 +47,21 @@ func TestParseService_Valid(t *testing.T) {
 	}
 }
 
+func TestParseService_RejectsURLWithoutScheme(t *testing.T) {
+	annotations := map[string]string{
+		GetLabelKey(labelTypeKey): "nzbget",
+		GetLabelKey(labelURLKey):  "admin:secret@nzbget:6789", //nolint:gosec // test fixture
+	}
+	service, err := (&KubernetesDiscovery{}).parseService(k8sService("media", "nzbget", annotations), "")
+	want := "invalid discovery metadata for media/nzbget: com.dashbrr.service.url: invalid service URL: must start with http:// or https://"
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v, want %q", err, want)
+	}
+	if service != nil {
+		t.Fatalf("service = %+v, want none", service)
+	}
+}
+
 func TestParseService_InstanceID(t *testing.T) {
 	k := &KubernetesDiscovery{}
 	annotations := map[string]string{

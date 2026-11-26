@@ -79,7 +79,7 @@ Configure services using Docker container labels:
 ```yaml
 labels:
   com.dashbrr.service.type: "radarr" # Required: Service type
-  com.dashbrr.service.url: "http://radarr:7878" # Required: Service URL
+  com.dashbrr.service.url: "http://radarr:7878" # Required: Service URL, starting with http:// or https://
   com.dashbrr.service.apikey: "${RADARR_API_KEY}" # Usually required: API key/token (supports env vars)
   com.dashbrr.service.name: "My Radarr" # Optional: Custom display name
   com.dashbrr.service.enabled: "true" # Optional: Enable/disable service
@@ -276,6 +276,8 @@ services:
     - url: "http://prowlarr:9696"
       apikey: "${PROWLARR_API_KEY}"
 ```
+
+Each `url` and `access_url` must start with `http://` or `https://`. If one does not, the import stops with an error that names the service, and adds no services.
 
 ## Ignored *arr Health Checks
 

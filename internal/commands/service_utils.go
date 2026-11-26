@@ -3,23 +3,11 @@ package commands
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/autobrr/dashbrr/internal/database"
 )
-
-func validateHTTPURL(raw string) (*url.URL, error) {
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return nil, fmt.Errorf("invalid URL: %v", err)
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, fmt.Errorf("invalid URL scheme: must be http or https")
-	}
-	return parsed, nil
-}
 
 func getNextInstanceID(ctx context.Context, db *database.DB, prefix string) (string, error) {
 	services, err := db.GetAllServices(ctx)

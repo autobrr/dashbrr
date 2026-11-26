@@ -179,11 +179,12 @@ func (s *ServiceCore) DoRequest(ctx context.Context, method string, rawURL strin
 	return resp, nil
 }
 
-// RedactURL returns raw without its query string, fragment, and userinfo,
-// because they can hold secrets that must not go into a log line.
 func RedactURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
 	u, err := url.Parse(raw)
-	if err != nil {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "[unparseable url]"
 	}
 	u.User = nil
