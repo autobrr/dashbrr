@@ -102,12 +102,12 @@ func NewNetBirdService() models.ServiceHealthChecker {
 	return service
 }
 
-func peerURL(baseURL string) string {
-	return strings.TrimRight(baseURL, "/") + "/api/peers"
+func peerURL(baseURL string) (string, error) {
+	return url.JoinPath(baseURL, "api", "peers")
 }
 
-func versionURL(baseURL string) string {
-	return strings.TrimRight(baseURL, "/") + "/api/instance/version"
+func versionURL(baseURL string) (string, error) {
+	return url.JoinPath(baseURL, "api", "instance", "version")
 }
 
 func (s *Service) fetchPeers(ctx context.Context, baseURL, apiKey string) ([]apiPeer, time.Duration, error) {
@@ -121,7 +121,12 @@ func (s *Service) fetchPeers(ctx context.Context, baseURL, apiKey string) ([]api
 		"Authorization": "Token " + apiKey,
 	}
 
-	resp, err := s.DoRequest(ctx, http.MethodGet, peerURL(baseURL), headers, nil)
+	endpoint, err := peerURL(baseURL)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, headers, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}
@@ -192,7 +197,12 @@ func (s *Service) requestVersion(ctx context.Context, baseURL, apiKey string) (v
 		"Authorization": "Token " + apiKey,
 	}
 
-	resp, err := s.DoRequest(ctx, http.MethodGet, versionURL(baseURL), headers, nil)
+	endpoint, err := versionURL(baseURL)
+	if err != nil {
+		return versionInfo{}, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, headers, nil)
 	if err != nil {
 		return versionInfo{}, fmt.Errorf("request failed: %w", err)
 	}

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -599,5 +601,42 @@ func TestCachedVersionKeepsBadgesWhenTheDeadlineIsTight(t *testing.T) {
 	}
 	if got := server.versionCalls.Load(); got != 1 {
 		t.Fatalf("version calls = %d, want 1: the second run reads the cache", got)
+	}
+}
+
+func TestEndpointsJoinTheServerPath(t *testing.T) {
+	tests := []struct {
+		name   string
+		suffix string
+		want   []string
+	}{
+		{"plain root", "", []string{"/api/peers", "/api/instance/version"}},
+		{"trailing slash", "/", []string{"/api/peers", "/api/instance/version"}},
+		{"sub-path", "/netbird/", []string{"/netbird/api/peers", "/netbird/api/instance/version"}},
+		{"query", "/?tenant=home", []string{"/api/peers?tenant=home", "/api/instance/version?tenant=home"}},
+		{"fragment", "/#peers", []string{"/api/peers", "/api/instance/version"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			initTestCache(t)
+			var got []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				got = append(got, r.URL.RequestURI())
+				w.Header().Set("Content-Type", "application/json")
+				if strings.HasSuffix(r.URL.Path, "/api/instance/version") {
+					_, _ = w.Write([]byte(versionFixture))
+					return
+				}
+				_, _ = w.Write([]byte(peerFixture))
+			}))
+			t.Cleanup(server.Close)
+
+			if _, _, err := newNetBirdTestService().GetPeers(t.Context(), server.URL+tt.suffix, "nbp_testtoken"); err != nil {
+				t.Fatalf("GetPeers: %v", err)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("requests = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
