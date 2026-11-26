@@ -4,14 +4,12 @@
  */
 
 import { Menu, Transition } from "@headlessui/react";
-import { Fragment, useState, useEffect, useMemo } from "react";
-import { ServiceType } from "../types/service";
+import { Fragment, useState, useMemo } from "react";
+import { ServiceConfigInput, ServiceType } from "../types/service";
 import AnimatedModal from "./ui/AnimatedModal";
-import { FormInput } from "./ui/FormInput";
-import { toast } from "react-hot-toast";
+import { ServiceSetupForm } from "./configuration/ServiceSetupForm";
 import { useConfiguration } from "../contexts/useConfiguration";
-import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
-import { serviceForms } from "../config/serviceForms";
+import { ServiceSetup } from "../config/serviceSetup";
 import { isMeshNetworkType } from "../utils/meshNetwork";
 
 interface AddServicesMenuProps {
@@ -22,18 +20,10 @@ interface AddServicesMenuProps {
   onAddService: (type: ServiceType, name: string) => void;
   showServiceConfig: boolean;
   pendingService: {
-    type: ServiceType;
     name: string;
-    instanceId: string;
-    displayName: string;
+    setup: ServiceSetup;
   } | null;
-  onConfirmService: (
-    url: string,
-    apiKey: string,
-    displayName: string,
-    accessUrl?: string
-  ) => void;
-
+  onConfirmService: (input: ServiceConfigInput) => Promise<void>;
   onCancelService: () => void;
 }
 
@@ -91,16 +81,8 @@ export function AddServicesMenu({
   onConfirmService,
   onCancelService,
 }: AddServicesMenuProps) {
-  const [displayName, setDisplayName] = useState(
-    pendingService?.displayName || ""
-  );
-  const [url, setUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const { configurations } = useConfiguration();
-  const { isAuthenticating, authenticate } = usePlexPinAuth();
-  const isPlexService = pendingService?.type === "plex";
 
   // Tailscale and NetBird show in the page header and support one instance, so
   // their entry leaves the menu once the network is configured.
@@ -113,58 +95,6 @@ export function AddServicesMenu({
         !(isMeshNetworkType(template.type) && configured(template.type))
     );
   }, [serviceTemplates, configurations]);
-
-  const [accessUrl, setAccessUrl] = useState("");
-
-  // Reset form fields when modal is opened/closed or when pending service changes
-  useEffect(() => {
-    if (!showServiceConfig) {
-      setUrl("");
-      setApiKey("");
-      setDisplayName("");
-      setAccessUrl("");
-      setError(null);
-    } else if (pendingService) {
-      setDisplayName(pendingService.displayName);
-      // Tailscale ignores the URL. NetBird needs the Cloud API unless the user
-      // replaces it with a self-hosted server.
-      if (pendingService.type === "tailscale") {
-        setUrl("https://api.tailscale.com");
-      }
-      if (pendingService.type === "netbird") {
-        setUrl("https://api.netbird.io");
-      }
-    }
-  }, [showServiceConfig, pendingService]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    try {
-      if (isPlexService && apiKey.trim() === "") {
-        throw new Error("Authenticate with Plex first");
-      }
-
-      onConfirmService(
-        url,
-        apiKey,
-        displayName || pendingService?.displayName || "",
-        accessUrl || undefined
-      );
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to configure service";
-      toast.error(errorMessage);
-      setError(errorMessage);
-      console.error("Configuration error:", err);
-    }
-  };
-
-  const form = serviceForms[pendingService?.type ?? "other"];
-  const apiKeyLabel = form.apiKeyLabel;
-  const urlPlaceholder = form.urlPlaceholder;
-  const apiKeyHelp = form.apiKeyHelp({ url, accessUrl });
 
   const groupedServices = useMemo(() => {
     const grouped: Record<ServiceCategoryKey, typeof serviceTemplates> = {
@@ -189,9 +119,6 @@ export function AddServicesMenu({
 
     return grouped;
   }, [availableTemplates, searchQuery]);
-
-  const isApiKeyRequired =
-    pendingService?.type !== "general" && pendingService?.type !== "traefik";
 
   // Clear search when menu closes
   const handleMenuClose = () => {
@@ -286,116 +213,14 @@ export function AddServicesMenu({
         onClose={onCancelService}
         title={`Configure ${pendingService?.name || "Service"}`}
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Basic Settings
-            </h3>
-            <FormInput
-              id="displayName"
-              label="Display Name"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder={pendingService?.displayName || "Enter name"}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Connection Settings
-            </h3>
-            {pendingService?.type !== "tailscale" && (
-              <FormInput
-                id="url"
-                label="URL"
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder={urlPlaceholder}
-                required
-                data-1p-ignore
-              />
-            )}
-
-            <FormInput
-              id="accessUrl"
-              label="Access URL (Optional)"
-              type="text"
-              value={accessUrl}
-              onChange={(e) => setAccessUrl(e.target.value)}
-              placeholder="Leave empty to use main URL"
-              helpText={{
-                prefix: "Override ",
-                text: "URL used when opening service in browser. Useful for internal/external URL differences.",
-                link: null,
-              }}
-              data-1p-ignore
-            />
-
-            {!isPlexService && (
-              <FormInput
-                id="apiKey"
-                label={apiKeyLabel}
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={`Enter ${apiKeyLabel}`}
-                helpText={apiKeyHelp}
-                required={isApiKeyRequired}
-                data-1p-ignore
-              />
-            )}
-            {isPlexService && (
-              <div className="mt-2">
-                <button
-                  type="button"
-                  className="px-3 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-600"
-                  onClick={async () => {
-                    try {
-                      await authenticate((token) => setApiKey(token));
-                    } catch (err) {
-                      const message =
-                        err instanceof Error
-                          ? err.message
-                          : "Failed to start Plex authentication";
-                      toast.error(message);
-                      setError(message);
-                    }
-                  }}
-                  disabled={isAuthenticating}
-                >
-                  {isAuthenticating ? "Waiting for Plex login..." : "Authenticate with Plex"}
-                </button>
-                {apiKey.trim() !== "" && (
-                  <div className="mt-2 text-xs text-emerald-400">Authenticated with Plex</div>
-                )}
-              </div>
-            )}
-
-            {error && (
-              <div className="text-red-600 dark:text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onCancelService}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-600"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Add Service
-            </button>
-          </div>
-        </form>
+        {pendingService && (
+          <ServiceSetupForm
+            setup={pendingService.setup}
+            submitLabel="Add Service"
+            onSubmit={onConfirmService}
+            onCancel={onCancelService}
+          />
+        )}
       </AnimatedModal>
     </>
   );

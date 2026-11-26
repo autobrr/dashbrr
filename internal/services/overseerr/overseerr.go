@@ -343,8 +343,7 @@ func (s *OverseerrService) CheckHealth(ctx context.Context, url, apiKey string) 
 			Errors:  []string{err.Error()},
 		}).Error()
 
-		// Align error status with request failures
-		if resp.StatusCode >= 500 {
+		if resp.StatusCode >= 400 {
 			return s.CreateHealthResponse(startTime, "error", errMsg), http.StatusOK
 		}
 		return s.CreateHealthResponse(startTime, "warning", errMsg), http.StatusOK

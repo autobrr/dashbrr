@@ -16,6 +16,10 @@ export interface ServiceForm {
   urlPlaceholder: string;
   apiKeyLabel: string;
   apiKeyHelp: (service: ServiceLinkTarget) => FormHelp;
+  credential?: "optional" | "plexSignIn";
+  defaultUrl?: string;
+  hideUrl?: true;
+  testBeforeSave?: false;
 }
 
 const noHelp = (): FormHelp => ({ prefix: "", text: "", link: null });
@@ -87,6 +91,7 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   traefik: {
     urlPlaceholder: "http://localhost:8080",
     apiKeyLabel: "Auth Token (Optional)",
+    credential: "optional",
     apiKeyHelp: () => ({
       prefix: "Optional - ",
       text: "Bearer token or user:password for protected dashboard APIs",
@@ -101,6 +106,7 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   plex: {
     urlPlaceholder: "http://localhost:32400",
     apiKeyLabel: "X-Plex-Token",
+    credential: "plexSignIn",
     apiKeyHelp: () => ({
       prefix: "Authenticate via ",
       text: "Plex PIN flow guide",
@@ -125,6 +131,8 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   tailscale: {
     urlPlaceholder: "https://api.tailscale.com",
     apiKeyLabel: "API Token",
+    defaultUrl: "https://api.tailscale.com",
+    hideUrl: true,
     apiKeyHelp: ({ url }) => ({
       prefix: "Found in ",
       text: "Admin Console > Settings > Keys",
@@ -137,6 +145,7 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   netbird: {
     urlPlaceholder: "https://api.netbird.io",
     apiKeyLabel: "API Token (Personal Access Token)",
+    defaultUrl: "https://api.netbird.io",
     apiKeyHelp: ({ url }) => ({
       prefix: "Create one in ",
       text: "the NetBird dashboard, or Team > Users > Personal Access Tokens",
@@ -159,6 +168,8 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   general: {
     urlPlaceholder: "Enter full URL including health endpoint",
     apiKeyLabel: "API Key",
+    credential: "optional",
+    testBeforeSave: false,
     apiKeyHelp: () => ({
       prefix: "Optional - ",
       text: "api token for authentication if required",
@@ -168,6 +179,7 @@ export const serviceForms: Record<ServiceType, ServiceForm> = {
   other: {
     urlPlaceholder: defaultUrl,
     apiKeyLabel: "API Key",
+    testBeforeSave: false,
     apiKeyHelp: noHelp,
   },
 };

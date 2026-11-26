@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -22,9 +23,12 @@ type DatabaseService interface {
 	FindServiceBy(ctx context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error)
 }
 
+const serviceTestTimeout = 10 * time.Second
+
 type HealthHandler struct {
 	db             DatabaseService
 	serviceCreator models.ServiceCreator
+	timeout        time.Duration
 }
 
 func NewHealthHandler(db DatabaseService, creator ...models.ServiceCreator) *HealthHandler {
@@ -38,12 +42,12 @@ func NewHealthHandler(db DatabaseService, creator ...models.ServiceCreator) *Hea
 	return &HealthHandler{
 		db:             db,
 		serviceCreator: sc,
+		timeout:        serviceTestTimeout,
 	}
 }
 
 func (h *HealthHandler) CheckHealth(c *gin.Context) {
-	// Create a context with timeout for the entire health check operation
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
 	defer cancel()
 
 	serviceID := c.Param("service")
@@ -79,9 +83,7 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 			APIKey:     apiKey,
 		}
 
-		// API keys are write-only in settings payloads.
-		// If URL is provided without API key, reuse stored key for validation.
-		if serviceRequiresAPIKey(serviceType) && service.APIKey == "" {
+		if service.APIKey == "" {
 			existing, findErr := h.db.FindServiceBy(ctx, types.FindServiceParams{InstanceID: serviceID})
 			if findErr != nil {
 				// Check for context cancellation
@@ -150,36 +152,38 @@ func (h *HealthHandler) CheckHealth(c *gin.Context) {
 	// Use the context with timeout for health check
 	health, statusCode := serviceChecker.CheckHealth(ctx, service.URL, service.APIKey)
 
-	// Check for context cancellation after health check
 	if ctx.Err() != nil {
 		log.Error().Err(ctx.Err()).Str("service", serviceID).Msg("Context canceled during health check")
 		c.JSON(http.StatusGatewayTimeout, gin.H{
 			"status":  "error",
-			"message": "Health check timed out",
+			"message": fmt.Sprintf("The service did not answer within %s", h.timeout),
 		})
 		return
 	}
 
-	// Enhance error handling for specific status codes
 	if statusCode != http.StatusOK {
-		var errorMessage string
-		switch statusCode {
-		case http.StatusUnauthorized:
-			errorMessage = "Invalid API key"
-		case http.StatusNotFound:
-			errorMessage = "Service not found at the specified URL"
-		case http.StatusServiceUnavailable:
-			errorMessage = "Service is unavailable"
-		default:
-			errorMessage = "Failed to check service health"
-		}
-
-		c.JSON(statusCode, gin.H{
+		c.JSON(http.StatusBadGateway, gin.H{
 			"status":  "error",
-			"message": errorMessage,
+			"message": serviceFailureMessage(statusCode, health.Message),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, health)
+}
+
+func serviceFailureMessage(statusCode int, message string) string {
+	switch statusCode {
+	case http.StatusUnauthorized:
+		return "Invalid API key"
+	case http.StatusNotFound:
+		return "Service not found at the specified URL"
+	}
+	if message != "" {
+		return message
+	}
+	if statusCode == http.StatusServiceUnavailable {
+		return "Service is unavailable"
+	}
+	return "Failed to check service health"
 }

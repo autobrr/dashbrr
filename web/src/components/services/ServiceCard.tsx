@@ -272,7 +272,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
       >
         <ConfigurationForm
           instanceId={service.instanceId}
-          displayName={service.displayName}
           onClose={() => setShowConfig(false)}
         />
       </AnimatedModal>

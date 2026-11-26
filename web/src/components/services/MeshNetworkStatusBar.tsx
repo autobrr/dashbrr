@@ -161,7 +161,6 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
       >
         <ConfigurationForm
           instanceId={instanceId}
-          displayName={label}
           onClose={() => setIsConfigModalOpen(false)}
         />
       </AnimatedModal>
