@@ -112,8 +112,9 @@ func TestAuthHandlerEnsureProviderConfig(t *testing.T) {
 			"issuer": "%s",
 			"authorization_endpoint": "%s/authorize",
 			"token_endpoint": "%s/oauth/token",
-			"userinfo_endpoint": "%s/userinfo"
-		}`, serverURL, serverURL, serverURL, serverURL)
+			"userinfo_endpoint": "%s/userinfo",
+			"jwks_uri": "%s/jwks"
+		}`, serverURL, serverURL, serverURL, serverURL, serverURL)
 		w.Write([]byte(response))
 	}))
 	defer ts.Close()
@@ -184,8 +185,9 @@ func TestAuthHandlerEnsureProviderConfig_ConcurrentDiscoverySingleflight(t *test
 			"issuer": "%s",
 			"authorization_endpoint": "%s/authorize",
 			"token_endpoint": "%s/oauth/token",
-			"userinfo_endpoint": "%s/userinfo"
-		}`, serverURL, serverURL, serverURL, serverURL)
+			"userinfo_endpoint": "%s/userinfo",
+			"jwks_uri": "%s/jwks"
+		}`, serverURL, serverURL, serverURL, serverURL, serverURL)
 		w.Write([]byte(response))
 	}))
 	defer ts.Close()
@@ -476,7 +478,7 @@ func TestOIDCLoginRejectsProviderWithOtherIssuer(t *testing.T) {
 }
 
 func TestOIDCLoginRejectsDiscoveryWithoutEndpoints(t *testing.T) {
-	for _, missing := range []string{"authorization_endpoint", "token_endpoint"} {
+	for _, missing := range []string{"authorization_endpoint", "token_endpoint", "jwks_uri"} {
 		t.Run(missing, func(t *testing.T) {
 			p := newStubProvider(t)
 			p.omit = missing

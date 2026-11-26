@@ -121,7 +121,13 @@ func discoverProvider(ctx context.Context, issuer string) (*oidc.Provider, error
 	if err != nil {
 		return nil, err
 	}
-	if endpoint := provider.Endpoint(); endpoint.AuthURL == "" || endpoint.TokenURL == "" {
+	var keys struct {
+		URL string `json:"jwks_uri"`
+	}
+	if err := provider.Claims(&keys); err != nil {
+		return nil, err
+	}
+	if endpoint := provider.Endpoint(); endpoint.AuthURL == "" || endpoint.TokenURL == "" || keys.URL == "" {
 		return nil, errors.New("discovery document missing required endpoints")
 	}
 	return provider, nil
