@@ -83,3 +83,21 @@ test("status-only cards use compact spacing classes", () => {
     footerSpacingClass: "mt-2 pt-2",
   });
 });
+
+test("an empty card body shows only for types with persistent tiles", () => {
+  const alwaysShown = new Set(["autobrr", "uptimekuma", "bazarr", "sabnzbd", "nzbget"]);
+  const types = [
+    "autobrr", "radarr", "sonarr", "whisparr", "lidarr", "readarr", "bazarr",
+    "sabnzbd", "nzbget", "prowlarr", "traefik", "overseerr", "plex", "jellyfin",
+    "emby", "uptimekuma", "tailscale", "maintainerr", "qui", "general", "other",
+  ] as const;
+  for (const type of types) {
+    assert.equal(
+      hasMeaningfulServiceContent(makeService({ type })),
+      alwaysShown.has(type),
+      type
+    );
+  }
+  const unknown = makeService({ type: "removed-type" as Service["type"] });
+  assert.equal(hasMeaningfulServiceContent(unknown), false);
+});
