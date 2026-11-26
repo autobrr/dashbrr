@@ -52,6 +52,11 @@ class TestCheckPRBody(unittest.TestCase):
                 ["Empty or unchanged template section: How has this been tested?"],
             ),
             (
+                "testing without a method",
+                BODY.replace("CI covers this: test_check_pr_body.py.", "N/A"),
+                ["How has this been tested?: say how you checked the change"],
+            ),
+            (
                 "testing filled",
                 BODY.replace("CI covers this: test_check_pr_body.py.", "Ran it against Sonarr 4.0."),
                 [],
