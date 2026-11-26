@@ -4,8 +4,8 @@ import test from "node:test";
 import {
   addServiceSetup,
   editServiceSetup,
-  freeInstanceId,
   serviceTestNeeded,
+  serviceTestTarget,
   setupInput,
   type SetupField,
   type SetupValues
@@ -81,7 +81,7 @@ const config = (overrides: Partial<ServiceConfig> = {}): ServiceConfig => ({
 for (const [type, want] of Object.entries(rules) as [ServiceType, Rules][]) {
   test(`${type}: the add form shows its fields, rules and defaults`, () => {
     const setup = addServiceSetup(type, "Name", {});
-    assert.equal(setup.instanceId, `${type}-1`);
+    assert.equal(setup.mode, "add");
     assert.equal(setup.form, serviceForms[type]);
     assert.deepEqual(setup.fields, want.fields);
     assert.deepEqual(setup.required, want.addRequired);
@@ -116,28 +116,25 @@ test("the edits level decides which fields the edit form shows", () => {
   }
 });
 
-test("a new instance takes the lowest instance ID that no service has", () => {
-  const cases: Array<{ ids: string[]; want: string }> = [
-    { ids: [], want: "sonarr-1" },
-    { ids: ["sonarr-1"], want: "sonarr-2" },
-    { ids: ["sonarr-2"], want: "sonarr-1" },
-    { ids: ["sonarr-1", "sonarr-3"], want: "sonarr-2" },
-    { ids: ["sonarr-1", "sonarr-2", "radarr-3"], want: "sonarr-3" },
-    { ids: ["sonarr-k8s-media.sonarr", "sonarr-1"], want: "sonarr-2" },
-  ];
-  for (const { ids, want } of cases) {
-    const configurations = Object.fromEntries(ids.map((id) => [id, config()]));
-    assert.equal(freeInstanceId("sonarr", configurations).instanceId, want, ids.join(","));
-  }
+test("a new service is tested by its type, a stored one by its instance ID", () => {
+  const stored = { "sonarr-1": config() };
+  assert.equal(serviceTestTarget(addServiceSetup("sonarr", "Sonarr", stored)), "sonarr");
+  assert.equal(serviceTestTarget(editServiceSetup("sonarr-1", stored)), "sonarr-1");
 });
 
-test("a new instance's name carries its instance number after the first", () => {
-  assert.equal(addServiceSetup("sonarr", "Sonarr", {}).values.displayName, "Sonarr");
-  assert.equal(
-    addServiceSetup("sonarr", "Sonarr", { "sonarr-1": config(), "sonarr-2": config() })
-      .values.displayName,
-    "Sonarr 3"
-  );
+test("a new service takes the service name, numbered when a service has that name", () => {
+  const named = (...names: string[]) =>
+    Object.fromEntries(names.map((displayName, i) => [`sonarr-${i + 1}`, config({ displayName })]));
+  const cases: Array<{ names: string[]; want: string }> = [
+    { names: [], want: "Sonarr" },
+    { names: ["Sonarr 4K"], want: "Sonarr" },
+    { names: ["Sonarr"], want: "Sonarr 2" },
+    { names: ["Sonarr", "Sonarr 2"], want: "Sonarr 3" },
+    { names: ["Sonarr", "Sonarr 3"], want: "Sonarr 2" },
+  ];
+  for (const { names, want } of cases) {
+    assert.equal(addServiceSetup("sonarr", "Sonarr", named(...names)).values.displayName, want, names.join(","));
+  }
   assert.equal(addServiceSetup("general", "General", {}).values.displayName, "");
 });
 

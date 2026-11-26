@@ -12,11 +12,11 @@ interface ServiceTestResult {
 }
 
 export const testService = async (
-  instanceId: string,
+  target: string,
   input: ServiceConfigInput
 ): Promise<void> => {
   const result = await api.post<ServiceTestResult>(
-    `/health/${encodeURIComponent(instanceId)}`,
+    `/health/${encodeURIComponent(target)}`,
     { url: input.url, apiKey: input.apiKey || undefined }
   );
   if (result.status === "error" || result.status === "offline") {

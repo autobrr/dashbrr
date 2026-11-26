@@ -391,3 +391,39 @@ func TestServiceTestAcceptsALoginInTheURLInPlaceOfAKey(t *testing.T) {
 		})
 	}
 }
+
+func TestServiceTestOfANewServiceNamesOnlyItsType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	stored := map[string]*models.ServiceConfiguration{
+		"traefik-1": {InstanceID: "traefik-1", URL: "http://stored.test", APIKey: "stored-token"},
+	}
+	db := &testing_mocks.MockDB{
+		FindServiceByFunc: func(_ context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+			return stored[params.InstanceID], nil
+		},
+	}
+	var gotType, gotURL, gotKey string
+	creator := &mockServiceCreator{
+		createServiceFunc: func(serviceType string) models.ServiceHealthChecker {
+			gotType = serviceType
+			return &mockServiceHealthChecker{
+				checkHealthFunc: func(_ context.Context, url, apiKey string) (models.ServiceHealth, int) {
+					gotURL, gotKey = url, apiKey
+					return models.ServiceHealth{Status: "online"}, http.StatusOK
+				},
+			}
+		},
+	}
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/traefik", strings.NewReader(`{"url":"http://new.test"}`))
+	serviceTestRouter(NewHealthHandler(db, creator)).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
+	}
+	if gotType != "traefik" || gotURL != "http://new.test" || gotKey != "" {
+		t.Fatalf("checked type %q at %q with key %q, want traefik at http://new.test with no key", gotType, gotURL, gotKey)
+	}
+}

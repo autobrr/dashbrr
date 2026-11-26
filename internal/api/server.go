@@ -220,6 +220,7 @@ func (s *Server) Handler() http.Handler {
 		settings := api.Group("/settings")
 		{
 			settings.GET("", settingsHandler.GetSettings)
+			settings.POST("", settingsHandler.CreateSettings)
 			settings.POST("/:instance", settingsHandler.SaveSettings)
 			settings.DELETE("/:instance", settingsHandler.DeleteSettings)
 		}

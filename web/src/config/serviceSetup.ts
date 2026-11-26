@@ -25,15 +25,16 @@ export interface SetupValues {
   apiKey: string;
 }
 
-export interface ServiceSetup {
-  mode: "add" | "edit";
-  instanceId: string;
+interface SetupFields {
   form: ServiceForm;
   edits: ServiceEdits;
   fields: SetupField[];
   required: SetupField[];
   values: SetupValues;
 }
+
+export type ServiceSetup = SetupFields &
+  ({ mode: "add"; type: ServiceType } | { mode: "edit"; instanceId: string });
 
 export type SetupResult = { input: ServiceConfigInput } | { error: string };
 
@@ -77,15 +78,11 @@ const requiredFields = (
     }
   });
 
-export const freeInstanceId = (
-  type: ServiceType,
-  configurations: Configurations
-): { instanceId: string; number: number } => {
+const freeDisplayName = (name: string, configurations: Configurations): string => {
+  const taken = new Set(Object.values(configurations).map((c) => c.displayName));
   for (let number = 1; ; number++) {
-    const instanceId = `${type}-${number}`;
-    if (!Object.prototype.hasOwnProperty.call(configurations, instanceId)) {
-      return { instanceId, number };
-    }
+    const candidate = number === 1 ? name : `${name} ${number}`;
+    if (!taken.has(candidate)) return candidate;
   }
 };
 
@@ -95,19 +92,17 @@ export const addServiceSetup = (
   configurations: Configurations
 ): ServiceSetup => {
   const form = serviceForms[type];
-  const { instanceId, number } = freeInstanceId(type, configurations);
   const fields = fieldsFor(form, "all");
 
   return {
     mode: "add",
-    instanceId,
+    type,
     form,
     edits: "all",
     fields,
     required: requiredFields(form, fields, "add"),
     values: {
-      displayName:
-        type === "general" ? "" : number > 1 ? `${name} ${number}` : name,
+      displayName: type === "general" ? "" : freeDisplayName(name, configurations),
       url: form.defaultUrl ?? "",
       accessUrl: "",
       apiKey: "",
@@ -182,6 +177,9 @@ export const setupInput = (
     },
   };
 };
+
+export const serviceTestTarget = (setup: ServiceSetup): string =>
+  setup.mode === "add" ? setup.type : setup.instanceId;
 
 export const serviceTestNeeded = (
   setup: ServiceSetup,

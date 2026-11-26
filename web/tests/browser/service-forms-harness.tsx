@@ -4,17 +4,24 @@ import { createRoot } from "react-dom/client";
 import { AddServicesMenu } from "../../src/components/AddServicesMenu";
 import { ConfigurationForm } from "../../src/components/configuration/ConfigurationForm";
 import { serviceTemplates } from "../../src/config/serviceTemplates";
+import { AuthContext } from "../../src/contexts/AuthContext";
+import { ConfigurationProvider } from "../../src/contexts/ConfigurationContext";
 import { ConfigurationContext } from "../../src/contexts/context";
+import { useConfiguration } from "../../src/contexts/useConfiguration";
 import { useServiceManagement } from "../../src/hooks/useServiceManagement";
-import type { ServiceConfig, ServiceConfigInput } from "../../src/types/service";
+import type { ServiceConfig, ServiceConfigInput, ServiceType } from "../../src/types/service";
 
 declare global {
   interface Window {
     saves: Array<{ instanceId: string; config: ServiceConfigInput }>;
+    creates: Array<{ type: ServiceType; config: ServiceConfigInput }>;
   }
 }
 
 window.saves = [];
+window.creates = [];
+
+const UNSEEN_SERVER_ID = "sonarr-7";
 
 const stored: Record<string, ServiceConfig> = {
   "sonarr-2": { displayName: "Sonarr 2", url: "http://sonarr.test:8989", edits: "all" },
@@ -44,6 +51,38 @@ export function AddService() {
   );
 }
 
+function ConfiguredIds() {
+  const { configurations } = useConfiguration();
+  return (
+    <ul aria-label="Configured services">
+      {Object.keys(configurations).map((id) => (
+        <li key={id}>{id}</li>
+      ))}
+    </ul>
+  );
+}
+
+const signedIn = {
+  isAuthenticated: true,
+  loading: false,
+  authConfig: null,
+  login: async () => undefined,
+  register: async () => undefined,
+  logout: async () => undefined,
+  loginWithOIDC: () => undefined,
+};
+
+function RealProvider() {
+  return (
+    <AuthContext.Provider value={signedIn}>
+      <ConfigurationProvider>
+        <AddService />
+        <ConfiguredIds />
+      </ConfigurationProvider>
+    </AuthContext.Provider>
+  );
+}
+
 export function Harness() {
   const [configurations, setConfigurations] = useState(stored);
   const params = new URLSearchParams(window.location.search);
@@ -51,6 +90,12 @@ export function Harness() {
 
   const value = {
     configurations,
+    createConfiguration: async (type: ServiceType, config: ServiceConfigInput) => {
+      window.creates.push({ type, config });
+      const created = { ...config, apiKey: undefined, edits: "all" as const, instanceId: UNSEEN_SERVER_ID };
+      setConfigurations((prev) => ({ ...prev, [UNSEEN_SERVER_ID]: created }));
+      return created;
+    },
     updateConfiguration: async (instanceId: string, config: ServiceConfigInput) => {
       window.saves.push({ instanceId, config });
       const saved = { ...config, apiKey: undefined, edits: "all" as const };
@@ -70,6 +115,7 @@ export function Harness() {
       ) : (
         <AddService />
       )}
+      <ConfiguredIds />
     </ConfigurationContext.Provider>
   );
 }
@@ -80,8 +126,10 @@ if (!app) {
   throw new Error("missing app mount");
 }
 
+const realProvider = new URLSearchParams(window.location.search).has("provider");
+
 createRoot(app).render(
   <React.StrictMode>
-    <Harness />
+    {realProvider ? <RealProvider /> : <Harness />}
   </React.StrictMode>
 );

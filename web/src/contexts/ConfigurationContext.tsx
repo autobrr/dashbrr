@@ -4,10 +4,10 @@
  */
 
 import { useState, useEffect, ReactNode, useCallback, useRef } from "react";
-import { ServiceConfig, ServiceConfigInput } from "../types/service";
+import { ServiceConfig, ServiceConfigInput, ServiceType } from "../types/service";
 import { useAuth } from "../hooks/useAuth";
 import { ConfigurationContext } from "./context";
-import { ConfigurationContextType } from "./types";
+import { ConfigurationContextType, CreatedServiceConfig } from "./types";
 import { api } from "../utils/api";
 
 export function ConfigurationProvider({ children }: { children: ReactNode }) {
@@ -56,6 +56,26 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
     fetchConfigurations();
   }, [fetchConfigurations]);
 
+  const createConfiguration = async (
+    type: ServiceType,
+    config: ServiceConfigInput
+  ) => {
+    try {
+      setError(null);
+      const created = await api.post<CreatedServiceConfig>("/settings", {
+        type,
+        ...config,
+      });
+      setConfigurations((prev) => ({ ...prev, [created.instanceId]: created }));
+      return created;
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to add service";
+      setError(errorMessage);
+      throw new Error(errorMessage, { cause: err });
+    }
+  };
+
   const updateConfiguration = async (
     instanceId: string,
     config: ServiceConfigInput
@@ -103,6 +123,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
 
   const contextValue: ConfigurationContextType = {
     configurations,
+    createConfiguration,
     updateConfiguration,
     deleteConfiguration,
     fetchConfigurations,

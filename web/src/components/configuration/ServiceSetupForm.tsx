@@ -9,6 +9,7 @@ import { toast } from "react-hot-toast";
 import {
   ServiceSetup,
   serviceTestNeeded,
+  serviceTestTarget,
   setupInput,
   SetupValues
 } from "../../config/serviceSetup";
@@ -59,7 +60,7 @@ export const ServiceSetupForm = ({
     try {
       if (serviceTestNeeded(setup, result.input)) {
         setPhase("testing");
-        await testService(setup.instanceId, result.input);
+        await testService(serviceTestTarget(setup), result.input);
       }
       setPhase("saving");
       await onSubmit(result.input);

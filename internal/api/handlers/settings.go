@@ -17,6 +17,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/services/manager"
 	"github.com/autobrr/dashbrr/internal/types"
@@ -177,50 +178,85 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 		Bool("api_key_set", config.APIKey != "").
 		Msg("Saving configuration")
 
-	// Check if configuration exists
 	existing, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil {
 		log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing configuration"})
 		return
 	}
+	if existing == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Configuration not found"})
+		return
+	}
 
-	// API keys are write-only. If omitted on update, keep existing.
-	if existing != nil && config.APIKey == "" {
+	if config.APIKey == "" {
 		config.APIKey = existing.APIKey
 	}
 
-	var saveErr error
-	if existing == nil {
-		// Create new configuration
-		log.Debug().Str("instance", instanceID).Msg("Creating new configuration")
-		saveErr = h.db.CreateService(c.Request.Context(), &config)
-	} else {
-		// Update existing configuration
-		log.Debug().Str("instance", instanceID).Msg("Updating existing configuration")
-		saveErr = h.db.UpdateService(c.Request.Context(), &config)
-	}
-
-	if saveErr != nil {
-		log.Error().Err(saveErr).Str("instance", instanceID).Msg("Error saving configuration")
+	if err := h.db.UpdateService(c.Request.Context(), &config); err != nil {
+		log.Error().Err(err).Str("instance", instanceID).Msg("Error saving configuration")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
 		return
 	}
 
-	// Initialize service data
-	h.serviceManager.InitializeService(c.Request.Context(), &config)
+	h.serviceSaved(c.Request.Context(), &config)
+	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")
+	c.JSON(http.StatusOK, serviceConfigResponse(config))
+}
 
-	// Invalidate cache
-	if err := InvalidateSettingsCache(c.Request.Context(), h.cache); err != nil {
+type createServiceRequest struct {
+	Type        string `json:"type"`
+	DisplayName string `json:"displayName"`
+	URL         string `json:"url"`
+	APIKey      string `json:"apiKey"`
+	AccessURL   string `json:"accessUrl"`
+}
+
+func (h *SettingsHandler) CreateSettings(c *gin.Context) {
+	var req createServiceRequest
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	serviceType, ok := catalog.Lookup(req.Type)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unknown service type: " + req.Type})
+		return
+	}
+
+	config := models.ServiceConfiguration{
+		DisplayName: req.DisplayName,
+		URL:         strings.TrimRight(req.URL, "/"),
+		APIKey:      req.APIKey,
+		AccessURL:   req.AccessURL,
+	}
+	if !serviceURLsValid(config) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": invalidServiceURLMessage})
+		return
+	}
+
+	if err := h.db.CreateServiceInstance(c.Request.Context(), serviceType.Name, &config); err != nil {
+		log.Error().Err(err).Str("type", serviceType.Name).Msg("Error creating configuration")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save settings"})
+		return
+	}
+
+	h.serviceSaved(c.Request.Context(), &config)
+	log.Info().Str("instance", config.InstanceID).Msg("Successfully created configuration")
+	c.JSON(http.StatusCreated, serviceConfigResponse(config))
+}
+
+func (h *SettingsHandler) serviceSaved(ctx context.Context, config *models.ServiceConfiguration) {
+	h.serviceManager.InitializeService(ctx, config)
+
+	if err := InvalidateSettingsCache(ctx, h.cache); err != nil {
 		log.Warn().Err(err).Msg("Failed to delete configuration cache")
 	}
 
 	if h.poller != nil {
-		h.poller.Refresh(instanceID)
+		h.poller.Refresh(config.InstanceID)
 	}
-
-	log.Info().Str("instance", instanceID).Msg("Successfully saved configuration")
-	c.JSON(http.StatusOK, serviceConfigResponse(config))
 }
 
 func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
