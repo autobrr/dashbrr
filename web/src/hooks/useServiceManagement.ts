@@ -15,13 +15,6 @@ interface PendingService {
   displayName: string;
 }
 
-interface ServiceConfig {
-  url: string;
-  apiKey: string;
-  displayName: string;
-  accessUrl?: string;
-}
-
 export const useServiceManagement = () => {
   const { configurations, updateConfiguration, deleteConfiguration } = useConfiguration();
   const [showServiceConfig, setShowServiceConfig] = useState(false);
@@ -57,7 +50,7 @@ export const useServiceManagement = () => {
         apiKey,
         displayName: displayName || pendingService.displayName,
         accessUrl,
-      } as ServiceConfig);
+      });
 
       toast.success("Added new service instance");
       setShowServiceConfig(false);

@@ -13,12 +13,27 @@ Owner: soup (s0up4200@pm.me)
 - Before you write logic that a published spec or format defines (Markdown, HTML, URLs, CSV, semver, cron, time zones), use a well-proven library for it. Name the library in the PR body. If hand-written logic of this kind needs a second fix for an edge case, replace it with the library.
 - In final reports, state which checks ran and which were skipped. Do not claim complete while a required check is known failing.
 
+## Rules and what enforces them
+
+When soup corrects you, fix the mistake and add its rule here. If the rule is already here and nothing enforces it, the correction is a repeat: in the same change, enforce it with a structure, a type, or a check, and fill in the right column.
+
+| Rule | Enforced by |
+| --- | --- |
+| Gate edit and remove controls on the `edits` field of a service configuration (`all`, `apiKey`, `none`). Only `models.AllowedEdits` decides it. | The settings response has no `discovered` field, so tsc fails on code that reads it. `TestServiceConfigResponseEdits` and `TestSettingsDiscoveredService`. |
+| Put the URL placeholder, API key label, and API key help of a service type in `web/src/config/serviceForms.ts`. Both service forms read it. | `Record<ServiceType, ServiceForm>`: tsc fails when a type has no entry. |
+| Log a service URL only through `core.RedactURL`. | `make check-log-urls`, in CI. |
+| Write web API URLs as relative paths (`api/...`), so they resolve under a base path. | ESLint `no-restricted-syntax` in `web/eslint.config.js`. |
+| A PR with the `breaking change` label has `!` in its title. | `.github/workflows/pr-title.yml`. |
+| Web unit tests pass. | `pnpm -C web test`, in CI. |
+| Run the browser tests before you report on them. A launch error that names a missing executable means the browser build differs from the one the locked Playwright version needs. | `pnpm -C web test:browser` installs that Chromium build before it runs the tests. |
+| Spec-defined logic (URLs, paths, Markdown, semver, cron, time zones) uses a proven library. | Judgment, no check: see Collaboration. |
+| Update PR branches by merging develop. | Judgment, no check: see Git. |
+
 ## Git
 
 - Conventional commits: `feat(scope):`, `fix(scope):`, etc. Keep commits focused; split backend/frontend when practical.
 - Update PR branches by merging develop into them, never rebase/force-push. PRs are squash-merged, so rebase gains nothing and force-pushes break review history and contributors' local branches.
-- Always label a PR when you open it. Run `gh label list` and pick from the existing labels; do not invent new ones. Add `breaking change` whenever the PR renames or removes anything user-facing.
-- Never add AI advertising/attribution/co-author lines.
+- Add the `breaking change` label whenever a PR renames or removes anything user-facing.
 
 ## Commands
 

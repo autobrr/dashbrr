@@ -54,7 +54,7 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
   const counts = memberCounts(items, descriptor.reportedCounts(service));
   const statusKind = networkStatus({ status: service?.status, online: counts.online });
   const serverUpdate = descriptor.serverUpdateAvailable(service);
-  const isDiscovered = Boolean(configurations[instanceId]?.discovered);
+  const canEdit = configurations[instanceId]?.edits === "all";
   const isLoading = statusKind === "loading";
 
   const handleConfirmRemove = async () => {
@@ -132,7 +132,7 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
             Update available
           </span>
         )}
-        {!isDiscovered && (
+        {canEdit && (
           <button
             onClick={() => setIsConfigModalOpen(true)}
             className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
@@ -142,7 +142,7 @@ const NetworkButton: React.FC<NetworkButtonProps> = ({ descriptor, instanceId })
             <Cog6ToothIcon className="w-4 h-4" />
           </button>
         )}
-        {!isDiscovered && (
+        {canEdit && (
           <button
             onClick={() => setIsRemoveModalOpen(true)}
             className="p-1 text-gray-400 hover:text-blue-400 transition-colors"

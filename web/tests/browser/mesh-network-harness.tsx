@@ -103,6 +103,7 @@ if (!netbirdScenarios.includes(script)) {
     type: "tailscale",
     status: "online",
     url: "https://api.tailscale.com",
+    edits: "all",
   } as unknown as ServiceConfig;
   services.push(tailscaleService);
 }
@@ -113,7 +114,7 @@ if (script !== "tailscale-only") {
     type: "netbird",
     status: "online",
     url: "https://api.netbird.io",
-    discovered: script === "discovered",
+    edits: script === "discovered" ? "none" : "all",
   } as unknown as ServiceConfig;
   services.push(
     script === "netbird-warning"

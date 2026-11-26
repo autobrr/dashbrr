@@ -66,13 +66,17 @@ export interface Service {
   health?: ServiceHealth;
 }
 
-export interface ServiceConfig {
+export type ServiceEdits = "all" | "apiKey" | "none";
+
+export interface ServiceConfigInput {
   url: string;
   accessUrl?: string;
   apiKey?: string;
   displayName: string;
-  // Kubernetes discovery owns the service, so the user cannot change it.
-  discovered?: boolean;
+}
+
+export interface ServiceConfig extends ServiceConfigInput {
+  edits: ServiceEdits;
 }
 
 // Autobrr Types

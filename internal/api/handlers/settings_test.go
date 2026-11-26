@@ -187,21 +187,24 @@ func TestSettingsDiscoveredService(t *testing.T) {
 	}
 }
 
-func TestServiceConfigResponseMarksDiscovered(t *testing.T) {
+func TestServiceConfigResponseEdits(t *testing.T) {
 	tests := []struct {
 		instanceID string
-		want       bool
+		want       models.ServiceEdits
 	}{
-		{instanceID: "radarr-k8s-media.radarr", want: true},
-		{instanceID: "radarr-1", want: false},
-		{instanceID: "radarr-docker", want: false},
+		{instanceID: "radarr-k8s-media.radarr", want: models.EditsNone},
+		{instanceID: "tailscale-k8s-net.tailscale", want: models.EditsNone},
+		{instanceID: "plex-k8s-media.plex", want: models.EditsAPIKey},
+		{instanceID: "plex-1", want: models.EditsAll},
+		{instanceID: "radarr-1", want: models.EditsAll},
+		{instanceID: "radarr-docker", want: models.EditsAll},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.instanceID, func(t *testing.T) {
 			got := serviceConfigResponse(models.ServiceConfiguration{InstanceID: tt.instanceID})
-			if got.Discovered != tt.want {
-				t.Fatalf("Discovered = %v, want %v", got.Discovered, tt.want)
+			if got.Edits != tt.want {
+				t.Fatalf("Edits = %q, want %q", got.Edits, tt.want)
 			}
 		})
 	}

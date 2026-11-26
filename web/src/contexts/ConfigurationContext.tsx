@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, ReactNode, useCallback, useRef } from "react";
-import { ServiceConfig } from "../types/service";
+import { ServiceConfig, ServiceConfigInput } from "../types/service";
 import { useAuth } from "../hooks/useAuth";
 import { ConfigurationContext } from "./context";
 import { ConfigurationContextType } from "./types";
@@ -58,7 +58,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
 
   const updateConfiguration = async (
     instanceId: string,
-    config: ServiceConfig
+    config: ServiceConfigInput
   ) => {
     try {
       setError(null);
