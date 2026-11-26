@@ -43,10 +43,6 @@ type quiServerState struct {
 	AllTimeUploaded   int64 `json:"alltime_ul"`
 }
 
-func init() {
-	models.NewQuiService = NewQuiService
-}
-
 func NewQuiService() models.ServiceHealthChecker {
 	service := &QuiService{}
 	service.Type = "qui"

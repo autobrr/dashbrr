@@ -68,10 +68,6 @@ type Collection struct {
 	Media      []json.RawMessage `json:"media,omitempty"`
 }
 
-func init() {
-	models.NewMaintainerrService = NewMaintainerrService
-}
-
 func NewMaintainerrService() models.ServiceHealthChecker {
 	service := &MaintainerrService{}
 	service.Type = "maintainerr"

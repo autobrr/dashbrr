@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/general"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +33,7 @@ var generalServiceSpec = serviceSpec{
 		return serviceURL, apiKey, displayName, nil
 	},
 	HealthCheck: func(ctx context.Context, serviceURL, apiKey string) (models.ServiceHealth, int) {
-		return models.NewGeneralService().CheckHealth(ctx, serviceURL, apiKey)
+		return general.NewGeneralService().CheckHealth(ctx, serviceURL, apiKey)
 	},
 	HealthOK: func(health models.ServiceHealth) bool {
 		return health.Status == "online"

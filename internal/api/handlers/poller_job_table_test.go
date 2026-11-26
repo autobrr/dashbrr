@@ -8,7 +8,23 @@ import (
 	"maps"
 	"slices"
 	"testing"
+
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 )
+
+func TestPollerHasJobsForEveryServiceType(t *testing.T) {
+	jobs := NewPoller(nil, nil).jobs
+	for _, st := range catalog.All() {
+		if _, ok := jobs[st.Name]; !ok {
+			t.Errorf("service type %q has no entry in the jobs of NewPoller in internal/api/handlers/poller.go; give it its jobs, or an empty list for health checks only", st.Name)
+		}
+	}
+	for name := range jobs {
+		if _, ok := catalog.Lookup(name); !ok {
+			t.Errorf("NewPoller has jobs for %q, which is not a service type in internal/services/catalog", name)
+		}
+	}
+}
 
 func TestNewPollerJobTable(t *testing.T) {
 	want := map[string][]string{

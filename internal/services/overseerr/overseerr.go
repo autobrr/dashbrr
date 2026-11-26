@@ -58,10 +58,6 @@ var (
 	titleCache   = make(map[string]titleCacheEntry)
 )
 
-func init() {
-	models.NewOverseerrService = NewOverseerrService
-}
-
 func NewOverseerrService() models.ServiceHealthChecker {
 	service := &OverseerrService{}
 	service.Type = "overseerr"

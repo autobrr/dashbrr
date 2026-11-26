@@ -30,10 +30,6 @@ const (
 	autobrrReleasesTimeout     = 8 * time.Second
 )
 
-func init() {
-	models.NewAutobrrService = NewAutobrrService
-}
-
 func NewAutobrrService() models.ServiceHealthChecker {
 	service := &AutobrrService{}
 	service.Type = "autobrr"

@@ -17,10 +17,6 @@ type SonarrService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewSonarrService = NewSonarrService
-}
-
 func NewSonarrService() models.ServiceHealthChecker {
 	service := &SonarrService{}
 	service.Type = "sonarr"

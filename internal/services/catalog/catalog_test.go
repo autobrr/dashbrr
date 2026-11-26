@@ -1,14 +1,13 @@
 // Copyright (c) 2026, s0up and the autobrr contributors.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-package models_test
+package catalog_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/autobrr/dashbrr/internal/models"
-	_ "github.com/autobrr/dashbrr/internal/services"
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 )
 
 func TestRegistryCreatesEveryServiceType(t *testing.T) {
@@ -34,7 +33,7 @@ func TestRegistryCreatesEveryServiceType(t *testing.T) {
 		"uptimekuma":  "*uptimekuma.UptimeKumaService",
 		"whisparr":    "*whisparr.WhisparrService",
 	}
-	registry := models.NewServiceRegistry()
+	registry := catalog.Registry{}
 	for serviceType, wantType := range want {
 		if got := fmt.Sprintf("%T", registry.CreateService(serviceType)); got != wantType {
 			t.Errorf("CreateService(%q) = %s, want %s", serviceType, got, wantType)

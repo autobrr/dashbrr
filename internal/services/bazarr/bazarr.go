@@ -47,10 +47,6 @@ type BazarrService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewBazarrService = NewBazarrService
-}
-
 func NewBazarrService() models.ServiceHealthChecker {
 	service := &BazarrService{}
 	service.Type = "bazarr"

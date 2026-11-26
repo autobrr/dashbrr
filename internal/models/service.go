@@ -45,27 +45,3 @@ const (
 type ServiceHealthChecker interface {
 	CheckHealth(ctx context.Context, url, apiKey string) (ServiceHealth, int)
 }
-
-// Service creation function types
-var (
-	NewAutobrrService     func() ServiceHealthChecker
-	NewBazarrService      func() ServiceHealthChecker
-	NewRadarrService      func() ServiceHealthChecker
-	NewSonarrService      func() ServiceHealthChecker
-	NewWhisparrService    func() ServiceHealthChecker
-	NewLidarrService      func() ServiceHealthChecker
-	NewReadarrService     func() ServiceHealthChecker
-	NewSabnzbdService     func() ServiceHealthChecker
-	NewNzbgetService      func() ServiceHealthChecker
-	NewJellyfinService    func() ServiceHealthChecker
-	NewEmbyService        func() ServiceHealthChecker
-	NewUptimeKumaService  func() ServiceHealthChecker
-	NewTraefikService     func() ServiceHealthChecker
-	NewProwlarrService    func() ServiceHealthChecker
-	NewOverseerrService   func() ServiceHealthChecker
-	NewPlexService        func() ServiceHealthChecker
-	NewTailscaleService   func() ServiceHealthChecker
-	NewMaintainerrService func() ServiceHealthChecker
-	NewQuiService         func() ServiceHealthChecker
-	NewGeneralService     func() ServiceHealthChecker
-)
