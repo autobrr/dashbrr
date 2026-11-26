@@ -38,11 +38,9 @@ type SettingsHandler struct {
 	lastDebugLog   time.Time
 }
 
-// serviceConfigResponse prepares a configuration for an API response: it
-// removes the API key and marks a discovered service.
 func serviceConfigResponse(c models.ServiceConfiguration) models.ServiceConfiguration {
 	c.APIKey = ""
-	c.Discovered = models.IsDiscoveredInstanceID(c.InstanceID)
+	c.Edits = models.AllowedEdits(c.InstanceID)
 	return c
 }
 
@@ -153,13 +151,12 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 
 	config.InstanceID = instanceID
 
-	// Discovery owns every field of a discovered service. The one exception is
-	// the token of a Plex service, which comes from the Plex sign-in in the UI.
-	if models.IsDiscoveredInstanceID(instanceID) {
-		if t, _ := models.ServiceTypeFromInstanceID(instanceID); t != "plex" {
-			c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
-			return
-		}
+	switch models.AllowedEdits(instanceID) {
+	case models.EditsNone:
+		c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
+		return
+	case models.EditsAll:
+	case models.EditsAPIKey:
 		discovered, err := h.db.FindServiceBy(c.Request.Context(), types.FindServiceParams{InstanceID: instanceID})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Error().Err(err).Str("instance", instanceID).Msg("Error checking existing configuration")
@@ -237,7 +234,7 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 
 func (h *SettingsHandler) DeleteSettings(c *gin.Context) {
 	instanceID := c.Param("instance")
-	if models.IsDiscoveredInstanceID(instanceID) {
+	if models.AllowedEdits(instanceID) != models.EditsAll {
 		c.JSON(http.StatusForbidden, gin.H{"error": discoveredServiceMessage})
 		return
 	}

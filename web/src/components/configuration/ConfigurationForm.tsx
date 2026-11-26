@@ -5,13 +5,13 @@
 
 import { useState } from "react";
 import { useConfiguration } from "../../contexts/useConfiguration";
-import { ServiceConfig } from "../../types/service";
+import { ServiceConfigInput } from "../../types/service";
 import { Button } from "../ui/Button";
 import { FormInput } from "../ui/FormInput";
 import { toast } from "react-hot-toast";
 import { api } from "../../utils/api";
 import { usePlexPinAuth } from "../../hooks/usePlexPinAuth";
-import { serviceLink } from "../../utils/serviceLink";
+import { serviceFormFor } from "../../config/serviceForms";
 
 interface ConfigurationFormProps {
   instanceId: string;
@@ -27,8 +27,7 @@ export const ConfigurationForm = ({
   const { configurations, updateConfiguration } = useConfiguration();
   const currentConfig = configurations[instanceId];
   const hasExistingConfig = Boolean(currentConfig);
-  // Discovery owns every field of a discovered service except the API key.
-  const isDiscovered = Boolean(currentConfig?.discovered);
+  const editsAll = (currentConfig?.edits ?? "all") === "all";
   const serviceType = instanceId.split("-")[0];
   const isPlexService = serviceType === "plex";
   const requiresApiKey =
@@ -44,7 +43,7 @@ export const ConfigurationForm = ({
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticating, authenticate } = usePlexPinAuth();
 
-  const validateConfiguration = async (config: ServiceConfig) => {
+  const validateConfiguration = async (config: ServiceConfigInput) => {
     try {
       const queryParams = new URLSearchParams({
         url: config.url || "",
@@ -80,7 +79,7 @@ export const ConfigurationForm = ({
         throw new Error("Authenticate with Plex first");
       }
 
-      const config: ServiceConfig = {
+      const config: ServiceConfigInput = {
         url: url.endsWith("/") ? url.slice(0, -1) : url,
         accessUrl: accessUrl
           ? accessUrl.endsWith("/")
@@ -115,153 +114,27 @@ export const ConfigurationForm = ({
     }
   };
 
-  const getApiKeyLabel = () => {
-    switch (serviceType) {
-      case "plex":
-        return "X-Plex-Token";
-      case "radarr":
-      case "sonarr":
-      case "whisparr":
-      case "lidarr":
-      case "readarr":
-      case "bazarr":
-      case "sabnzbd":
-      case "prowlarr":
-        return "API Key";
-      case "overseerr":
-        return "API Key";
-      case "jellyfin":
-      case "emby":
-      case "uptimekuma":
-        return "API Key";
-      case "nzbget":
-        return "Control Password";
-      case "traefik":
-        return "Auth Token (Optional)";
-      default:
-        return "API Key";
-    }
-  };
+  const form = serviceFormFor(serviceType);
+  const apiKeyHelp = form.apiKeyHelp({ url, accessUrl });
 
-  const getSettingsUrl = (path: string): string | null =>
-    serviceLink({ url, accessUrl }, path);
-
-  const getApiKeyHelp = () => {
-    switch (serviceType) {
-      case "autobrr":
-        return {
-          prefix: "Found in ",
-          text: "Settings > API",
-          link: getSettingsUrl("/settings/api"),
-        };
-      case "plex":
-        return {
-          prefix: "Authenticate via ",
-          text: "Plex PIN flow guide",
-          link: "https://forums.plex.tv/t/authenticating-with-plex/609370",
-        };
-      case "radarr":
-      case "sonarr":
-      case "whisparr":
-      case "lidarr":
-      case "readarr":
-      case "bazarr":
-      case "sabnzbd":
-      case "nzbget":
-      case "prowlarr":
-        return {
-          prefix: "Found in ",
-          text:
-            serviceType === "sabnzbd"
-              ? "Config > General"
-              : serviceType === "nzbget"
-                ? "Settings > Security"
-                : "Settings > General",
-          link:
-            serviceType === "sabnzbd"
-              ? getSettingsUrl("/config/general/")
-              : serviceType === "nzbget"
-                ? getSettingsUrl("/#settings")
-                : getSettingsUrl("/settings/general"),
-        };
-      case "jellyfin":
-        return {
-          prefix: "Found in ",
-          text: "Dashboard > API Keys",
-          link: getSettingsUrl("/web/index.html#!/apikeys.html"),
-        };
-      case "emby":
-        return {
-          prefix: "Found in ",
-          text: "Settings > Advanced > API Keys",
-          link: getSettingsUrl("/web/index.html#!/apikeys"),
-        };
-      case "uptimekuma":
-        return {
-          prefix: "Found in ",
-          text: "Settings > API Keys",
-          link: getSettingsUrl("/settings/api-keys"),
-        };
-      case "overseerr":
-        return {
-          prefix: "Found in ",
-          text: "Settings",
-          link: getSettingsUrl("/settings/main"),
-        };
-      case "traefik":
-        return {
-          prefix: "Optional - ",
-          text: "Bearer token or user:password for protected dashboard APIs",
-          link: null,
-        };
-      case "qui":
-        return {
-          prefix: "Found in ",
-          text: "Settings > API Key",
-          link: getSettingsUrl("/settings"),
-        };
-      default:
-        return {
-          prefix: "",
-          text: "",
-          link: null,
-        };
-    }
-  };
-
-  const getUrlPlaceholder = () => {
-    switch (serviceType) {
-      case "plex":
-        return "http://localhost:32400";
-      case "qui":
-        return "http://localhost:7476";
-      case "jellyfin":
-      case "emby":
-        return "http://localhost:8096";
-      case "uptimekuma":
-        return "http://localhost:3001";
-      case "bazarr":
-        return "http://localhost:6767";
-      case "whisparr":
-        return "http://localhost:6969";
-      case "traefik":
-        return "http://localhost:8080";
-      case "sabnzbd":
-        return "http://localhost:8080";
-      case "nzbget":
-        return "http://localhost:6789";
-      case "general":
-        return "Enter full URL including health endpoint";
-      default:
-        return "Enter service URL";
-    }
-  };
-
-  const apiKeyHelp = getApiKeyHelp();
+  if (currentConfig?.edits === "none") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Kubernetes discovery manages this service. Change its annotations to change it.
+        </p>
+        <div className="flex justify-end">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {!isDiscovered && (
+      {editsAll && (
         <>
           <FormInput
             id="displayName"
@@ -279,7 +152,7 @@ export const ConfigurationForm = ({
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder={getUrlPlaceholder()}
+            placeholder={form.urlPlaceholder}
             helpText={{
               prefix: "Used for ",
               text: "API communication and health checks",
@@ -335,11 +208,11 @@ export const ConfigurationForm = ({
         ) : (
           <FormInput
             id="apiKey"
-            label={getApiKeyLabel()}
+            label={form.apiKeyLabel}
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={`Enter ${getApiKeyLabel()}`}
+            placeholder={`Enter ${form.apiKeyLabel}`}
             helpText={apiKeyHelp}
             required={!hasExistingConfig && requiresApiKey}
             data-1p-ignore
