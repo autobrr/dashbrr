@@ -11,6 +11,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
+	"github.com/autobrr/dashbrr/internal/services/netbird"
 	"github.com/autobrr/dashbrr/internal/services/tailscale"
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -528,6 +529,34 @@ func buildTailscaleDevicesServiceUpdate(instanceID string, devices []tailscale.D
 			"tailscale": map[string]any{
 				"total":  len(devices),
 				"online": countOnlineDevices(devices),
+			},
+		},
+	}
+}
+
+func buildNetBirdPeersServiceUpdate(instanceID string, peers []netbird.Peer, serverUpdateAvailable bool) models.ServiceHealth {
+	onlineCount := 0
+	for _, peer := range peers {
+		if peer.Online {
+			onlineCount++
+		}
+	}
+
+	return models.ServiceHealth{
+		ServiceID:       instanceID,
+		Status:          "online",
+		Message:         "netbird_peers",
+		UpdateAvailable: serverUpdateAvailable,
+		Stats: map[string]any{
+			"netbird": map[string]any{
+				"peers": peers,
+			},
+		},
+		Details: map[string]any{
+			"netbird": map[string]any{
+				"total":           len(peers),
+				"online":          onlineCount,
+				"updateAvailable": serverUpdateAvailable,
 			},
 		},
 	}

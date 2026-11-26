@@ -77,6 +77,7 @@ func TestServiceSpecParseAddAndHealthOK(t *testing.T) {
 		{"jellyfin", []string{"http://a.test", "key"}, "http://a.test", "key", "Jellyfin", true},
 		{"lidarr", []string{"http://a.test", "key"}, "http://a.test", "key", "Lidarr", true},
 		{"maintainerr", []string{"http://a.test", "key"}, "http://a.test", "key", "Maintainerr", true},
+		{"netbird", []string{"https://api.netbird.io", "key"}, "https://api.netbird.io", "key", "NetBird", true},
 		{"nzbget", []string{"http://a.test", "key"}, "http://a.test", "key", "NZBGet", true},
 		{"overseerr", []string{"http://a.test", "key"}, "http://a.test", "key", "Overseerr", true},
 		{"plex", []string{"http://a.test", "key"}, "http://a.test", "key", "Plex", true},

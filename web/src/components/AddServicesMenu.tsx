@@ -12,6 +12,7 @@ import { toast } from "react-hot-toast";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { usePlexPinAuth } from "../hooks/usePlexPinAuth";
 import { serviceForms } from "../config/serviceForms";
+import { isMeshNetworkType } from "../utils/meshNetwork";
 
 interface AddServicesMenuProps {
   serviceTemplates: Array<{
@@ -69,6 +70,7 @@ const SERVICE_CATEGORY_MAP: Record<ServiceType, ServiceCategoryKey> = {
   qui: "AUTOMATION",
   general: "MONITORING",
   tailscale: "NETWORK",
+  netbird: "NETWORK",
   other: "MONITORING",
 };
 
@@ -100,13 +102,15 @@ export function AddServicesMenu({
   const { isAuthenticating, authenticate } = usePlexPinAuth();
   const isPlexService = pendingService?.type === "plex";
 
-  // Filter out Tailscale if it's already configured
+  // Tailscale and NetBird show in the page header and support one instance, so
+  // their entry leaves the menu once the network is configured.
   const availableTemplates = useMemo(() => {
-    const hasTailscale = Object.keys(configurations).some((id) =>
-      id.startsWith("tailscale-")
-    );
+    const configured = (type: ServiceType) =>
+      Object.keys(configurations).some((id) => id.startsWith(`${type}-`));
+
     return serviceTemplates.filter(
-      (template) => !(template.type === "tailscale" && hasTailscale)
+      (template) =>
+        !(isMeshNetworkType(template.type) && configured(template.type))
     );
   }, [serviceTemplates, configurations]);
 
@@ -122,9 +126,13 @@ export function AddServicesMenu({
       setError(null);
     } else if (pendingService) {
       setDisplayName(pendingService.displayName);
-      // Set default URL for Tailscale only if URL is empty
+      // Tailscale ignores the URL. NetBird needs the Cloud API unless the user
+      // replaces it with a self-hosted server.
       if (pendingService.type === "tailscale") {
         setUrl("https://api.tailscale.com");
+      }
+      if (pendingService.type === "netbird") {
+        setUrl("https://api.netbird.io");
       }
     }
   }, [showServiceConfig, pendingService]);

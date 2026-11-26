@@ -34,6 +34,7 @@ func TestNewPollerJobTable(t *testing.T) {
 		"jellyfin":    {"jellyfin_summary 10s 12s"},
 		"lidarr":      {"lidarr_queue 1m0s 20s"},
 		"maintainerr": {"maintainerr_collections 10m0s 35s"},
+		"netbird":     {"netbird_peers 1m0s 20s"},
 		"nzbget":      {"nzbget_summary 45s 20s"},
 		"overseerr":   {"overseerr_requests 1m0s 20s"},
 		"plex":        {"plex_sessions 10s 12s"},

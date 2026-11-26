@@ -106,6 +106,7 @@ const SERVICE_STATS_RENDERERS: Record<ServiceType, ServiceStatsRenderer | null> 
   qui: (instanceId) => <QuiStats instanceId={instanceId} />,
   general: (instanceId) => <GeneralStats instanceId={instanceId} />,
   tailscale: null,
+  netbird: null,
   other: null,
 };
 

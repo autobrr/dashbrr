@@ -62,6 +62,11 @@ subjects:
 #         secretKeyRef:
 #           name: dashbrr-api-keys
 #           key: radarr
+#     - name: DASHBRR_NETBIRD_API_KEY
+#       valueFrom:
+#         secretKeyRef:
+#           name: dashbrr-api-keys
+#           key: netbird
 apiVersion: v1
 kind: Service
 metadata:
@@ -83,6 +88,27 @@ spec:
     - name: http
       port: 7878
       targetPort: 7878
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netbird
+  namespace: media
+  annotations:
+    com.dashbrr.service.type: "netbird"
+    # NetBird needs its own URL: dashbrr calls the address you enter, not
+    # api.netbird.io. Point it at the management server.
+    com.dashbrr.service.url: "https://netbird.example.com"
+    com.dashbrr.service.apikey: "${DASHBRR_NETBIRD_API_KEY}"
+    com.dashbrr.service.name: "NetBird"
+    com.dashbrr.service.enabled: "true"
+spec:
+  selector:
+    app: netbird
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
 ---
 apiVersion: v1
 kind: Service

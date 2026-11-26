@@ -267,6 +267,41 @@ example: "  dashbrr service maintainerr remove <URL>\n  dashbrr service maintain
 silence usage: false
 accepts arg counts: [1 2 3]
 
+## service netbird
+use: "netbird"
+aliases: []
+short: "netbird management"
+long: "netbird management"
+example: "  dashbrr service netbird\n  dashbrr service netbird --help"
+silence usage: true
+
+## service netbird add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service netbird add https://api.netbird.io <API-TOKEN>\n  dashbrr service netbird add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service netbird list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service netbird list\n  dashbrr service netbird list --help"
+silence usage: false
+
+## service netbird remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service netbird remove <URL>\n  dashbrr service netbird remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
 ## service nzbget
 use: "nzbget"
 aliases: []

@@ -1,29 +1,56 @@
 /*
- * Copyright (c) 2024, s0up and the autobrr contributors.
+ * Copyright (c) 2026, s0up and the autobrr contributors.
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/20/solid";
 import Toast from "../Toast";
 import AnimatedModal from "../ui/AnimatedModal";
 import { Button } from "../ui/Button";
-import { ArrowTopRightOnSquareIcon } from "@heroicons/react/20/solid";
-import { TailscaleDevice } from "../../types/service";
+import { prepareMembers, type NetworkDescriptor, type NetworkMember } from "../../utils/meshNetwork";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  devices: TailscaleDevice[];
+  descriptor: NetworkDescriptor;
+  items: NetworkMember[];
 }
 
-const TailscaleDeviceModal: React.FC<Props> = ({
+const CopyIcon = () => (
+  <svg
+    className="w-4 h-4 ml-1.5 text-gray-400"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+    />
+  </svg>
+);
+
+const formatLastSeen = (lastSeen: string) => {
+  const date = new Date(lastSeen);
+  if (Number.isNaN(date.getTime())) {
+    return lastSeen || "Unknown";
+  }
+
+  return date.toLocaleString();
+};
+
+const MeshNetworkListModal: React.FC<Props> = ({
   isOpen,
   onClose,
-  devices,
+  descriptor,
+  items,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredDevices, setFilteredDevices] = useState<TailscaleDevice[]>(devices);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,64 +68,25 @@ const TailscaleDeviceModal: React.FC<Props> = ({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    const filtered = devices.filter((device) => {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        device.name?.toLowerCase().includes(searchLower) ||
-        device.deviceType?.toLowerCase().includes(searchLower) ||
-        device.ipAddress?.toLowerCase().includes(searchLower) ||
-        device.tags?.some((tag) => tag.toLowerCase().includes(searchLower))
-      );
-    });
+  const visibleItems = useMemo(() => prepareMembers(items, searchTerm), [items, searchTerm]);
 
-    // Sort devices: updates first, then online status, then name
-    const sorted = [...filtered].sort((a, b) => {
-      if (a.updateAvailable !== b.updateAvailable) {
-        return b.updateAvailable ? 1 : -1;
-      }
-      if (a.online !== b.online) {
-        return b.online ? 1 : -1;
-      }
-      return a.name.localeCompare(b.name);
-    });
+  const onlineCount = visibleItems.filter((item) => item.online).length;
+  const plural = descriptor.noun.plural;
 
-    setFilteredDevices(sorted);
-  }, [searchTerm, devices]);
-
-  const formatLastSeen = (lastSeen: string) => {
-    const date = new Date(lastSeen);
-    return date.toLocaleString();
+  // Report success only after the write resolved: a denied clipboard permission
+  // rejects, and claiming "copied" then would be a lie.
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.custom((t) => (
+        <Toast type="success" body={`Copied ${text} to clipboard`} t={t} />
+      ));
+    } catch {
+      toast.custom((t) => (
+        <Toast type="error" body={`Could not copy ${text} to clipboard`} t={t} />
+      ));
+    }
   };
-
-  const trimVersion = (version: string) => {
-    return version ? version.split("-")[0] : "Unknown";
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.custom((t) => (
-      <Toast type="success" body={`Copied ${text} to clipboard`} t={t} />
-    ));
-  };
-
-  // Update the CopyIcon to remove its own hover state
-  const CopyIcon = () => (
-    <svg
-      className="w-4 h-4 ml-1.5 text-gray-400"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-      />
-    </svg>
-  );
 
   return (
     <AnimatedModal
@@ -106,10 +94,9 @@ const TailscaleDeviceModal: React.FC<Props> = ({
       onClose={onClose}
       title={
         <div className="flex items-center justify-between">
-          <span>Tailscale Devices</span>
+          <span>{`${descriptor.label} ${plural.charAt(0).toUpperCase()}${plural.slice(1)}`}</span>
           <span className="pl-4 text-sm font-normal text-gray-500 dark:text-gray-400">
-            {filteredDevices.filter((d) => d.online).length} of{" "}
-            {filteredDevices.length} online
+            {onlineCount} of {visibleItems.length} online
           </span>
         </div>
       }
@@ -121,7 +108,7 @@ const TailscaleDeviceModal: React.FC<Props> = ({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search devices by name, type, IP, or tags..."
+            placeholder={descriptor.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-3 py-2 pr-20 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-gray-900 border-gray-800 text-gray-300 placeholder-gray-500"
@@ -136,9 +123,9 @@ const TailscaleDeviceModal: React.FC<Props> = ({
         <div className="flex-1 -mr-[18px]">
           <div className="max-h-[60vh] overflow-y-auto scrollbar-small pr-[6px]">
             <div className="space-y-2">
-              {filteredDevices.map((device) => (
+              {visibleItems.map((item) => (
                 <div
-                  key={device.id}
+                  key={item.id}
                   className="text-xs rounded-md text-gray-400 bg-gray-900 p-3.5 hover:bg-gray-850 transition-colors"
                 >
                   <div className="flex items-start justify-between">
@@ -147,66 +134,78 @@ const TailscaleDeviceModal: React.FC<Props> = ({
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2 flex-1">
                             <button
-                              onClick={() => copyToClipboard(device.name)}
+                              onClick={() => copyToClipboard(item.name)}
                               className="font-medium text-gray-300 hover:text-blue-400 transition-colors text-left inline-flex items-center cursor-pointer group"
-                              title={`Click to copy: ${device.name}`}
+                              title={`Click to copy: ${item.name}`}
                             >
-                              <span className="text-base">{device.name}</span>
+                              <span className="text-base">{item.name}</span>
                               <CopyIcon />
                             </button>
                           </div>
                           <span
                             className={`ml-2 shrink-0 px-2 py-0.5 text-xs font-medium rounded-md ${
-                              device.online
+                              item.online
                                 ? "text-green-400 bg-green-900/30 border border-green-900/50"
                                 : "text-red-400 bg-red-900/30 border border-red-900/50"
                             }`}
                           >
-                            {device.online ? "Online" : "Offline"}
+                            {item.online ? "Online" : "Offline"}
                           </span>
                         </div>
 
-                        {device.tags && device.tags.length > 0 && (
+                        {item.chips && (
                           <div className="flex flex-wrap gap-1 text-gray-300 items-center pointer-events-none">
-                            Tags:
-                            {device.tags.map((tag, index) => (
+                            {item.chips.label}:
+                            {item.chips.values.map((value) => (
                               <span
-                                key={index}
+                                key={value}
                                 className="px-1.5 py-0.5 text-xs font-medium rounded-md bg-blue-900/30 text-blue-400 border border-blue-900/50"
                               >
-                                {tag}
+                                {value}
                               </span>
                             ))}
+                          </div>
+                        )}
+
+                        {item.expired && (
+                          <div className="flex flex-wrap gap-1 text-gray-300 items-center">
+                            <span className="px-1.5 py-0.5 text-xs font-medium rounded-md bg-red-900/30 text-red-400 border border-red-900/50">
+                              Login expired
+                            </span>
                           </div>
                         )}
                       </div>
 
                       <div className="text-xs space-y-1 cursor-default">
-                        <p className="text-gray-400">
-                          <span className="font-medium text-gray-300">Type:</span>{" "}
-                          {device.deviceType}
-                        </p>
+                        {item.details
+                          .filter((detail) => detail.value)
+                          .map((detail) => (
+                            <p key={detail.label} className="text-gray-400">
+                              <span className="font-medium text-gray-300">{detail.label}:</span>{" "}
+                              {detail.value}
+                            </p>
+                          ))}
                         <p className="text-gray-400">
                           <span className="font-medium text-gray-300">IP:</span>{" "}
                           <button
-                            onClick={() => copyToClipboard(device.ipAddress)}
+                            onClick={() => copyToClipboard(item.ip)}
                             className="hover:text-blue-400 transition-colors inline-flex items-center cursor-pointer group"
                             title="Click to copy IP address"
                           >
-                            {device.ipAddress}
+                            {item.ip}
                             <CopyIcon />
                           </button>
                         </p>
                         <p className="text-gray-500">
                           <span className="font-medium text-gray-300">Version:</span>{" "}
                           <span className="font-semibold text-gray-400">
-                            {trimVersion(device.clientVersion)}
+                            {item.version ? item.version.split("-")[0] : "Unknown"}
                           </span>
-                          {device.updateAvailable && (
+                          {item.updateAvailable && (
                             <>
                               {" - "}
                               <a
-                                href="https://tailscale.com/changelog#client"
+                                href={descriptor.updateLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-amber-400 inline-flex items-center gap-1 hover:text-amber-300 transition-colors"
@@ -218,7 +217,7 @@ const TailscaleDeviceModal: React.FC<Props> = ({
                           )}
                         </p>
                         <p className="text-gray-450 text-xs">
-                          Last seen: {formatLastSeen(device.lastSeen)}
+                          Last seen: {formatLastSeen(item.lastSeen)}
                         </p>
                       </div>
                     </div>
@@ -239,4 +238,4 @@ const TailscaleDeviceModal: React.FC<Props> = ({
   );
 };
 
-export default TailscaleDeviceModal;
+export default MeshNetworkListModal;

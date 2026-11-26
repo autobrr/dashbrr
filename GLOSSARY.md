@@ -70,6 +70,16 @@ _Avoid_: stats, service data
 The state of a service after its last health check: online, warning, offline, error, pending, or unknown. Online and warning mean that the service is up.
 _Avoid_: health, state
 
+### Networks
+
+**Peer**:
+A device in a NetBird network. dashbrr shows the peers that the NetBird token can see.
+_Avoid_: node, device (for a NetBird peer)
+
+**Mesh network**:
+A VPN whose members connect to each other directly, for example Tailscale or NetBird. dashbrr shows one header button per mesh network.
+_Avoid_: VPN, tunnel
+
 ### *arr apps
 
 ***arr app**:

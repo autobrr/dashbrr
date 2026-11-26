@@ -35,6 +35,7 @@ var serviceSpecs = map[string]serviceSpec{
 	"jellyfin":    {DisplayName: "Jellyfin", AddUsage: []string{"http://localhost:8096 <API-KEY>"}},
 	"emby":        {DisplayName: "Emby", AddUsage: []string{"http://localhost:8096 <API-KEY>"}},
 	"uptimekuma":  {DisplayName: "Uptime Kuma", AddUsage: []string{"http://localhost:3001 <API-KEY>"}},
+	"netbird":     {DisplayName: "NetBird", AddUsage: []string{"https://api.netbird.io <API-TOKEN>"}},
 	"maintainerr": {DisplayName: "Maintainerr", AddUsage: []string{"http://localhost:6246 <API-KEY>"}},
 	"qui":         {DisplayName: "Qui", AddUsage: []string{"http://localhost:7476 <API-KEY>"}},
 	"traefik": {
