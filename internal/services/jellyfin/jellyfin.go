@@ -107,12 +107,18 @@ func (s *JellyfinService) getHeaders(apiKey string) map[string]string {
 }
 
 func (s *JellyfinService) buildURL(baseURL, path string, query url.Values) (string, error) {
-	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
 		return "", errors.New("URL is required")
 	}
 
-	return core.RequestURLQuery(strings.TrimSuffix(trimmed, s.pathPrefix), query, s.pathPrefix, path)
+	base, err := url.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", core.ErrInvalidServiceURL, core.RedactURLError(err))
+	}
+	base.Path = strings.TrimSuffix(strings.TrimRight(base.Path, "/"), s.pathPrefix)
+
+	return core.RequestURLQuery(base.String(), query, s.pathPrefix, path)
 }
 
 func (s *JellyfinService) getJSON(ctx context.Context, op, baseURL, apiKey, path string, query url.Values, out any) error {
