@@ -41,6 +41,24 @@ jobs:
         working-directory: web
         run: pnpm test
 
+  pr-body-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install the Markdown parser
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r .github/scripts/requirements.txt
+
+      - name: Test the PR body check
+        run: '"$RUNNER_TEMP/venv/bin/python" -B -m unittest discover -s .github/scripts -p test_check_pr_body.py'
+
   backend:
     runs-on: ubuntu-latest
 

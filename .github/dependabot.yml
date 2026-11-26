@@ -40,3 +40,14 @@ updates:
       semver-patch-days: 3
       semver-minor-days: 7
       semver-major-days: 14
+
+  - package-ecosystem: pip
+    directory: /.github/scripts
+    schedule:
+      interval: monthly
+    groups:
+      pip:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 7
