@@ -9,6 +9,8 @@ Add a PR body check.
 No breaking change.
 ## Behaviour change
 No behaviour change.
+## How has this been tested?
+CI covers this: test_check_pr_body.py.
 ## Performance
 CI only, nothing runs in dashbrr.
 ## Checklist
@@ -36,7 +38,29 @@ class TestCheckPRBody(unittest.TestCase):
                 ["Missing section: Behaviour change"],
             ),
             ("optional deleted", BODY, []),
-            ("optional filled", BODY + "## How has this been tested?\nRan it against Sonarr 4.0.\n", []),
+            (
+                "testing missing",
+                BODY.replace("## How has this been tested?\nCI covers this: test_check_pr_body.py.\n", ""),
+                ["Missing section: How has this been tested?"],
+            ),
+            (
+                "testing with only the template comment",
+                BODY.replace(
+                    "CI covers this: test_check_pr_body.py.",
+                    TEMPLATE.split("## How has this been tested?")[1].split("## Performance")[0].strip(),
+                ),
+                ["Empty or unchanged template section: How has this been tested?"],
+            ),
+            (
+                "testing without a method",
+                BODY.replace("CI covers this: test_check_pr_body.py.", "N/A"),
+                ["How has this been tested?: say how you checked the change"],
+            ),
+            (
+                "testing filled",
+                BODY.replace("CI covers this: test_check_pr_body.py.", "Ran it against Sonarr 4.0."),
+                [],
+            ),
             (
                 "optional empty",
                 BODY + "## Screenshots (for UI changes)\n",
@@ -144,6 +168,7 @@ class TestCheckPRBody(unittest.TestCase):
                     "Missing section: Description",
                     "Missing section: Breaking change",
                     "Missing section: Behaviour change",
+                    "Missing section: How has this been tested?",
                     "Missing section: Performance",
                     "Missing section: Checklist",
                     "Missing section: AI disclosure",
@@ -168,7 +193,7 @@ class TestCheckPRBody(unittest.TestCase):
     def test_pull_request(self):
         cases = [
             ("bot skips the template", {"body": "Bumps a dependency.", "user": {"type": "Bot"}}, None),
-            ("user needs the template", {"body": None, "user": {"type": "User"}, "labels": []}, 6),
+            ("user needs the template", {"body": None, "user": {"type": "User"}, "labels": []}, 7),
             (
                 "member may delete the AI disclosure",
                 {"body": BODY.split("## AI disclosure")[0], "user": {"type": "User"}, "author_association": "MEMBER"},

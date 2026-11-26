@@ -14,7 +14,10 @@ Fixes # (issue)
 
 ## How has this been tested?
 
-<!--- Only manual or live verification that CI cannot do, for example a run against a real service. Name the service and its version. Delete this section if CI covers everything. --->
+<!--- Say how you checked that the change works. Keep this section.
+      Tests: name the tests you added or changed and what each one proves, for example "fails on the old code".
+      Manual or live runs: name the service and its version, and say what you saw.
+      If you ran nothing by hand, write "CI covers this:" and name the tests. --->
 
 ## Performance
 

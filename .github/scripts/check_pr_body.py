@@ -11,6 +11,7 @@ REQUIRED = {
     "Description",
     "Breaking change",
     "Behaviour change",
+    "How has this been tested?",
     "Performance",
     "Checklist",
     "AI disclosure",
@@ -20,7 +21,7 @@ MEMBERS = {"OWNER", "MEMBER", "COLLABORATOR"}
 MAY_STAY_UNCHANGED = {"Checklist"}
 BREAKING_LABEL = "breaking change"
 NO_BREAKING_CHANGE = re.compile(r"no breaking changes?\.?", re.I)
-NO_PERFORMANCE_REASON = re.compile(r"(none|n/?a|-)\.?", re.I)
+NO_ANSWER = re.compile(r"(none|n/?a|-)\.?", re.I)
 COMMENT = re.compile(r"<!--.*?-->", re.S)
 MARKDOWN = MarkdownIt("commonmark")
 
@@ -55,8 +56,10 @@ def check_body(body, template, labels=(), required=REQUIRED):
                 errors.append(f"Missing section: {title}")
         elif not text or (title not in MAY_STAY_UNCHANGED and text == placeholder):
             errors.append(f"Empty or unchanged template section: {title}")
-        elif title == "Performance" and NO_PERFORMANCE_REASON.fullmatch(text):
+        elif title == "Performance" and NO_ANSWER.fullmatch(text):
             errors.append("Performance: explain why no performance risk applies")
+        elif title == "How has this been tested?" and NO_ANSWER.fullmatch(text):
+            errors.append("How has this been tested?: say how you checked the change")
         elif (
             title == "Breaking change"
             and not NO_BREAKING_CHANGE.fullmatch(text)
