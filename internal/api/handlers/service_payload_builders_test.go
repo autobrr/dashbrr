@@ -283,6 +283,34 @@ func TestBuildBazarrSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 	}
 }
 
+func TestBuildBazarrSummaryServiceUpdate_IgnoresHealthyProviders(t *testing.T) {
+	summary := &types.BazarrSummaryResponse{
+		Badges: types.BazarrBadges{
+			Episodes:  10,
+			Movies:    4,
+			Providers: 0,
+			Status:    0,
+		},
+		Providers: []types.BazarrProviderStatus{
+			{Name: "provider-a", Status: "Good", Retry: "-"},
+			{Name: "provider-b", Status: " good ", Retry: "-"},
+		},
+		HealthIssues: []types.BazarrHealthIssue{},
+	}
+
+	health := buildBazarrSummaryServiceUpdate("bazarr-1", summary)
+	if health.Status != "online" {
+		t.Fatalf("status = %q, want online when all providers are Good", health.Status)
+	}
+	details, ok := health.Details["bazarr"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected bazarr details object")
+	}
+	if got := details["providersWithIssues"]; got != 0 {
+		t.Fatalf("providersWithIssues = %v, want 0", got)
+	}
+}
+
 func TestBuildSabnzbdSummaryServiceUpdate_DetailsAndStats(t *testing.T) {
 	summary := &types.SabnzbdSummaryResponse{
 		Queue: types.SabnzbdQueue{
