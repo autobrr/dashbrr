@@ -25,6 +25,7 @@ When soup corrects you, fix the mistake and add its rule here. If the rule is al
 | Log a service URL only through `core.RedactURL`. | `make check-log-urls`, in CI. |
 | Write web API URLs as relative paths (`api/...`), so they resolve under a base path. | ESLint `no-restricted-syntax` in `web/eslint.config.js`. |
 | A PR with the `breaking change` label has `!` in its title. | `.github/workflows/pr-title.yml`. |
+| A PR body fills in the sections of `.github/pull_request_template.md`. A breaking change it describes needs the `breaking change` label. | `.github/workflows/pr-body.yml`, in CI. `make check-pr-body PR=<n>` runs it locally. |
 | Web unit tests pass. | `pnpm -C web test`, in CI. |
 | Run the browser tests before you report on them. A launch error that names a missing executable means the browser build differs from the one the locked Playwright version needs. | `pnpm -C web test:browser` installs that Chromium build before it runs the tests. |
 | Spec-defined logic (URLs, paths, Markdown, semver, cron, time zones) uses a proven library. | Judgment, no check: see Collaboration. |

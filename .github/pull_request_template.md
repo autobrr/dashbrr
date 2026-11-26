@@ -4,17 +4,33 @@
 
 Fixes # (issue)
 
+## Breaking change
+
+<!--- Write "No breaking change." unless existing users must act after they update, or something they rely on stops working. Examples: a setting, an environment variable, a CLI command, or an API field is renamed or removed. Otherwise say what they must do. A maintainer then adds the breaking change label and puts ! in the title, for example feat(api)!: ... The PR checks fail until the PR has both. --->
+
 ## Behaviour change
 
-<!--- Name each change existing users get without doing anything: a saved rule, setting, or API value that now matches or means something else. Say what they must do. Delete this section if there is none. --->
+<!--- Changes that existing users notice after they update but need no action for, for example a new sort order, a new status color, or a card that shows other data. Write "No behaviour change." if there is none. --->
 
 ## How has this been tested?
 
-<!--- Only manual or live verification that CI cannot do. Delete this section if CI covers everything. --->
+<!--- Only manual or live verification that CI cannot do, for example a run against a real service. Name the service and its version. Delete this section if CI covers everything. --->
+
+## Performance
+
+<!--- Say whether the change can make dashbrr slower or heavier, and how you checked.
+      Backend: list the requests dashbrr now sends to each service, how often, and how long they take.
+      Name new polling, retries, or timeouts, and what happens when a service is slow or down.
+      Web app: name new re-renders, polling from the browser, or large lists, and how long they take to render.
+      Include before/after numbers when the change can affect performance.
+      If no performance risk applies, explain why. Keep this section. --->
 
 ## Screenshots (for UI changes)
 
-<!--- Delete this section if your change has no visible UI. --->
+<!--- Delete this section if your change has no visible UI.
+      Screenshots and recordings on GitHub are public. Before you capture, hide or blur
+      API keys and tokens, internal hostnames, IP addresses, and Tailscale or NetBird
+      device and peer names. --->
 
 ## Checklist
 
