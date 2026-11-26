@@ -114,3 +114,19 @@ func TestDevServerUnderBasePath(t *testing.T) {
 	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
 	assert.Equal(t, "/dashbrr/", w.Header().Get("Location"))
 }
+
+func TestSecurityHeaders(t *testing.T) {
+	for _, base := range []config.BasePath{"", "/dashbrr"} {
+		h := newTestHandler(t, base)
+		for _, path := range []string{"/health", base.Path("/"), base.Path("/api/auth/config"), base.Path("/api/settings"), base.Path("/api/nope")} {
+			t.Run(string(base)+" "+path, func(t *testing.T) {
+				header := request(t, h, http.MethodGet, path, "").Header()
+				assert.Equal(t, "nosniff", header.Get("X-Content-Type-Options"))
+				assert.Equal(t, "strict-origin-when-cross-origin", header.Get("Referrer-Policy"))
+				for _, name := range []string{"Strict-Transport-Security", "X-Frame-Options", "X-XSS-Protection", "Content-Security-Policy"} {
+					assert.Empty(t, header.Values(name), name)
+				}
+			})
+		}
+	}
+}

@@ -93,6 +93,7 @@ func (s *Server) Handler() http.Handler {
 	r := gin.New()
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
+	r.Use(middleware.Secure())
 
 	trustedProxies := []string{"127.0.0.1", "::1"}
 	if gin.Mode() == gin.DebugMode {
