@@ -166,6 +166,8 @@ func TestRedactURL(t *testing.T) {
 		{name: "userinfo without scheme or port", raw: "admin:secret@nzbget/jsonrpc", want: "[unparseable url]"}, //nolint:gosec // test fixture
 		{name: "host and port without scheme", raw: "nzbget:6789", want: "[unparseable url]"},
 		{name: "empty", raw: "", want: ""},
+		{name: "userinfo in path of url without scheme", raw: "//gateway/admin:secret@backend:6789", want: "[unparseable url]"}, //nolint:gosec // test fixture
+		{name: "other scheme", raw: "ftp://host/admin:secret@backend", want: "[unparseable url]"},                               //nolint:gosec // test fixture
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

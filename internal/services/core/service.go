@@ -184,7 +184,7 @@ func RedactURL(raw string) string {
 		return ""
 	}
 	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "[unparseable url]"
 	}
 	u.User = nil
