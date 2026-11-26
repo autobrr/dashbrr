@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	bazarrVersionCacheTTL = 1 * time.Hour
+	bazarrVersionCacheTTL     = 1 * time.Hour
+	bazarrSystemStatusTimeout = 3 * time.Second
 )
 
 type ErrBazarr struct {
@@ -173,27 +174,23 @@ func (s *BazarrService) GetSummary(ctx context.Context, baseURL, apiKey string) 
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(4)
-
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		summary.Badges, badgesErr = s.GetBadges(ctx, baseURL, apiKey)
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		summary.Providers, providersErr = s.GetProviders(ctx, baseURL, apiKey)
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		summary.HealthIssues, healthIssuesErr = s.GetHealthIssues(ctx, baseURL, apiKey)
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
-		sysStatus, sysStatusErr = s.getSystemStatusPayload(ctx, baseURL, apiKey)
-	}()
+	wg.Go(func() {
+		statusCtx, cancel := context.WithTimeout(ctx, bazarrSystemStatusTimeout)
+		defer cancel()
+		sysStatus, sysStatusErr = s.getSystemStatusPayload(statusCtx, baseURL, apiKey)
+	})
 
 	wg.Wait()
 

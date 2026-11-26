@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/autobrr/dashbrr/internal/types"
 )
@@ -102,5 +103,66 @@ func TestGetSummary_PreservesSignalRWhenSystemStatusFails(t *testing.T) {
 	}
 	if summary.Badges.RadarrSignalR != "LIVE" {
 		t.Fatalf("RadarrSignalR = %q, want LIVE preserved when status check fails", summary.Badges.RadarrSignalR)
+	}
+}
+
+func TestGetSummary_DoesNotWaitForHungSystemStatus(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/badges":
+			_ = json.NewEncoder(w).Encode(types.BazarrBadges{
+				Episodes:      7,
+				Providers:     1,
+				SonarrSignalR: "DOWN",
+				RadarrSignalR: "LIVE",
+			})
+		case "/api/providers":
+			_ = json.NewEncoder(w).Encode(types.BazarrProvidersEnvelope{
+				Data: []types.BazarrProviderStatus{
+					{Name: "provider-a", Status: "Good", Retry: "-"},
+					{Name: "provider-b", Status: "TooManyRequests", Retry: "in 9 minutes"},
+				},
+			})
+		case "/api/system/health":
+			_ = json.NewEncoder(w).Encode(types.BazarrHealthIssuesEnvelope{
+				Data: []types.BazarrHealthIssue{{Object: "Sonarr", Issue: "unreachable"}},
+			})
+		case "/api/system/status":
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	defer close(release)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 4*bazarrSystemStatusTimeout)
+	defer cancel()
+
+	svc := NewBazarrService().(*BazarrService)
+	start := time.Now()
+	summary, err := svc.GetSummary(ctx, server.URL, "secret-key")
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("GetSummary error: %v", err)
+	}
+
+	if limit := bazarrSystemStatusTimeout + time.Second; elapsed > limit {
+		t.Fatalf("GetSummary took %v, want at most %v while /api/system/status hangs", elapsed, limit)
+	}
+	if summary.Badges.Episodes != 7 || summary.Badges.SonarrSignalR != "DOWN" || summary.Badges.RadarrSignalR != "LIVE" {
+		t.Fatalf("Badges = %+v, want the badges response with SignalR kept", summary.Badges)
+	}
+	if len(summary.Providers) != 1 || summary.Providers[0].Name != "provider-b" {
+		t.Fatalf("Providers = %+v, want only provider-b", summary.Providers)
+	}
+	if len(summary.HealthIssues) != 1 {
+		t.Fatalf("HealthIssues = %+v, want one issue", summary.HealthIssues)
 	}
 }
