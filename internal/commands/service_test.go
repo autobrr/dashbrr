@@ -118,7 +118,7 @@ func TestServiceRemoveKeepsServiceOfAnotherType(t *testing.T) {
 		t.Fatalf("CreateService: %v", err)
 	}
 
-	remove := ServiceEmbyRemoveCommand()
+	remove := newServiceRemoveCommand(specFor(t, "emby"))
 	remove.SetContext(t.Context())
 	if err := remove.RunE(remove, []string{url}); err == nil {
 		t.Fatal("emby remove with a Jellyfin URL returned no error")
@@ -153,7 +153,7 @@ func TestServiceRemoveFindsOwnTypeWhenURLIsShared(t *testing.T) {
 		}
 	}
 
-	remove := ServiceEmbyRemoveCommand()
+	remove := newServiceRemoveCommand(specFor(t, "emby"))
 	remove.SetContext(t.Context())
 	if err := remove.RunE(remove, []string{url}); err != nil {
 		t.Fatalf("emby remove: %v", err)

@@ -10,7 +10,7 @@ silence usage: false
 use: "autobrr"
 aliases: []
 short: "autobrr management"
-long: "autobrr torrents"
+long: "autobrr management"
 example: "  dashbrr service autobrr\n  dashbrr service autobrr --help"
 silence usage: true
 

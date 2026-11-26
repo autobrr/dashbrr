@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata")
@@ -123,31 +124,26 @@ func TestGeneralServiceSpecNeedsName(t *testing.T) {
 
 func specFor(t *testing.T, serviceType string) serviceSpec {
 	t.Helper()
-	specs := map[string]serviceSpec{
-		"autobrr":     autobrrServiceSpec,
-		"bazarr":      bazarrServiceSpec,
-		"emby":        embyServiceSpec,
-		"general":     generalServiceSpec,
-		"jellyfin":    jellyfinServiceSpec,
-		"lidarr":      lidarrServiceSpec,
-		"maintainerr": maintainerrServiceSpec,
-		"nzbget":      nzbgetServiceSpec,
-		"overseerr":   overseerrServiceSpec,
-		"plex":        plexServiceSpec,
-		"prowlarr":    prowlarrServiceSpec,
-		"qui":         quiServiceSpec,
-		"radarr":      radarrServiceSpec,
-		"readarr":     readarrServiceSpec,
-		"sabnzbd":     sabnzbdServiceSpec,
-		"sonarr":      sonarrServiceSpec,
-		"tailscale":   tailscaleServiceSpec,
-		"traefik":     traefikServiceSpec,
-		"uptimekuma":  uptimeKumaServiceSpec,
-		"whisparr":    whisparrServiceSpec,
+	st, ok := catalog.Lookup(serviceType)
+	if !ok {
+		t.Fatalf("no service type %q", serviceType)
 	}
-	spec, ok := specs[serviceType]
+	spec, ok := serviceSpecFor(st)
 	if !ok {
 		t.Fatalf("no CLI spec for %q", serviceType)
 	}
 	return spec
+}
+
+func TestEveryServiceTypeHasCLICommands(t *testing.T) {
+	for _, st := range catalog.All() {
+		if _, ok := serviceSpecFor(st); !ok {
+			t.Errorf("service type %q has no entry in serviceSpecs in internal/commands/service_specs.go", st.Name)
+		}
+	}
+	for name := range serviceSpecs {
+		if _, ok := catalog.Lookup(name); !ok {
+			t.Errorf("serviceSpecs has %q, which is not a service type in internal/services/catalog", name)
+		}
+	}
 }
