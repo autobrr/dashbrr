@@ -7,9 +7,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
-	"net/url"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -332,26 +330,7 @@ func applyPollerJobJitter(key string, interval time.Duration) time.Duration {
 }
 
 func isServiceConfigured(serviceType string, svc models.ServiceConfiguration) bool {
-	if svc.URL == "" {
-		return false
-	}
-	if !serviceRequiresAPIKey(serviceType) {
-		return true
-	}
-	if serviceAllowsURLCredentials(serviceType) && svc.APIKey == "" {
-		return urlHasUserCredentials(svc.URL)
-	}
-	return svc.APIKey != ""
-}
-
-func urlHasUserCredentials(rawURL string) bool {
-	u, err := url.Parse(rawURL)
-	if err != nil || u.User == nil {
-		return false
-	}
-	username := strings.TrimSpace(u.User.Username())
-	password, _ := u.User.Password()
-	return username != "" && strings.TrimSpace(password) != ""
+	return svc.URL != "" && serviceHasCredentials(serviceType, svc.URL, svc.APIKey)
 }
 
 func (p *Poller) getServices(ctx context.Context, force bool) []models.ServiceConfiguration {

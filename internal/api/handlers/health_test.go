@@ -9,6 +9,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -168,7 +170,7 @@ func TestHealthHandler_CheckHealth(t *testing.T) {
 	}
 }
 
-func TestHealthHandler_CheckHealth_UsesStoredAPIKeyForURLValidation(t *testing.T) {
+func TestServiceTestUsesTheStoredKeyWhenTheBodyHasNone(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockDB := &testing_mocks.MockDB{
@@ -208,20 +210,16 @@ func TestHealthHandler_CheckHealth_UsesStoredAPIKeyForURLValidation(t *testing.T
 		},
 	}
 
-	handler := NewHealthHandler(mockDB, mockCreator)
-	r := gin.New()
-	r.GET("/health/:service", handler.CheckHealth)
-
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health/radarr-1?url=http://new-radarr", nil)
-	r.ServeHTTP(w, req)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/radarr-1", strings.NewReader(`{"url":"http://new-radarr"}`))
+	serviceTestRouter(NewHealthHandler(mockDB, mockCreator)).ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 }
 
-func TestHealthHandler_CheckHealth_MissingAPIKeyForURLValidationWithoutStoredKey(t *testing.T) {
+func TestServiceTestNeedsAKeyWhenNoneIsStored(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockDB := &testing_mocks.MockDB{
@@ -246,13 +244,9 @@ func TestHealthHandler_CheckHealth_MissingAPIKeyForURLValidationWithoutStoredKey
 		},
 	}
 
-	handler := NewHealthHandler(mockDB, mockCreator)
-	r := gin.New()
-	r.GET("/health/:service", handler.CheckHealth)
-
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health/radarr-1?url=http://new-radarr", nil)
-	r.ServeHTTP(w, req)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/radarr-1", strings.NewReader(`{"url":"http://new-radarr"}`))
+	serviceTestRouter(NewHealthHandler(mockDB, mockCreator)).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -264,5 +258,136 @@ func TestHealthHandler_CheckHealth_MissingAPIKeyForURLValidationWithoutStoredKey
 	}
 	if response["message"] != "API key is required for this service type" {
 		t.Fatalf("message = %q, want %q", response["message"], "API key is required for this service type")
+	}
+}
+
+func loginURL(host string) string {
+	return (&url.URL{Scheme: "http", User: url.UserPassword("user", "pass"), Host: host}).String()
+}
+
+func serviceTestRouter(h *HealthHandler) *gin.Engine {
+	r := gin.New()
+	r.GET("/health/:service", h.CheckHealth)
+	r.POST("/health/:service", h.TestService)
+	return r
+}
+
+func TestServiceTestReadsTheURLAndKeyFromTheBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := &testing_mocks.MockDB{
+		FindServiceByFunc: func(_ context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+			return &models.ServiceConfiguration{InstanceID: params.InstanceID, URL: "http://stored.test", APIKey: "stored-key"}, nil
+		},
+	}
+	var gotURL, gotKey string
+	creator := &mockServiceCreator{
+		createServiceFunc: func(string) models.ServiceHealthChecker {
+			return &mockServiceHealthChecker{
+				checkHealthFunc: func(_ context.Context, url, apiKey string) (models.ServiceHealth, int) {
+					gotURL, gotKey = url, apiKey
+					return models.ServiceHealth{Status: "online"}, http.StatusOK
+				},
+			}
+		},
+	}
+	r := serviceTestRouter(NewHealthHandler(db, creator))
+	newURL := loginURL("new.test:6789")
+
+	cases := []struct {
+		name    string
+		req     *http.Request
+		wantURL string
+		wantKey string
+	}{
+		{
+			name:    "POST tests the URL and key of the body",
+			req:     httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/nzbget-1", strings.NewReader(`{"url":"`+newURL+`","apiKey":"SECRET-KEY"}`)),
+			wantURL: newURL,
+			wantKey: "SECRET-KEY",
+		},
+		{
+			name:    "GET ignores a URL and key in the query and tests the stored service",
+			req:     httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health/nzbget-1?"+url.Values{"url": {newURL}, "apiKey": {"SECRET-KEY"}}.Encode(), nil),
+			wantURL: "http://stored.test",
+			wantKey: "stored-key",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotURL, gotKey = "", ""
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, tc.req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
+			}
+			if gotURL != tc.wantURL || gotKey != tc.wantKey {
+				t.Fatalf("checked %q with key %q, want %q with key %q", gotURL, gotKey, tc.wantURL, tc.wantKey)
+			}
+		})
+	}
+}
+
+func TestServiceTestRejectsABodyWithoutAValidURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	creator := &mockServiceCreator{
+		createServiceFunc: func(string) models.ServiceHealthChecker {
+			return &mockServiceHealthChecker{
+				checkHealthFunc: func(context.Context, string, string) (models.ServiceHealth, int) {
+					t.Fatal("checker should not run")
+					return models.ServiceHealth{}, http.StatusOK
+				},
+			}
+		},
+	}
+	r := serviceTestRouter(NewHealthHandler(&testing_mocks.MockDB{}, creator))
+
+	for _, body := range []string{`{"apiKey":"k"}`, `{"url":"ftp://host"}`, `not json`} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/sonarr-1", strings.NewReader(body)))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d, want 400", body, w.Code)
+		}
+	}
+}
+
+func TestServiceTestAcceptsALoginInTheURLInPlaceOfAKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	storedURL, newURL := loginURL("127.0.0.1:1"), loginURL("127.0.0.1:2")
+
+	for _, serviceType := range []string{"nzbget", "uptimekuma"} {
+		t.Run(serviceType, func(t *testing.T) {
+			db := &testing_mocks.MockDB{
+				FindServiceByFunc: func(_ context.Context, params types.FindServiceParams) (*models.ServiceConfiguration, error) {
+					return &models.ServiceConfiguration{InstanceID: params.InstanceID, URL: storedURL}, nil
+				},
+			}
+			var gotURL string
+			creator := &mockServiceCreator{
+				createServiceFunc: func(string) models.ServiceHealthChecker {
+					return &mockServiceHealthChecker{
+						checkHealthFunc: func(_ context.Context, url, _ string) (models.ServiceHealth, int) {
+							gotURL = url
+							return models.ServiceHealth{Status: "online"}, http.StatusOK
+						},
+					}
+				},
+			}
+			r := serviceTestRouter(NewHealthHandler(db, creator))
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/health/"+serviceType+"-1", strings.NewReader(`{"url":"`+newURL+`"}`)))
+			if w.Code != http.StatusOK || gotURL != newURL {
+				t.Fatalf("POST: status = %d, checked %q, body %s", w.Code, gotURL, w.Body.String())
+			}
+
+			w = httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health/"+serviceType+"-1", nil))
+			if w.Code != http.StatusOK || gotURL != storedURL {
+				t.Fatalf("GET: status = %d, checked %q, body %s", w.Code, gotURL, w.Body.String())
+			}
+		})
 	}
 }
