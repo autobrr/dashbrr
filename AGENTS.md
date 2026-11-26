@@ -21,6 +21,7 @@ When soup corrects you, fix the mistake and add its rule here. If the rule is al
 | --- | --- |
 | Gate edit and remove controls on the `edits` field of a service configuration (`all`, `apiKey`, `none`). Only `models.AllowedEdits` decides it. | The settings response has no `discovered` field, so tsc fails on code that reads it. `TestServiceConfigResponseEdits` and `TestSettingsDiscoveredService`. |
 | Put the URL placeholder, API key label, and API key help of a service type in `web/src/config/serviceForms.ts`. Both service forms read it. | `Record<ServiceType, ServiceForm>`: tsc fails when a type has no entry. |
+| Add a service type in `internal/services/catalog/catalog.go`. The registry and the CLI read that table, and the web `ServiceType` union is generated from it. | `TestTypeScriptServiceTypes`, `TestPollerHasJobsForEveryServiceType`, and `TestEveryServiceTypeHasCLICommands` name each place a new type is missing. tsc fails on each `Record<ServiceType, …>` table. |
 | Log a service URL only through `core.RedactURL`. | `make check-log-urls`, in CI. |
 | Write web API URLs as relative paths (`api/...`), so they resolve under a base path. | ESLint `no-restricted-syntax` in `web/eslint.config.js`. |
 | A PR with the `breaking change` label has `!` in its title. | `.github/workflows/pr-title.yml`. |
