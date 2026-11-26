@@ -6,16 +6,15 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
@@ -33,8 +32,8 @@ type AuthHandler struct {
 	cache        cache.Store
 	sessions     *session.Manager
 	oauth2Config *oauth2.Config
+	verifier     *oidc.IDTokenVerifier
 	httpClient   *http.Client
-	userinfoURL  string
 	mu           sync.RWMutex
 	discoverySF  singleflight.Group
 }
@@ -61,6 +60,12 @@ func (h *AuthHandler) getOAuthConfig() *oauth2.Config {
 	return h.oauth2Config
 }
 
+func (h *AuthHandler) getVerifier() *oidc.IDTokenVerifier {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.verifier
+}
+
 func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
 	h.mu.RLock()
 	if h.oauth2Config != nil {
@@ -77,7 +82,7 @@ func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
 		}
 		h.mu.RUnlock()
 
-		endpoints, userinfoURL, discoverErr := getProviderEndpoints(ctx, h.httpClient, h.config.Issuer)
+		provider, discoverErr := discoverProvider(oidc.ClientContext(ctx, h.httpClient), h.config.Issuer)
 		if discoverErr != nil {
 			return nil, discoverErr
 		}
@@ -86,18 +91,18 @@ func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
 			ClientID:     h.config.ClientID,
 			ClientSecret: h.config.ClientSecret,
 			RedirectURL:  h.config.RedirectURL,
-			Endpoint:     endpoints,
-			Scopes:       []string{"openid", "profile", "email"},
+			Endpoint:     provider.Endpoint(),
+			Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
 		}
 
 		h.mu.Lock()
 		if h.oauth2Config == nil {
 			log.Debug().
-				Str("auth_url", endpoints.AuthURL).
-				Str("token_url", endpoints.TokenURL).
+				Str("auth_url", oauth2Config.Endpoint.AuthURL).
+				Str("token_url", oauth2Config.Endpoint.TokenURL).
 				Msg("using discovered endpoints")
 			h.oauth2Config = oauth2Config
-			h.userinfoURL = userinfoURL
+			h.verifier = provider.Verifier(&oidc.Config{ClientID: h.config.ClientID})
 		}
 		h.mu.Unlock()
 
@@ -107,75 +112,19 @@ func (h *AuthHandler) ensureProviderConfig(ctx context.Context) error {
 	return err
 }
 
-// getProviderEndpoints fetches provider configuration and returns oauth2.Endpoint
-// Examples:
-// Simple issuer (Google):
-//
-//	Input:  https://accounts.google.com
-//	Result: https://accounts.google.com/.well-known/openid-configuration
-//
-// Path-based (e.g. Keycloak realm):
-//
-//	Input:  https://auth.example.com/realms/myrealm
-//	Result: https://auth.example.com/realms/myrealm/.well-known/openid-configuration
-func getProviderEndpoints(ctx context.Context, client *http.Client, issuer string) (oauth2.Endpoint, string, error) {
-	issuer = strings.TrimRight(issuer, "/")
-
-	// Construct well-known URL according to spec
-	var wellKnown string
-	if strings.Contains(issuer, "/.well-known/openid-configuration") {
-		wellKnown = issuer
-	} else {
-		wellKnown = issuer + "/.well-known/openid-configuration"
+func discoverProvider(ctx context.Context, issuer string) (*oidc.Provider, error) {
+	issuer = strings.TrimSuffix(strings.TrimSuffix(issuer, "/"), "/.well-known/openid-configuration")
+	provider, err := oidc.NewProvider(ctx, issuer)
+	if mismatch, ok := errors.AsType[*oidc.IssuerMismatchError](err); ok && strings.TrimSuffix(mismatch.Discovered, "/") == issuer {
+		provider, err = oidc.NewProvider(ctx, mismatch.Discovered)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnown, nil)
 	if err != nil {
-		return oauth2.Endpoint{}, "", fmt.Errorf("creating discovery request: %w", err)
+		return nil, err
 	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return oauth2.Endpoint{}, "", fmt.Errorf("fetching discovery document: %w", err)
+	if endpoint := provider.Endpoint(); endpoint.AuthURL == "" || endpoint.TokenURL == "" {
+		return nil, errors.New("discovery document missing required endpoints")
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		snippet, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		if readErr != nil {
-			return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d", resp.StatusCode)
-		}
-
-		msg := strings.TrimSpace(string(snippet))
-		if msg == "" {
-			return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d", resp.StatusCode)
-		}
-
-		return oauth2.Endpoint{}, "", fmt.Errorf("discovery document returned status %d: %s", resp.StatusCode, msg)
-	}
-
-	log.Debug().
-		Str("issuer", issuer).
-		Str("well_known_url", wellKnown).
-		Msg("OIDC discovery successful")
-
-	var discovery struct {
-		AuthURL     string `json:"authorization_endpoint"`
-		TokenURL    string `json:"token_endpoint"`
-		UserinfoURL string `json:"userinfo_endpoint"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
-		return oauth2.Endpoint{}, "", fmt.Errorf("parsing discovery document: %w", err)
-	}
-	if discovery.AuthURL == "" || discovery.TokenURL == "" {
-		return oauth2.Endpoint{}, "", fmt.Errorf("discovery document missing required endpoints")
-	}
-
-	return oauth2.Endpoint{
-		AuthURL:  discovery.AuthURL,
-		TokenURL: discovery.TokenURL,
-	}, discovery.UserinfoURL, nil
+	return provider, nil
 }
 
 func generateSecureRandomString(length int) (string, error) {
@@ -184,29 +133,6 @@ func generateSecureRandomString(length int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes)[:length], nil
-}
-
-func extractJWTNonce(rawIDToken string) (string, error) {
-	parts := strings.Split(rawIDToken, ".")
-	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid id_token format")
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", fmt.Errorf("decode id_token payload: %w", err)
-	}
-
-	var claims struct {
-		Nonce string `json:"nonce"`
-	}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "", fmt.Errorf("parse id_token payload: %w", err)
-	}
-	if claims.Nonce == "" {
-		return "", fmt.Errorf("id_token missing nonce")
-	}
-	return claims.Nonce, nil
 }
 
 type oidcStateData struct {
@@ -349,13 +275,13 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	gotNonce, err := extractJWTNonce(rawIDToken)
+	idToken, err := h.getVerifier().Verify(ctx, rawIDToken)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to extract nonce from id_token")
-		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=invalid_nonce"))
+		log.Error().Err(err).Msg("id_token verification failed")
+		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=invalid_id_token"))
 		return
 	}
-	if gotNonce != expectedNonce {
+	if idToken.Nonce != expectedNonce {
 		log.Error().Msg("id_token nonce mismatch")
 		c.Redirect(http.StatusTemporaryRedirect, h.basePath.Path("/login?error=invalid_nonce"))
 		return
