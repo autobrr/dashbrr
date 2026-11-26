@@ -4,15 +4,14 @@
  */
 
 import { useCallback, useState } from "react";
-import { ServiceType } from "../types/service";
+import { addServiceSetup, ServiceSetup } from "../config/serviceSetup";
+import { ServiceConfigInput, ServiceType } from "../types/service";
 import { useConfiguration } from "../contexts/useConfiguration";
 import { toast } from "react-hot-toast";
 
 interface PendingService {
-  type: ServiceType;
   name: string;
-  instanceId: string;
-  displayName: string;
+  setup: ServiceSetup;
 }
 
 export const useServiceManagement = () => {
@@ -20,50 +19,21 @@ export const useServiceManagement = () => {
   const [showServiceConfig, setShowServiceConfig] = useState(false);
   const [pendingService, setPendingService] = useState<PendingService | null>(null);
 
-  const addServiceInstance = useCallback(async (templateType: ServiceType, templateName: string) => {
-    const existingInstances = Object.keys(configurations)
-      .filter(key => key.startsWith(`${templateType}-`))
-      .length;
-    const instanceNumber = existingInstances + 1;
-    const instanceId = `${templateType}-${instanceNumber}`;
-
-    // For general service, don't set an initial display name
-    const displayName = templateType === "general"
-      ? ""
-      : `${templateName}${instanceNumber > 1 ? ` ${instanceNumber}` : ""}`;
-
-    setPendingService({
-      type: templateType,
-      name: templateName,
-      instanceId,
-      displayName,
-    });
+  const addServiceInstance = useCallback((type: ServiceType, name: string) => {
+    setPendingService({ name, setup: addServiceSetup(type, name, configurations) });
     setShowServiceConfig(true);
   }, [configurations]);
 
-  const confirmServiceAddition = useCallback(async (url: string, apiKey: string, displayName: string, accessUrl?: string) => {
+  const confirmServiceAddition = useCallback(async (input: ServiceConfigInput) => {
     if (!pendingService) return;
 
-    try {
-      await updateConfiguration(pendingService.instanceId, {
-        url,
-        apiKey,
-        displayName: displayName || pendingService.displayName,
-        accessUrl,
-      });
-
-      toast.success("Added new service instance");
-      setShowServiceConfig(false);
-      setPendingService(null);
-    } catch (err) {
-      toast.error("Failed to add service instance");
-      console.error("Error adding service:", err);
-    }
+    await updateConfiguration(pendingService.setup.instanceId, input);
+    toast.success("Added new service instance");
+    setShowServiceConfig(false);
   }, [pendingService, updateConfiguration]);
 
   const cancelServiceAddition = useCallback(() => {
     setShowServiceConfig(false);
-    setPendingService(null);
   }, []);
 
   const removeServiceInstance = useCallback(async (instanceId: string) => {
