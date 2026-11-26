@@ -5,7 +5,6 @@ package whisparr
 
 import (
 	"context"
-	"strings"
 
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/arr"
@@ -28,9 +27,8 @@ func NewWhisparrService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *WhisparrService) GetHealthEndpoint(baseURL string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	return baseURL + "/api/v3/health"
+func (s *WhisparrService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/v3/health")
 }
 
 func (s *WhisparrService) GetSystemStatus(ctx context.Context, url, apiKey string) (string, error) {

@@ -13,10 +13,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/autobrr/dashbrr/internal/models"
 	"github.com/autobrr/dashbrr/internal/services/core"
 	"github.com/autobrr/dashbrr/internal/types"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -65,10 +66,6 @@ func (s *BazarrService) headers(apiKey string) map[string]string {
 	}
 }
 
-func (s *BazarrService) endpoint(baseURL, path string) string {
-	return fmt.Sprintf("%s%s", strings.TrimRight(baseURL, "/"), path)
-}
-
 func (s *BazarrService) getJSON(ctx context.Context, op, baseURL, path, apiKey string, out any) error {
 	if strings.TrimSpace(baseURL) == "" {
 		return &ErrBazarr{Op: op, Err: errors.New("URL is required")}
@@ -77,7 +74,12 @@ func (s *BazarrService) getJSON(ctx context.Context, op, baseURL, path, apiKey s
 		return &ErrBazarr{Op: op, Err: errors.New("API key is required")}
 	}
 
-	resp, err := s.DoRequest(ctx, http.MethodGet, s.endpoint(baseURL, path), s.headers(apiKey), nil)
+	endpoint, err := core.RequestURL(baseURL, path)
+	if err != nil {
+		return &ErrBazarr{Op: op, Err: err}
+	}
+
+	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, s.headers(apiKey), nil)
 	if err != nil {
 		return &ErrBazarr{Op: op, Err: fmt.Errorf("failed to make request: %w", err)}
 	}
@@ -99,8 +101,8 @@ func (s *BazarrService) getJSON(ctx context.Context, op, baseURL, path, apiKey s
 	return nil
 }
 
-func (s *BazarrService) GetHealthEndpoint(baseURL string) string {
-	return s.endpoint(baseURL, "/api/system/health")
+func (s *BazarrService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/system/health")
 }
 
 func (s *BazarrService) getSystemStatusPayload(ctx context.Context, baseURL, apiKey string) (types.BazarrSystemStatus, error) {

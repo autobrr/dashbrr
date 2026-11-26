@@ -26,6 +26,26 @@ func newCollectionsServer(t *testing.T, body string) *httptest.Server {
 	return server
 }
 
+func TestGetCollections_BasePathWithTrailingSlash(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/maintainerr/api/collections" {
+			t.Errorf("path = %s, want /maintainerr/api/collections", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(server.Close)
+
+	service := NewMaintainerrService().(*MaintainerrService)
+	if _, err := service.GetCollections(t.Context(), server.URL+"/maintainerr/", "key"); err != nil {
+		t.Fatalf("GetCollections() error = %v", err)
+	}
+}
+
 // Newer Maintainerr: string libraryId/type, mediaServerId instead of plexId,
 // media capped to a preview plus a mediaCount total (#98).
 func TestGetCollections_NewSchema(t *testing.T) {

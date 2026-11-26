@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
+	"strconv"
 
 	"github.com/rs/zerolog/log"
 
@@ -86,8 +86,8 @@ type QueueDeleteOptions struct {
 	ChangeCategory   bool
 }
 
-func (a App) queueURL(baseURL string) string {
-	return fmt.Sprintf("%s/api/%s/queue", strings.TrimRight(baseURL, "/"), a.APIVersion)
+func (a App) queueURL(baseURL string, query url.Values, elems ...string) (string, error) {
+	return core.RequestURLQuery(baseURL, query, append([]string{"api", a.APIVersion, "queue"}, elems...)...)
 }
 
 func (a App) requireConfig(op, baseURL, apiKey string) error {
@@ -106,7 +106,12 @@ func (a App) FetchQueue(ctx context.Context, baseURL, apiKey string) (QueuePage,
 		return QueuePage{}, err
 	}
 
-	resp, err := MakeArrRequest(ctx, http.MethodGet, a.queueURL(baseURL)+"?page=1&pageSize=10", apiKey, nil)
+	queueURL, err := a.queueURL(baseURL, url.Values{"page": {"1"}, "pageSize": {"10"}})
+	if err != nil {
+		return QueuePage{}, &ErrArr{Service: a.Name, Op: "get_queue", Err: err}
+	}
+
+	resp, err := MakeArrRequest(ctx, http.MethodGet, queueURL, apiKey, nil)
 	if err != nil {
 		return QueuePage{}, &ErrArr{Service: a.Name, Op: "get_queue", Err: fmt.Errorf("failed to make request: %w", err)}
 	}
@@ -134,15 +139,17 @@ func (a App) DeleteQueueItem(ctx context.Context, baseURL, apiKey, queueID strin
 		return err
 	}
 
-	deleteURL := fmt.Sprintf("%s/%s?removeFromClient=%t&blocklist=%t&skipRedownload=%t",
-		a.queueURL(baseURL),
-		url.PathEscape(queueID),
-		opts.RemoveFromClient,
-		opts.Blocklist,
-		opts.SkipRedownload,
-	)
+	query := url.Values{
+		"removeFromClient": {strconv.FormatBool(opts.RemoveFromClient)},
+		"blocklist":        {strconv.FormatBool(opts.Blocklist)},
+		"skipRedownload":   {strconv.FormatBool(opts.SkipRedownload)},
+	}
 	if opts.ChangeCategory {
-		deleteURL += "&changeCategory=true"
+		query.Set("changeCategory", "true")
+	}
+	deleteURL, err := a.queueURL(baseURL, query, url.PathEscape(queueID))
+	if err != nil {
+		return &ErrArr{Service: a.Name, Op: "delete_queue", Err: err}
 	}
 
 	log.Info().

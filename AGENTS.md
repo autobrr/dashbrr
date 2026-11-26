@@ -23,6 +23,7 @@ When soup corrects you, fix the mistake and add its rule here. If the rule is al
 | Put the URL placeholder, API key label, and API key help of a service type in `web/src/config/serviceForms.ts`. Both service forms read it. | `Record<ServiceType, ServiceForm>`: tsc fails when a type has no entry. |
 | Add a service type in `internal/services/catalog/catalog.go`. The registry and the CLI read that table, and the web `ServiceType` union is generated from it. | `TestTypeScriptServiceTypes`, `TestPollerHasJobsForEveryServiceType`, and `TestEveryServiceTypeHasCLICommands` name each place a new type is missing. tsc fails on each `Record<ServiceType, …>` table. |
 | Log a service URL only through `core.RedactURL`. | `make check-log-urls`, in CI. |
+| Build each service request URL with `core.RequestURL` or `core.RequestURLQuery`. | ruleguard rule in `internal/lintrules/rules.go`, run by golangci-lint (gocritic) in CI. It flags `fmt.Sprintf("%s/…")` and `+ "/…"` in `internal/services`. |
 | Write web API URLs as relative paths (`api/...`), so they resolve under a base path. | ESLint `no-restricted-syntax` in `web/eslint.config.js`. |
 | A PR with the `breaking change` label has `!` in its title. | `.github/workflows/pr-title.yml`. |
 | A PR body fills in the sections of `.github/pull_request_template.md`. A breaking change it describes needs the `breaking change` label. | `.github/workflows/pr-body.yml`, in CI. `make check-pr-body PR=<n>` runs it locally. |

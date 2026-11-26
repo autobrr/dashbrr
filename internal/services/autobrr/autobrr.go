@@ -41,26 +41,18 @@ func NewAutobrrService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *AutobrrService) getEndpoint(baseURL, path string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s%s", baseURL, path)
-}
-
 func (s *AutobrrService) GetReleases(ctx context.Context, url, apiKey string) (types.ReleasesResponse, error) {
 	if url == "" || apiKey == "" {
 		return types.ReleasesResponse{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
-	releasesURL := s.getEndpoint(url, "/api/release")
-	parsedURL, err := neturl.Parse(releasesURL)
+	releasesURL, err := core.RequestURLQuery(url, neturl.Values{
+		"limit":  {strconv.Itoa(autobrrRecentReleasesLimit)},
+		"offset": {"0"},
+	}, "/api/release")
 	if err != nil {
-		return types.ReleasesResponse{}, fmt.Errorf("invalid releases URL: %w", err)
+		return types.ReleasesResponse{}, err
 	}
-	query := parsedURL.Query()
-	query.Set("limit", strconv.Itoa(autobrrRecentReleasesLimit))
-	query.Set("offset", "0")
-	parsedURL.RawQuery = query.Encode()
-	releasesURL = parsedURL.String()
 
 	headers := map[string]string{
 		"X-Api-Token": apiKey,
@@ -97,7 +89,10 @@ func (s *AutobrrService) GetReleaseStats(ctx context.Context, url, apiKey string
 		return types.AutobrrStats{}, fmt.Errorf("service not configured: missing URL or API key")
 	}
 
-	statsURL := s.getEndpoint(url, "/api/release/stats")
+	statsURL, err := core.RequestURL(url, "/api/release/stats")
+	if err != nil {
+		return types.AutobrrStats{}, err
+	}
 	headers := map[string]string{
 		"X-Api-Token": apiKey,
 	}
@@ -152,7 +147,10 @@ func (s *AutobrrService) GetIRCStatus(ctx context.Context, url, apiKey string) (
 		}
 	}
 
-	ircURL := s.getEndpoint(url, "/api/irc")
+	ircURL, err := core.RequestURL(url, "/api/irc")
+	if err != nil {
+		return nil, err
+	}
 	headers := map[string]string{
 		"X-Api-Token": apiKey,
 	}
@@ -220,7 +218,10 @@ func (s *AutobrrService) GetVersion(ctx context.Context, url, apiKey string) (st
 		return version, nil
 	}
 
-	versionURL := s.getEndpoint(url, "/api/config")
+	versionURL, err := core.RequestURL(url, "/api/config")
+	if err != nil {
+		return "", err
+	}
 	headers := map[string]string{
 		"X-Api-Token": apiKey,
 	}
@@ -267,7 +268,10 @@ func (s *AutobrrService) CheckUpdate(ctx context.Context, url, apiKey string) (b
 		return status == "true", nil
 	}
 
-	updateURL := s.getEndpoint(url, "/api/updates/latest")
+	updateURL, err := core.RequestURL(url, "/api/updates/latest")
+	if err != nil {
+		return false, err
+	}
 	headers := map[string]string{
 		"X-Api-Token": apiKey,
 	}
@@ -339,8 +343,10 @@ func (s *AutobrrService) CheckHealth(ctx context.Context, url string, apiKey str
 		// Continue without stats, don't fail the health check
 	}
 
-	// Perform health check
-	livenessURL := s.getEndpoint(url, "/api/healthz/liveness")
+	livenessURL, err := core.RequestURL(url, "/api/healthz/liveness")
+	if err != nil {
+		return s.CreateHealthResponse(startTime, "error", err.Error()), http.StatusBadRequest
+	}
 	headers := map[string]string{
 		"X-Api-Token": apiKey,
 	}

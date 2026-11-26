@@ -13,11 +13,17 @@ import (
 
 func TestBuildIndexerStatsURL_UsesRFC3339Window(t *testing.T) {
 	now := time.Date(2026, time.February, 19, 12, 0, 0, 0, time.UTC)
-	statsURL := buildIndexerStatsURL("http://localhost:9696/", now)
+	statsURL, err := buildIndexerStatsURL("http://localhost:9696/prowlarr/", now)
+	if err != nil {
+		t.Fatalf("buildIndexerStatsURL: %v", err)
+	}
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, statsURL, nil)
 	if err != nil {
 		t.Fatalf("create request: %v", err)
+	}
+	if req.URL.Path != "/prowlarr/api/v1/indexerstats" {
+		t.Fatalf("path = %q, want /prowlarr/api/v1/indexerstats", req.URL.Path)
 	}
 
 	startDateRaw := req.URL.Query().Get("startDate")

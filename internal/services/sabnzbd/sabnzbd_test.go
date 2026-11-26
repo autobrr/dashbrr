@@ -67,6 +67,30 @@ func TestGetQueue_UsesExpectedQueryParams(t *testing.T) {
 	}
 }
 
+func TestGetQueue_KeepsBasePathAndQuery(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/sabnzbd/api" {
+			t.Errorf("path = %s, want /sabnzbd/api", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("proxy"); got != "on" {
+			t.Errorf("proxy = %q, want on", got)
+		}
+		if got := r.URL.Query().Get("mode"); got != "queue" {
+			t.Errorf("mode = %q, want queue", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"queue": {"status": "Idle", "slots": []}}`))
+	}))
+	defer server.Close()
+
+	service := &SabnzbdService{}
+	if _, err := service.GetQueue(t.Context(), server.URL+"/sabnzbd/?proxy=on", "abc123"); err != nil {
+		t.Fatalf("GetQueue error: %v", err)
+	}
+}
+
 func TestGetSummary_CombinesQueueAndFailedHistory(t *testing.T) {
 	t.Parallel()
 

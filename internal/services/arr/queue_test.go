@@ -98,6 +98,24 @@ func TestQueue(t *testing.T) {
 	}
 }
 
+func TestQueue_BasePathAndEscapedID(t *testing.T) {
+	t.Parallel()
+
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if err := Sonarr.DeleteQueueItem(t.Context(), srv.URL+"/sonarr/", "key", "a/b c", QueueDeleteOptions{}); err != nil {
+		t.Fatalf("DeleteQueueItem: %v", err)
+	}
+	if want := "/sonarr/api/v3/queue/a%2Fb%20c"; gotPath != want {
+		t.Fatalf("path = %q, want %q", gotPath, want)
+	}
+}
+
 func TestAppFor(t *testing.T) {
 	t.Parallel()
 

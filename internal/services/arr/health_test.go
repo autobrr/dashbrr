@@ -50,8 +50,8 @@ func (t *testArrHealthChecker) CheckForUpdates(_ context.Context, _, _ string) (
 	return t.updateValue, nil
 }
 
-func (t *testArrHealthChecker) GetHealthEndpoint(baseURL string) string {
-	return baseURL + "/api/v3/health"
+func (t *testArrHealthChecker) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/v3/health")
 }
 
 func waitForCondition(timeout time.Duration, condition func() bool) bool {

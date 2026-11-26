@@ -62,30 +62,16 @@ func NewSabnzbdService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *SabnzbdService) GetHealthEndpoint(baseURL string) string {
-	return fmt.Sprintf("%s/api", strings.TrimRight(baseURL, "/"))
+func (s *SabnzbdService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api")
 }
 
 func (s *SabnzbdService) buildAPIURL(baseURL string, query url.Values) (string, error) {
-	baseURL = strings.TrimSpace(strings.TrimRight(baseURL, "/"))
-	if baseURL == "" {
+	if strings.TrimSpace(baseURL) == "" {
 		return "", errors.New("URL is required")
 	}
 
-	endpoint, err := url.Parse(baseURL + "/api")
-	if err != nil {
-		return "", err
-	}
-
-	existing := endpoint.Query()
-	for key, values := range query {
-		for _, value := range values {
-			existing.Add(key, value)
-		}
-	}
-	endpoint.RawQuery = existing.Encode()
-
-	return endpoint.String(), nil
+	return core.RequestURLQuery(baseURL, query, "/api")
 }
 
 func (s *SabnzbdService) getJSON(

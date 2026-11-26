@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -79,9 +78,8 @@ func NewMaintainerrService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *MaintainerrService) GetHealthEndpoint(baseURL string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/api/app/status", baseURL)
+func (s *MaintainerrService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/app/status")
 }
 
 func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string, error) {
@@ -90,7 +88,11 @@ func (s *MaintainerrService) getVersion(ctx context.Context, url string) (string
 		return version, nil
 	}
 
-	healthEndpoint := s.GetHealthEndpoint(url)
+	healthEndpoint, err := s.GetHealthEndpoint(url)
+	if err != nil {
+		return "", &ErrMaintainerr{Op: "get_version", Err: err}
+	}
+
 	resp, err := s.DoRequest(ctx, http.MethodGet, healthEndpoint, nil, nil)
 	if err != nil {
 		return "", &ErrMaintainerr{Op: "get_version", Err: fmt.Errorf("failed to make request: %w", err)}
@@ -125,6 +127,11 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 		return s.CreateHealthResponse(startTime, "error", "URL is required"), http.StatusBadRequest
 	}
 
+	healthEndpoint, err := s.GetHealthEndpoint(url)
+	if err != nil {
+		return s.CreateHealthResponse(startTime, "error", err.Error()), http.StatusBadRequest
+	}
+
 	// Create a child context with longer timeout if needed
 	healthCtx, cancel := context.WithTimeout(ctx, core.DefaultLongTimeout)
 	defer cancel()
@@ -143,7 +150,6 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 		errChan <- nil
 	}()
 
-	healthEndpoint := s.GetHealthEndpoint(url)
 	resp, err := s.DoRequest(healthCtx, http.MethodGet, healthEndpoint, nil, nil)
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "offline", fmt.Sprintf("Failed to connect: %v", err)), http.StatusOK
@@ -220,8 +226,10 @@ func (s *MaintainerrService) GetCollections(ctx context.Context, url, apiKey str
 		return nil, &ErrMaintainerr{Op: "get_collections", Err: ErrAPIKeyRequired}
 	}
 
-	baseURL := strings.TrimRight(url, "/")
-	endpoint := fmt.Sprintf("%s/api/collections", baseURL)
+	endpoint, err := core.RequestURL(url, "/api/collections")
+	if err != nil {
+		return nil, &ErrMaintainerr{Op: "get_collections", Err: err}
+	}
 
 	resp, err := s.DoRequest(ctx, http.MethodGet, endpoint, nil, nil)
 	if err != nil {

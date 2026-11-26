@@ -82,8 +82,8 @@ func NewNzbgetService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *NzbgetService) GetHealthEndpoint(baseURL string) string {
-	return fmt.Sprintf("%s/jsonrpc", strings.TrimRight(baseURL, "/"))
+func (s *NzbgetService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/jsonrpc")
 }
 
 func (s *NzbgetService) GetVersion(ctx context.Context, baseURL, apiKey string) (string, error) {
@@ -384,7 +384,12 @@ func (s *NzbgetService) rpcEndpointAndHeaders(op string, rawURL string, apiKey s
 		"Accept":        "application/json",
 	}
 
-	return strings.TrimRight(baseURL, "/") + "/jsonrpc", headers, nil
+	endpoint, err := core.RequestURL(baseURL, "/jsonrpc")
+	if err != nil {
+		return "", nil, &ErrNzbget{Op: op, Err: err}
+	}
+
+	return endpoint, headers, nil
 }
 
 func parseCredentials(rawURL, apiKey string) (baseURL, username, password string, err error) {

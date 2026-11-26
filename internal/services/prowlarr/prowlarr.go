@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/autobrr/dashbrr/internal/models"
@@ -54,7 +53,10 @@ func (s *ProwlarrService) GetIndexers(ctx context.Context, baseURL, apiKey strin
 		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexers", Err: fmt.Errorf("URL is required")}
 	}
 
-	indexersURL := fmt.Sprintf("%s/api/v1/indexer", strings.TrimRight(baseURL, "/"))
+	indexersURL, err := core.RequestURL(baseURL, "/api/v1/indexer")
+	if err != nil {
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexers", Err: err}
+	}
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, indexersURL, apiKey, nil)
 	if err != nil {
 		return nil, &arr.ErrArr{
@@ -90,7 +92,10 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", Err: fmt.Errorf("URL is required")}
 	}
 
-	statsURL := buildIndexerStatsURL(baseURL, time.Now())
+	statsURL, err := buildIndexerStatsURL(baseURL, time.Now())
+	if err != nil {
+		return nil, &arr.ErrArr{Service: "prowlarr", Op: "get_indexer_stats", Err: err}
+	}
 
 	resp, err := arr.MakeArrRequest(ctx, http.MethodGet, statsURL, apiKey, nil)
 	if err != nil {
@@ -115,9 +120,7 @@ func (s *ProwlarrService) GetIndexerStats(ctx context.Context, baseURL, apiKey s
 	return &stats, nil
 }
 
-func buildIndexerStatsURL(baseURL string, now time.Time) string {
-	statsURL := fmt.Sprintf("%s/api/v1/indexerstats", strings.TrimRight(baseURL, "/"))
-
+func buildIndexerStatsURL(baseURL string, now time.Time) (string, error) {
 	endDate := now.UTC()
 	startDate := endDate.Add(-prowlarrIndexerStatsWindow)
 
@@ -125,7 +128,7 @@ func buildIndexerStatsURL(baseURL string, now time.Time) string {
 	query.Set("startDate", startDate.Format(time.RFC3339))
 	query.Set("endDate", endDate.Format(time.RFC3339))
 
-	return statsURL + "?" + query.Encode()
+	return core.RequestURLQuery(baseURL, query, "/api/v1/indexerstats")
 }
 
 // GetQueue gets the current queue status
@@ -134,10 +137,8 @@ func (s *ProwlarrService) GetQueue(_ context.Context, _ string, _ string) (any, 
 	return nil, nil
 }
 
-// GetHealthEndpoint returns the health endpoint for Prowlarr
-func (s *ProwlarrService) GetHealthEndpoint(baseURL string) string {
-	baseURL = strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/api/v1/health", baseURL)
+func (s *ProwlarrService) GetHealthEndpoint(baseURL string) (string, error) {
+	return core.RequestURL(baseURL, "/api/v1/health")
 }
 
 func (s *ProwlarrService) CheckHealth(ctx context.Context, url, apiKey string) (models.ServiceHealth, int) {

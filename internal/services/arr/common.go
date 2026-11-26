@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -113,7 +112,10 @@ func GetArrSystemStatusWithVersion(
 		apiVersion = "v3"
 	}
 
-	statusURL := fmt.Sprintf("%s/api/%s/system/status", strings.TrimRight(url, "/"), apiVersion)
+	statusURL, err := core.RequestURL(url, "api", apiVersion, "system/status")
+	if err != nil {
+		return "", &ErrArr{Service: service, Op: "get_system_status", Err: err}
+	}
 	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 
@@ -160,7 +162,10 @@ func CheckArrForUpdatesWithVersion(ctx context.Context, service, apiVersion, url
 		apiVersion = "v3"
 	}
 
-	updateURL := fmt.Sprintf("%s/api/%s/update", strings.TrimRight(url, "/"), apiVersion)
+	updateURL, err := core.RequestURL(url, "api", apiVersion, "update")
+	if err != nil {
+		return false, &ErrArr{Service: service, Op: "check_for_updates", Err: err}
+	}
 	ctx, cancel := context.WithTimeout(ctx, core.DefaultTimeout)
 	defer cancel()
 

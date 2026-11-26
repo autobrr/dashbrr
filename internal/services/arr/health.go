@@ -57,7 +57,7 @@ func newIgnoredSet(names []string) map[string]struct{} {
 type HealthChecker interface {
 	GetSystemStatus(ctx context.Context, url, apiKey string) (string, error)
 	CheckForUpdates(ctx context.Context, url, apiKey string) (bool, error)
-	GetHealthEndpoint(baseURL string) string
+	GetHealthEndpoint(baseURL string) (string, error)
 }
 
 // ArrHealthCheck provides a common implementation of health checking for *arr services
@@ -93,8 +93,10 @@ func performHealthCheck(ctx context.Context, s *core.ServiceCore, url, apiKey st
 		}
 	}
 
-	// Make health check request
-	healthEndpoint := checker.GetHealthEndpoint(url)
+	healthEndpoint, err := checker.GetHealthEndpoint(url)
+	if err != nil {
+		return models.ServiceHealth{}, err
+	}
 	headers := map[string]string{
 		"X-Api-Key": apiKey,
 	}

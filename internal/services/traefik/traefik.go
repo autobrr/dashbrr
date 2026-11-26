@@ -76,32 +76,23 @@ func NewTraefikService() models.ServiceHealthChecker {
 	return service
 }
 
-func (s *TraefikService) GetHealthEndpoint(baseURL string) string {
-	endpoint, err := s.buildEndpoint(baseURL, traefikVersionPath, nil)
-	if err != nil {
-		return strings.TrimRight(baseURL, "/") + traefikVersionPath
-	}
-	return endpoint
+func (s *TraefikService) GetHealthEndpoint(baseURL string) (string, error) {
+	return s.buildEndpoint(baseURL, traefikVersionPath, nil)
 }
 
 func (s *TraefikService) buildEndpoint(baseURL, path string, query url.Values) (string, error) {
-	trimmed := strings.TrimSpace(strings.TrimRight(baseURL, "/"))
+	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
 		return "", errors.New("URL is required")
 	}
 
-	endpoint, err := url.Parse(trimmed)
+	base, err := url.Parse(trimmed)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
 	}
+	base.RawQuery = ""
 
-	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + path
-	if query != nil {
-		endpoint.RawQuery = query.Encode()
-	} else {
-		endpoint.RawQuery = ""
-	}
-	return endpoint.String(), nil
+	return core.RequestURLQuery(base.String(), query, path)
 }
 
 func authHeaderFromAPIKey(apiKey string) string {
