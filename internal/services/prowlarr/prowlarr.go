@@ -27,10 +27,6 @@ type ProwlarrService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewProwlarrService = NewProwlarrService
-}
-
 func NewProwlarrService() models.ServiceHealthChecker {
 	service := &ProwlarrService{}
 	service.Type = "prowlarr"

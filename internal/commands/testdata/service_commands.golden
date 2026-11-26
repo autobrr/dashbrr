@@ -1,0 +1,724 @@
+## service
+use: "service"
+aliases: []
+short: "Manage services"
+long: "Manage services"
+example: "  dashbrr service \n  dashbrr service --help"
+silence usage: false
+
+## service autobrr
+use: "autobrr"
+aliases: []
+short: "autobrr management"
+long: "autobrr management"
+example: "  dashbrr service autobrr\n  dashbrr service autobrr --help"
+silence usage: true
+
+## service autobrr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service autobrr add http://localhost:7474 <API-KEY>\n  dashbrr service autobrr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service autobrr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service autobrr list\n  dashbrr service autobrr list --help"
+silence usage: false
+
+## service autobrr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service autobrr remove <URL>\n  dashbrr service autobrr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service bazarr
+use: "bazarr"
+aliases: []
+short: "bazarr management"
+long: "bazarr management"
+example: "  dashbrr service bazarr\n  dashbrr service bazarr --help"
+silence usage: true
+
+## service bazarr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service bazarr add http://localhost:6767 <API-KEY>\n  dashbrr service bazarr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service bazarr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service bazarr list\n  dashbrr service bazarr list --help"
+silence usage: false
+
+## service bazarr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service bazarr remove <URL>\n  dashbrr service bazarr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service emby
+use: "emby"
+aliases: []
+short: "emby management"
+long: "emby management"
+example: "  dashbrr service emby\n  dashbrr service emby --help"
+silence usage: true
+
+## service emby add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service emby add http://localhost:8096 <API-KEY>\n  dashbrr service emby add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service emby list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service emby list\n  dashbrr service emby list --help"
+silence usage: false
+
+## service emby remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service emby remove <URL>\n  dashbrr service emby remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service generic
+use: "generic"
+aliases: []
+short: "generic management"
+long: "generic management"
+example: "  dashbrr service generic\n  dashbrr service generic --help"
+silence usage: true
+
+## service generic add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service generic add [url] [name]\n  dashbrr service generic add [url] [name] [apiKey]\n  dashbrr service generic add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service generic list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service generic list\n  dashbrr service generic list --help"
+silence usage: false
+
+## service generic remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service generic remove <URL>\n  dashbrr service generic remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service jellyfin
+use: "jellyfin"
+aliases: []
+short: "jellyfin management"
+long: "jellyfin management"
+example: "  dashbrr service jellyfin\n  dashbrr service jellyfin --help"
+silence usage: true
+
+## service jellyfin add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service jellyfin add http://localhost:8096 <API-KEY>\n  dashbrr service jellyfin add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service jellyfin list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service jellyfin list\n  dashbrr service jellyfin list --help"
+silence usage: false
+
+## service jellyfin remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service jellyfin remove <URL>\n  dashbrr service jellyfin remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service lidarr
+use: "lidarr"
+aliases: []
+short: "lidarr management"
+long: "lidarr management"
+example: "  dashbrr service lidarr\n  dashbrr service lidarr --help"
+silence usage: true
+
+## service lidarr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service lidarr add http://localhost:8686 <API-KEY>\n  dashbrr service lidarr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service lidarr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service lidarr list\n  dashbrr service lidarr list --help"
+silence usage: false
+
+## service lidarr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service lidarr remove <URL>\n  dashbrr service lidarr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service list
+use: "list"
+aliases: []
+short: "list"
+long: "list"
+example: "  dashbrr service list\n  dashbrr service list --help"
+silence usage: false
+
+## service list list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service autobrr list\n  dashbrr service autobrr list --help"
+silence usage: false
+
+## service maintainerr
+use: "maintainerr"
+aliases: []
+short: "maintainerr management"
+long: "maintainerr management"
+example: "  dashbrr service maintainerr\n  dashbrr service maintainerr --help"
+silence usage: true
+
+## service maintainerr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service maintainerr add http://localhost:6246 <API-KEY>\n  dashbrr service maintainerr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service maintainerr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service maintainerr list\n  dashbrr service maintainerr list --help"
+silence usage: false
+
+## service maintainerr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service maintainerr remove <URL>\n  dashbrr service maintainerr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service nzbget
+use: "nzbget"
+aliases: []
+short: "nzbget management"
+long: "nzbget management"
+example: "  dashbrr service nzbget\n  dashbrr service nzbget --help"
+silence usage: true
+
+## service nzbget add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service nzbget add http://localhost:6789 <CONTROL-PASSWORD>\n  dashbrr service nzbget add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service nzbget list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service nzbget list\n  dashbrr service nzbget list --help"
+silence usage: false
+
+## service nzbget remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service nzbget remove <URL>\n  dashbrr service nzbget remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service overseerr
+use: "overseerr"
+aliases: []
+short: "overseerr management"
+long: "overseerr management"
+example: "  dashbrr service overseerr\n  dashbrr service overseerr --help"
+silence usage: true
+
+## service overseerr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service overseerr add http://localhost:5055 <API-KEY>\n  dashbrr service overseerr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service overseerr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service overseerr list\n  dashbrr service overseerr list --help"
+silence usage: false
+
+## service overseerr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service overseerr remove <URL>\n  dashbrr service overseerr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service plex
+use: "plex"
+aliases: []
+short: "plex management"
+long: "plex management"
+example: "  dashbrr service plex\n  dashbrr service plex --help"
+silence usage: true
+
+## service plex add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service plex add http://localhost:32400 <TOKEN>\n  dashbrr service plex add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service plex list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service plex list\n  dashbrr service plex list --help"
+silence usage: false
+
+## service plex remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service plex remove <URL>\n  dashbrr service plex remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service prowlarr
+use: "prowlarr"
+aliases: []
+short: "prowlarr management"
+long: "prowlarr management"
+example: "  dashbrr service prowlarr\n  dashbrr service prowlarr --help"
+silence usage: true
+
+## service prowlarr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service prowlarr add http://localhost:9696 <API-KEY>\n  dashbrr service prowlarr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service prowlarr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service prowlarr list\n  dashbrr service prowlarr list --help"
+silence usage: false
+
+## service prowlarr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service prowlarr remove <URL>\n  dashbrr service prowlarr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service qui
+use: "qui"
+aliases: []
+short: "qui management"
+long: "qui management"
+example: "  dashbrr service qui\n  dashbrr service qui --help"
+silence usage: true
+
+## service qui add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service qui add http://localhost:7476 <API-KEY>\n  dashbrr service qui add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service qui list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service qui list\n  dashbrr service qui list --help"
+silence usage: false
+
+## service qui remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service qui remove <URL>\n  dashbrr service qui remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service radarr
+use: "radarr"
+aliases: []
+short: "radarr management"
+long: "radarr management"
+example: "  dashbrr service radarr\n  dashbrr service radarr --help"
+silence usage: true
+
+## service radarr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service radarr add http://localhost:7878 <API-KEY>\n  dashbrr service radarr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service radarr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service radarr list\n  dashbrr service radarr list --help"
+silence usage: false
+
+## service radarr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service radarr remove <URL>\n  dashbrr service radarr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service readarr
+use: "readarr"
+aliases: []
+short: "readarr management"
+long: "readarr management"
+example: "  dashbrr service readarr\n  dashbrr service readarr --help"
+silence usage: true
+
+## service readarr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service readarr add http://localhost:8787 <API-KEY>\n  dashbrr service readarr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service readarr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service readarr list\n  dashbrr service readarr list --help"
+silence usage: false
+
+## service readarr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service readarr remove <URL>\n  dashbrr service readarr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service sabnzbd
+use: "sabnzbd"
+aliases: []
+short: "sabnzbd management"
+long: "sabnzbd management"
+example: "  dashbrr service sabnzbd\n  dashbrr service sabnzbd --help"
+silence usage: true
+
+## service sabnzbd add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service sabnzbd add http://localhost:8080 <API-KEY>\n  dashbrr service sabnzbd add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service sabnzbd list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service sabnzbd list\n  dashbrr service sabnzbd list --help"
+silence usage: false
+
+## service sabnzbd remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service sabnzbd remove <URL>\n  dashbrr service sabnzbd remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service sonarr
+use: "sonarr"
+aliases: []
+short: "sonarr management"
+long: "sonarr management"
+example: "  dashbrr service sonarr\n  dashbrr service sonarr --help"
+silence usage: true
+
+## service sonarr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service sonarr add http://localhost:8989 <API-KEY>\n  dashbrr service sonarr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service sonarr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service sonarr list\n  dashbrr service sonarr list --help"
+silence usage: false
+
+## service sonarr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service sonarr remove <URL>\n  dashbrr service sonarr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service tailscale
+use: "tailscale"
+aliases: []
+short: "tailscale management"
+long: "tailscale management"
+example: "  dashbrr service tailscale\n  dashbrr service tailscale --help"
+silence usage: true
+
+## service tailscale add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service tailscale add <API-KEY>\n  dashbrr service tailscale add --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service tailscale list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service tailscale list\n  dashbrr service tailscale list --help"
+silence usage: false
+
+## service tailscale remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service tailscale remove <URL>\n  dashbrr service tailscale remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service traefik
+use: "traefik"
+aliases: []
+short: "traefik management"
+long: "traefik management"
+example: "  dashbrr service traefik\n  dashbrr service traefik --help"
+silence usage: true
+
+## service traefik add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service traefik add http://localhost:8080 [AUTH-TOKEN]\n  dashbrr service traefik add --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service traefik list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service traefik list\n  dashbrr service traefik list --help"
+silence usage: false
+
+## service traefik remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service traefik remove <URL>\n  dashbrr service traefik remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service uptimekuma
+use: "uptimekuma"
+aliases: []
+short: "uptimekuma management"
+long: "uptimekuma management"
+example: "  dashbrr service uptimekuma\n  dashbrr service uptimekuma --help"
+silence usage: true
+
+## service uptimekuma add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service uptimekuma add http://localhost:3001 <API-KEY>\n  dashbrr service uptimekuma add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service uptimekuma list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service uptimekuma list\n  dashbrr service uptimekuma list --help"
+silence usage: false
+
+## service uptimekuma remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service uptimekuma remove <URL>\n  dashbrr service uptimekuma remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+
+## service whisparr
+use: "whisparr"
+aliases: []
+short: "whisparr management"
+long: "whisparr management"
+example: "  dashbrr service whisparr\n  dashbrr service whisparr --help"
+silence usage: true
+
+## service whisparr add
+use: "add"
+aliases: []
+short: "add"
+long: "add"
+example: "  dashbrr service whisparr add http://localhost:6969 <API-KEY>\n  dashbrr service whisparr add --help"
+silence usage: false
+accepts arg counts: [2 3]
+flag dry-run: "Dry run, don't write changes"
+
+## service whisparr list
+use: "list"
+aliases: ["ls"]
+short: "list"
+long: "list"
+example: "  dashbrr service whisparr list\n  dashbrr service whisparr list --help"
+silence usage: false
+
+## service whisparr remove
+use: "remove"
+aliases: []
+short: "remove"
+long: "remove"
+example: "  dashbrr service whisparr remove <URL>\n  dashbrr service whisparr remove --help"
+silence usage: false
+accepts arg counts: [1 2 3]
+

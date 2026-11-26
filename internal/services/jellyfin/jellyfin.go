@@ -58,11 +58,6 @@ type JellyfinService struct {
 	sessionQuery url.Values
 }
 
-func init() {
-	models.NewJellyfinService = NewJellyfinService
-	models.NewEmbyService = NewEmbyService
-}
-
 func NewJellyfinService() models.ServiceHealthChecker {
 	service := &JellyfinService{
 		Type:           "jellyfin",

@@ -17,10 +17,6 @@ type WhisparrService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewWhisparrService = NewWhisparrService
-}
-
 func NewWhisparrService() models.ServiceHealthChecker {
 	service := &WhisparrService{}
 	service.Type = "whisparr"

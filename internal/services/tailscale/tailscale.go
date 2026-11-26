@@ -52,10 +52,6 @@ type TailscaleAPIResponse struct {
 	} `json:"devices"`
 }
 
-func init() {
-	models.NewTailscaleService = NewTailscaleService
-}
-
 func NewTailscaleService() models.ServiceHealthChecker {
 	service := &TailscaleService{}
 	service.Type = "tailscale"

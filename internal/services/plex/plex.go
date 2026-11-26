@@ -22,10 +22,6 @@ type PlexService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewPlexService = NewPlexService
-}
-
 func NewPlexService() models.ServiceHealthChecker {
 	service := &PlexService{
 		Type:           "plex",

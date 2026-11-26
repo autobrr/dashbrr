@@ -17,10 +17,6 @@ type ReadarrService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewReadarrService = NewReadarrService
-}
-
 func NewReadarrService() models.ServiceHealthChecker {
 	service := &ReadarrService{}
 	service.Type = "readarr"

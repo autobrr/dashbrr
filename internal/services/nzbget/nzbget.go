@@ -71,10 +71,6 @@ type NzbgetService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewNzbgetService = NewNzbgetService
-}
-
 func NewNzbgetService() models.ServiceHealthChecker {
 	service := &NzbgetService{}
 	service.Type = "nzbget"

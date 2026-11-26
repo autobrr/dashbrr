@@ -12,26 +12,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/config"
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/models"
-
-	// Service registration (init side effects).
-	_ "github.com/autobrr/dashbrr/internal/services/autobrr"
-	_ "github.com/autobrr/dashbrr/internal/services/bazarr"
-	_ "github.com/autobrr/dashbrr/internal/services/general"
-	_ "github.com/autobrr/dashbrr/internal/services/jellyfin"
-	_ "github.com/autobrr/dashbrr/internal/services/lidarr"
-	_ "github.com/autobrr/dashbrr/internal/services/maintainerr"
-	_ "github.com/autobrr/dashbrr/internal/services/nzbget"
-	_ "github.com/autobrr/dashbrr/internal/services/overseerr"
-	_ "github.com/autobrr/dashbrr/internal/services/plex"
-	_ "github.com/autobrr/dashbrr/internal/services/prowlarr"
-	_ "github.com/autobrr/dashbrr/internal/services/qui"
-	_ "github.com/autobrr/dashbrr/internal/services/radarr"
-	_ "github.com/autobrr/dashbrr/internal/services/readarr"
-	_ "github.com/autobrr/dashbrr/internal/services/sabnzbd"
-	_ "github.com/autobrr/dashbrr/internal/services/sonarr"
-	_ "github.com/autobrr/dashbrr/internal/services/tailscale"
-	_ "github.com/autobrr/dashbrr/internal/services/uptimekuma"
-	_ "github.com/autobrr/dashbrr/internal/services/whisparr"
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -101,7 +82,7 @@ func HealthCommand() *cobra.Command {
 
 		// Service health checks
 		if checkServices {
-			registry := models.NewServiceRegistry()
+			registry := catalog.Registry{}
 			checkers := make(map[string]models.ServiceHealthChecker)
 
 			// Get all configured services

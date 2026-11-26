@@ -51,10 +51,6 @@ type SabnzbdService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewSabnzbdService = NewSabnzbdService
-}
-
 func NewSabnzbdService() models.ServiceHealthChecker {
 	service := &SabnzbdService{}
 	service.Type = "sabnzbd"

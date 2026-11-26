@@ -9,6 +9,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/cache"
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 
 	"github.com/spf13/cobra"
 )
@@ -80,27 +81,11 @@ func ServiceCommand() *cobra.Command {
 	}
 
 	command.AddCommand(ServiceListCommand())
-
-	command.AddCommand(ServiceAutobrrCommand())
-	command.AddCommand(ServiceBazarrCommand())
-	command.AddCommand(ServiceEmbyCommand())
-	command.AddCommand(ServiceGeneralCommand())
-	command.AddCommand(ServiceJellyfinCommand())
-	command.AddCommand(ServiceUptimeKumaCommand())
-	command.AddCommand(ServiceLidarrCommand())
-	command.AddCommand(ServiceMaintainerrCommand())
-	command.AddCommand(ServiceOverseerrCommand())
-	command.AddCommand(ServicePlexCommand())
-	command.AddCommand(ServiceProwlarrCommand())
-	command.AddCommand(ServiceQuiCommand())
-	command.AddCommand(ServiceRadarrCommand())
-	command.AddCommand(ServiceReadarrCommand())
-	command.AddCommand(ServiceSabnzbdCommand())
-	command.AddCommand(ServiceNzbgetCommand())
-	command.AddCommand(ServiceSonarrCommand())
-	command.AddCommand(ServiceTailscaleCommand())
-	command.AddCommand(ServiceTraefikCommand())
-	command.AddCommand(ServiceWhisparrCommand())
+	for _, t := range catalog.All() {
+		if spec, ok := serviceSpecFor(t); ok {
+			command.AddCommand(newServiceTypeCommand(spec))
+		}
+	}
 
 	return command
 }
@@ -151,7 +136,9 @@ func ServiceListCommand() *cobra.Command {
 		return cmd.Usage()
 	}
 
-	command.AddCommand(ServiceAutobrrListCommand())
+	autobrr, _ := catalog.Lookup("autobrr")
+	spec, _ := serviceSpecFor(autobrr)
+	command.AddCommand(newServiceListCommand(spec))
 
 	return command
 }

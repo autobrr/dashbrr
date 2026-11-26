@@ -3,30 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+import type { CatalogServiceType } from "./serviceTypes.gen";
+
 export type ServiceStatus = "online" | "offline" | "warning" | "error" | "loading" | "pending" | "unknown";
 
-export type ServiceType =
-  | "autobrr"
-  | "radarr"
-  | "sonarr"
-  | "whisparr"
-  | "lidarr"
-  | "readarr"
-  | "bazarr"
-  | "sabnzbd"
-  | "nzbget"
-  | "prowlarr"
-  | "traefik"
-  | "overseerr"
-  | "plex"
-  | "jellyfin"
-  | "emby"
-  | "uptimekuma"
-  | "tailscale"
-  | "maintainerr"
-  | "qui"
-  | "general"
-  | "other";
+export type ServiceType = CatalogServiceType | "other";
 
 export interface ServiceHealth {
   status: ServiceStatus;

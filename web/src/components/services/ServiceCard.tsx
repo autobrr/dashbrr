@@ -66,9 +66,7 @@ type ServiceStatsRenderer = (
   url: string
 ) => React.ReactNode;
 
-const SERVICE_STATS_RENDERERS: Partial<
-  Record<ServiceType, ServiceStatsRenderer>
-> = {
+const SERVICE_STATS_RENDERERS: Record<ServiceType, ServiceStatsRenderer | null> = {
   autobrr: (instanceId) => (
     <div className="bg-transparent">
       <AutobrrStats instanceId={instanceId} />
@@ -107,6 +105,8 @@ const SERVICE_STATS_RENDERERS: Partial<
   traefik: (instanceId) => <TraefikStats instanceId={instanceId} />,
   qui: (instanceId) => <QuiStats instanceId={instanceId} />,
   general: (instanceId) => <GeneralStats instanceId={instanceId} />,
+  tailscale: null,
+  other: null,
 };
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({
