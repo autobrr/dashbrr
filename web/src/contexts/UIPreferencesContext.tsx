@@ -8,10 +8,13 @@ import { useAuth } from "../hooks/useAuth";
 import { api } from "../utils/api";
 
 type CollapsePreferences = Record<string, boolean>;
+type Theme = "light" | "dark" | "system";
 
 interface UIPreferencesContextValue {
   getCollapsed: (key: string, defaultCollapsed?: boolean) => boolean;
   setCollapsed: (key: string, collapsed: boolean) => Promise<void>;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
 }
 
 const UIPreferencesContext = createContext<UIPreferencesContextValue | undefined>(undefined);
@@ -19,8 +22,26 @@ const UIPreferencesContext = createContext<UIPreferencesContextValue | undefined
 export const UIPreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const [collapsePreferences, setCollapsePreferences] = useState<CollapsePreferences>({});
+  const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem("theme") as Theme) || "dark");
   const collapsePreferencesRef = useRef(collapsePreferences);
   const loadedRef = useRef(false);
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove("light", "dark");
+
+    if (theme === "system") {
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const setTheme = useCallback((newTheme: Theme) => {
+    setThemeState(newTheme);
+  }, []);
 
   useEffect(() => {
     collapsePreferencesRef.current = collapsePreferences;
@@ -97,8 +118,10 @@ export const UIPreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
     () => ({
       getCollapsed,
       setCollapsed,
+      theme,
+      setTheme,
     }),
-    [getCollapsed, setCollapsed]
+    [getCollapsed, setCollapsed, theme, setTheme]
   );
 
   return (
@@ -109,4 +132,3 @@ export const UIPreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
 };
 
 export { UIPreferencesContext };
-

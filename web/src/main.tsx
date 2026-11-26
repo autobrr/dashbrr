@@ -9,17 +9,12 @@ import { RouterProvider } from "@tanstack/react-router";
 import { router } from "./router";
 import "./index.css";
 
-// Force dark mode
-document.documentElement.classList.add("dark");
-
 async function unregisterServiceWorkerInDev() {
   if (!import.meta.env.DEV) return;
   if (!("serviceWorker" in navigator)) return;
 
   const wasControlled = !!navigator.serviceWorker.controller;
 
-  // Fix dev state where a previously-registered SW is still controlling the page
-  // and serves stale/raw CSS (e.g. `@tailwind` directives) from cache.
   try {
     const regs = await navigator.serviceWorker.getRegistrations();
     await Promise.all(regs.map((r) => r.unregister()));
@@ -36,8 +31,6 @@ async function unregisterServiceWorkerInDev() {
     }
   }
 
-  // If a SW was controlling the page, this load can still be stale.
-  // Reload once (per tab) after unregistering + cache purge.
   if (wasControlled && !sessionStorage.getItem("dashbrr_dev_sw_killed")) {
     sessionStorage.setItem("dashbrr_dev_sw_killed", "1");
     location.reload();
