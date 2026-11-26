@@ -16,10 +16,6 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/core"
 )
 
-func init() {
-	models.NewGeneralService = NewGeneralService
-}
-
 func NewGeneralService() models.ServiceHealthChecker {
 	service := &GeneralService{}
 	service.Type = "general"

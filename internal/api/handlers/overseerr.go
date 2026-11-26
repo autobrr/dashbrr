@@ -13,6 +13,7 @@ import (
 
 	"github.com/autobrr/dashbrr/internal/database"
 	"github.com/autobrr/dashbrr/internal/services/overseerr"
+	"github.com/autobrr/dashbrr/internal/services/resilience"
 )
 
 type OverseerrHandler struct {
@@ -79,7 +80,10 @@ func (h *OverseerrHandler) UpdateRequestStatus(c *gin.Context) {
 	service := &overseerr.OverseerrService{}
 	service.SetDB(h.db)
 
-	if err := service.UpdateRequestStatus(ctx, overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve); err != nil {
+	err = resilience.RetryWithBackoff(ctx, func() error {
+		return service.UpdateRequestStatus(ctx, overseerrConfig.URL, overseerrConfig.APIKey, reqID, approve)
+	})
+	if err != nil {
 		log.Error().Err(err).
 			Str("instanceId", instanceId).
 			Int("requestId", reqID).

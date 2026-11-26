@@ -65,10 +65,6 @@ type TraefikService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewTraefikService = NewTraefikService
-}
-
 func NewTraefikService() models.ServiceHealthChecker {
 	service := &TraefikService{}
 	service.Type = "traefik"

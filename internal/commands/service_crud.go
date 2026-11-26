@@ -14,13 +14,10 @@ type serviceSpec struct {
 	Use         string
 	Prefix      string
 	DisplayName string
-	Short       string
-	Long        string
-	Example     string
 
-	AddExample string
-	AddArgs    cobra.PositionalArgs
-	ParseAdd   func(args []string) (serviceURL, apiKey, displayName string, err error)
+	AddUsage []string
+	AddArgs  cobra.PositionalArgs
+	ParseAdd func(args []string) (serviceURL, apiKey, displayName string, err error)
 
 	HealthCheck func(ctx context.Context, serviceURL, apiKey string) (models.ServiceHealth, int)
 	HealthOK    func(health models.ServiceHealth) bool
@@ -86,11 +83,17 @@ func newServiceListCommand(spec serviceSpec) *cobra.Command {
 }
 
 func newServiceAddCommand(spec serviceSpec) *cobra.Command {
+	var example strings.Builder
+	for _, usage := range spec.AddUsage {
+		fmt.Fprintf(&example, "  dashbrr service %s add %s\n", spec.Use, usage)
+	}
+	fmt.Fprintf(&example, "  dashbrr service %s add --help", spec.Use)
+
 	command := &cobra.Command{
 		Use:     "add",
 		Short:   "add",
 		Long:    "add",
-		Example: spec.AddExample,
+		Example: example.String(),
 		Args:    spec.AddArgs,
 	}
 
@@ -101,10 +104,6 @@ func newServiceAddCommand(spec serviceSpec) *cobra.Command {
 		db, err := initializeDatabase(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database: %v", err)
-		}
-
-		if spec.ParseAdd == nil {
-			return fmt.Errorf("service %s: ParseAdd not configured", spec.Use)
 		}
 
 		serviceURL, apiKey, displayName, err := spec.ParseAdd(args)

@@ -17,10 +17,6 @@ type RadarrService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewRadarrService = NewRadarrService
-}
-
 func NewRadarrService() models.ServiceHealthChecker {
 	service := &RadarrService{}
 	service.Type = "radarr"

@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/autobrr/dashbrr/internal/models"
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 	"github.com/autobrr/dashbrr/internal/types"
 )
 
@@ -31,7 +32,7 @@ func NewHealthHandler(db DatabaseService, creator ...models.ServiceCreator) *Hea
 	if len(creator) > 0 {
 		sc = creator[0]
 	} else {
-		sc = models.NewServiceRegistry()
+		sc = catalog.Registry{}
 	}
 
 	return &HealthHandler{

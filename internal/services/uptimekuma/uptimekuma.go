@@ -51,10 +51,6 @@ type UptimeKumaService struct {
 	core.ServiceCore
 }
 
-func init() {
-	models.NewUptimeKumaService = NewUptimeKumaService
-}
-
 func NewUptimeKumaService() models.ServiceHealthChecker {
 	service := &UptimeKumaService{}
 	service.Type = "uptimekuma"

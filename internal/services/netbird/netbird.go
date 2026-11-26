@@ -91,10 +91,6 @@ type versionInfo struct {
 	ManagementUpdateAvailable  bool   `json:"management_update_available"`
 }
 
-func init() {
-	models.NewNetBirdService = NewNetBirdService
-}
-
 func NewNetBirdService() models.ServiceHealthChecker {
 	service := &Service{}
 	service.Type = "netbird"

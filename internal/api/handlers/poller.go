@@ -20,6 +20,7 @@ import (
 	"github.com/autobrr/dashbrr/internal/services/arr"
 	"github.com/autobrr/dashbrr/internal/services/autobrr"
 	"github.com/autobrr/dashbrr/internal/services/bazarr"
+	"github.com/autobrr/dashbrr/internal/services/catalog"
 	"github.com/autobrr/dashbrr/internal/services/jellyfin"
 	"github.com/autobrr/dashbrr/internal/services/maintainerr"
 	"github.com/autobrr/dashbrr/internal/services/netbird"
@@ -96,7 +97,7 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 	p := &Poller{
 		db:              db,
 		bc:              bc,
-		registry:        models.NewServiceRegistry(),
+		registry:        catalog.Registry{},
 		lastRun:         make(map[string]time.Time),
 		lastOKRun:       make(map[string]time.Time),
 		failed:          make(map[string]bool),
@@ -170,6 +171,7 @@ func NewPoller(db *database.DB, bc *Broadcaster) *Poller {
 		"traefik": {
 			{name: "traefik_summary", interval: 30 * time.Second, timeout: pollerMediumJobTimeout, run: (*Poller).runTraefikSummary},
 		},
+		"general": {},
 	}
 
 	return p

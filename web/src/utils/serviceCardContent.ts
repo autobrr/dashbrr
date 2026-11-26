@@ -98,7 +98,9 @@ export const hasMeaningfulServiceContent = (service: Service): boolean => {
       return (service.stats?.netbird?.peers?.length ?? 0) > 0;
     case "general":
     case "other":
+      return false;
     default:
+      service.type satisfies never;
       return false;
   }
 };
