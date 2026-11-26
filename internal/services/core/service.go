@@ -80,16 +80,14 @@ func (s *ServiceCore) SetTimeout(timeout time.Duration) {
 	s.Timeout = timeout
 }
 
-// initCache uses the cache that serve or the CLI started with cache.InitCache.
-func (s *ServiceCore) initCache() error {
+func (s *ServiceCore) store() (cache.Store, error) {
 	if s.cache != nil {
-		return nil
+		return s.cache, nil
 	}
-	s.cache = cache.Global()
-	if s.cache == nil {
-		return errors.New("cache not initialized")
+	if global := cache.Global(); global != nil {
+		return global, nil
 	}
-	return nil
+	return nil, errors.New("cache not initialized")
 }
 
 // DoRequest makes an HTTP request with the provided context, method, and optional body.
@@ -288,14 +286,15 @@ func (s *ServiceCore) ReadBody(resp *http.Response) ([]byte, error) {
 
 // GetVersionFromCache retrieves the version from cache
 func (s *ServiceCore) GetVersionFromCache(ctx context.Context, baseURL string) string {
-	if err := s.initCache(); err != nil {
+	store, err := s.store()
+	if err != nil {
 		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return ""
 	}
 
 	var version string
 	cacheKey := "version:" + baseURL
-	err := s.cache.Get(ctx, cacheKey, &version)
+	err = store.Get(ctx, cacheKey, &version)
 	if err != nil {
 		// Cache miss is normal operation, no need to log it
 		return ""
@@ -307,14 +306,15 @@ func (s *ServiceCore) GetVersionFromCache(ctx context.Context, baseURL string) s
 // GetUpdateStatusFromCacheWithFound retrieves the update status from cache and
 // reports whether a value existed.
 func (s *ServiceCore) GetUpdateStatusFromCacheWithFound(ctx context.Context, baseURL string) (bool, bool) {
-	if err := s.initCache(); err != nil {
+	store, err := s.store()
+	if err != nil {
 		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return false, false
 	}
 
 	var updateStatus string
 	cacheKey := fmt.Sprintf("%s:update", baseURL)
-	if err := s.cache.Get(ctx, cacheKey, &updateStatus); err == nil {
+	if err := store.Get(ctx, cacheKey, &updateStatus); err == nil {
 		return updateStatus == "true", true
 	}
 
@@ -322,7 +322,7 @@ func (s *ServiceCore) GetUpdateStatusFromCacheWithFound(ctx context.Context, bas
 	// which prefixes keys with "version:".
 	var legacyStatus string
 	legacyKey := "version:" + cacheKey
-	if err := s.cache.Get(ctx, legacyKey, &legacyStatus); err == nil {
+	if err := store.Get(ctx, legacyKey, &legacyStatus); err == nil {
 		return legacyStatus == "true", true
 	}
 
@@ -337,14 +337,15 @@ func (s *ServiceCore) GetUpdateStatusFromCache(ctx context.Context, baseURL stri
 
 // CacheUpdateStatus stores update availability in the dedicated update cache key.
 func (s *ServiceCore) CacheUpdateStatus(ctx context.Context, baseURL string, updateAvailable bool, ttl time.Duration) error {
-	if err := s.initCache(); err != nil {
+	store, err := s.store()
+	if err != nil {
 		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return err
 	}
 
 	cacheKey := fmt.Sprintf("%s:update", baseURL)
 	value := strconv.FormatBool(updateAvailable)
-	if err := s.cache.Set(ctx, cacheKey, value, ttl); err != nil {
+	if err := store.Set(ctx, cacheKey, value, ttl); err != nil {
 		log.Error().Err(err).Str("url", RedactURL(baseURL)).Str("value", value).Msg("Failed to cache update status")
 		return err
 	}
@@ -354,13 +355,14 @@ func (s *ServiceCore) CacheUpdateStatus(ctx context.Context, baseURL string, upd
 
 // CacheVersion stores the version in cache with the specified TTL
 func (s *ServiceCore) CacheVersion(ctx context.Context, baseURL, version string, ttl time.Duration) error {
-	if err := s.initCache(); err != nil {
+	store, err := s.store()
+	if err != nil {
 		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Failed to initialize cache")
 		return err
 	}
 
 	cacheKey := "version:" + baseURL
-	if err := s.cache.Set(ctx, cacheKey, version, ttl); err != nil {
+	if err := store.Set(ctx, cacheKey, version, ttl); err != nil {
 		log.Error().Err(err).Str("url", RedactURL(baseURL)).Str("version", version).Msg("Failed to cache version")
 		return err
 	}
@@ -399,7 +401,8 @@ func (s *ServiceCore) CreateHealthResponse(lastChecked time.Time, status string,
 
 // GetCachedVersion attempts to get version from cache or fetches it if not found
 func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey string, fetchVersion func(string, string) (string, error)) (string, error) {
-	if err := s.initCache(); err != nil {
+	store, err := s.store()
+	if err != nil {
 		log.Error().Err(err).Str("url", RedactURL(baseURL)).Msg("Cache initialization failed")
 		return "", err
 	}
@@ -408,7 +411,7 @@ func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 	var version string
 
 	// Try to get version from cache
-	err := s.cache.Get(ctx, cacheKey, &version)
+	err = store.Get(ctx, cacheKey, &version)
 	if err == nil && version != "" {
 		return version, nil
 	}
@@ -421,7 +424,7 @@ func (s *ServiceCore) GetCachedVersion(ctx context.Context, baseURL, apiKey stri
 	}
 
 	// Cache the version for 1 hour
-	if err := s.cache.Set(ctx, cacheKey, version, time.Hour); err != nil {
+	if err := store.Set(ctx, cacheKey, version, time.Hour); err != nil {
 		log.Warn().Err(err).Str("url", RedactURL(baseURL)).Str("version", version).Msg("Failed to cache version")
 		return version, err
 	}
