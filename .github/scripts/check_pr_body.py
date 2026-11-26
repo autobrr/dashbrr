@@ -11,6 +11,7 @@ REQUIRED = {
     "Description",
     "Breaking change",
     "Behaviour change",
+    "How has this been tested?",
     "Performance",
     "Checklist",
     "AI disclosure",
