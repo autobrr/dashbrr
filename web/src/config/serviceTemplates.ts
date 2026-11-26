@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { Service } from "../types/service";
+import type { Service } from "../types/service";
+import type { CatalogServiceType } from "../types/serviceTypes.gen";
 
-export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
-  {
+type ServiceTemplate = Omit<Service, "id" | "instanceId">;
+
+const templates: { [T in CatalogServiceType]: ServiceTemplate & { type: T } } = {
+  autobrr: {
     name: "Autobrr",
     displayName: "",
     type: "autobrr",
@@ -15,7 +18,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/autobrr",
   },
-  {
+  radarr: {
     name: "Radarr",
     displayName: "",
     type: "radarr",
@@ -24,7 +27,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/radarr",
   },
-  {
+  sonarr: {
     name: "Sonarr",
     displayName: "",
     type: "sonarr",
@@ -33,7 +36,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/sonarr",
   },
-  {
+  whisparr: {
     name: "Whisparr",
     displayName: "",
     type: "whisparr",
@@ -42,7 +45,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/whisparr",
   },
-  {
+  lidarr: {
     name: "Lidarr",
     displayName: "",
     type: "lidarr",
@@ -51,7 +54,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/lidarr",
   },
-  {
+  readarr: {
     name: "Readarr",
     displayName: "",
     type: "readarr",
@@ -60,7 +63,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/readarr",
   },
-  {
+  bazarr: {
     name: "Bazarr",
     displayName: "",
     type: "bazarr",
@@ -69,7 +72,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/bazarr",
   },
-  {
+  sabnzbd: {
     name: "SABnzbd",
     displayName: "",
     type: "sabnzbd",
@@ -78,7 +81,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/sabnzbd",
   },
-  {
+  nzbget: {
     name: "NZBGet",
     displayName: "",
     type: "nzbget",
@@ -87,7 +90,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/nzbget",
   },
-  {
+  prowlarr: {
     name: "Prowlarr",
     displayName: "",
     type: "prowlarr",
@@ -96,7 +99,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/prowlarr",
   },
-  {
+  traefik: {
     name: "Traefik",
     displayName: "",
     type: "traefik",
@@ -105,7 +108,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/traefik",
   },
-  {
+  overseerr: {
     name: "Overseerr",
     displayName: "",
     type: "overseerr",
@@ -114,7 +117,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/overseerr",
   },
-  {
+  plex: {
     name: "Plex",
     displayName: "",
     type: "plex",
@@ -123,7 +126,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/plex",
   },
-  {
+  jellyfin: {
     name: "Jellyfin",
     displayName: "",
     type: "jellyfin",
@@ -132,7 +135,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/jellyfin",
   },
-  {
+  emby: {
     name: "Emby",
     displayName: "",
     type: "emby",
@@ -141,7 +144,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/emby",
   },
-  {
+  uptimekuma: {
     name: "Uptime Kuma",
     displayName: "",
     type: "uptimekuma",
@@ -150,7 +153,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/uptimekuma",
   },
-  {
+  tailscale: {
     name: "Tailscale",
     displayName: "",
     type: "tailscale",
@@ -158,7 +161,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     url: "",
     healthEndpoint: "api/health/tailscale",
   },
-  {
+  maintainerr: {
     name: "Maintainerr",
     displayName: "",
     type: "maintainerr",
@@ -167,7 +170,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/maintainerr",
   },
-  {
+  qui: {
     name: "Qui",
     displayName: "",
     type: "qui",
@@ -176,7 +179,7 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     accessUrl: "",
     healthEndpoint: "api/health/qui",
   },
-  {
+  general: {
     name: "General Service",
     displayName: "",
     type: "general",
@@ -186,6 +189,8 @@ export const serviceTemplates: Omit<Service, "id" | "instanceId">[] = [
     healthEndpoint: "",
     apiKey: undefined,
   },
-];
+};
+
+export const serviceTemplates: ServiceTemplate[] = Object.values(templates);
 
 export default serviceTemplates;
