@@ -160,28 +160,14 @@ func (s *MaintainerrService) CheckHealth(ctx context.Context, url, apiKey string
 	responseTime := time.Since(startTime).Milliseconds()
 
 	body, err := s.ReadBody(resp)
+	if err == nil && resp.StatusCode >= 400 {
+		err = &core.HTTPStatusError{StatusCode: resp.StatusCode}
+	}
+	if statusErr, ok := errors.AsType[*core.HTTPStatusError](err); ok {
+		return s.CreateHealthResponse(startTime, "error", statusErr.Error()), http.StatusOK
+	}
 	if err != nil {
 		return s.CreateHealthResponse(startTime, "error", fmt.Sprintf("Failed to read response: %v", err)), http.StatusOK
-	}
-
-	if resp.StatusCode >= 400 {
-		statusText := http.StatusText(resp.StatusCode)
-		status := "error"
-		message := fmt.Sprintf("Server returned %s (%d)", statusText, resp.StatusCode)
-
-		// Determine appropriate status based on response code
-		switch resp.StatusCode {
-		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-			message = fmt.Sprintf("Service is temporarily unavailable (%d %s)", resp.StatusCode, statusText)
-		case http.StatusUnauthorized:
-			message = "Invalid API key"
-		case http.StatusForbidden:
-			message = "Access forbidden"
-		case http.StatusNotFound:
-			message = "Service endpoint not found"
-		}
-
-		return s.CreateHealthResponse(startTime, status, message), http.StatusOK
 	}
 
 	var statusResponse StatusResponse
