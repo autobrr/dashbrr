@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/autobrr/dashbrr/internal/types"
 )
 
 func TestGetSummary_FiltersHealthyProvidersAndDisabledSignalR(t *testing.T) {
@@ -17,31 +19,31 @@ func TestGetSummary_FiltersHealthyProvidersAndDisabledSignalR(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/badges":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"episodes":       100,
-				"movies":         25,
-				"providers":      1,
-				"status":         0,
-				"sonarr_signalr": "DOWN",
-				"radarr_signalr": "LIVE",
-				"announcements":  0,
+			_ = json.NewEncoder(w).Encode(types.BazarrBadges{
+				Episodes:      100,
+				Movies:        25,
+				Providers:     1,
+				Status:        0,
+				SonarrSignalR: "DOWN",
+				RadarrSignalR: "LIVE",
+				Announcements: 0,
 			})
 		case "/api/providers":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": []map[string]any{
-					{"name": "provider-a", "status": "Good", "retry": "-"},
-					{"name": "provider-b", "status": "Good", "retry": "-"},
-					{"name": "provider-c", "status": "Throttled", "retry": "10m"},
+			_ = json.NewEncoder(w).Encode(types.BazarrProvidersEnvelope{
+				Data: []types.BazarrProviderStatus{
+					{Name: "provider-a", Status: "Good", Retry: "-"},
+					{Name: "provider-b", Status: "Good", Retry: "-"},
+					{Name: "provider-c", Status: "Throttled", Retry: "10m"},
 				},
 			})
 		case "/api/system/health":
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+			_ = json.NewEncoder(w).Encode(types.BazarrHealthIssuesEnvelope{Data: []types.BazarrHealthIssue{}})
 		case "/api/system/status":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": map[string]any{
-					"bazarr_version": "1.6.3",
-					"sonarr_version": "",
-					"radarr_version": "5.14.0",
+			_ = json.NewEncoder(w).Encode(types.BazarrSystemStatusEnvelope{
+				Data: types.BazarrSystemStatus{
+					BazarrVersion: "1.6.3",
+					SonarrVersion: "",
+					RadarrVersion: "5.14.0",
 				},
 			})
 		default:
@@ -73,14 +75,14 @@ func TestGetSummary_PreservesSignalRWhenSystemStatusFails(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/badges":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"sonarr_signalr": "DOWN",
-				"radarr_signalr": "LIVE",
+			_ = json.NewEncoder(w).Encode(types.BazarrBadges{
+				SonarrSignalR: "DOWN",
+				RadarrSignalR: "LIVE",
 			})
 		case "/api/providers":
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+			_ = json.NewEncoder(w).Encode(types.BazarrProvidersEnvelope{Data: []types.BazarrProviderStatus{}})
 		case "/api/system/health":
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+			_ = json.NewEncoder(w).Encode(types.BazarrHealthIssuesEnvelope{Data: []types.BazarrHealthIssue{}})
 		case "/api/system/status":
 			http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		default:
